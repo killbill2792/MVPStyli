@@ -2,6 +2,7 @@
   "name": "mvpstyli_fresh",
   "version": "1.0.0",
   "main": "./index.js",
+  "engines": { "node": ">=18" },
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
@@ -9,17 +10,18 @@
     "web": "expo start --web"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.58.0",
+    "@supabase/supabase-js": "^2.45.0",
     "@vercel/node": "^3.0.0",
     "babel-preset-expo": "^54.0.3",
+    "cheerio": "^1.0.0-rc.12",
     "expo": "~54.0.0",
     "expo-build-properties": "^1.0.9",
     "expo-image-picker": "~17.0.8",
     "expo-status-bar": "~3.0.8",
-    "nanoid": "^5.1.6",
+    "nanoid": "^5.0.7",
     "react": "19.1.0",
     "react-native": "0.81.4",
-    "sharp": "^0.33.0"
+    "sharp": "^0.33.3"
   },
   "private": true,
   "devDependencies": {
