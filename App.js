@@ -168,6 +168,7 @@ function Onboarding() {
         try {
           const uploadedUrl = await uploadImageAsync(res.assets[0].uri);
           setTwinUrl(uploadedUrl);
+          Alert.alert('Success', 'Photo uploaded to cloud storage!');
         } catch (error) {
           console.error('Upload error:', error);
           // Fallback: use local URI

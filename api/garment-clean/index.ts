@@ -1,21 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import fetch from 'node-fetch';
 import sharp from 'sharp';
-
-export default async (req: VercelRequest, res: VercelResponse) => {
-  if (req.method !== 'POST') return res.status(405).end();
-  const { imageUrl } = req.body || {};
-  if (!imageUrl) return res.status(400).json({ error: 'missing imageUrl' });
-
-  try {
-    const buf = await fetch(imageUrl).then(r => r.arrayBuffer()).then(b => Buffer.from(b));
-    const resized = await sharp(buf).resize({ width: 768, withoutEnlargement: true })
-                      .jpeg({ quality: 85 }).toBuffer();
-    // MVP: return data URL; later upload to Supabase and return HTTPS
+export default async (req:VercelRequest,res:VercelResponse)=>{
+  try{
+    if(req.method!=='POST') return res.status(405).json({error:'method_not_allowed'});
+    const { imageUrl } = req.body||{};
+    if(!imageUrl) return res.status(400).json({error:'missing imageUrl'});
+    const buf = await fetch(imageUrl).then(r=>r.arrayBuffer()).then(b=>Buffer.from(b));
+    const resized = await sharp(buf).resize({ width: 768, withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
     const dataUrl = `data:image/jpeg;base64,${resized.toString('base64')}`;
-    res.json({ cleanUrl: dataUrl });
-  } catch (error) {
-    console.error('Garment clean error:', error);
-    res.status(500).json({ error: 'Failed to process image' });
-  }
+    return res.json({ cleanUrl: dataUrl });
+  }catch(e:any){ return res.status(500).json({ error: e?.message || 'server_error' }); }
 };
