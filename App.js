@@ -72,17 +72,11 @@ export default function App() {
 function Shell() {
   const { state: { route, user }, setRoute, setUser } = useApp();
   
-  // Initialize user on first load
+  // Initialize user on first load - create local user without Supabase
   useEffect(() => {
     if (!user) {
-      supabase.auth.signInAnonymously().then(({ data, error }) => {
-        if (error) {
-          console.error("Auth error:", error);
-          setUser({ id: "local-user-" + Date.now(), email: null });
-        } else {
-          setUser(data.user);
-        }
-      });
+      // Create a local user without Supabase auth
+      setUser({ id: "local-user-" + Date.now(), email: null });
     }
   }, [user, setUser]);
   
@@ -125,9 +119,8 @@ function SignInScreen({ onDone }) {
 
   const handleSignIn = async () => {
     try {
-      const { data, error } = await supabase.auth.signInAnonymously();
-      if (error) throw error;
-      setUser(data.user);
+      // Create local user without Supabase
+      setUser({ id: "local-user-" + Date.now(), email: null });
       onDone();
     } catch (error) {
       console.error('Sign in error:', error);
@@ -172,8 +165,15 @@ function Onboarding() {
       });
       
       if (!res.canceled) {
-        const uploadedUrl = await uploadImageAsync(res.assets[0].uri);
-        setTwinUrl(uploadedUrl);
+        try {
+          const uploadedUrl = await uploadImageAsync(res.assets[0].uri);
+          setTwinUrl(uploadedUrl);
+        } catch (error) {
+          console.error('Upload error:', error);
+          // Fallback: use local URI
+          setTwinUrl(res.assets[0].uri);
+          Alert.alert('Upload Note', 'Photo saved locally. Some features may be limited.');
+        }
       }
     } catch (error) {
       console.error('Upload error:', error);
@@ -222,7 +222,14 @@ function Shop() {
       {products.map(p => (
         <Pressable key={p.id} onPress={() => { setCurrentProduct(p.id); setRoute('product'); }}>
           <Card>
-            <Image source={{ uri: p.image }} style={s.productImage} />
+            <Image 
+              source={{ uri: p.image }} 
+              style={s.productImage}
+              resizeMode="cover"
+              onError={(error) => {
+                console.log('Image load error for', p.id, error);
+              }}
+            />
             <View style={{ padding: 12 }}>
               <Text style={s.productTitle}>{p.name}</Text>
               <Text style={s.productPrice}>${p.price}</Text>
@@ -242,7 +249,7 @@ function Product() {
   
   useEffect(() => {
     if (product) {
-      // Call garment-clean API
+      // Try to call garment-clean API, fallback to original image
       fetch(`${process.env.EXPO_PUBLIC_API_BASE}/api/garment-clean`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -250,7 +257,7 @@ function Product() {
       })
       .then(r => r.json())
       .then(data => {
-        setCleanUrl(data.cleanUrl);
+        setCleanUrl(data.cleanUrl || product.image);
         setLoading(false);
       })
       .catch(error => {
@@ -331,7 +338,7 @@ function TryOn() {
     try {
       setBusy(true);
       
-      // Start try-on
+      // Try to start try-on
       const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE}/api/tryon`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -351,22 +358,27 @@ function TryOn() {
         return;
       }
       
-      // Poll for result
-      let status;
-      do {
-        await new Promise(r => setTimeout(r, 2000));
-        const pollResponse = await fetch(`${process.env.EXPO_PUBLIC_API_BASE}/api/tryon/${data.jobId}?cacheKey=${data.cacheKey}`);
-        status = await pollResponse.json();
-      } while (status.status === 'queued' || status.status === 'processing');
-      
-      if (status.status === 'succeeded' && status.resultUrl) {
-        setResult(status.resultUrl);
-        Alert.alert('Success', 'Try-on generated!');
+      if (data.jobId) {
+        // Poll for result
+        let status;
+        do {
+          await new Promise(r => setTimeout(r, 2000));
+          const pollResponse = await fetch(`${process.env.EXPO_PUBLIC_API_BASE}/api/tryon/${data.jobId}?cacheKey=${data.cacheKey}`);
+          status = await pollResponse.json();
+        } while (status.status === 'queued' || status.status === 'processing');
+        
+        if (status.status === 'succeeded' && status.resultUrl) {
+          setResult(status.resultUrl);
+          Alert.alert('Success', 'Try-on generated!');
+        } else {
+          throw new Error(status.error || 'Try-on failed');
+        }
       } else {
-        throw new Error(status.error || 'Try-on failed');
+        throw new Error(data.error || 'Failed to start try-on');
       }
     } catch (error) {
-      Alert.alert('Try-On Error', String(error?.message || error));
+      console.error('Try-on error:', error);
+      Alert.alert('Try-On Error', 'AI try-on is not available. Quick Look still works!');
     } finally {
       setBusy(false);
     }
@@ -438,13 +450,13 @@ function Feed() {
         
         <View style={{ position: 'absolute', bottom: 16, right: 16, gap: 12 }}>
           <Pressable onPress={() => vote('yes')} style={{ backgroundColor: 'rgba(0,0,0,0.6)', padding: 12, borderRadius: 9999, opacity: hasVoted ? 0.5 : 1 }}>
-            <Text style={{ color: '#fff', fontSize: 24 }}>👍</Text>
+            <Text style={{ color: '#fff', fontSize: 24 }}>🔥</Text>
           </Pressable>
           <Pressable onPress={() => vote('maybe')} style={{ backgroundColor: 'rgba(0,0,0,0.6)', padding: 12, borderRadius: 9999, opacity: hasVoted ? 0.5 : 1 }}>
-            <Text style={{ color: '#fff', fontSize: 24 }}>🤔</Text>
+            <Text style={{ color: '#fff', fontSize: 24 }}>❤️</Text>
           </Pressable>
           <Pressable onPress={() => vote('no')} style={{ backgroundColor: 'rgba(0,0,0,0.6)', padding: 12, borderRadius: 9999, opacity: hasVoted ? 0.5 : 1 }}>
-            <Text style={{ color: '#fff', fontSize: 24 }}>👎</Text>
+            <Text style={{ color: '#fff', fontSize: 24 }}>❌</Text>
           </Pressable>
         </View>
       </View>
@@ -545,13 +557,13 @@ function RoomOwner() {
         <Text style={s.muted}>Votes: Yes {room.votes.yes} • Maybe {room.votes.maybe} • No {room.votes.no}</Text>
         <View style={{ height: 24 }} />
         <Pressable onPress={() => vote(roomId, 'yes')} style={[s.btn, s.btnPrimary]}>
-          <Text style={s.btnPrimaryText}>👍 Yes ({room.votes.yes})</Text>
+          <Text style={s.btnPrimaryText}>🔥 Yes ({room.votes.yes})</Text>
         </Pressable>
         <Pressable onPress={() => vote(roomId, 'maybe')} style={s.btn}>
-          <Text style={s.btnText}>🤔 Maybe ({room.votes.maybe})</Text>
+          <Text style={s.btnText}>❤️ Maybe ({room.votes.maybe})</Text>
         </Pressable>
         <Pressable onPress={() => vote(roomId, 'no')} style={s.btn}>
-          <Text style={s.btnText}>👎 No ({room.votes.no})</Text>
+          <Text style={s.btnText}>❌ No ({room.votes.no})</Text>
         </Pressable>
         <Pressable onPress={() => useApp().setRoute('recap')} style={s.btn}>
           <Text style={s.btnText}>See AI Recap</Text>
@@ -598,7 +610,6 @@ function AccountScreen({ onBack }) {
 
   const handleSignOut = async () => {
     try {
-      await supabase.auth.signOut();
       setUser(null);
       setRoute('signin');
     } catch (error) {
