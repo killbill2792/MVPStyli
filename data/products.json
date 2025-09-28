@@ -1,0 +1,44 @@
+[
+  {
+    "id": "denim-jacket",
+    "name": "ASOS Denim Jacket",
+    "price": 69,
+    "image": "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&auto=format&fit=crop&w=1200",
+    "category": "upper_body"
+  },
+  {
+    "id": "black-blazer",
+    "name": "Zara Black Blazer",
+    "price": 119,
+    "image": "https://images.unsplash.com/photo-1503342217505-b0a15cf70489?q=80&auto=format&fit=crop&w=1200",
+    "category": "upper_body"
+  },
+  {
+    "id": "silk-dress",
+    "name": "COS Silk Dress",
+    "price": 159,
+    "image": "https://images.unsplash.com/photo-1544441893-675973e31985?q=80&auto=format&fit=crop&w=1200",
+    "category": "dress"
+  },
+  {
+    "id": "white-sneakers",
+    "name": "Nike Air Force 1",
+    "price": 90,
+    "image": "https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&auto=format&fit=crop&w=1200",
+    "category": "lower_body"
+  },
+  {
+    "id": "leather-bag",
+    "name": "Coach Leather Tote",
+    "price": 295,
+    "image": "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?q=80&auto=format&fit=crop&w=1200",
+    "category": "accessory"
+  },
+  {
+    "id": "knit-sweater",
+    "name": "Uniqlo Cashmere",
+    "price": 79,
+    "image": "https://images.unsplash.com/photo-1434389677669-e08b4cac3105?q=80&auto=format&fit=crop&w=1200",
+    "category": "upper_body"
+  }
+]

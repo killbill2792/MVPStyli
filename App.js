@@ -4,26 +4,18 @@ import * as ImagePicker from 'expo-image-picker';
 import { customAlphabet } from 'nanoid/non-secure';
 import { supabase } from './lib/supabase';
 import { uploadImageAsync } from './lib/upload';
-import { getCleanGarmentUrl } from './lib/cleaner';
-import { startTryOn, pollTryOn } from './lib/tryon';
+import productsData from './data/products.json';
 
 const nano = customAlphabet('ABCDEFGHJKLMNPQRSTUVWXYZ23456789', 8);
 const Ctx = createContext(null);
 function rid() { return nano(); }
 
 const initial = {
-  route: 'setup',
+  route: 'signin',
   params: {},
-  twinUri: null,
+  twinUrl: null,
   user: null,
-  products: [
-    { id: 'denim-jacket', title: 'ASOS Denim Jacket', price: 69, rating: 4.6, image: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&auto=format&fit=crop&w=1200', category: 'upper' },
-    { id: 'black-blazer', title: 'Zara Black Blazer', price: 119, rating: 4.4, image: 'https://images.unsplash.com/photo-1503342217505-b0a15cf70489?q=80&auto=format&fit=crop&w=1200', category: 'upper' },
-    { id: 'silk-dress', title: 'COS Silk Dress', price: 159, rating: 4.7, image: 'https://images.unsplash.com/photo-1544441893-675973e31985?q=80&auto=format&fit=crop&w=1200', category: 'dress' },
-    { id: 'white-sneakers', title: 'Nike Air Force 1', price: 90, rating: 4.8, image: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&auto=format&fit=crop&w=1200', category: 'lower' },
-    { id: 'leather-bag', title: 'Coach Leather Tote', price: 295, rating: 4.5, image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?q=80&auto=format&fit=crop&w=1200', category: 'upper' },
-    { id: 'knit-sweater', title: 'Uniqlo Cashmere', price: 79, rating: 4.3, image: 'https://images.unsplash.com/photo-1434389677669-e08b4cac3105?q=80&auto=format&fit=crop&w=1200', category: 'upper' }
-  ],
+  products: productsData,
   currentProductId: 'denim-jacket',
   feedItems: [
     { id: 'f1', uri: 'https://images.unsplash.com/photo-1520975916090-3105956dac38?q=80&auto=format&fit=crop&w=1200', handle: '@mina', sub: 'Party • Streetwear', yes: 82, maybe: 15, no: 9 },
@@ -41,7 +33,7 @@ export function AppProvider({ children }) {
   const api = useMemo(() => ({
     state,
     setRoute: (route, params) => setState(s => ({ ...s, route, params: params || {} })),
-    setTwinUri: (uri) => setState(s => ({ ...s, twinUri: uri })),
+    setTwinUrl: (url) => setState(s => ({ ...s, twinUrl: url })),
     setUser: (user) => setState(s => ({ ...s, user })),
     setCurrentProduct: (id) => setState(s => ({ ...s, currentProductId: id })),
     nextFeedItem: () => setState(s => ({ ...s, currentFeedIndex: (s.currentFeedIndex + 1) % s.feedItems.length })),
@@ -79,16 +71,6 @@ export default function App() {
 
 function Shell() {
   const { state: { route, user }, setRoute, setUser } = useApp();
-  
-  // Check if we have real Supabase credentials
-  const hasSupabaseCredentials = process.env.EXPO_PUBLIC_SUPABASE_URL && 
-    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY && 
-    !process.env.EXPO_PUBLIC_SUPABASE_URL.includes("your-project");
-  
-  // Show setup screen if credentials are missing
-  if (!hasSupabaseCredentials) {
-    return <SetupScreen />;
-  }
   
   // Initialize user on first load
   useEffect(() => {
@@ -138,83 +120,7 @@ function Shell() {
   );
 }
 
-function SetupScreen() {
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#000', padding: 24 }}>
-      <StatusBar barStyle="light-content" />
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={{ color: '#e4e4e7', fontSize: 32, fontWeight: '700', marginBottom: 16 }}>
-          MVPStyli Setup Required
-        </Text>
-        <Text style={{ color: '#a1a1aa', fontSize: 16, textAlign: 'center', marginBottom: 32 }}>
-          To use this app, you need to configure your API credentials
-        </Text>
-        
-        <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderRadius: 24, padding: 20, width: '100%', maxWidth: 400 }}>
-          <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '600', marginBottom: 16 }}>
-            Required Setup:
-          </Text>
-          
-          <View style={{ marginBottom: 16 }}>
-            <Text style={{ color: '#f59e0b', fontSize: 16, fontWeight: '600', marginBottom: 8 }}>
-              1. Supabase Setup
-            </Text>
-            <Text style={{ color: '#a1a1aa', fontSize: 14 }}>
-              • Create project at supabase.com{'\n'}
-              • Get Project URL and anon key{'\n'}
-              • Enable anonymous auth{'\n'}
-              • Create public 'images' bucket
-            </Text>
-          </View>
-          
-          <View style={{ marginBottom: 16 }}>
-            <Text style={{ color: '#f59e0b', fontSize: 16, fontWeight: '600', marginBottom: 8 }}>
-              2. Vercel API Setup
-            </Text>
-            <Text style={{ color: '#a1a1aa', fontSize: 14 }}>
-              • Deploy /api folder to Vercel{'\n'}
-              • Get your Vercel app URL{'\n'}
-              • Set environment variables
-            </Text>
-          </View>
-          
-          <View style={{ marginBottom: 16 }}>
-            <Text style={{ color: '#f59e0b', fontSize: 16, fontWeight: '600', marginBottom: 8 }}>
-              3. Replicate AI Setup
-            </Text>
-            <Text style={{ color: '#a1a1aa', fontSize: 14 }}>
-              • Get API token from replicate.com{'\n'}
-              • Choose try-on model
-            </Text>
-          </View>
-          
-          <View style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.3)' }}>
-            <Text style={{ color: '#ef4444', fontSize: 14, fontWeight: '600', marginBottom: 4 }}>
-              Current Status:
-            </Text>
-            <Text style={{ color: '#ef4444', fontSize: 12 }}>
-              Supabase credentials not configured
-            </Text>
-          </View>
-        </View>
-        
-        <View style={{ marginTop: 24, backgroundColor: 'rgba(34, 197, 94, 0.1)', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(34, 197, 94, 0.3)' }}>
-          <Text style={{ color: '#22c55e', fontSize: 14, fontWeight: '600', marginBottom: 4 }}>
-            Next Steps:
-          </Text>
-          <Text style={{ color: '#22c55e', fontSize: 12 }}>
-            1. Update .env.local with real credentials{'\n'}
-            2. Restart the app{'\n'}
-            3. Follow SETUP_GUIDE.md for details
-          </Text>
-        </View>
-      </View>
-    </SafeAreaView>
-  );
-}
-
 function SignInScreen({ onDone }) {
-  const [email, setEmail] = useState('');
   const { setUser } = useApp();
 
   const handleSignIn = async () => {
@@ -250,7 +156,7 @@ function SignInScreen({ onDone }) {
 }
 
 function Onboarding() {
-  const { setTwinUri, setRoute, state: { twinUri } } = useApp();
+  const { setTwinUrl, setRoute, state: { twinUrl } } = useApp();
   
   const pick = async () => {
     try {
@@ -267,7 +173,7 @@ function Onboarding() {
       
       if (!res.canceled) {
         const uploadedUrl = await uploadImageAsync(res.assets[0].uri);
-        setTwinUri(uploadedUrl);
+        setTwinUrl(uploadedUrl);
       }
     } catch (error) {
       console.error('Upload error:', error);
@@ -276,7 +182,7 @@ function Onboarding() {
   };
   
   const next = () => {
-    if (twinUri) {
+    if (twinUrl) {
       setRoute('shop');
     } else {
       Alert.alert('Upload required', 'Please upload your photo.');
@@ -293,14 +199,14 @@ function Onboarding() {
           <Text style={s.label}>Upload Photo <Text style={{ color: '#f87171' }}>(required)</Text></Text>
           <Text style={s.inputHint}>Tap to choose from gallery</Text>
         </Pressable>
-        {twinUri && (
+        {twinUrl && (
           <View style={{ marginTop: 12 }}>
-            <Image source={{ uri: twinUri }} style={{ width: 100, height: 100, borderRadius: 12 }} />
+            <Image source={{ uri: twinUrl }} style={{ width: 100, height: 100, borderRadius: 12 }} />
             <Text style={{ color: '#10b981', fontSize: 14, marginTop: 4 }}>✓ Photo uploaded</Text>
           </View>
         )}
         <View style={{ height: 12 }} />
-        <Pressable onPress={next} style={[s.btn, s.btnPrimary, !twinUri && { opacity: 0.5 }]} disabled={!twinUri}>
+        <Pressable onPress={next} style={[s.btn, s.btnPrimary, !twinUrl && { opacity: 0.5 }]} disabled={!twinUrl}>
           <Text style={s.btnPrimaryText}>Continue →</Text>
         </Pressable>
       </Card>
@@ -318,8 +224,8 @@ function Shop() {
           <Card>
             <Image source={{ uri: p.image }} style={s.productImage} />
             <View style={{ padding: 12 }}>
-              <Text style={s.productTitle}>{p.title}</Text>
-              <Text style={s.productPrice}>${p.price} • {p.rating}★</Text>
+              <Text style={s.productTitle}>{p.name}</Text>
+              <Text style={s.productPrice}>${p.price}</Text>
             </View>
           </Card>
         </Pressable>
@@ -336,16 +242,22 @@ function Product() {
   
   useEffect(() => {
     if (product) {
-      getCleanGarmentUrl(product.id, product.image, product.category)
-        .then(url => {
-          setCleanUrl(url);
-          setLoading(false);
-        })
-        .catch(error => {
-          console.error('Clean URL error:', error);
-          setCleanUrl(product.image);
-          setLoading(false);
-        });
+      // Call garment-clean API
+      fetch(`${process.env.EXPO_PUBLIC_API_BASE}/api/garment-clean`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl: product.image })
+      })
+      .then(r => r.json())
+      .then(data => {
+        setCleanUrl(data.cleanUrl);
+        setLoading(false);
+      })
+      .catch(error => {
+        console.error('Clean URL error:', error);
+        setCleanUrl(product.image);
+        setLoading(false);
+      });
     }
   }, [product]);
   
@@ -359,13 +271,13 @@ function Product() {
       <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderRadius: 24, padding: 16 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
           <Text style={{ color: '#e4e4e7', fontWeight: '700', fontSize: 16 }}>${product.price}</Text>
-          <Text style={{ color: '#a1a1aa' }}>{product.rating}★ · Free returns</Text>
+          <Text style={{ color: '#a1a1aa' }}>Free returns</Text>
         </View>
         <Text style={{ color: '#a1a1aa' }}>Fabric: Cotton blend • Shipping: 2–4 days • Returns: 30 days</Text>
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
           <Pressable 
             disabled={!cleanUrl || loading} 
-            onPress={() => setRoute('tryon', { garmentCleanUrl: cleanUrl })} 
+            onPress={() => setRoute('tryon', { garmentCleanUrl: cleanUrl, garmentId: product.id, category: product.category })} 
             style={{ 
               flex: 1, 
               backgroundColor: (cleanUrl && !loading) ? '#fff' : 'rgba(255,255,255,0.3)', 
@@ -389,36 +301,63 @@ function Product() {
 }
 
 function TryOn() {
-  const { state: { twinUri, currentProductId, products }, setRoute, setTwinUri } = useApp();
+  const { state: { twinUrl, currentProductId, products }, setRoute, setTwinUrl } = useApp();
   const product = products.find(p => p.id === currentProductId);
   const garmentCleanUrl = useApp().state.params?.garmentCleanUrl;
+  const garmentId = useApp().state.params?.garmentId;
+  const category = useApp().state.params?.category;
   
-  const [showAI, setShowAI] = useState(false);
-  const [showSuggest, setShowSuggest] = useState(false);
+  const [showQuickLook, setShowQuickLook] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   
-  useEffect(() => {
-    if (twinUri && garmentCleanUrl) {
-      applyOutfit();
-    }
-  }, [twinUri, garmentCleanUrl]);
+  if (!twinUrl) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+        <Text style={{ color: '#e4e4e7', fontSize: 18, marginBottom: 16 }}>No photo uploaded</Text>
+        <Pressable onPress={() => setRoute('onboarding')} style={s.btn}>
+          <Text style={s.btnText}>Upload Photo</Text>
+        </Pressable>
+      </View>
+    );
+  }
   
-  const applyOutfit = async () => {
-    if (!twinUri || !garmentCleanUrl) {
+  const handleSeeFit = async () => {
+    if (!twinUrl || !garmentCleanUrl) {
       Alert.alert('Error', 'Please upload your photo and select a garment first.');
       return;
     }
     
     try {
       setBusy(true);
-      const { jobId } = await startTryOn(twinUri, garmentCleanUrl, product?.category);
       
+      // Start try-on
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE}/api/tryon`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          userUrl: twinUrl, 
+          garmentUrl: garmentCleanUrl, 
+          garmentId, 
+          category 
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.cache) {
+        setResult(data.resultUrl);
+        Alert.alert('Success', 'Try-on loaded from cache!');
+        return;
+      }
+      
+      // Poll for result
       let status;
       do {
-        await new Promise(r => setTimeout(r, 1500));
-        status = await pollTryOn(jobId);
-      } while (status.status === 'queued' || status.status === 'running');
+        await new Promise(r => setTimeout(r, 2000));
+        const pollResponse = await fetch(`${process.env.EXPO_PUBLIC_API_BASE}/api/tryon/${data.jobId}?cacheKey=${data.cacheKey}`);
+        status = await pollResponse.json();
+      } while (status.status === 'queued' || status.status === 'processing');
       
       if (status.status === 'succeeded' && status.resultUrl) {
         setResult(status.resultUrl);
@@ -433,19 +372,8 @@ function TryOn() {
     }
   };
   
-  if (!twinUri) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
-        <Text style={{ color: '#e4e4e7', fontSize: 18, marginBottom: 16 }}>No photo uploaded</Text>
-        <Pressable onPress={() => setRoute('onboarding')} style={s.btn}>
-          <Text style={s.btnText}>Upload Photo</Text>
-        </Pressable>
-      </View>
-    );
-  }
-  
   return (
-    <TouchableWithoutFeedback onPress={() => { setShowAI(false); setShowSuggest(false); }}>
+    <TouchableWithoutFeedback onPress={() => setShowQuickLook(false)}>
       <View style={{ alignItems: 'center', flex: 1 }}>
         {busy && (
           <View style={StyleSheet.absoluteFillObject}>
@@ -457,45 +385,25 @@ function TryOn() {
         )}
         
         <View style={{ width: '100%', aspectRatio: 9 / 16, borderRadius: 24, overflow: 'hidden', position: 'relative', maxWidth: 420 }}>
-          <Image source={{ uri: result || twinUri }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
+          <Image source={{ uri: result || twinUrl }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
           
-          <Pressable onPress={() => setTwinUri(null)} style={{ position: 'absolute', left: 12, top: 12, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9999 }}>
+          {/* Quick Look Overlay */}
+          {showQuickLook && garmentCleanUrl && (
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.3)' }}>
+              <Image source={{ uri: garmentCleanUrl }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
+            </View>
+          )}
+          
+          <Pressable onPress={() => setTwinUrl(null)} style={{ position: 'absolute', left: 12, top: 12, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9999 }}>
             <Text style={{ color: '#fff', fontSize: 12 }}>📷 Change Photo</Text>
           </Pressable>
           
-          <View style={{ position: 'absolute', right: 8, top: 8, gap: 8 }}>
-            <Rail icon="📈" onPress={() => { setShowAI(v => !v); setShowSuggest(false); }} />
-            <Rail icon="🧩" onPress={() => { setShowSuggest(v => !v); setShowAI(false); }} />
-          </View>
-          
-          {showAI && (
-            <View style={{ position: 'absolute', right: 12, top: 12, width: 330, padding: 18, backgroundColor: 'rgba(0,0,0,0.45)', borderColor: 'rgba(255,255,255,0.14)', borderWidth: 1, borderRadius: 16 }}>
-              <Text style={{ color: '#e4e4e7', fontWeight: '700', marginBottom: 8, fontSize: 16 }}>AI Analytics</Text>
-              <Stat label="Confidence" value={82} />
-              <Text style={{ color: '#a1a1aa', fontSize: 14, marginTop: 8 }}>Fit tips:</Text>
-              <Text style={{ color: '#e4e4e7', fontSize: 14 }}>• Shorten hem 2cm{'\n'}• Add belt to define waist</Text>
-            </View>
-          )}
-          
-          {showSuggest && (
-            <View style={{ position: 'absolute', right: 12, top: 12, width: 330, padding: 18, backgroundColor: 'rgba(0,0,0,0.45)', borderColor: 'rgba(255,255,255,0.14)', borderWidth: 1, borderRadius: 16 }}>
-              <Text style={{ color: '#e4e4e7', fontWeight: '700', marginBottom: 8, fontSize: 16 }}>Suggestions</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {['White sneakers', 'Crossbody bag', 'Denim overshirt', 'Pearl studs'].map(t => (
-                  <View key={t} style={{ backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 7 }}>
-                    <Text style={{ color: '#d4d4d8', fontSize: 14 }}>{t}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-          
           <View style={{ position: 'absolute', left: 8, bottom: 8, flexDirection: 'row', gap: 8 }}>
-            <Pressable onPress={() => Alert.alert('Save', 'Outfit saved!')} style={{ backgroundColor: '#fff', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14 }}>
-              <Text style={{ color: '#000', fontWeight: '700' }}>Save</Text>
+            <Pressable onPress={() => setShowQuickLook(!showQuickLook)} style={{ backgroundColor: 'rgba(255,255,255,0.10)', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14 }}>
+              <Text style={{ color: '#fff' }}>👀 Quick Look</Text>
             </Pressable>
-            <Pressable onPress={() => setRoute('product')} style={{ backgroundColor: 'rgba(255,255,255,0.10)', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14 }}>
-              <Text style={{ color: '#fff' }}>Change Dress</Text>
+            <Pressable onPress={handleSeeFit} style={{ backgroundColor: '#fff', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14 }}>
+              <Text style={{ color: '#000', fontWeight: '700' }}>✨ See Fit</Text>
             </Pressable>
           </View>
         </View>
@@ -780,28 +688,6 @@ function BottomBar({ route, go }) {
             fontWeight: route === 'account' ? '700' : '500'
           }}>⚙️</Text>
         </Pressable>
-      </View>
-    </View>
-  );
-}
-
-function Rail({ icon, onPress }) {
-  return (
-    <Pressable onPress={onPress} style={{ backgroundColor: 'rgba(0,0,0,0.55)', padding: 12, borderRadius: 14 }}>
-      <Text style={{ fontSize: 18, color: '#fff' }}>{icon}</Text>
-    </Pressable>
-  );
-}
-
-function Stat({ label, value }) {
-  return (
-    <View style={{ marginBottom: 8 }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-        <Text style={{ color: '#d4d4d8', fontSize: 14 }}>{label}</Text>
-        <Text style={{ color: '#e4e4e7', fontSize: 14, fontWeight: '700' }}>{value}%</Text>
-      </View>
-      <View style={{ height: 6, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 9999, marginTop: 6 }}>
-        <View style={{ width: `${value}%`, height: 6, borderRadius: 9999, backgroundColor: '#fff' }} />
       </View>
     </View>
   );

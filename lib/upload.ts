@@ -1,21 +1,18 @@
 import { supabase } from './supabase';
 
-export async function uploadImageAsync(localUri: string, prefix = 'images') {
-  try {
-    const res = await fetch(localUri);
-    const blob = await res.blob();
-    const name = `${prefix}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
-    
-    const { data, error } = await supabase.storage.from('images').upload(name, blob, { 
-      contentType: 'image/jpeg' 
-    });
-    
-    if (error) throw error;
-    
-    const { data: publicData } = supabase.storage.from('images').getPublicUrl(data.path);
-    return publicData.publicUrl;
-  } catch (error) {
-    console.error('Upload error:', error);
-    throw error;
-  }
+export async function uploadImageAsync(uri: string, folder='images'): Promise<string> {
+  // uri is a local file path from Expo ImagePicker
+  const resp = await fetch(uri);
+  const blob = await resp.blob();
+  const file = new File([blob], `${Date.now()}.jpg`, { type: 'image/jpeg' });
+  const path = `${folder}/${Date.now()}.jpg`;
+
+  const { data, error } = await supabase.storage.from('images').upload(path, file, {
+    cacheControl: '3600', upsert: false, contentType: 'image/jpeg'
+  });
+  if (error) throw error;
+
+  const { data: pub } = supabase.storage.from('images').getPublicUrl(path);
+  if (!pub?.publicUrl) throw new Error('No public URL');
+  return pub.publicUrl; // HTTPS
 }
