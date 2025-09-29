@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useMemo, useEffect, useState } from 'react';
-import { SafeAreaView, View, Text, Pressable, Image, StyleSheet, Alert, StatusBar, TextInput, ScrollView, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, Pressable, Image, StyleSheet, Alert, StatusBar, TextInput, ScrollView, TouchableWithoutFeedback } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { customAlphabet } from 'nanoid/non-secure';
 import { supabase } from './lib/supabase';
@@ -155,7 +156,7 @@ function Onboarding() {
       }
       
       const res = await ImagePicker.launchImageLibraryAsync({ 
-        mediaTypes: ImagePicker.MediaType.Images, 
+        mediaTypes: [ImagePicker.MediaType.Images], 
         quality: 0.9 
       });
       
