@@ -5,7 +5,13 @@ export default async (req:VercelRequest,res:VercelResponse)=>{
   try{
     const id = String(req.query.id);
     const cacheKey = String(req.query.cacheKey||'');
+    
+    console.log('Polling Replicate job:', id);
+    
     const rr = await fetch(`https://api.replicate.com/v1/predictions/${id}`, { headers: H }).then(r=>r.json());
+    
+    console.log('Replicate job status:', rr.status, rr.error);
+    
     if(rr.status==='succeeded'){
       const out = Array.isArray(rr.output) ? rr.output.at(-1) : rr.output;
       const base = `${req.headers['x-forwarded-proto']?'https':'http'}://${req.headers.host}`;
@@ -14,5 +20,8 @@ export default async (req:VercelRequest,res:VercelResponse)=>{
     }
     if(rr.status==='failed' || rr.error) return res.status(200).json({ status:'failed', error: rr.error || 'failed' });
     return res.status(200).json({ status: rr.status });
-  }catch(e:any){ return res.status(500).json({ error: e?.message || 'server_error' }); }
+  }catch(e:any){ 
+    console.error('Polling error:', e);
+    return res.status(500).json({ error: e?.message || 'server_error' }); 
+  }
 };

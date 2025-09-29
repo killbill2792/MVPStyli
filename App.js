@@ -156,7 +156,7 @@ function Onboarding() {
       }
       
       const res = await ImagePicker.launchImageLibraryAsync({ 
-        mediaTypes: [ImagePicker.MediaType.Images], 
+        mediaTypes: ['images'], 
         quality: 0.9 
       });
       
@@ -335,6 +335,13 @@ function TryOn() {
     try {
       setBusy(true);
       
+      console.log('Starting AI try-on with:', { 
+        userUrl: twinUrl, 
+        garmentUrl: garmentCleanUrl, 
+        garmentId, 
+        category 
+      });
+      
       // Try to start try-on
       const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE}/api/tryon`, {
         method: 'POST',
@@ -348,6 +355,7 @@ function TryOn() {
       });
       
       const data = await response.json();
+      console.log('Try-on response:', data);
       
       if (data.cache) {
         setResult(data.resultUrl);
@@ -362,11 +370,12 @@ function TryOn() {
           await new Promise(r => setTimeout(r, 2000));
           const pollResponse = await fetch(`${process.env.EXPO_PUBLIC_API_BASE}/api/tryon/${data.jobId}?cacheKey=${data.cacheKey}`);
           status = await pollResponse.json();
+          console.log('Polling status:', status);
         } while (status.status === 'queued' || status.status === 'processing');
         
         if (status.status === 'succeeded' && status.resultUrl) {
           setResult(status.resultUrl);
-          Alert.alert('Success', 'Try-on generated!');
+          Alert.alert('Success', 'AI try-on generated!');
         } else {
           throw new Error(status.error || 'Try-on failed');
         }
@@ -375,7 +384,7 @@ function TryOn() {
       }
     } catch (error) {
       console.error('Try-on error:', error);
-      Alert.alert('Try-On Error', 'AI try-on is not available. Quick Look still works!');
+      Alert.alert('Try-On Error', `AI try-on failed: ${error.message}. Quick Look still works!`);
     } finally {
       setBusy(false);
     }
@@ -396,10 +405,35 @@ function TryOn() {
         <View style={{ width: '100%', aspectRatio: 9 / 16, borderRadius: 24, overflow: 'hidden', position: 'relative', maxWidth: 420 }}>
           <Image source={{ uri: result || twinUrl }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
           
-          {/* Quick Look Overlay */}
+          {/* Quick Look Overlay - Better implementation */}
           {showQuickLook && garmentCleanUrl && (
-            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.3)' }}>
-              <Image source={{ uri: garmentCleanUrl }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
+            <View style={{ 
+              position: 'absolute', 
+              top: 0, 
+              left: 0, 
+              right: 0, 
+              bottom: 0, 
+              backgroundColor: 'rgba(0,0,0,0.2)',
+              justifyContent: 'center',
+              alignItems: 'center'
+            }}>
+              <View style={{
+                width: '80%',
+                height: '80%',
+                borderRadius: 20,
+                overflow: 'hidden',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+                elevation: 8
+              }}>
+                <Image 
+                  source={{ uri: garmentCleanUrl }} 
+                  resizeMode="cover" 
+                  style={StyleSheet.absoluteFillObject}
+                />
+              </View>
             </View>
           )}
           
