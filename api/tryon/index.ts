@@ -13,7 +13,15 @@ export default async (req:VercelRequest,res:VercelResponse)=>{
     const base = `${req.headers['x-forwarded-proto']?'https':'http'}://${req.headers.host}`;
     const cached = await fetch(`${base}/api/tryon/cache?key=${cacheKey}`).then(r=>r.json()).catch(()=>null);
     if(cached?.resultUrl) return res.json({status:'succeeded', resultUrl: cached.resultUrl, cache:true});
-    const body = { version: MODEL, input: { human_img: userUrl, garm_img: garmentUrl, category } };
+    // Map category to Replicate's expected values
+    const categoryMap = {
+      'upper': 'upper_body',
+      'lower': 'lower_body', 
+      'dress': 'dresses'
+    };
+    const mappedCategory = categoryMap[category] || 'upper_body';
+    
+    const body = { version: MODEL, input: { human_img: userUrl, garm_img: garmentUrl, category: mappedCategory } };
     const rr = await fetch('https://api.replicate.com/v1/predictions', { method:'POST', headers:H, body: JSON.stringify(body) }).then(r=>r.json());
     if(rr?.id) return res.json({ jobId: rr.id, cacheKey });
     return res.status(500).json({ error: rr?.error || 'replicate_start_failed' });

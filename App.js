@@ -17,12 +17,7 @@ const initial = {
   user: null,
   products: productsData,
   currentProductId: 'denim-jacket',
-  feedItems: [
-    { id: 'f1', uri: 'https://images.unsplash.com/photo-1520975916090-3105956dac38?q=80&auto=format&fit=crop&w=1200', handle: '@mina', sub: 'Party • Streetwear', yes: 82, maybe: 15, no: 9 },
-    { id: 'f2', uri: 'https://images.unsplash.com/photo-1503342217505-b0a15cf70489?q=80&auto=format&fit=crop&w=1200', handle: '@sophia', sub: 'Office • Minimalist', yes: 67, maybe: 23, no: 12 },
-    { id: 'f3', uri: 'https://images.unsplash.com/photo-1544441893-675973e31985?q=80&auto=format&fit=crop&w=1200', handle: '@zara', sub: 'Casual • Boho', yes: 91, maybe: 7, no: 4 },
-    { id: 'f4', uri: 'https://images.unsplash.com/photo-1434389677669-e08b4cac3105?q=80&auto=format&fit=crop&w=1200', handle: '@emma', sub: 'Weekend • Cozy', yes: 74, maybe: 18, no: 8 }
-  ],
+  feedItems: [],
   currentFeedIndex: 0,
   rooms: []
 };
@@ -160,7 +155,7 @@ function Onboarding() {
       }
       
       const res = await ImagePicker.launchImageLibraryAsync({ 
-        mediaTypes: ImagePicker.MediaTypeOptions.Images, 
+        mediaTypes: ImagePicker.MediaType.Images, 
         quality: 0.9 
       });
       
