@@ -311,7 +311,6 @@ function TryOn() {
   const garmentId = useApp().state.params?.garmentId;
   const category = useApp().state.params?.category;
   
-  const [showQuickLook, setShowQuickLook] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   
@@ -326,7 +325,7 @@ function TryOn() {
     );
   }
   
-  const handleSeeFit = async () => {
+  const handleTryOn = async () => {
     if (!twinUrl || !garmentCleanUrl) {
       Alert.alert('Error', 'Please upload your photo and select a garment first.');
       return;
@@ -342,7 +341,7 @@ function TryOn() {
         category 
       });
       
-      // Try to start try-on
+      // Call try-on API directly
       const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE}/api/tryon`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -384,74 +383,37 @@ function TryOn() {
       }
     } catch (error) {
       console.error('Try-on error:', error);
-      Alert.alert('Try-On Error', `AI try-on failed: ${error.message}. Quick Look still works!`);
+      Alert.alert('Try-On Error', `AI try-on failed: ${error.message}`);
     } finally {
       setBusy(false);
     }
   };
   
   return (
-    <TouchableWithoutFeedback onPress={() => setShowQuickLook(false)}>
-      <View style={{ alignItems: 'center', flex: 1 }}>
-        {busy && (
-          <View style={StyleSheet.absoluteFillObject}>
-            <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', borderRadius: 0 }}>
-              <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '700' }}>Generating Try-On...</Text>
-              <Text style={{ color: '#a1a1aa', fontSize: 14, marginTop: 8 }}>AI is applying the outfit to your photo</Text>
-            </View>
-          </View>
-        )}
-        
-        <View style={{ width: '100%', aspectRatio: 9 / 16, borderRadius: 24, overflow: 'hidden', position: 'relative', maxWidth: 420 }}>
-          <Image source={{ uri: result || twinUrl }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
-          
-          {/* Quick Look Overlay - Better implementation */}
-          {showQuickLook && garmentCleanUrl && (
-            <View style={{ 
-              position: 'absolute', 
-              top: 0, 
-              left: 0, 
-              right: 0, 
-              bottom: 0, 
-              backgroundColor: 'rgba(0,0,0,0.2)',
-              justifyContent: 'center',
-              alignItems: 'center'
-            }}>
-              <View style={{
-                width: '80%',
-                height: '80%',
-                borderRadius: 20,
-                overflow: 'hidden',
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 8,
-                elevation: 8
-              }}>
-                <Image 
-                  source={{ uri: garmentCleanUrl }} 
-                  resizeMode="cover" 
-                  style={StyleSheet.absoluteFillObject}
-                />
-              </View>
-            </View>
-          )}
-          
-          <Pressable onPress={() => setTwinUrl(null)} style={{ position: 'absolute', left: 12, top: 12, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9999 }}>
-            <Text style={{ color: '#fff', fontSize: 12 }}>📷 Change Photo</Text>
-          </Pressable>
-          
-          <View style={{ position: 'absolute', left: 8, bottom: 8, flexDirection: 'row', gap: 8 }}>
-            <Pressable onPress={() => setShowQuickLook(!showQuickLook)} style={{ backgroundColor: 'rgba(255,255,255,0.10)', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14 }}>
-              <Text style={{ color: '#fff' }}>👀 Quick Look</Text>
-            </Pressable>
-            <Pressable onPress={handleSeeFit} style={{ backgroundColor: '#fff', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14 }}>
-              <Text style={{ color: '#000', fontWeight: '700' }}>✨ See Fit</Text>
-            </Pressable>
+    <View style={{ alignItems: 'center', flex: 1 }}>
+      {busy && (
+        <View style={StyleSheet.absoluteFillObject}>
+          <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', borderRadius: 0 }}>
+            <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '700' }}>Generating Try-On...</Text>
+            <Text style={{ color: '#a1a1aa', fontSize: 14, marginTop: 8 }}>AI is applying the outfit to your photo</Text>
           </View>
         </View>
+      )}
+      
+      <View style={{ width: '100%', aspectRatio: 9 / 16, borderRadius: 24, overflow: 'hidden', position: 'relative', maxWidth: 420 }}>
+        <Image source={{ uri: result || twinUrl }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
+        
+        <Pressable onPress={() => setTwinUrl(null)} style={{ position: 'absolute', left: 12, top: 12, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9999 }}>
+          <Text style={{ color: '#fff', fontSize: 12 }}>📷 Change Photo</Text>
+        </Pressable>
+        
+        <View style={{ position: 'absolute', left: 8, bottom: 8, flexDirection: 'row', gap: 8 }}>
+          <Pressable onPress={handleTryOn} style={{ backgroundColor: '#fff', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14 }}>
+            <Text style={{ color: '#000', fontWeight: '700' }}>✨ Try On</Text>
+          </Pressable>
+        </View>
       </View>
-    </TouchableWithoutFeedback>
+    </View>
   );
 }
 
