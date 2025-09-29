@@ -160,8 +160,9 @@ function Onboarding() {
         quality: 0.9 
       });
       
-      if (!res.canceled) {
+      if (!res.canceled && res.assets && res.assets[0] && res.assets[0].uri) {
         try {
+          console.log('Selected image URI:', res.assets[0].uri);
           const uploadedUrl = await uploadImageAsync(res.assets[0].uri);
           setTwinUrl(uploadedUrl);
           Alert.alert('Success', 'Photo uploaded to cloud storage!');
@@ -171,6 +172,9 @@ function Onboarding() {
           setTwinUrl(res.assets[0].uri);
           Alert.alert('Upload Note', 'Photo saved locally. Some features may be limited.');
         }
+      } else {
+        console.error('No valid image selected:', res);
+        Alert.alert('Error', 'No image was selected.');
       }
     } catch (error) {
       console.error('Upload error:', error);
