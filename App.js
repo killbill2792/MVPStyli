@@ -95,6 +95,13 @@ export function AppProvider({ children }) {
 export const useApp = () => useContext(Ctx);
 
 export default function App() {
+  // Debug environment variables
+  console.log('Environment check:', {
+    apiBase: process.env.EXPO_PUBLIC_API_BASE,
+    supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
+    hasSupabaseKey: !!process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
+  });
+  
   return (
     <AppProvider>
       <Shell />
@@ -125,14 +132,13 @@ function Shell() {
   }
   
   return (
-    <View style={s.app}>
+    <SafeAreaView style={s.app} edges={['top']}>
       <StatusBar barStyle="light-content" />
-      <SafeAreaView style={s.safeArea} edges={['top', 'left', 'right']}>
-        <ScrollView 
-          style={s.container} 
-          contentContainerStyle={s.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
+      <ScrollView 
+        style={s.container} 
+        contentContainerStyle={s.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {route === "signin" && <SignInScreen onDone={() => setRoute("onboarding")} />}
         {route === "onboarding" && <Onboarding />}
         {route === "shop" && <Shop />}
@@ -146,10 +152,9 @@ function Shell() {
         {route === "recap" && <Recap />}
         {route === "feed" && <Feed />}
         {route === "account" && <AccountScreen onBack={() => setRoute("shop")} />}
-        </ScrollView>
-        {route !== "signin" && <BottomBar route={route} go={setRoute} />}
-      </SafeAreaView>
-    </View>
+      </ScrollView>
+      {route !== "signin" && <BottomBar route={route} go={setRoute} />}
+    </SafeAreaView>
   );
 }
 
@@ -774,7 +779,6 @@ function Card({ children }) {
 
 const s = StyleSheet.create({
   app: { flex: 1, backgroundColor: '#000' },
-  safeArea: { flex: 1 },
   container: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 100 }, // Add bottom padding for bottom bar
   grid2: { gap: 16 },
