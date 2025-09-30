@@ -13,7 +13,7 @@ export async function uploadImageAsync(localUri: string) {
     
     // Read file as base64 in React Native
     const base64 = await FileSystem.readAsStringAsync(localUri, {
-      encoding: FileSystem.EncodingType.Base64,
+      encoding: 'base64',
     });
     
     // Convert base64 to ArrayBuffer for Supabase

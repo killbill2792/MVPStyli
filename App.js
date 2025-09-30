@@ -125,13 +125,14 @@ function Shell() {
   }
   
   return (
-    <SafeAreaView style={s.app} edges={['top', 'left', 'right']}>
+    <View style={s.app}>
       <StatusBar barStyle="light-content" />
-      <ScrollView 
-        style={s.container} 
-        contentContainerStyle={s.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+      <SafeAreaView style={s.safeArea} edges={['top', 'left', 'right']}>
+        <ScrollView 
+          style={s.container} 
+          contentContainerStyle={s.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
         {route === "signin" && <SignInScreen onDone={() => setRoute("onboarding")} />}
         {route === "onboarding" && <Onboarding />}
         {route === "shop" && <Shop />}
@@ -145,9 +146,10 @@ function Shell() {
         {route === "recap" && <Recap />}
         {route === "feed" && <Feed />}
         {route === "account" && <AccountScreen onBack={() => setRoute("shop")} />}
-      </ScrollView>
-      {route !== "signin" && <BottomBar route={route} go={setRoute} />}
-    </SafeAreaView>
+        </ScrollView>
+        {route !== "signin" && <BottomBar route={route} go={setRoute} />}
+      </SafeAreaView>
+    </View>
   );
 }
 
@@ -772,6 +774,7 @@ function Card({ children }) {
 
 const s = StyleSheet.create({
   app: { flex: 1, backgroundColor: '#000' },
+  safeArea: { flex: 1 },
   container: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 100 }, // Add bottom padding for bottom bar
   grid2: { gap: 16 },
