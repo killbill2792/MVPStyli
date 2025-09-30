@@ -1,44 +1,110 @@
 [
   {
-    "id": "denim-jacket",
-    "name": "ASOS Denim Jacket",
-    "price": 69,
-    "image": "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=400&h=600&fit=crop&crop=center",
-    "category": "upper_body"
-  },
-  {
-    "id": "black-blazer",
-    "name": "Zara Black Blazer",
+    "id": "zara-black-blazer",
+    "title": "Zara Black Blazer",
     "price": 119,
-    "image": "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=400&h=600&fit=crop&crop=center",
-    "category": "upper_body"
+    "rating": 4.4,
+    "image": "https://images.unsplash.com/photo-1503342217505-b0a15cf70489?q=80&auto=format&fit=crop&w=1200",
+    "category": "upper",
+    "buyUrl": "https://www.zara.com/"
   },
   {
-    "id": "silk-dress",
-    "name": "COS Silk Dress",
+    "id": "asos-denim-jacket",
+    "title": "ASOS Denim Jacket",
+    "price": 69,
+    "rating": 4.6,
+    "image": "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&auto=format&fit=crop&w=1200",
+    "category": "upper",
+    "buyUrl": "https://www.asos.com/"
+  },
+  {
+    "id": "cos-silk-dress",
+    "title": "COS Silk Dress",
     "price": 159,
-    "image": "https://images.unsplash.com/photo-1544441893-675973e31985?w=400&h=600&fit=crop&crop=center",
-    "category": "dress"
+    "rating": 4.7,
+    "image": "https://images.unsplash.com/photo-1544441893-675973e31985?q=80&auto=format&fit=crop&w=1200",
+    "category": "dress",
+    "buyUrl": "https://www.cos.com/"
   },
   {
-    "id": "white-sneakers",
-    "name": "Nike Air Force 1",
+    "id": "nike-air-force-1",
+    "title": "Nike Air Force 1",
     "price": 90,
-    "image": "https://images.unsplash.com/photo-1549298916-b41d501d3772?w=400&h=600&fit=crop&crop=center",
-    "category": "lower_body"
+    "rating": 4.8,
+    "image": "https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&auto=format&fit=crop&w=1200",
+    "category": "lower",
+    "buyUrl": "https://www.nike.com/"
   },
   {
-    "id": "leather-bag",
-    "name": "Coach Leather Tote",
+    "id": "coach-leather-tote",
+    "title": "Coach Leather Tote",
     "price": 295,
-    "image": "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400&h=600&fit=crop&crop=center",
-    "category": "accessory"
+    "rating": 4.5,
+    "image": "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?q=80&auto=format&fit=crop&w=1200",
+    "category": "upper",
+    "buyUrl": "https://www.coach.com/"
   },
   {
-    "id": "knit-sweater",
-    "name": "Uniqlo Cashmere",
+    "id": "uniqlo-cashmere",
+    "title": "Uniqlo Cashmere Knit",
     "price": 79,
-    "image": "https://images.unsplash.com/photo-1434389677669-e08b4cac3105?w=400&h=600&fit=crop&crop=center",
-    "category": "upper_body"
+    "rating": 4.3,
+    "image": "https://images.unsplash.com/photo-1434389677669-e08b4cac3105?q=80&auto=format&fit=crop&w=1200",
+    "category": "upper",
+    "buyUrl": "https://www.uniqlo.com/"
+  },
+  {
+    "id": "hm-trench",
+    "title": "H&M Classic Trench",
+    "price": 139,
+    "rating": 4.2,
+    "image": "https://images.unsplash.com/photo-1475180098004-ca77a66827be?q=80&auto=format&fit=crop&w=1200",
+    "category": "upper",
+    "buyUrl": "https://www2.hm.com/"
+  },
+  {
+    "id": "levi-501",
+    "title": "Levi’s 501 Original",
+    "price": 98,
+    "rating": 4.6,
+    "image": "https://images.unsplash.com/photo-1516826957135-700dedea698c?q=80&auto=format&fit=crop&w=1200",
+    "category": "lower",
+    "buyUrl": "https://www.levi.com/"
+  },
+  {
+    "id": "reformation-wrap",
+    "title": "Reformation Wrap Dress",
+    "price": 248,
+    "rating": 4.7,
+    "image": "https://images.unsplash.com/photo-1515378791036-0648a3ef77b2?q=80&auto=format&fit=crop&w=1200",
+    "category": "dress",
+    "buyUrl": "https://www.thereformation.com/"
+  },
+  {
+    "id": "adidas-samba",
+    "title": "Adidas Samba OG",
+    "price": 100,
+    "rating": 4.6,
+    "image": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&auto=format&fit=crop&w=1200",
+    "category": "lower",
+    "buyUrl": "https://www.adidas.com/"
+  },
+  {
+    "id": "aritzia-wilfred",
+    "title": "Aritzia Wilfred Blouse",
+    "price": 88,
+    "rating": 4.4,
+    "image": "https://images.unsplash.com/photo-1520975916090-3105956dac38?q=80&auto=format&fit=crop&w=1200",
+    "category": "upper",
+    "buyUrl": "https://www.aritzia.com/"
+  },
+  {
+    "id": "mango-slip-dress",
+    "title": "Mango Satin Slip",
+    "price": 119,
+    "rating": 4.3,
+    "image": "https://images.unsplash.com/photo-1519741497674-611481863552?q=80&auto=format&fit=crop&w=1200",
+    "category": "dress",
+    "buyUrl": "https://shop.mango.com/"
   }
 ]
