@@ -1,11 +1,4 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import sharp from 'sharp';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.EXPO_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 export default async (req: VercelRequest, res: VercelResponse) => {
   try {
@@ -16,50 +9,9 @@ export default async (req: VercelRequest, res: VercelResponse) => {
     
     console.log('Garment clean called with:', { imageUrl, productId, category });
     
-    try {
-      // Fetch and process the image
-      const response = await fetch(imageUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch image: ${response.status}`);
-      }
-      
-      const buf = await response.arrayBuffer();
-      const buffer = Buffer.from(buf);
-      
-      const resized = await sharp(buffer)
-        .resize({ width: 768, withoutEnlargement: true })
-        .jpeg({ quality: 85 })
-        .toBuffer();
-      
-      console.log('Image processed successfully');
-      
-      // Upload processed image to Supabase
-      const fileName = `garments/${productId || Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
-      
-      const { error } = await supabase.storage
-        .from('images')
-        .upload(fileName, resized, {
-          contentType: 'image/jpeg',
-          upsert: true,
-          cacheControl: '3600'
-        });
-      
-      if (error) {
-        console.error('Supabase upload error:', error);
-        console.error('Error details:', JSON.stringify(error, null, 2));
-        // Fallback to original URL if upload fails
-        return res.json({ cleanUrl: imageUrl, error: error.message });
-      }
-      
-      const { data } = supabase.storage.from('images').getPublicUrl(fileName);
-      console.log('Uploaded to Supabase:', data.publicUrl);
-      return res.json({ cleanUrl: data.publicUrl });
-      
-    } catch (imageError: any) {
-      console.error('Image processing error:', imageError);
-      // Fallback to original URL if image processing fails
-      return res.json({ cleanUrl: imageUrl });
-    }
+    // For now, just return the original URL
+    // The client will handle uploading to Supabase if needed
+    return res.json({ cleanUrl: imageUrl });
     
   } catch (e: any) {
     console.error('Garment clean error:', e);

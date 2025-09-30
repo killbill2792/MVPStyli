@@ -8,6 +8,41 @@ import { uploadImageAsync } from './lib/upload';
 import productsData from './data/products.json';
 import { Linking } from 'react-native';
 
+// Upload garment image to Supabase for Replicate access
+async function uploadGarmentImage(imageUrl, productId) {
+  try {
+    console.log('Uploading garment image:', imageUrl);
+    
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image: ${response.status}`);
+    }
+    
+    const blob = await response.blob();
+    const path = `garments/${productId}-${Date.now()}.jpg`;
+    
+    const { error } = await supabase.storage
+      .from('images')
+      .upload(path, blob, {
+        cacheControl: '3600',
+        upsert: true,
+        contentType: 'image/jpeg',
+      });
+    
+    if (error) {
+      console.error('Supabase upload error:', error);
+      throw error;
+    }
+    
+    const { data } = supabase.storage.from('images').getPublicUrl(path);
+    console.log('Garment uploaded to Supabase:', data.publicUrl);
+    return data.publicUrl;
+  } catch (error) {
+    console.error('Garment upload error:', error);
+    throw error;
+  }
+}
+
 const nano = customAlphabet('ABCDEFGHJKLMNPQRSTUVWXYZ23456789', 8);
 const Ctx = createContext(null);
 function rid() { return nano(); }
@@ -251,26 +286,17 @@ function Product() {
   
   useEffect(() => {
     if (product) {
-      // Try to call garment-clean API, fallback to original image
-      fetch(`${process.env.EXPO_PUBLIC_API_BASE}/api/garment-clean`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          imageUrl: product.image,
-          productId: product.id,
-          category: product.category
+      // Upload garment image to Supabase for Replicate access
+      uploadGarmentImage(product.image, product.id)
+        .then(url => {
+          setCleanUrl(url);
+          setLoading(false);
         })
-      })
-      .then(r => r.json())
-      .then(data => {
-        setCleanUrl(data.cleanUrl || product.image);
-        setLoading(false);
-      })
-      .catch(error => {
-        console.error('Clean URL error:', error);
-        setCleanUrl(product.image);
-        setLoading(false);
-      });
+        .catch(error => {
+          console.error('Garment upload error:', error);
+          setCleanUrl(product.image);
+          setLoading(false);
+        });
     }
   }, [product]);
   
