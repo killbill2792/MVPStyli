@@ -1,6 +1,7 @@
 // lib/upload.ts
 import { supabase } from './supabase';
 import { decode as atob } from 'base-64'; // <-- RN/Expo-safe atob
+import * as FileSystem from 'expo-file-system';
 
 /**
  * Upload a local device file (file://...) to Supabase public bucket "images".
@@ -10,20 +11,27 @@ export async function uploadImageAsync(localUri: string) {
   try {
     console.log('Uploading image:', localUri);
     
-    const resp = await fetch(localUri);
-    if (!resp.ok) {
-      throw new Error(`Failed to fetch local file: ${resp.status}`);
+    // Read file as base64 in React Native
+    const base64 = await FileSystem.readAsStringAsync(localUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    
+    // Convert base64 to ArrayBuffer for Supabase
+    const binary = atob(base64);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binary.charCodeAt(i);
     }
     
-    const blob = await resp.blob();
-    console.log('Blob created, size:', blob.size);
+    console.log('File read, size:', bytes.length);
 
     const path = `users/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
     console.log('Uploading to path:', path);
 
     const { error } = await supabase.storage
       .from('images')
-      .upload(path, blob, {
+      .upload(path, bytes.buffer, {
         cacheControl: '3600',
         upsert: true,
         contentType: 'image/jpeg',

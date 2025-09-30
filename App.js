@@ -18,12 +18,13 @@ async function uploadGarmentImage(imageUrl, productId) {
       throw new Error(`Failed to fetch image: ${response.status}`);
     }
     
-    const blob = await response.blob();
+    // Convert response to ArrayBuffer for React Native compatibility
+    const arrayBuffer = await response.arrayBuffer();
     const path = `garments/${productId}-${Date.now()}.jpg`;
     
     const { error } = await supabase.storage
       .from('images')
-      .upload(path, blob, {
+      .upload(path, arrayBuffer, {
         cacheControl: '3600',
         upsert: true,
         contentType: 'image/jpeg',
@@ -124,9 +125,13 @@ function Shell() {
   }
   
   return (
-    <SafeAreaView style={s.app}>
+    <SafeAreaView style={s.app} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="light-content" />
-      <ScrollView style={s.container} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={s.container} 
+        contentContainerStyle={s.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {route === "signin" && <SignInScreen onDone={() => setRoute("onboarding")} />}
         {route === "onboarding" && <Onboarding />}
         {route === "shop" && <Shop />}
@@ -259,14 +264,16 @@ function Shop() {
       {products.map(p => (
         <Pressable key={p.id} onPress={() => { setCurrentProduct(p.id); setRoute('product'); }}>
           <Card>
-            <Image 
-              source={{ uri: p.image }} 
-              style={s.productImage}
-              resizeMode="cover"
-              onError={(error) => {
-                console.log('Image load error for', p.id, error);
-              }}
-            />
+            <View style={s.productImageContainer}>
+              <Image 
+                source={{ uri: p.image }} 
+                style={s.productImage}
+                resizeMode="cover"
+                onError={(error) => {
+                  console.log('Image load error for', p.id, error);
+                }}
+              />
+            </View>
             <View style={{ padding: 12 }}>
               <Text style={s.productTitle}>{p.name}</Text>
               <Text style={s.productPrice}>${p.price}</Text>
@@ -379,12 +386,20 @@ function TryOn() {
         category 
       });
       
+      // Upload user image to Supabase if it's a local file
+      let humanImgUrl = twinUrl;
+      if (twinUrl.startsWith('file://')) {
+        console.log('Uploading user image to Supabase...');
+        humanImgUrl = await uploadImageAsync(twinUrl);
+        console.log('User image uploaded:', humanImgUrl);
+      }
+      
       // Call try-on API directly
       const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE}/api/tryon`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          human_img: twinUrl, 
+          human_img: humanImgUrl, 
           garm_img: garmentCleanUrl, 
           category,
           garment_des: product?.garment_des || "Garment item"
@@ -757,7 +772,8 @@ function Card({ children }) {
 
 const s = StyleSheet.create({
   app: { flex: 1, backgroundColor: '#000' },
-  container: { flex: 1, padding: 16 },
+  container: { flex: 1 },
+  scrollContent: { padding: 16, paddingBottom: 100 }, // Add bottom padding for bottom bar
   grid2: { gap: 16 },
   h1: { color: '#e4e4e7', fontSize: 24, fontWeight: '700', marginBottom: 8 },
   muted: { color: '#a1a1aa', fontSize: 16, marginBottom: 16 },
@@ -768,7 +784,8 @@ const s = StyleSheet.create({
   inputBox: { backgroundColor: 'rgba(255,255,255,0.06)', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
   label: { color: '#e4e4e7', fontSize: 16, fontWeight: '600', marginBottom: 8 },
   inputHint: { color: '#a1a1aa', fontSize: 14 },
-  productImage: { width: '100%', height: 200, borderRadius: 16 },
+  productImageContainer: { width: '100%', height: 200, borderRadius: 16, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.05)' },
+  productImage: { width: '100%', height: '100%' },
   productTitle: { color: '#e4e4e7', fontSize: 16, fontWeight: '600', marginBottom: 4 },
   productPrice: { color: '#a1a1aa', fontSize: 14 }
 });
