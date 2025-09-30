@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
   process.env.EXPO_PUBLIC_SUPABASE_URL!,
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 export default async (req: VercelRequest, res: VercelResponse) => {
@@ -46,8 +46,9 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       
       if (error) {
         console.error('Supabase upload error:', error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
         // Fallback to original URL if upload fails
-        return res.json({ cleanUrl: imageUrl });
+        return res.json({ cleanUrl: imageUrl, error: error.message });
       }
       
       const { data } = supabase.storage.from('images').getPublicUrl(fileName);
