@@ -19,13 +19,10 @@ export async function getCleanGarmentUrl(productId: string, productImageUrl: str
     if (!resp.ok) throw new Error("cleaner_http_error");
     const json = await resp.json(); // { url: <https|string data:...> }
 
-    let url: string = json?.url || "";
+    let url: string = json?.cleanUrl || "";
     if (!url) throw new Error("cleaner_empty");
 
-    // If cleaner gives data:URI, upload it so the model gets an HTTPS URL
-    if (url.startsWith("data:")) {
-      url = await uploadDataUrlToSupabase(url, "garments");
-    }
+    // The API now returns HTTPS URLs directly, no need to handle data URIs
     return url;
   } catch {
     // graceful fallback: use original product image URL

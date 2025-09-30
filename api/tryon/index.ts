@@ -9,7 +9,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { human_img, garm_img, category } = req.body || {};
+    const { human_img, garm_img, category, garment_des } = req.body || {};
 
     if (!human_img || !garm_img || !category) {
       return res.status(400).json({ error: 'Missing human_img, garm_img or category' });
@@ -18,6 +18,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Never pass base64/data: to the model
       return res.status(400).json({ error: 'garm_img_must_be_url' });
     }
+
+    // Map category to Replicate's expected format
+    const replicateCategory = category === 'upper' ? 'upper_body' : 
+                             category === 'lower' ? 'lower_body' : 
+                             category === 'dress' ? 'dresses' : 'upper_body';
 
     const start = await fetch('https://api.replicate.com/v1/predictions', {
       method: 'POST',
@@ -30,8 +35,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         input: {
           human_img,
           garm_img,
-          category,         // "upper_body" | "lower_body" | "dress"
-          garment_des: ""   // <- avoid the NoneType concat in model
+          category: replicateCategory,
+          garment_des: garment_des || "Garment item"  // Provide default description
         }
       })
     });

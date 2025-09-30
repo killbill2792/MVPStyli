@@ -255,7 +255,11 @@ function Product() {
       fetch(`${process.env.EXPO_PUBLIC_API_BASE}/api/garment-clean`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageUrl: product.image })
+        body: JSON.stringify({ 
+          imageUrl: product.image,
+          productId: product.id,
+          category: product.category
+        })
       })
       .then(r => r.json())
       .then(data => {
@@ -354,10 +358,10 @@ function TryOn() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          userUrl: twinUrl, 
-          garmentUrl: garmentCleanUrl, 
-          garmentId, 
-          category 
+          human_img: twinUrl, 
+          garm_img: garmentCleanUrl, 
+          category,
+          garment_des: product?.garment_des || "Garment item"
         })
       });
       
