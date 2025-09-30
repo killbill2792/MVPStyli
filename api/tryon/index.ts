@@ -1,15 +1,5 @@
 // api/tryon/index.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import fetch from 'node-fetch';
-
-const REPLICATE_TOKEN = process.env.REPLICATE_API_TOKEN!;
-const VERSION_ID = process.env.TRYON_MODEL_ID!; // cuuupid/idm-vton:<version>
-
-console.log('Environment check:', {
-  hasToken: !!REPLICATE_TOKEN,
-  hasModelId: !!VERSION_ID,
-  modelId: VERSION_ID
-});
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -23,7 +13,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Missing human_img, garm_img or category' });
     }
     if (typeof garm_img !== 'string' || !garm_img.startsWith('http')) {
-      // Never pass base64/data: to the model
       return res.status(400).json({ error: 'garm_img_must_be_url' });
     }
 
@@ -31,6 +20,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const replicateCategory = category === 'upper' ? 'upper_body' : 
                              category === 'lower' ? 'lower_body' : 
                              category === 'dress' ? 'dresses' : 'upper_body';
+
+    const REPLICATE_TOKEN = process.env.REPLICATE_API_TOKEN;
+    const VERSION_ID = process.env.TRYON_MODEL_ID;
+
+    if (!REPLICATE_TOKEN || !VERSION_ID) {
+      return res.status(500).json({ 
+        error: 'Missing environment variables',
+        hasToken: !!REPLICATE_TOKEN,
+        hasModelId: !!VERSION_ID
+      });
+    }
 
     console.log('Calling Replicate with:', {
       version: VERSION_ID,
@@ -54,7 +54,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           human_img,
           garm_img,
           category: replicateCategory,
-          garment_des: garment_des || "Garment item"  // Provide default description
+          garment_des: garment_des || "Garment item"
         }
       })
     });
