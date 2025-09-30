@@ -1,7 +1,7 @@
 // lib/upload.ts
 import { supabase } from './supabase';
 import { decode as atob } from 'base-64'; // <-- RN/Expo-safe atob
-import { File } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system';
 
 /**
  * Upload a local device file (file://...) to Supabase public bucket "images".
@@ -11,9 +11,10 @@ export async function uploadImageAsync(localUri: string) {
   try {
     console.log('Uploading image:', localUri);
     
-    // Read file as base64 using new File API
-    const file = new File(localUri);
-    const base64 = await file.readAsStringAsync('base64');
+    // Read file as base64 using FileSystem API
+    const base64 = await FileSystem.readAsStringAsync(localUri, {
+      encoding: 'base64',
+    });
     
     // Convert base64 to ArrayBuffer for Supabase
     const binary = atob(base64);
