@@ -15,6 +15,7 @@
     "@supabase/supabase-js": "^2.45.0",
     "@vercel/node": "^3.0.0",
     "babel-preset-expo": "^54.0.3",
+    "base-64": "^1.0.0",
     "cheerio": "^1.0.0-rc.12",
     "expo": "~54.0.0",
     "expo-build-properties": "^1.0.9",
