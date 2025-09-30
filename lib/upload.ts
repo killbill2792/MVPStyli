@@ -1,7 +1,7 @@
 // lib/upload.ts
 import { supabase } from './supabase';
 import { decode as atob } from 'base-64'; // <-- RN/Expo-safe atob
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 /**
  * Upload a local device file (file://...) to Supabase public bucket "images".
