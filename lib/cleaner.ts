@@ -1,26 +1,34 @@
-export async function getCleanGarmentUrl(productId: string, rawUrl: string, category?: 'upper' | 'lower' | 'dress') {
-  const API = process.env.EXPO_PUBLIC_API_BASE;
-  
-  if (!API) {
-    throw new Error('EXPO_PUBLIC_API_BASE not configured. Please set your Vercel API URL in .env.local');
-  }
-  
+// lib/cleaner.ts
+import { uploadDataUrlToSupabase } from "./upload";
+
+/**
+ * getCleanGarmentUrl
+ * Returns an HTTPS image URL for the garment.
+ * - If your cleaner returns a data:URI, we upload to Supabase and return its public URL.
+ * - If the cleaner fails, we fall back to the original product image URL.
+ */
+export async function getCleanGarmentUrl(productId: string, productImageUrl: string, category: "upper" | "lower" | "dress" | string) {
   try {
-    const response = await fetch(`${API}/api/garment-clean`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageUrl: rawUrl, category, productId })
+    // If you have a Vercel /api/garment-clean that sometimes returns base64:
+    const resp = await fetch(`${process.env.EXPO_PUBLIC_API_BASE}/api/garment-clean`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ productId, imageUrl: productImageUrl, category }),
     });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+
+    if (!resp.ok) throw new Error("cleaner_http_error");
+    const json = await resp.json(); // { url: <https|string data:...> }
+
+    let url: string = json?.url || "";
+    if (!url) throw new Error("cleaner_empty");
+
+    // If cleaner gives data:URI, upload it so the model gets an HTTPS URL
+    if (url.startsWith("data:")) {
+      url = await uploadDataUrlToSupabase(url, "garments");
     }
-    
-    const data = await response.json();
-    return data.cleanUrl as string;
-  } catch (error) {
-    console.error('Garment cleaning error:', error);
-    // Fallback to original URL on error
-    return rawUrl;
+    return url;
+  } catch {
+    // graceful fallback: use original product image URL
+    return productImageUrl;
   }
 }

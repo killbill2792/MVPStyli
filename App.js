@@ -428,51 +428,47 @@ function TryOn() {
 function Feed() {
   const { state: { feedItems, currentFeedIndex }, nextFeedItem } = useApp();
 
-  const hasItems = Array.isArray(feedItems) && feedItems.length > 0;
-  const currentItem = hasItems
-    ? feedItems[currentFeedIndex % feedItems.length]
-    : {
-        uri: 'https://images.unsplash.com/photo-1520975916090-3105956dac38?q=80&auto=format&fit=crop&w=1200',
-        handle: '@demo',
-        sub: 'Demo',
-      };
+  const items = (Array.isArray(feedItems) && feedItems.length > 0)
+    ? feedItems
+    : [
+        { id: 'f1', uri: 'https://images.unsplash.com/photo-1520975916090-3105956dac38?q=80&auto=format&fit=crop&w=1200', handle: '@mina',  sub: 'Party • Streetwear' },
+        { id: 'f2', uri: 'https://images.unsplash.com/photo-1503342217505-b0a15cf70489?q=80&auto=format&fit=crop&w=1200', handle: '@sophia',sub: 'Office • Minimalist' },
+        { id: 'f3', uri: 'https://images.unsplash.com/photo-1544441893-675973e31985?q=80&auto=format&fit=crop&w=1200', handle: '@zara',  sub: 'Casual • Boho' },
+      ];
+
+  const idx = currentFeedIndex % items.length;
+  const current = items[idx];
 
   const [hasVoted, setHasVoted] = useState(false);
 
-  const vote = (label) => {
+  const onVote = () => {
     if (hasVoted) return;
     setHasVoted(true);
-    setTimeout(() => {
-      nextFeedItem();
-      setHasVoted(false);
-    }, 1000);
+    setTimeout(() => { setHasVoted(false); nextFeedItem(); }, 900);
   };
 
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+    <View style={{ alignItems: 'center' }}>
       <View style={{ width: '100%', aspectRatio: 9 / 16, borderRadius: 24, overflow: 'hidden', position: 'relative', maxWidth: 420 }}>
-        <Image source={{ uri: currentItem.uri }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
-
-        <View style={{ position: 'absolute', top: 16, left: 16 }}>
-          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{currentItem.handle}</Text>
-          <Text style={{ color: '#fff', fontSize: 14, opacity: 0.9 }}>{currentItem.sub}</Text>
+        <Image source={{ uri: current.uri }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
+        <View style={{ position: 'absolute', left: 12, top: 12 }}>
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>{current.handle}</Text>
+          <Text style={{ color: '#fff', opacity: 0.9 }}>{current.sub}</Text>
         </View>
 
-        <View style={{ position: 'absolute', bottom: 16, right: 16, gap: 12 }}>
-          <Pressable onPress={() => vote('yes')}   style={{ backgroundColor: 'rgba(0,0,0,0.6)', padding: 12, borderRadius: 9999, opacity: hasVoted ? 0.5 : 1 }}>
-            <Text style={{ color: '#fff', fontSize: 24 }}>🔥</Text>
-          </Pressable>
-          <Pressable onPress={() => vote('maybe')} style={{ backgroundColor: 'rgba(0,0,0,0.6)', padding: 12, borderRadius: 9999, opacity: hasVoted ? 0.5 : 1 }}>
-            <Text style={{ color: '#fff', fontSize: 24 }}>❤️</Text>
-          </Pressable>
-          <Pressable onPress={() => vote('no')}    style={{ backgroundColor: 'rgba(0,0,0,0.6)', padding: 12, borderRadius: 9999, opacity: hasVoted ? 0.5 : 1 }}>
-            <Text style={{ color: '#fff', fontSize: 24 }}>❌</Text>
-          </Pressable>
+        {/* Horizontal emoji bar centered at bottom */}
+        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 12, flexDirection: 'row', justifyContent: 'center', gap: 12 }}>
+          {['🔥','💯','❌'].map((e, i) => (
+            <Pressable key={i} onPress={onVote} style={{ backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 9999, opacity: hasVoted ? 0.5 : 1 }}>
+              <Text style={{ color: '#fff', fontSize: 22 }}>{e}</Text>
+            </Pressable>
+          ))}
         </View>
       </View>
     </View>
   );
 }
+
 
 
 function AskHelp() {
