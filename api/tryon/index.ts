@@ -9,6 +9,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
+    console.log('Tryon API called with:', req.body);
+    
     const { human_img, garm_img, category, garment_des } = req.body || {};
 
     if (!human_img || !garm_img || !category) {
@@ -23,6 +25,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const replicateCategory = category === 'upper' ? 'upper_body' : 
                              category === 'lower' ? 'lower_body' : 
                              category === 'dress' ? 'dresses' : 'upper_body';
+
+    console.log('Calling Replicate with:', {
+      version: VERSION_ID,
+      input: {
+        human_img,
+        garm_img,
+        category: replicateCategory,
+        garment_des: garment_des || "Garment item"
+      }
+    });
 
     const start = await fetch('https://api.replicate.com/v1/predictions', {
       method: 'POST',
@@ -42,6 +54,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     const json = await start.json();
+    console.log('Replicate response:', json);
+    
     if (!start.ok) {
       console.error('Replicate start error', json);
       return res.status(500).json({ error: 'replicate_start_failed', detail: json });
@@ -49,7 +63,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.status(200).json({ jobId: (json as any).id });
   } catch (e: any) {
-    console.error(e);
+    console.error('Tryon API error:', e);
     return res.status(500).json({ error: 'server_error', detail: e.message });
   }
 }
