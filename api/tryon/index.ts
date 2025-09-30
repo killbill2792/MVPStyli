@@ -5,6 +5,12 @@ import fetch from 'node-fetch';
 const REPLICATE_TOKEN = process.env.REPLICATE_API_TOKEN!;
 const VERSION_ID = process.env.TRYON_MODEL_ID!; // cuuupid/idm-vton:<version>
 
+console.log('Environment check:', {
+  hasToken: !!REPLICATE_TOKEN,
+  hasModelId: !!VERSION_ID,
+  modelId: VERSION_ID
+});
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
