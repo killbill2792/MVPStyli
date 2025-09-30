@@ -1,11 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import sharp from 'sharp';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
 
 export default async (req: VercelRequest, res: VercelResponse) => {
   try {
@@ -21,25 +15,9 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       .jpeg({ quality: 85 })
       .toBuffer();
     
-    // Upload to Supabase and get HTTPS URL
-    const fileName = `garments/${productId || Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
-    
-    const { error } = await supabase.storage
-      .from('images')
-      .upload(fileName, resized, {
-        contentType: 'image/jpeg',
-        upsert: true,
-        cacheControl: '3600'
-      });
-    
-    if (error) {
-      console.error('Supabase upload error:', error);
-      // Fallback to original URL if upload fails
-      return res.json({ cleanUrl: imageUrl });
-    }
-    
-    const { data } = supabase.storage.from('images').getPublicUrl(fileName);
-    return res.json({ cleanUrl: data.publicUrl });
+    // For now, return the original URL since we don't have Supabase service role key
+    // The client will handle uploading to Supabase if needed
+    return res.json({ cleanUrl: imageUrl });
     
   } catch (e: any) {
     console.error('Garment clean error:', e);

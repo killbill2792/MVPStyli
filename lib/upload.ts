@@ -1,5 +1,5 @@
 // lib/upload.ts
-import * as FileSystem from 'expo-file-system';
+import { File } from 'expo-file-system';
 import { supabase } from './supabase';
 import { decode as atob } from 'base-64'; // <-- RN/Expo-safe atob
 
@@ -8,26 +8,32 @@ import { decode as atob } from 'base-64'; // <-- RN/Expo-safe atob
  * Returns a PUBLIC https URL (works with Replicate).
  */
 export async function uploadImageAsync(localUri: string) {
-  const fileInfo = await FileSystem.getInfoAsync(localUri);
-  if (!fileInfo.exists) throw new Error('Local file not found: ' + localUri);
+  try {
+    const file = new File(localUri);
+    const fileInfo = await file.getInfoAsync();
+    if (!fileInfo.exists) throw new Error('Local file not found: ' + localUri);
 
-  const resp = await fetch(localUri);
-  const blob = await resp.blob();
+    const resp = await fetch(localUri);
+    const blob = await resp.blob();
 
-  const path = `users/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+    const path = `users/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
 
-  const { error } = await supabase.storage
-    .from('images')
-    .upload(path, blob, {
-      cacheControl: '3600',
-      upsert: true,
-      contentType: 'image/jpeg',
-    });
+    const { error } = await supabase.storage
+      .from('images')
+      .upload(path, blob, {
+        cacheControl: '3600',
+        upsert: true,
+        contentType: 'image/jpeg',
+      });
 
-  if (error) throw error;
+    if (error) throw error;
 
-  const { data } = supabase.storage.from('images').getPublicUrl(path);
-  return data.publicUrl; // test: open in incognito browser
+    const { data } = supabase.storage.from('images').getPublicUrl(path);
+    return data.publicUrl; // test: open in incognito browser
+  } catch (error) {
+    console.error('Upload error:', error);
+    throw error;
+  }
 }
 
 /**
