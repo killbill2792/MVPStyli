@@ -1,5 +1,4 @@
 // lib/upload.ts
-import { File } from 'expo-file-system';
 import { supabase } from './supabase';
 import { decode as atob } from 'base-64'; // <-- RN/Expo-safe atob
 
@@ -9,14 +8,18 @@ import { decode as atob } from 'base-64'; // <-- RN/Expo-safe atob
  */
 export async function uploadImageAsync(localUri: string) {
   try {
-    const file = new File(localUri);
-    const fileInfo = await file.getInfoAsync();
-    if (!fileInfo.exists) throw new Error('Local file not found: ' + localUri);
-
+    console.log('Uploading image:', localUri);
+    
     const resp = await fetch(localUri);
+    if (!resp.ok) {
+      throw new Error(`Failed to fetch local file: ${resp.status}`);
+    }
+    
     const blob = await resp.blob();
+    console.log('Blob created, size:', blob.size);
 
     const path = `users/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+    console.log('Uploading to path:', path);
 
     const { error } = await supabase.storage
       .from('images')
@@ -26,10 +29,14 @@ export async function uploadImageAsync(localUri: string) {
         contentType: 'image/jpeg',
       });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase upload error:', error);
+      throw error;
+    }
 
     const { data } = supabase.storage.from('images').getPublicUrl(path);
-    return data.publicUrl; // test: open in incognito browser
+    console.log('Upload successful, public URL:', data.publicUrl);
+    return data.publicUrl;
   } catch (error) {
     console.error('Upload error:', error);
     throw error;
