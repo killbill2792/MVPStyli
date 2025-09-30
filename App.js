@@ -6,6 +6,7 @@ import { customAlphabet } from 'nanoid/non-secure';
 import { supabase } from './lib/supabase';
 import { uploadImageAsync } from './lib/upload';
 import productsData from './data/products.json';
+import { Linking } from 'react-native';
 
 const nano = customAlphabet('ABCDEFGHJKLMNPQRSTUVWXYZ23456789', 8);
 const Ctx = createContext(null);
@@ -297,9 +298,12 @@ function Product() {
             <Text style={{ color: (cleanUrl && !loading) ? '#000' : '#111' }}>
               {loading ? 'Preparing…' : 'Try On'}
             </Text>
-          </Pressable>
-          <Pressable onPress={() => setRoute('askhelp')} style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.12)', padding: 12, borderRadius: 14, alignItems: 'center' }}>
-            <Text style={{ color: '#fff' }}>Ask Help</Text>
+            <Pressable
+              onPress={() => Linking.openURL(product.buyUrl)}
+              style={[s.btn, s.btnGhost, { flex: 1 }]}
+            >
+              <Text>Buy</Text>
+            </Pressable>
           </Pressable>
         </View>
         <Pressable onPress={() => setRoute('shop')}><Text style={{ color: '#3b82f6', marginTop: 8 }}>Back to shop</Text></Pressable>
@@ -423,9 +427,18 @@ function TryOn() {
 
 function Feed() {
   const { state: { feedItems, currentFeedIndex }, nextFeedItem } = useApp();
-  const item = feedItems[currentFeedIndex];
+
+  const hasItems = Array.isArray(feedItems) && feedItems.length > 0;
+  const currentItem = hasItems
+    ? feedItems[currentFeedIndex % feedItems.length]
+    : {
+        uri: 'https://images.unsplash.com/photo-1520975916090-3105956dac38?q=80&auto=format&fit=crop&w=1200',
+        handle: '@demo',
+        sub: 'Demo',
+      };
+
   const [hasVoted, setHasVoted] = useState(false);
-  
+
   const vote = (label) => {
     if (hasVoted) return;
     setHasVoted(true);
@@ -434,25 +447,25 @@ function Feed() {
       setHasVoted(false);
     }, 1000);
   };
-  
+
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
       <View style={{ width: '100%', aspectRatio: 9 / 16, borderRadius: 24, overflow: 'hidden', position: 'relative', maxWidth: 420 }}>
-        <Image source={{ uri: item.uri }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
-        
+        <Image source={{ uri: currentItem.uri }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
+
         <View style={{ position: 'absolute', top: 16, left: 16 }}>
-          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{item.handle}</Text>
-          <Text style={{ color: '#fff', fontSize: 14, opacity: 0.9 }}>{item.sub}</Text>
+          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{currentItem.handle}</Text>
+          <Text style={{ color: '#fff', fontSize: 14, opacity: 0.9 }}>{currentItem.sub}</Text>
         </View>
-        
+
         <View style={{ position: 'absolute', bottom: 16, right: 16, gap: 12 }}>
-          <Pressable onPress={() => vote('yes')} style={{ backgroundColor: 'rgba(0,0,0,0.6)', padding: 12, borderRadius: 9999, opacity: hasVoted ? 0.5 : 1 }}>
+          <Pressable onPress={() => vote('yes')}   style={{ backgroundColor: 'rgba(0,0,0,0.6)', padding: 12, borderRadius: 9999, opacity: hasVoted ? 0.5 : 1 }}>
             <Text style={{ color: '#fff', fontSize: 24 }}>🔥</Text>
           </Pressable>
           <Pressable onPress={() => vote('maybe')} style={{ backgroundColor: 'rgba(0,0,0,0.6)', padding: 12, borderRadius: 9999, opacity: hasVoted ? 0.5 : 1 }}>
             <Text style={{ color: '#fff', fontSize: 24 }}>❤️</Text>
           </Pressable>
-          <Pressable onPress={() => vote('no')} style={{ backgroundColor: 'rgba(0,0,0,0.6)', padding: 12, borderRadius: 9999, opacity: hasVoted ? 0.5 : 1 }}>
+          <Pressable onPress={() => vote('no')}    style={{ backgroundColor: 'rgba(0,0,0,0.6)', padding: 12, borderRadius: 9999, opacity: hasVoted ? 0.5 : 1 }}>
             <Text style={{ color: '#fff', fontSize: 24 }}>❌</Text>
           </Pressable>
         </View>
@@ -460,6 +473,7 @@ function Feed() {
     </View>
   );
 }
+
 
 function AskHelp() {
   const { setRoute } = useApp();
