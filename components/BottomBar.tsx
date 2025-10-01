@@ -11,34 +11,35 @@ export default function BottomBar({ route, go }: { route: string; go: (r: string
       right: 0, 
       bottom: 0, 
       alignItems: 'center',
-      paddingBottom: 34, // Safe area bottom padding
-      backgroundColor: 'rgba(0,0,0,0.8)',
-      paddingTop: 12
+      paddingBottom: 20, // Reduced bottom padding
+      backgroundColor: 'rgba(0,0,0,0.9)',
+      paddingTop: 8
     }}>
       <View style={{
         flexDirection: 'row',
-        gap: 10,
+        gap: 8,
         backgroundColor: 'rgba(255,255,255,0.06)',
         borderColor: 'rgba(255,255,255,0.08)',
         borderWidth: 1,
         borderRadius: 9999,
-        paddingHorizontal: 10,
-        paddingVertical: 8
+        paddingHorizontal: 8,
+        paddingVertical: 6
       }}>
         {items.map(([k, label]) => (
           <Pressable
             key={k}
             onPress={() => go(k)}
             style={{
-              paddingHorizontal: 14,
-              paddingVertical: 8,
+              paddingHorizontal: 12,
+              paddingVertical: 6,
               borderRadius: 9999,
               backgroundColor: route === k ? '#fff' : 'transparent'
             }}
           >
             <Text style={{
               color: route === k ? '#000' : '#d4d4d8',
-              fontWeight: route === k ? '700' : '500'
+              fontWeight: route === k ? '700' : '500',
+              fontSize: 12
             }}>
               {label}
             </Text>
