@@ -2,10 +2,19 @@ import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 
 export default function BottomBar({ route, go }: { route: string; go: (r: string) => void }) {
-  const items: [string, string][] = [['shop', 'Shop'], ['feed', 'Feed'], ['tryon', 'Try-On'], ['rooms', 'Rooms']];
+  const items: [string, string][] = [['shop', 'Shop'], ['feed', 'Explore'], ['tryon', 'Try-On'], ['stylecraft', 'StyleCraft']];
   
   return (
-    <View style={{ position: 'absolute', left: 0, right: 0, bottom: 12, alignItems: 'center' }}>
+    <View style={{ 
+      position: 'absolute', 
+      left: 0, 
+      right: 0, 
+      bottom: 0, 
+      alignItems: 'center',
+      paddingBottom: 34, // Safe area bottom padding
+      backgroundColor: 'rgba(0,0,0,0.8)',
+      paddingTop: 12
+    }}>
       <View style={{
         flexDirection: 'row',
         gap: 10,

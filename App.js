@@ -117,8 +117,10 @@ function Shell() {
     if (!user) {
       // Create a local user without Supabase auth
       setUser({ id: "local-user-" + Date.now(), email: null });
+      // Set Explore as default home page after user creation
+      setRoute('feed');
     }
-  }, [user, setUser]);
+  }, [user, setUser, setRoute]);
   
   // If no user, show loading
   if (!user) {
@@ -132,7 +134,7 @@ function Shell() {
   }
   
   return (
-    <SafeAreaView style={s.app} edges={['top']}>
+    <SafeAreaView style={s.app} edges={['top', 'bottom']}>
       <StatusBar barStyle="light-content" />
       <ScrollView 
         style={s.container} 
@@ -150,7 +152,10 @@ function Shell() {
         {route === "room_owner" && <RoomOwner />}
         {route === "room_guest" && <RoomGuest />}
         {route === "recap" && <Recap />}
-        {route === "feed" && <Feed />}
+        {route === "feed" && <Explore />}
+        {route === "ai-analytics" && <AIAnalytics />}
+        {route === "suggested-outfits" && <SuggestedOutfits />}
+        {route === "stylecraft" && <StyleCraft />}
         {route === "account" && <AccountScreen onBack={() => setRoute("shop")} />}
       </ScrollView>
       {route !== "signin" && <BottomBar route={route} go={setRoute} />}
@@ -213,12 +218,12 @@ function Onboarding() {
           console.log('Selected image URI:', res.assets[0].uri);
           const uploadedUrl = await uploadImageAsync(res.assets[0].uri);
           setTwinUrl(uploadedUrl);
-          Alert.alert('Success', 'Photo uploaded to cloud storage!');
+          // Photo uploaded successfully
         } catch (error) {
           console.error('Upload error:', error);
           // Fallback: use local URI
           setTwinUrl(res.assets[0].uri);
-          Alert.alert('Upload Note', 'Photo saved locally. Some features may be limited.');
+          // Photo saved locally
         }
       } else {
         console.error('No valid image selected:', res);
@@ -265,29 +270,330 @@ function Onboarding() {
 
 function Shop() {
   const { state: { products }, setRoute, setCurrentProduct } = useApp();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredProducts, setFilteredProducts] = useState(products);
+  const [showSearch, setShowSearch] = useState(false);
+  
+  // Enhanced product data with more realistic information
+  const enhancedProducts = [
+    {
+      id: "zara-black-blazer",
+      name: "Zara Black Blazer",
+      price: 119,
+      rating: 4.4,
+      image: "https://images.unsplash.com/photo-1503342217505-b0a15cf70489?q=80&auto=format&fit=crop&w=1200",
+      category: "upper",
+      garment_des: "Black blazer with structured fit and classic lapels",
+      buyUrl: "https://www.zara.com/",
+      brand: "Zara",
+      color: "Black",
+      material: "Wool Blend",
+      size: "S, M, L, XL"
+    },
+    {
+      id: "asos-denim-jacket",
+      name: "ASOS Denim Jacket",
+      price: 69,
+      rating: 4.6,
+      image: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&auto=format&fit=crop&w=1200",
+      category: "upper",
+      garment_des: "Classic blue denim jacket with button closure",
+      buyUrl: "https://www.asos.com/",
+      brand: "ASOS",
+      color: "Blue",
+      material: "Denim",
+      size: "XS, S, M, L, XL"
+    },
+    {
+      id: "cos-silk-dress",
+      name: "COS Silk Dress",
+      price: 159,
+      rating: 4.7,
+      image: "https://images.unsplash.com/photo-1544441893-675973e31985?q=80&auto=format&fit=crop&w=1200",
+      category: "dress",
+      garment_des: "Elegant silk dress with flowing silhouette",
+      buyUrl: "https://www.cos.com/",
+      brand: "COS",
+      color: "Navy",
+      material: "Silk",
+      size: "XS, S, M, L"
+    },
+    {
+      id: "nike-air-force-1",
+      name: "Nike Air Force 1",
+      price: 90,
+      rating: 4.8,
+      image: "https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&auto=format&fit=crop&w=1200",
+      category: "shoes",
+      garment_des: "Classic white leather sneakers with rubber sole",
+      buyUrl: "https://www.nike.com/",
+      brand: "Nike",
+      color: "White",
+      material: "Leather",
+      size: "6, 7, 8, 9, 10, 11"
+    },
+    {
+      id: "coach-leather-tote",
+      name: "Coach Leather Tote",
+      price: 295,
+      rating: 4.5,
+      image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?q=80&auto=format&fit=crop&w=1200",
+      category: "accessories",
+      garment_des: "Premium leather tote bag with shoulder straps",
+      buyUrl: "https://www.coach.com/",
+      brand: "Coach",
+      color: "Brown",
+      material: "Leather",
+      size: "One Size"
+    },
+    {
+      id: "uniqlo-cashmere",
+      name: "Uniqlo Cashmere Knit",
+      price: 79,
+      rating: 4.3,
+      image: "https://images.unsplash.com/photo-1434389677669-e08b4cac3105?q=80&auto=format&fit=crop&w=1200",
+      category: "upper",
+      garment_des: "Soft cashmere knit sweater with crew neck",
+      buyUrl: "https://www.uniqlo.com/",
+      brand: "Uniqlo",
+      color: "Cream",
+      material: "Cashmere",
+      size: "XS, S, M, L, XL"
+    },
+    {
+      id: "hm-trench",
+      name: "H&M Classic Trench",
+      price: 139,
+      rating: 4.2,
+      image: "https://images.unsplash.com/photo-1475180098004-ca77a66827be?q=80&auto=format&fit=crop&w=1200",
+      category: "outerwear",
+      garment_des: "Classic beige trench coat with belt closure",
+      buyUrl: "https://www2.hm.com/",
+      brand: "H&M",
+      color: "Beige",
+      material: "Cotton Blend",
+      size: "XS, S, M, L, XL"
+    },
+    {
+      id: "levi-501",
+      name: "Levi's 501 Original",
+      price: 98,
+      rating: 4.6,
+      image: "https://images.unsplash.com/photo-1516826957135-700dedea698c?q=80&auto=format&fit=crop&w=1200",
+      category: "lower",
+      garment_des: "Classic blue denim jeans with straight fit",
+      buyUrl: "https://www.levi.com/",
+      brand: "Levi's",
+      color: "Blue",
+      material: "Denim",
+      size: "24, 26, 28, 30, 32, 34"
+    },
+    {
+      id: "reformation-wrap",
+      name: "Reformation Wrap Dress",
+      price: 248,
+      rating: 4.7,
+      image: "https://images.unsplash.com/photo-1515378791036-0648a3ef77b2?q=80&auto=format&fit=crop&w=1200",
+      category: "dress",
+      garment_des: "Floral wrap dress with tie waist",
+      buyUrl: "https://www.thereformation.com/",
+      brand: "Reformation",
+      color: "Floral",
+      material: "Viscose",
+      size: "XXS, XS, S, M, L, XL"
+    },
+    {
+      id: "adidas-samba",
+      name: "Adidas Samba OG",
+      price: 100,
+      rating: 4.6,
+      image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&auto=format&fit=crop&w=1200",
+      category: "shoes",
+      garment_des: "Classic white and black leather sneakers",
+      buyUrl: "https://www.adidas.com/",
+      brand: "Adidas",
+      color: "White/Black",
+      material: "Leather",
+      size: "6, 7, 8, 9, 10, 11"
+    },
+    {
+      id: "aritzia-wilfred",
+      name: "Aritzia Wilfred Blouse",
+      price: 88,
+      rating: 4.4,
+      image: "https://images.unsplash.com/photo-1520975916090-3105956dac38?q=80&auto=format&fit=crop&w=1200",
+      category: "upper",
+      garment_des: "Silk blouse with button front and relaxed fit",
+      buyUrl: "https://www.aritzia.com/",
+      brand: "Aritzia",
+      color: "White",
+      material: "Silk",
+      size: "XXS, XS, S, M, L"
+    },
+    {
+      id: "mango-slip-dress",
+      name: "Mango Satin Slip",
+      price: 119,
+      rating: 4.3,
+      image: "https://images.unsplash.com/photo-1519741497674-611481863552?q=80&auto=format&fit=crop&w=1200",
+      category: "dress",
+      garment_des: "Satin slip dress with adjustable straps",
+      buyUrl: "https://shop.mango.com/",
+      brand: "Mango",
+      color: "Black",
+      material: "Satin",
+      size: "XS, S, M, L"
+    }
+  ];
+  
+  // Simple NLP search function
+  const performSearch = (query) => {
+    if (!query.trim()) {
+      setFilteredProducts(enhancedProducts);
+      return;
+    }
+    
+    const searchTerms = query.toLowerCase().split(' ');
+    const filtered = enhancedProducts.filter(product => {
+      const searchableText = `${product.name} ${product.brand} ${product.category} ${product.color} ${product.material} ${product.garment_des}`.toLowerCase();
+      return searchTerms.some(term => searchableText.includes(term));
+    });
+    
+    setFilteredProducts(filtered);
+  };
+  
+  const handleSearch = (text) => {
+    setSearchQuery(text);
+    performSearch(text);
+  };
   
   return (
-    <View style={s.grid2}>
-      {products.map(p => (
-        <Pressable key={p.id} onPress={() => { setCurrentProduct(p.id); setRoute('product'); }}>
-          <Card>
-            <View style={s.productImageContainer}>
-              <Image 
-                source={{ uri: p.image }} 
-                style={s.productImage}
-                resizeMode="cover"
-                onError={(error) => {
-                  console.log('Image load error for', p.id, error);
-                }}
-              />
-            </View>
-            <View style={{ padding: 12 }}>
-              <Text style={s.productTitle}>{p.name}</Text>
-              <Text style={s.productPrice}>${p.price}</Text>
-            </View>
-          </Card>
-        </Pressable>
-      ))}
+    <View style={{ flex: 1, backgroundColor: '#000' }}>
+      {/* Floating Search Bar */}
+      <View style={{ position: 'absolute', top: 16, left: 16, right: 16, zIndex: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={{ color: '#a1a1aa', marginRight: 8 }}>🔍</Text>
+            <TextInput
+              value={searchQuery}
+              onChangeText={handleSearch}
+              placeholder="Search dresses, brands, colors..."
+              placeholderTextColor="#a1a1aa"
+              style={{ flex: 1, color: '#e4e4e7', fontSize: 14 }}
+            />
+            {searchQuery.length > 0 && (
+              <Pressable onPress={() => { setSearchQuery(''); setFilteredProducts(enhancedProducts); }}>
+                <Text style={{ color: '#a1a1aa', fontSize: 16 }}>✕</Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
+      </View>
+      
+      {/* Products Grid */}
+      <ScrollView 
+        style={{ flex: 1, marginTop: 80 }} 
+        contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={{ 
+          flexDirection: 'row', 
+          flexWrap: 'wrap', 
+          justifyContent: 'space-between',
+          gap: 12
+        }}>
+          {filteredProducts.map((product, index) => (
+            <Pressable 
+              key={product.id} 
+              onPress={() => { setCurrentProduct(product.id); setRoute('product'); }}
+              style={{ 
+                width: '48%',
+                marginBottom: 16
+              }}
+            >
+              <View style={{ 
+                backgroundColor: 'rgba(255,255,255,0.05)',
+                borderRadius: 16,
+                overflow: 'hidden',
+                position: 'relative'
+              }}>
+                <Image 
+                  source={{ uri: product.image }} 
+                  style={{ 
+                    width: '100%', 
+                    height: 200,
+                    backgroundColor: 'rgba(255,255,255,0.05)'
+                  }}
+                  resizeMode="cover"
+                />
+                
+                {/* Floating Overlays */}
+                <View style={{ 
+                  position: 'absolute', 
+                  top: 8, 
+                  right: 8,
+                  backgroundColor: 'rgba(0,0,0,0.7)',
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 12
+                }}>
+                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>
+                    ${product.price}
+                  </Text>
+                </View>
+                
+                <View style={{ 
+                  position: 'absolute', 
+                  bottom: 8, 
+                  right: 8,
+                  backgroundColor: 'rgba(0,0,0,0.7)',
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 12
+                }}>
+                  <Text style={{ color: '#fff', fontSize: 12 }}>👁️</Text>
+                </View>
+                
+                {/* Product Info */}
+                <View style={{ padding: 12 }}>
+                  <Text style={{ 
+                    color: '#e4e4e7', 
+                    fontSize: 14, 
+                    fontWeight: '600', 
+                    marginBottom: 4,
+                    numberOfLines: 1
+                  }}>
+                    {product.name}
+                  </Text>
+                  <Text style={{ 
+                    color: '#a1a1aa', 
+                    fontSize: 12, 
+                    marginBottom: 2
+                  }}>
+                    {product.brand}
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Text style={{ color: '#10b981', fontSize: 12 }}>⭐ {product.rating}</Text>
+                    <Text style={{ color: '#a1a1aa', fontSize: 12 }}>•</Text>
+                    <Text style={{ color: '#a1a1aa', fontSize: 12 }}>{product.color}</Text>
+                  </View>
+                </View>
+              </View>
+            </Pressable>
+          ))}
+        </View>
+        
+        {filteredProducts.length === 0 && (
+          <View style={{ alignItems: 'center', padding: 40 }}>
+            <Text style={{ color: '#a1a1aa', fontSize: 16, textAlign: 'center' }}>
+              No products found for "{searchQuery}"
+            </Text>
+            <Text style={{ color: '#a1a1aa', fontSize: 14, textAlign: 'center', marginTop: 8 }}>
+              Try searching for brands, colors, or categories
+            </Text>
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 }
@@ -297,6 +603,13 @@ function Product() {
   const product = products.find(p => p.id === currentProductId);
   const [cleanUrl, setCleanUrl] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isTracking, setIsTracking] = useState(false);
+  const [priceHistory, setPriceHistory] = useState([
+    { date: '2024-01-15', price: 129 },
+    { date: '2024-01-10', price: 119 },
+    { date: '2024-01-05', price: 139 },
+    { date: '2024-01-01', price: 119 }
+  ]);
   
   useEffect(() => {
     if (product) {
@@ -314,7 +627,17 @@ function Product() {
     }
   }, [product]);
   
+  const togglePriceTracking = () => {
+    setIsTracking(!isTracking);
+    if (!isTracking) {
+      Alert.alert('Price Tracking Enabled', 'You\'ll be notified when the price drops below $' + (product.price - 10));
+    }
+  };
+  
   if (!product) return null;
+  
+  const lowestPrice = Math.min(...priceHistory.map(p => p.price));
+  const isOnSale = product.price < priceHistory[0].price;
   
   return (
     <View style={{ gap: 14 }}>
@@ -323,10 +646,56 @@ function Product() {
       </View>
       <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderRadius: 24, padding: 16 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-          <Text style={{ color: '#e4e4e7', fontWeight: '700', fontSize: 16 }}>${product.price}</Text>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={{ color: '#e4e4e7', fontWeight: '700', fontSize: 16 }}>${product.price}</Text>
+              {isOnSale && (
+                <View style={{ backgroundColor: '#ef4444', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>SALE</Text>
+                </View>
+              )}
+            </View>
+            {isOnSale && (
+              <Text style={{ color: '#10b981', fontSize: 12 }}>Lowest: ${lowestPrice} • Save ${priceHistory[0].price - product.price}</Text>
+            )}
+          </View>
           <Text style={{ color: '#a1a1aa' }}>Free returns</Text>
         </View>
         <Text style={{ color: '#a1a1aa' }}>Fabric: Cotton blend • Shipping: 2–4 days • Returns: 30 days</Text>
+        
+        {/* Price Tracking Section */}
+        <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: 12, marginTop: 12, marginBottom: 12 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <Text style={{ color: '#e4e4e7', fontSize: 14, fontWeight: '600' }}>Price Tracking</Text>
+            <Pressable 
+              onPress={togglePriceTracking}
+              style={{ 
+                backgroundColor: isTracking ? '#10b981' : 'rgba(255,255,255,0.1)',
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: 8
+              }}
+            >
+              <Text style={{ color: isTracking ? '#fff' : '#a1a1aa', fontSize: 12, fontWeight: '600' }}>
+                {isTracking ? 'Tracking' : 'Track Price'}
+              </Text>
+            </Pressable>
+          </View>
+          
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+            <Text style={{ color: '#a1a1aa', fontSize: 12 }}>30-day low: ${lowestPrice}</Text>
+            <Text style={{ color: '#a1a1aa', fontSize: 12 }}>30-day high: ${Math.max(...priceHistory.map(p => p.price))}</Text>
+          </View>
+          
+          {isTracking && (
+            <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 8, borderRadius: 8 }}>
+              <Text style={{ color: '#10b981', fontSize: 12, textAlign: 'center' }}>
+                🔔 We'll notify you when price drops below ${product.price - 10}
+              </Text>
+            </View>
+          )}
+        </View>
+        
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
           <Pressable 
             disabled={!cleanUrl || loading} 
@@ -342,12 +711,18 @@ function Product() {
             <Text style={{ color: (cleanUrl && !loading) ? '#000' : '#111' }}>
               {loading ? 'Preparing…' : 'Try On'}
             </Text>
-            <Pressable
-              onPress={() => Linking.openURL(product.buyUrl)}
-              style={[s.btn, s.btnGhost, { flex: 1 }]}
-            >
-              <Text>Buy</Text>
-            </Pressable>
+          </Pressable>
+          <Pressable
+            onPress={() => Linking.openURL(product.buyUrl)}
+            style={{ 
+              flex: 1, 
+              backgroundColor: '#10b981', 
+              padding: 12, 
+              borderRadius: 14, 
+              alignItems: 'center' 
+            }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '600' }}>Buy Now</Text>
           </Pressable>
         </View>
         <Pressable onPress={() => setRoute('shop')}><Text style={{ color: '#3b82f6', marginTop: 8 }}>Back to shop</Text></Pressable>
@@ -418,7 +793,7 @@ function TryOn() {
       
       if (data.cache) {
         setResult(data.resultUrl);
-        Alert.alert('Success', 'Try-on loaded from cache!');
+        // Try-on loaded from cache
         return;
       }
       
@@ -434,7 +809,7 @@ function TryOn() {
         
         if (status.status === 'succeeded' && status.resultUrl) {
           setResult(status.resultUrl);
-          Alert.alert('Success', 'AI try-on generated!');
+          // AI try-on generated successfully
         } else {
           throw new Error(status.error || 'Try-on failed');
         }
@@ -454,8 +829,14 @@ function TryOn() {
       {busy && (
         <View style={StyleSheet.absoluteFillObject}>
           <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', borderRadius: 0 }}>
-            <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '700' }}>Generating Try-On...</Text>
-            <Text style={{ color: '#a1a1aa', fontSize: 14, marginTop: 8 }}>AI is applying the outfit to your photo</Text>
+            <View style={{ backgroundColor: 'rgba(255,255,255,0.1)', padding: 24, borderRadius: 20, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }}>
+              <Text style={{ fontSize: 32, marginBottom: 16 }}>✨</Text>
+              <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '700', marginBottom: 8 }}>AI Processing...</Text>
+              <Text style={{ color: '#a1a1aa', fontSize: 14, textAlign: 'center' }}>Generating your try-on with AI</Text>
+              <View style={{ width: 200, height: 4, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 2, marginTop: 16, overflow: 'hidden' }}>
+                <View style={{ width: '60%', height: '100%', backgroundColor: '#fff', borderRadius: 2 }} />
+              </View>
+            </View>
           </View>
         </View>
       )}
@@ -468,53 +849,290 @@ function TryOn() {
         </Pressable>
         
         <View style={{ position: 'absolute', left: 8, bottom: 8, flexDirection: 'row', gap: 8 }}>
-          <Pressable onPress={handleTryOn} style={{ backgroundColor: '#fff', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14 }}>
-            <Text style={{ color: '#000', fontWeight: '700' }}>✨ Try On</Text>
+          <Pressable 
+            onPress={handleTryOn} 
+            disabled={busy}
+            style={{ 
+              backgroundColor: busy ? 'rgba(255,255,255,0.3)' : '#fff', 
+              paddingHorizontal: 14, 
+              paddingVertical: 10, 
+              borderRadius: 14,
+              opacity: busy ? 0.6 : 1
+            }}
+          >
+            <Text style={{ color: busy ? '#666' : '#000', fontWeight: '700' }}>
+              {busy ? '⏳ Processing...' : '✨ Try On'}
+            </Text>
           </Pressable>
         </View>
+        
+        {result && (
+          <View style={{ position: 'absolute', right: 8, bottom: 8, flexDirection: 'row', gap: 8 }}>
+            <Pressable 
+              onPress={() => setRoute('ai-analytics')} 
+              style={{ backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 }}
+            >
+              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>📊 AI</Text>
+            </Pressable>
+            <Pressable 
+              onPress={() => setRoute('createpod')} 
+              style={{ backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 }}
+            >
+              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>👥 Pod</Text>
+            </Pressable>
+            <Pressable 
+              onPress={() => setRoute('suggested-outfits')} 
+              style={{ backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 }}
+            >
+              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>💡 Style</Text>
+            </Pressable>
+            <Pressable 
+              onPress={() => Linking.openURL(product?.buyUrl || 'https://example.com')} 
+              style={{ backgroundColor: '#10b981', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 }}
+            >
+              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>🛒 Buy</Text>
+            </Pressable>
+          </View>
+        )}
       </View>
     </View>
   );
 }
 
-function Feed() {
-  const { state: { feedItems, currentFeedIndex }, nextFeedItem } = useApp();
+function Explore() {
+  const { setRoute } = useApp();
+  
+  // Dummy data for Explore page
+  const exploreItems = [
+    { 
+      id: 'e1', 
+      type: 'public_post',
+      uri: 'https://images.unsplash.com/photo-1520975916090-3105956dac38?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@mina', 
+      sub: 'Party • Streetwear',
+      likes: 234,
+      comments: 12,
+      isPodRecap: false
+    },
+    { 
+      id: 'e2', 
+      type: 'pod_recap',
+      uri: 'https://images.unsplash.com/photo-1503342217505-b0a15cf70489?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@sophia',
+      sub: 'Office • Minimalist',
+      likes: 189,
+      comments: 8,
+      isPodRecap: true,
+      podResult: 'Global Mix picked this dress (78%)'
+    },
+    { 
+      id: 'e3', 
+      type: 'ai_generated',
+      uri: 'https://images.unsplash.com/photo-1544441893-675973e31985?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@zara', 
+      sub: 'Casual • Boho',
+      likes: 156,
+      comments: 5,
+      isPodRecap: false,
+      aiLabel: 'AI Styling'
+    },
+    { 
+      id: 'e4', 
+      type: 'public_post',
+      uri: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@alex', 
+      sub: 'Formal • Business',
+      likes: 298,
+      comments: 23,
+      isPodRecap: false
+    },
+    { 
+      id: 'e5', 
+      type: 'pod_recap',
+      uri: 'https://images.unsplash.com/photo-1469334031218-e382a71b716b?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@taylor',
+      sub: 'Casual • Weekend',
+      likes: 167,
+      comments: 9,
+      isPodRecap: true,
+      podResult: 'Taste Twins prefer this (82%)'
+    },
+    { 
+      id: 'e6', 
+      type: 'ai_generated',
+      uri: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@maya', 
+      sub: 'Vintage • Retro',
+      likes: 201,
+      comments: 15,
+      isPodRecap: false,
+      aiLabel: 'Trending Fit'
+    },
+    { 
+      id: 'e7', 
+      type: 'public_post',
+      uri: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@jordan', 
+      sub: 'Athletic • Sporty',
+      likes: 145,
+      comments: 7,
+      isPodRecap: false
+    },
+    { 
+      id: 'e8', 
+      type: 'pod_recap',
+      uri: 'https://images.unsplash.com/photo-1469334031218-e382a71b716b?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@riley',
+      sub: 'Elegant • Evening',
+      likes: 312,
+      comments: 18,
+      isPodRecap: true,
+      podResult: 'Friends voted Yes (91%)'
+    },
+    { 
+      id: 'e9', 
+      type: 'ai_generated',
+      uri: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@casey', 
+      sub: 'Bohemian • Free Spirit',
+      likes: 178,
+      comments: 11,
+      isPodRecap: false,
+      aiLabel: 'Celeb Inspired'
+    },
+    { 
+      id: 'e10', 
+      type: 'public_post',
+      uri: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@sam', 
+      sub: 'Preppy • Classic',
+      likes: 223,
+      comments: 14,
+      isPodRecap: false
+    },
+    { 
+      id: 'e11', 
+      type: 'pod_recap',
+      uri: 'https://images.unsplash.com/photo-1469334031218-e382a71b716b?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@blake',
+      sub: 'Edgy • Alternative',
+      likes: 189,
+      comments: 6,
+      isPodRecap: true,
+      podResult: 'Global Mix says No (65%)'
+    },
+    { 
+      id: 'e12', 
+      type: 'ai_generated',
+      uri: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@quinn', 
+      sub: 'Romantic • Feminine',
+      likes: 267,
+      comments: 19,
+      isPodRecap: false,
+      aiLabel: 'Seasonal Drop'
+    },
+    { 
+      id: 'e13', 
+      type: 'public_post',
+      uri: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@sage', 
+      sub: 'Minimalist • Clean',
+      likes: 198,
+      comments: 8,
+      isPodRecap: false
+    },
+    { 
+      id: 'e14', 
+      type: 'pod_recap',
+      uri: 'https://images.unsplash.com/photo-1469334031218-e382a71b716b?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@river',
+      sub: 'Artistic • Creative',
+      likes: 234,
+      comments: 16,
+      isPodRecap: true,
+      podResult: 'Taste Twins love this (89%)'
+    },
+    { 
+      id: 'e15', 
+      type: 'ai_generated',
+      uri: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@skyler', 
+      sub: 'Modern • Contemporary',
+      likes: 156,
+      comments: 4,
+      isPodRecap: false,
+      aiLabel: 'AI Styling'
+    }
+  ];
 
-  const items = (Array.isArray(feedItems) && feedItems.length > 0)
-    ? feedItems
-    : [
-        { id: 'f1', uri: 'https://images.unsplash.com/photo-1520975916090-3105956dac38?q=80&auto=format&fit=crop&w=1200', handle: '@mina',  sub: 'Party • Streetwear' },
-        { id: 'f2', uri: 'https://images.unsplash.com/photo-1503342217505-b0a15cf70489?q=80&auto=format&fit=crop&w=1200', handle: '@sophia',sub: 'Office • Minimalist' },
-        { id: 'f3', uri: 'https://images.unsplash.com/photo-1544441893-675973e31985?q=80&auto=format&fit=crop&w=1200', handle: '@zara',  sub: 'Casual • Boho' },
-      ];
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const current = exploreItems[currentIndex];
 
-  const idx = currentFeedIndex % items.length;
-  const current = items[idx];
+  const nextItem = () => {
+    setCurrentIndex((prev) => (prev + 1) % exploreItems.length);
+  };
 
-  const [hasVoted, setHasVoted] = useState(false);
-
-  const onVote = () => {
-    if (hasVoted) return;
-    setHasVoted(true);
-    setTimeout(() => { setHasVoted(false); nextFeedItem(); }, 900);
+  const startPod = () => {
+    setRoute('createpod');
   };
 
   return (
-    <View style={{ alignItems: 'center' }}>
+    <View style={{ alignItems: 'center', flex: 1 }}>
       <View style={{ width: '100%', aspectRatio: 9 / 16, borderRadius: 24, overflow: 'hidden', position: 'relative', maxWidth: 420 }}>
         <Image source={{ uri: current.uri }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
-        <View style={{ position: 'absolute', left: 12, top: 12 }}>
-          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>{current.handle}</Text>
-          <Text style={{ color: '#fff', opacity: 0.9 }}>{current.sub}</Text>
+        
+        {/* Top overlay with user info and type indicator */}
+        <View style={{ position: 'absolute', left: 12, top: 12, right: 12 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <View>
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700', textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: {width: 1, height: 1}, textShadowRadius: 3 }}>{current.handle}</Text>
+              <Text style={{ color: '#fff', opacity: 0.9, fontSize: 14, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: {width: 1, height: 1}, textShadowRadius: 3 }}>{current.sub}</Text>
         </View>
 
-        {/* Horizontal emoji bar centered at bottom */}
-        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 12, flexDirection: 'row', justifyContent: 'center', gap: 12 }}>
-          {['🔥','💯','❌'].map((e, i) => (
-            <Pressable key={i} onPress={onVote} style={{ backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 9999, opacity: hasVoted ? 0.5 : 1 }}>
-              <Text style={{ color: '#fff', fontSize: 22 }}>{e}</Text>
+            {current.isPodRecap && (
+              <View style={{ backgroundColor: 'rgba(59, 130, 246, 0.9)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
+                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>Pod Recap</Text>
+              </View>
+            )}
+            
+            {current.aiLabel && (
+              <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.9)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
+                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>{current.aiLabel}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Pod result overlay */}
+        {current.isPodRecap && current.podResult && (
+          <View style={{ position: 'absolute', left: 12, top: 80, backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16 }}>
+            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>{current.podResult}</Text>
+          </View>
+        )}
+
+        {/* Bottom overlay with actions */}
+        <View style={{ position: 'absolute', left: 12, right: 12, bottom: 12 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <View style={{ flexDirection: 'row', gap: 16 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>❤️</Text>
+                <Text style={{ color: '#fff', fontSize: 14, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: {width: 1, height: 1}, textShadowRadius: 3 }}>{current.likes}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>💬</Text>
+                <Text style={{ color: '#fff', fontSize: 14, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: {width: 1, height: 1}, textShadowRadius: 3 }}>{current.comments}</Text>
+              </View>
+            </View>
+            
+            <Pressable onPress={nextItem} style={{ backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 }}>
+              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>Next</Text>
             </Pressable>
-          ))}
+          </View>
+          
+          <Pressable onPress={startPod} style={{ backgroundColor: 'rgba(59, 130, 246, 0.9)', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 16, alignItems: 'center' }}>
+            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>Try it / Start a Pod with this</Text>
+          </Pressable>
         </View>
       </View>
     </View>
@@ -545,33 +1163,125 @@ function AskHelp() {
 
 function CreatePod() {
   const { setRoute, createRoom } = useApp();
+  const [selectedMode, setSelectedMode] = useState('friends');
   const [duration, setDuration] = useState(60);
   
+  const podModes = [
+    {
+      id: 'friends',
+      title: 'Friends Pod',
+      description: 'Invite your friends for feedback',
+      duration: '30-120 min',
+      features: ['Comments allowed', 'Longer duration', 'Personal feedback'],
+      icon: '👥'
+    },
+    {
+      id: 'taste-twins',
+      title: 'Taste Twins',
+      description: 'AI finds people with similar style',
+      duration: '5-15 min',
+      features: ['Anonymous votes only', 'Style-matched audience', 'Fast feedback'],
+      icon: '🎯'
+    },
+    {
+      id: 'global-mix',
+      title: 'Global Mix',
+      description: 'Open to everyone worldwide',
+      duration: '15-30 min',
+      features: ['Anyone can vote', 'Cultural insights', 'Broader perspective'],
+      icon: '🌍'
+    }
+  ];
+  
   const create = () => {
+    const mode = podModes.find(m => m.id === selectedMode);
     const room = createRoom({ 
       lookId: 'current-look', 
-      mode: 'help', 
+      mode: selectedMode, 
       durationMins: duration, 
-      title: 'Help Room' 
+      title: mode.title 
     });
     setRoute('room_owner', { roomId: room.id });
   };
   
   return (
-    <View style={s.grid2}>
-      <Card>
-        <Text style={s.h1}>Create Help Room</Text>
-        <Text style={s.muted}>Set duration and invite friends</Text>
-        <View style={{ height: 24 }} />
-        <Text style={s.label}>Duration: {duration} minutes</Text>
-        <View style={{ height: 12 }} />
-        <Pressable onPress={create} style={[s.btn, s.btnPrimary]}>
-          <Text style={s.btnPrimaryText}>Create Room</Text>
+    <View style={{ flex: 1, backgroundColor: '#000', padding: 16 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+        <Pressable onPress={() => setRoute('tryon')} style={{ marginRight: 16 }}>
+          <Text style={{ color: '#3b82f6', fontSize: 16 }}>← Back</Text>
         </Pressable>
-        <Pressable onPress={() => setRoute('askhelp')} style={s.btn}>
-          <Text style={s.btnText}>Back</Text>
+        <Text style={{ color: '#e4e4e7', fontSize: 24, fontWeight: '700' }}>Create Pod</Text>
+      </View>
+
+      <Text style={{ color: '#a1a1aa', fontSize: 16, marginBottom: 20 }}>
+        Choose your audience for feedback
+      </Text>
+
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {podModes.map(mode => (
+          <Pressable 
+            key={mode.id} 
+            onPress={() => setSelectedMode(mode.id)}
+            style={{ 
+              backgroundColor: selectedMode === mode.id ? 'rgba(59, 130, 246, 0.1)' : 'rgba(255,255,255,0.05)',
+              borderColor: selectedMode === mode.id ? '#3b82f6' : 'rgba(255,255,255,0.08)',
+              borderWidth: 1,
+              borderRadius: 16,
+              padding: 16,
+              marginBottom: 12
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={{ fontSize: 24, marginRight: 12 }}>{mode.icon}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '600' }}>{mode.title}</Text>
+                <Text style={{ color: '#a1a1aa', fontSize: 14 }}>{mode.description}</Text>
+              </View>
+            </View>
+            
+            <Text style={{ color: '#10b981', fontSize: 14, fontWeight: '600', marginBottom: 8 }}>
+              Duration: {mode.duration}
+            </Text>
+            
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {mode.features.map((feature, index) => (
+                <View key={index} style={{ backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}>
+                  <Text style={{ color: '#a1a1aa', fontSize: 12 }}>{feature}</Text>
+                </View>
+              ))}
+            </View>
         </Pressable>
-      </Card>
+        ))}
+        
+        {selectedMode === 'friends' && (
+          <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 16, marginBottom: 20 }}>
+            <Text style={{ color: '#e4e4e7', fontSize: 16, fontWeight: '600', marginBottom: 8 }}>Duration</Text>
+            <Text style={{ color: '#a1a1aa', fontSize: 14, marginBottom: 12 }}>How long should this pod stay active?</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {[30, 60, 90, 120].map(mins => (
+                <Pressable 
+                  key={mins}
+                  onPress={() => setDuration(mins)}
+                  style={{ 
+                    backgroundColor: duration === mins ? '#3b82f6' : 'rgba(255,255,255,0.1)',
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    borderRadius: 8
+                  }}
+                >
+                  <Text style={{ color: duration === mins ? '#fff' : '#a1a1aa', fontSize: 14, fontWeight: '600' }}>
+                    {mins}m
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        )}
+        
+        <Pressable onPress={create} style={{ backgroundColor: '#3b82f6', padding: 16, borderRadius: 16, alignItems: 'center', marginBottom: 20 }}>
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Create Pod</Text>
+        </Pressable>
+      </ScrollView>
     </View>
   );
 }
@@ -603,31 +1313,98 @@ function RoomsInbox() {
 }
 
 function RoomOwner() {
-  const { state: { rooms }, vote } = useApp();
+  const { state: { rooms }, vote, setRoute } = useApp();
   const roomId = useApp().state.params?.roomId;
   const room = rooms.find(r => r.id === roomId);
   
   if (!room) return null;
   
+  const getModeInfo = (mode) => {
+    switch(mode) {
+      case 'friends':
+        return { icon: '👥', color: '#3b82f6', description: 'Friends Pod' };
+      case 'taste-twins':
+        return { icon: '🎯', color: '#10b981', description: 'Taste Twins' };
+      case 'global-mix':
+        return { icon: '🌍', color: '#f59e0b', description: 'Global Mix' };
+      default:
+        return { icon: '👥', color: '#3b82f6', description: 'Pod' };
+    }
+  };
+  
+  const modeInfo = getModeInfo(room.mode);
+  const totalVotes = room.votes.yes + room.votes.maybe + room.votes.no;
+  const yesPercentage = totalVotes > 0 ? Math.round((room.votes.yes / totalVotes) * 100) : 0;
+  
   return (
-    <View style={s.grid2}>
-      <Card>
-        <Text style={s.h1}>Room: {room.title}</Text>
-        <Text style={s.muted}>Votes: Yes {room.votes.yes} • Maybe {room.votes.maybe} • No {room.votes.no}</Text>
-        <View style={{ height: 24 }} />
-        <Pressable onPress={() => vote(roomId, 'yes')} style={[s.btn, s.btnPrimary]}>
-          <Text style={s.btnPrimaryText}>🔥 Yes ({room.votes.yes})</Text>
+    <View style={{ flex: 1, backgroundColor: '#000', padding: 16 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+        <Pressable onPress={() => setRoute('createpod')} style={{ marginRight: 16 }}>
+          <Text style={{ color: '#3b82f6', fontSize: 16 }}>← Back</Text>
         </Pressable>
-        <Pressable onPress={() => vote(roomId, 'maybe')} style={s.btn}>
-          <Text style={s.btnText}>❤️ Maybe ({room.votes.maybe})</Text>
-        </Pressable>
-        <Pressable onPress={() => vote(roomId, 'no')} style={s.btn}>
-          <Text style={s.btnText}>❌ No ({room.votes.no})</Text>
-        </Pressable>
-        <Pressable onPress={() => useApp().setRoute('recap')} style={s.btn}>
-          <Text style={s.btnText}>See AI Recap</Text>
-        </Pressable>
-      </Card>
+        <Text style={{ color: '#e4e4e7', fontSize: 24, fontWeight: '700' }}>Pod Room</Text>
+      </View>
+
+      <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 16, marginBottom: 20 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+          <Text style={{ fontSize: 24, marginRight: 12 }}>{modeInfo.icon}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '600' }}>{modeInfo.description}</Text>
+            <Text style={{ color: '#a1a1aa', fontSize: 14 }}>Active • {room.durationMins || 60} minutes</Text>
+          </View>
+        </View>
+        
+        {room.mode === 'taste-twins' && (
+          <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 12, borderRadius: 12, marginBottom: 12 }}>
+            <Text style={{ color: '#10b981', fontSize: 14, fontWeight: '600', marginBottom: 4 }}>Taste Twin Match</Text>
+            <Text style={{ color: '#a1a1aa', fontSize: 12 }}>AI found people with 87% style similarity to you</Text>
+          </View>
+        )}
+        
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+          <Text style={{ color: '#e4e4e7', fontSize: 16, fontWeight: '600' }}>Voting Results</Text>
+          <Text style={{ color: '#a1a1aa', fontSize: 14 }}>{totalVotes} votes</Text>
+        </View>
+        
+        <View style={{ marginBottom: 12 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+            <Text style={{ color: '#e4e4e7', fontSize: 14 }}>🔥 Yes</Text>
+            <Text style={{ color: '#e4e4e7', fontSize: 14, fontWeight: '600' }}>{room.votes.yes} ({yesPercentage}%)</Text>
+          </View>
+          <View style={{ height: 6, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 3, overflow: 'hidden' }}>
+            <View style={{ width: `${yesPercentage}%`, height: '100%', backgroundColor: '#10b981', borderRadius: 3 }} />
+          </View>
+        </View>
+        
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+          <Text style={{ color: '#a1a1aa', fontSize: 14 }}>❤️ Maybe</Text>
+          <Text style={{ color: '#a1a1aa', fontSize: 14 }}>{room.votes.maybe}</Text>
+        </View>
+        
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+          <Text style={{ color: '#a1a1aa', fontSize: 14 }}>❌ No</Text>
+          <Text style={{ color: '#a1a1aa', fontSize: 14 }}>{room.votes.no}</Text>
+        </View>
+      </View>
+
+      <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 16, marginBottom: 20 }}>
+        <Text style={{ color: '#e4e4e7', fontSize: 16, fontWeight: '600', marginBottom: 12 }}>Share Pod</Text>
+        <Text style={{ color: '#a1a1aa', fontSize: 14, marginBottom: 16 }}>
+          {room.mode === 'friends' ? 'Send link to your friends' : 
+           room.mode === 'taste-twins' ? 'AI will find your style twins automatically' :
+           'Pod is open to everyone in Explore'}
+        </Text>
+        
+        {room.mode === 'friends' && (
+          <Pressable style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', padding: 12, borderRadius: 12, alignItems: 'center' }}>
+            <Text style={{ color: '#3b82f6', fontSize: 14, fontWeight: '600' }}>Copy Link</Text>
+          </Pressable>
+        )}
+      </View>
+
+      <Pressable onPress={() => setRoute('recap')} style={{ backgroundColor: '#3b82f6', padding: 16, borderRadius: 16, alignItems: 'center' }}>
+        <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>See AI Recap</Text>
+      </Pressable>
     </View>
   );
 }
@@ -664,12 +1441,460 @@ function Recap() {
   );
 }
 
+function AIAnalytics() {
+  const { setRoute } = useApp();
+  const [chatMessage, setChatMessage] = useState('');
+  const [chatHistory, setChatHistory] = useState([
+    { type: 'ai', message: 'Hi! I can analyze your outfit and answer questions about styling. What would you like to know?' }
+  ]);
+
+  const sendMessage = () => {
+    if (!chatMessage.trim()) return;
+    
+    const userMessage = { type: 'user', message: chatMessage };
+    setChatHistory(prev => [...prev, userMessage]);
+    
+    // Simulate AI response
+    setTimeout(() => {
+      const aiResponse = { 
+        type: 'ai', 
+        message: 'Based on your outfit, I can see you\'re going for a casual look. The color combination works well together. Would you like suggestions for accessories or similar styles?' 
+      };
+      setChatHistory(prev => [...prev, aiResponse]);
+    }, 1000);
+    
+    setChatMessage('');
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#000', padding: 16 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+        <Pressable onPress={() => setRoute('tryon')} style={{ marginRight: 16 }}>
+          <Text style={{ color: '#3b82f6', fontSize: 16 }}>← Back</Text>
+        </Pressable>
+        <Text style={{ color: '#e4e4e7', fontSize: 24, fontWeight: '700' }}>AI Analytics</Text>
+      </View>
+
+      <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 16, marginBottom: 16 }}>
+        <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '600', marginBottom: 12 }}>Outfit Analysis</Text>
+        <Text style={{ color: '#a1a1aa', marginBottom: 8 }}>• Style: Casual Chic</Text>
+        <Text style={{ color: '#a1a1aa', marginBottom: 8 }}>• Confidence Score: 85%</Text>
+        <Text style={{ color: '#a1a1aa', marginBottom: 8 }}>• Best Occasions: Weekend, Casual Events</Text>
+        <Text style={{ color: '#a1a1aa' }}>• Color Harmony: Excellent</Text>
+      </View>
+
+      <ScrollView style={{ flex: 1, marginBottom: 16 }}>
+        {chatHistory.map((msg, index) => (
+          <View key={index} style={{ 
+            marginBottom: 12, 
+            alignSelf: msg.type === 'user' ? 'flex-end' : 'flex-start',
+            maxWidth: '80%'
+          }}>
+            <View style={{
+              backgroundColor: msg.type === 'user' ? '#3b82f6' : 'rgba(255,255,255,0.1)',
+              padding: 12,
+              borderRadius: 16,
+              borderTopLeftRadius: msg.type === 'ai' ? 4 : 16,
+              borderTopRightRadius: msg.type === 'user' ? 4 : 16
+            }}>
+              <Text style={{ color: '#fff', fontSize: 14 }}>{msg.message}</Text>
+            </View>
+          </View>
+        ))}
+      </ScrollView>
+
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        <TextInput
+          value={chatMessage}
+          onChangeText={setChatMessage}
+          placeholder="Ask about styling..."
+          placeholderTextColor="#a1a1aa"
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(255,255,255,0.1)',
+            padding: 12,
+            borderRadius: 16,
+            color: '#e4e4e7',
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.2)'
+          }}
+        />
+        <Pressable 
+          onPress={sendMessage}
+          style={{ backgroundColor: '#3b82f6', padding: 12, borderRadius: 16, justifyContent: 'center' }}
+        >
+          <Text style={{ color: '#fff', fontWeight: '600' }}>Send</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function SuggestedOutfits() {
+  const { setRoute } = useApp();
+  
+  const suggestions = [
+    { id: 1, name: 'Casual Denim Look', price: '$89', image: 'https://images.unsplash.com/photo-1544441893-675973e31985?q=80&auto=format&fit=crop&w=300' },
+    { id: 2, name: 'Street Style Mix', price: '$120', image: 'https://images.unsplash.com/photo-1503342217505-b0a15cf70489?q=80&auto=format&fit=crop&w=300' },
+    { id: 3, name: 'Minimalist Chic', price: '$95', image: 'https://images.unsplash.com/photo-1520975916090-3105956dac38?q=80&auto=format&fit=crop&w=300' }
+  ];
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#000', padding: 16 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+        <Pressable onPress={() => setRoute('tryon')} style={{ marginRight: 16 }}>
+          <Text style={{ color: '#3b82f6', fontSize: 16 }}>← Back</Text>
+        </Pressable>
+        <Text style={{ color: '#e4e4e7', fontSize: 24, fontWeight: '700' }}>Suggested Outfits</Text>
+      </View>
+
+      <Text style={{ color: '#a1a1aa', fontSize: 16, marginBottom: 20 }}>
+        Similar styles that go well with your current look
+      </Text>
+
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {suggestions.map(item => (
+          <Pressable key={item.id} style={{ marginBottom: 16 }}>
+            <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, overflow: 'hidden' }}>
+              <Image source={{ uri: item.image }} style={{ width: '100%', height: 200 }} resizeMode="cover" />
+              <View style={{ padding: 16 }}>
+                <Text style={{ color: '#e4e4e7', fontSize: 16, fontWeight: '600', marginBottom: 4 }}>{item.name}</Text>
+                <Text style={{ color: '#a1a1aa', fontSize: 14 }}>{item.price}</Text>
+              </View>
+            </View>
+          </Pressable>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+function StyleCraft() {
+  const { setRoute } = useApp();
+  const [designType, setDesignType] = useState('upload');
+  const [description, setDescription] = useState('');
+  const [budget, setBudget] = useState('');
+  const [material, setMaterial] = useState('');
+  const [additionalNotes, setAdditionalNotes] = useState('');
+  const [uploadedImage, setUploadedImage] = useState(null);
+  const [quotes, setQuotes] = useState([]);
+  const [showQuotes, setShowQuotes] = useState(false);
+
+  const pickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', 'Allow photo access.');
+        return;
+      }
+      
+      const res = await ImagePicker.launchImageLibraryAsync({ 
+        mediaTypes: ['images'], 
+        quality: 0.9 
+      });
+      
+      if (!res.canceled && res.assets && res.assets[0] && res.assets[0].uri) {
+        setUploadedImage(res.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Image picker error:', error);
+    }
+  };
+
+  const submitDesign = () => {
+    // Simulate sending to vendors and receiving quotes
+    const mockQuotes = [
+      {
+        id: 1,
+        vendor: 'Elite Tailors',
+        rating: 4.8,
+        price: 450,
+        material: 'Premium Silk',
+        shipping: 25,
+        timeToStitch: '7-10 days',
+        timeToDeliver: '3-5 days',
+        refImage: 'https://images.unsplash.com/photo-1515378791036-0648a3ef77b2?q=80&auto=format&fit=crop&w=300',
+        description: 'Handcrafted with attention to detail'
+      },
+      {
+        id: 2,
+        vendor: 'Modern Couture',
+        rating: 4.6,
+        price: 380,
+        material: 'Cotton Blend',
+        shipping: 20,
+        timeToStitch: '5-7 days',
+        timeToDeliver: '2-3 days',
+        refImage: 'https://images.unsplash.com/photo-1544441893-675973e31985?q=80&auto=format&fit=crop&w=300',
+        description: 'Contemporary design with modern fit'
+      },
+      {
+        id: 3,
+        vendor: 'Artisan Studio',
+        rating: 4.9,
+        price: 520,
+        material: 'Luxury Fabric',
+        shipping: 30,
+        timeToStitch: '10-14 days',
+        timeToDeliver: '5-7 days',
+        refImage: 'https://images.unsplash.com/photo-1520975916090-3105956dac38?q=80&auto=format&fit=crop&w=300',
+        description: 'Bespoke creation with premium materials'
+      }
+    ];
+    
+    setQuotes(mockQuotes);
+    setShowQuotes(true);
+  };
+
+  if (showQuotes) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#000', padding: 16 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+          <Pressable onPress={() => setShowQuotes(false)} style={{ marginRight: 16 }}>
+            <Text style={{ color: '#3b82f6', fontSize: 16 }}>← Back</Text>
+          </Pressable>
+          <Text style={{ color: '#e4e4e7', fontSize: 24, fontWeight: '700' }}>Vendor Quotes</Text>
+        </View>
+
+        <Text style={{ color: '#a1a1aa', fontSize: 16, marginBottom: 20 }}>
+          Choose your preferred vendor for your custom design
+        </Text>
+
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {quotes.map(quote => (
+            <View key={quote.id} style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 16, marginBottom: 16 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '600', marginBottom: 4 }}>{quote.vendor}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Text style={{ color: '#10b981', fontSize: 14 }}>⭐ {quote.rating}</Text>
+                    <Text style={{ color: '#a1a1aa', fontSize: 14 }}>•</Text>
+                    <Text style={{ color: '#a1a1aa', fontSize: 14 }}>{quote.material}</Text>
+                  </View>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={{ color: '#e4e4e7', fontSize: 20, fontWeight: '700' }}>${quote.price}</Text>
+                  <Text style={{ color: '#a1a1aa', fontSize: 12 }}>+ ${quote.shipping} shipping</Text>
+                </View>
+              </View>
+
+              <Image source={{ uri: quote.refImage }} style={{ width: '100%', height: 150, borderRadius: 12, marginBottom: 12 }} resizeMode="cover" />
+              
+              <Text style={{ color: '#a1a1aa', fontSize: 14, marginBottom: 8 }}>{quote.description}</Text>
+              
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
+                <View>
+                  <Text style={{ color: '#e4e4e7', fontSize: 14, fontWeight: '600' }}>Stitching Time</Text>
+                  <Text style={{ color: '#a1a1aa', fontSize: 12 }}>{quote.timeToStitch}</Text>
+                </View>
+                <View>
+                  <Text style={{ color: '#e4e4e7', fontSize: 14, fontWeight: '600' }}>Delivery Time</Text>
+                  <Text style={{ color: '#a1a1aa', fontSize: 12 }}>{quote.timeToDeliver}</Text>
+                </View>
+              </View>
+
+              <Pressable style={{ backgroundColor: '#3b82f6', padding: 12, borderRadius: 12, alignItems: 'center' }}>
+                <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Proceed with this vendor</Text>
+              </Pressable>
+            </View>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#000', padding: 16 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+        <Pressable onPress={() => setRoute('shop')} style={{ marginRight: 16 }}>
+          <Text style={{ color: '#3b82f6', fontSize: 16 }}>← Back</Text>
+        </Pressable>
+        <Text style={{ color: '#e4e4e7', fontSize: 24, fontWeight: '700' }}>StyleCraft</Text>
+      </View>
+
+      <Text style={{ color: '#a1a1aa', fontSize: 16, marginBottom: 20 }}>
+        Design your custom dress and get quotes from professional vendors
+      </Text>
+
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Design Type Selection */}
+        <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 16, marginBottom: 16 }}>
+          <Text style={{ color: '#e4e4e7', fontSize: 16, fontWeight: '600', marginBottom: 12 }}>Design Input</Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Pressable 
+              onPress={() => setDesignType('upload')}
+              style={{ 
+                flex: 1, 
+                backgroundColor: designType === 'upload' ? '#3b82f6' : 'rgba(255,255,255,0.1)',
+                padding: 12, 
+                borderRadius: 12, 
+                alignItems: 'center' 
+              }}
+            >
+              <Text style={{ color: designType === 'upload' ? '#fff' : '#a1a1aa', fontSize: 14, fontWeight: '600' }}>Upload Image</Text>
+            </Pressable>
+            <Pressable 
+              onPress={() => setDesignType('describe')}
+              style={{ 
+                flex: 1, 
+                backgroundColor: designType === 'describe' ? '#3b82f6' : 'rgba(255,255,255,0.1)',
+                padding: 12, 
+                borderRadius: 12, 
+                alignItems: 'center' 
+              }}
+            >
+              <Text style={{ color: designType === 'describe' ? '#fff' : '#a1a1aa', fontSize: 14, fontWeight: '600' }}>Describe</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Image Upload */}
+        {designType === 'upload' && (
+          <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 16, marginBottom: 16 }}>
+            <Text style={{ color: '#e4e4e7', fontSize: 16, fontWeight: '600', marginBottom: 12 }}>Upload Reference Image</Text>
+            <Pressable onPress={pickImage} style={{ backgroundColor: 'rgba(255,255,255,0.1)', padding: 20, borderRadius: 12, alignItems: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.2)', borderStyle: 'dashed' }}>
+              {uploadedImage ? (
+                <Image source={{ uri: uploadedImage }} style={{ width: 100, height: 100, borderRadius: 8 }} />
+              ) : (
+                <>
+                  <Text style={{ color: '#a1a1aa', fontSize: 16, marginBottom: 8 }}>📷</Text>
+                  <Text style={{ color: '#a1a1aa', fontSize: 14 }}>Tap to upload image</Text>
+                </>
+              )}
+            </Pressable>
+          </View>
+        )}
+
+        {/* Description */}
+        <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 16, marginBottom: 16 }}>
+          <Text style={{ color: '#e4e4e7', fontSize: 16, fontWeight: '600', marginBottom: 12 }}>Design Description</Text>
+          <TextInput
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Describe your dream dress... (style, occasion, fit, etc.)"
+            placeholderTextColor="#a1a1aa"
+            multiline
+            numberOfLines={4}
+            style={{
+              backgroundColor: 'rgba(255,255,255,0.1)',
+              padding: 12,
+              borderRadius: 12,
+              color: '#e4e4e7',
+              fontSize: 14,
+              textAlignVertical: 'top'
+            }}
+          />
+        </View>
+
+        {/* Budget and Material */}
+        <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 16, marginBottom: 16 }}>
+          <Text style={{ color: '#e4e4e7', fontSize: 16, fontWeight: '600', marginBottom: 12 }}>Preferences</Text>
+          
+          <View style={{ marginBottom: 12 }}>
+            <Text style={{ color: '#a1a1aa', fontSize: 14, marginBottom: 8 }}>Budget Range</Text>
+            <TextInput
+              value={budget}
+              onChangeText={setBudget}
+              placeholder="e.g., $200-500"
+              placeholderTextColor="#a1a1aa"
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.1)',
+                padding: 12,
+                borderRadius: 12,
+                color: '#e4e4e7',
+                fontSize: 14
+              }}
+            />
+          </View>
+
+          <View style={{ marginBottom: 12 }}>
+            <Text style={{ color: '#a1a1aa', fontSize: 14, marginBottom: 8 }}>Preferred Material</Text>
+            <TextInput
+              value={material}
+              onChangeText={setMaterial}
+              placeholder="e.g., Silk, Cotton, Linen"
+              placeholderTextColor="#a1a1aa"
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.1)',
+                padding: 12,
+                borderRadius: 12,
+                color: '#e4e4e7',
+                fontSize: 14
+              }}
+            />
+          </View>
+
+          <View>
+            <Text style={{ color: '#a1a1aa', fontSize: 14, marginBottom: 8 }}>Additional Notes</Text>
+            <TextInput
+              value={additionalNotes}
+              onChangeText={setAdditionalNotes}
+              placeholder="Any special requirements or details..."
+              placeholderTextColor="#a1a1aa"
+              multiline
+              numberOfLines={3}
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.1)',
+                padding: 12,
+                borderRadius: 12,
+                color: '#e4e4e7',
+                fontSize: 14,
+                textAlignVertical: 'top'
+              }}
+            />
+          </View>
+        </View>
+
+        <Pressable onPress={submitDesign} style={{ backgroundColor: '#3b82f6', padding: 16, borderRadius: 16, alignItems: 'center', marginBottom: 20 }}>
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Get Vendor Quotes</Text>
+        </Pressable>
+      </ScrollView>
+    </View>
+  );
+}
+
 function AccountScreen({ onBack }) {
-  const { state: { user }, setUser, setRoute } = useApp();
+  const { state: { user, twinUrl }, setUser, setRoute, setTwinUrl } = useApp();
+  const [isEditing, setIsEditing] = useState(false);
+  const [profileData, setProfileData] = useState({
+    name: user?.name || '',
+    email: user?.email || '',
+    bio: user?.bio || '',
+    bodyPhoto: twinUrl
+  });
+
+  const pickBodyPhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', 'Allow photo access.');
+        return;
+      }
+      
+      const res = await ImagePicker.launchImageLibraryAsync({ 
+        mediaTypes: ['images'], 
+        quality: 0.9 
+      });
+      
+      if (!res.canceled && res.assets && res.assets[0] && res.assets[0].uri) {
+        setProfileData(prev => ({ ...prev, bodyPhoto: res.assets[0].uri }));
+        setTwinUrl(res.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Image picker error:', error);
+    }
+  };
+
+  const saveProfile = () => {
+    setUser(prev => ({ ...prev, ...profileData }));
+    setIsEditing(false);
+    Alert.alert('Success', 'Profile updated successfully!');
+  };
 
   const handleSignOut = async () => {
     try {
       setUser(null);
+      setTwinUrl(null);
       setRoute('signin');
     } catch (error) {
       console.error('Sign out error:', error);
@@ -678,7 +1903,7 @@ function AccountScreen({ onBack }) {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#000', padding: 24, gap: 24 }}>
+    <View style={{ flex: 1, backgroundColor: '#000', padding: 16 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
         <Pressable onPress={onBack} style={{ marginRight: 16 }}>
           <Text style={{ color: '#3b82f6', fontSize: 16 }}>← Back</Text>
@@ -688,43 +1913,165 @@ function AccountScreen({ onBack }) {
         </Text>
       </View>
 
-      <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderRadius: 24, padding: 20, gap: 16 }}>
-        <View>
-          <Text style={{ color: '#a1a1aa', fontSize: 14, marginBottom: 4 }}>
-            Email
-          </Text>
-          <Text style={{ color: '#e4e4e7', fontSize: 16 }}>
-            {user?.email || 'Anonymous user'}
-          </Text>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Profile Photo Section */}
+        <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderRadius: 24, padding: 20, marginBottom: 16 }}>
+          <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '600', marginBottom: 16 }}>Profile Photo</Text>
+          
+          <View style={{ alignItems: 'center', marginBottom: 16 }}>
+            {profileData.bodyPhoto ? (
+              <Image source={{ uri: profileData.bodyPhoto }} style={{ width: 120, height: 120, borderRadius: 60 }} />
+            ) : (
+              <View style={{ width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: '#a1a1aa', fontSize: 24 }}>📷</Text>
+              </View>
+            )}
+          </View>
+          
+          <Pressable onPress={pickBodyPhoto} style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', padding: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(59, 130, 246, 0.3)' }}>
+            <Text style={{ color: '#3b82f6', fontSize: 14, fontWeight: '600' }}>
+              {profileData.bodyPhoto ? 'Change Photo' : 'Upload Body Photo'}
+            </Text>
+          </Pressable>
         </View>
 
-        <View>
-          <Text style={{ color: '#a1a1aa', fontSize: 14, marginBottom: 4 }}>
-            User ID
-          </Text>
-          <Text style={{ color: '#e4e4e7', fontSize: 14, fontFamily: 'monospace' }}>
-            {user?.id || 'Unknown'}
-          </Text>
-        </View>
-      </View>
+        {/* Profile Information */}
+        <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderRadius: 24, padding: 20, marginBottom: 16 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '600' }}>Profile Information</Text>
+            <Pressable onPress={() => setIsEditing(!isEditing)} style={{ backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}>
+              <Text style={{ color: '#e4e4e7', fontSize: 12, fontWeight: '600' }}>
+                {isEditing ? 'Cancel' : 'Edit'}
+              </Text>
+            </Pressable>
+          </View>
 
-      <Pressable onPress={handleSignOut} style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: 16, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.3)' }}>
-        <Text style={{ color: '#ef4444', fontSize: 16, fontWeight: '600' }}>
-          Sign Out
-        </Text>
-      </Pressable>
+          <View style={{ gap: 16 }}>
+            <View>
+              <Text style={{ color: '#a1a1aa', fontSize: 14, marginBottom: 8 }}>Name</Text>
+              {isEditing ? (
+                <TextInput
+                  value={profileData.name}
+                  onChangeText={(text) => setProfileData(prev => ({ ...prev, name: text }))}
+                  placeholder="Enter your name"
+                  placeholderTextColor="#a1a1aa"
+                  style={{
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                    padding: 12,
+                    borderRadius: 12,
+                    color: '#e4e4e7',
+                    fontSize: 14
+                  }}
+                />
+              ) : (
+                <Text style={{ color: '#e4e4e7', fontSize: 16 }}>
+                  {profileData.name || 'Not set'}
+                </Text>
+              )}
+            </View>
+
+            <View>
+              <Text style={{ color: '#a1a1aa', fontSize: 14, marginBottom: 8 }}>Email</Text>
+              {isEditing ? (
+                <TextInput
+                  value={profileData.email}
+                  onChangeText={(text) => setProfileData(prev => ({ ...prev, email: text }))}
+                  placeholder="Enter your email"
+                  placeholderTextColor="#a1a1aa"
+                  keyboardType="email-address"
+                  style={{
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                    padding: 12,
+                    borderRadius: 12,
+                    color: '#e4e4e7',
+                    fontSize: 14
+                  }}
+                />
+              ) : (
+                <Text style={{ color: '#e4e4e7', fontSize: 16 }}>
+                  {profileData.email || 'Not set'}
+                </Text>
+              )}
+            </View>
+
+            <View>
+              <Text style={{ color: '#a1a1aa', fontSize: 14, marginBottom: 8 }}>Bio</Text>
+              {isEditing ? (
+                <TextInput
+                  value={profileData.bio}
+                  onChangeText={(text) => setProfileData(prev => ({ ...prev, bio: text }))}
+                  placeholder="Tell us about your style..."
+                  placeholderTextColor="#a1a1aa"
+                  multiline
+                  numberOfLines={3}
+                  style={{
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                    padding: 12,
+                    borderRadius: 12,
+                    color: '#e4e4e7',
+                    fontSize: 14,
+                    textAlignVertical: 'top'
+                  }}
+                />
+              ) : (
+                <Text style={{ color: '#e4e4e7', fontSize: 16 }}>
+                  {profileData.bio || 'No bio added'}
+                </Text>
+              )}
+            </View>
+
+            {isEditing && (
+              <Pressable onPress={saveProfile} style={{ backgroundColor: '#3b82f6', padding: 12, borderRadius: 12, alignItems: 'center' }}>
+                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>Save Changes</Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
+
+        {/* Account Settings */}
+        <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderRadius: 24, padding: 20, marginBottom: 16 }}>
+          <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '600', marginBottom: 16 }}>Settings</Text>
+          
+          <View style={{ gap: 12 }}>
+            <Pressable style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 }}>
+              <Text style={{ color: '#e4e4e7', fontSize: 14 }}>Notifications</Text>
+              <Text style={{ color: '#a1a1aa', fontSize: 12 }}>On</Text>
+            </Pressable>
+            
+            <Pressable style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 }}>
+              <Text style={{ color: '#e4e4e7', fontSize: 14 }}>Privacy</Text>
+              <Text style={{ color: '#a1a1aa', fontSize: 12 }}>Public</Text>
+            </Pressable>
+            
+            <Pressable style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 }}>
+              <Text style={{ color: '#e4e4e7', fontSize: 14 }}>Data & Storage</Text>
+              <Text style={{ color: '#a1a1aa', fontSize: 12 }}>Manage</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Sign Out */}
+        <Pressable onPress={handleSignOut} style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: 16, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.3)', marginBottom: 20 }}>
+          <Text style={{ color: '#ef4444', fontSize: 16, fontWeight: '600' }}>
+            Sign Out
+          </Text>
+        </Pressable>
+      </ScrollView>
     </View>
   );
 }
 
 function BottomBar({ route, go }) {
   const items = [
-    ['shop', 'Shop'], ['feed', 'Feed'], ['tryon', 'Try-On'], ['rooms', 'Rooms']
+    ['shop', 'Shop'], ['feed', 'Explore'], ['tryon', 'Try-On'], ['stylecraft', 'StyleCraft']
   ];
   return (
     <View style={{
-      position: 'absolute', left: 0, right: 0, bottom: 12,
-      alignItems: 'center'
+      position: 'absolute', left: 0, right: 0, bottom: 0,
+      alignItems: 'center',
+      paddingBottom: 34, // Safe area bottom padding
+      backgroundColor: 'rgba(0,0,0,0.8)',
+      paddingTop: 12
     }}>
       <View style={{
         flexDirection: 'row', gap: 10, backgroundColor: 'rgba(255,255,255,0.06)',
@@ -780,7 +2127,7 @@ function Card({ children }) {
 const s = StyleSheet.create({
   app: { flex: 1, backgroundColor: '#000' },
   container: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 100 }, // Add bottom padding for bottom bar
+  scrollContent: { padding: 16, paddingBottom: 120 }, // Add bottom padding for bottom bar
   grid2: { gap: 16 },
   h1: { color: '#e4e4e7', fontSize: 24, fontWeight: '700', marginBottom: 8 },
   muted: { color: '#a1a1aa', fontSize: 16, marginBottom: 16 },
