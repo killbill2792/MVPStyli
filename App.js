@@ -134,11 +134,11 @@ function Shell() {
   }
   
   return (
-    <SafeAreaView style={s.app} edges={['top']}>
+    <SafeAreaView style={s.app} edges={['top', 'bottom']}>
       <StatusBar barStyle="light-content" />
       <ScrollView 
         style={s.container} 
-        contentContainerStyle={s.scrollContent}
+        contentContainerStyle={{ padding: 16, paddingTop: 20, paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
       >
         {route === "signin" && <SignInScreen onDone={() => setRoute("onboarding")} />}
@@ -597,6 +597,570 @@ function Shop() {
       color: "Honey",
       material: "Cotton",
       size: "XS, S, M, L, XL"
+    },
+    // Top Wear - Women
+    {
+      id: "genz-crop-hoodie",
+      name: "Gen Z Crop Hoodie",
+      price: 45,
+      rating: 4.5,
+      image: "https://images.unsplash.com/photo-1578662996442-48f60103fc96?q=80&auto=format&fit=crop&w=1200",
+      category: "upper",
+      garment_des: "Trendy crop hoodie perfect for street style",
+      buyUrl: "https://www.streetwear.com/",
+      brand: "StreetWear",
+      color: "Pink",
+      material: "Cotton",
+      size: "XS, S, M, L"
+    },
+    {
+      id: "oversized-graphic-tee",
+      name: "Oversized Graphic Tee",
+      price: 28,
+      rating: 4.3,
+      image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&auto=format&fit=crop&w=1200",
+      category: "upper",
+      garment_des: "Comfortable oversized tee with bold graphics",
+      buyUrl: "https://www.urban.com/",
+      brand: "Urban",
+      color: "White",
+      material: "Cotton",
+      size: "S, M, L, XL"
+    },
+    {
+      id: "y2k-mesh-top",
+      name: "Y2K Mesh Top",
+      price: 35,
+      rating: 4.1,
+      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
+      category: "upper",
+      garment_des: "Retro mesh top with Y2K aesthetic",
+      buyUrl: "https://www.retro.com/",
+      brand: "Retro",
+      color: "Black",
+      material: "Mesh",
+      size: "XS, S, M, L"
+    },
+    {
+      id: "tie-dye-sweatshirt",
+      name: "Tie-Dye Sweatshirt",
+      price: 52,
+      rating: 4.4,
+      image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?q=80&auto=format&fit=crop&w=1200",
+      category: "upper",
+      garment_des: "Colorful tie-dye sweatshirt for casual wear",
+      buyUrl: "https://www.hippie.com/",
+      brand: "Hippie",
+      color: "Multi",
+      material: "Cotton",
+      size: "S, M, L, XL"
+    },
+    {
+      id: "corset-style-top",
+      name: "Corset Style Top",
+      price: 65,
+      rating: 4.6,
+      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
+      category: "upper",
+      garment_des: "Trendy corset-style top with structured fit",
+      buyUrl: "https://www.gothic.com/",
+      brand: "Gothic",
+      color: "Black",
+      material: "Satin",
+      size: "XS, S, M"
+    },
+    {
+      id: "neon-sports-bra",
+      name: "Neon Sports Bra",
+      price: 32,
+      rating: 4.2,
+      image: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?q=80&auto=format&fit=crop&w=1200",
+      category: "upper",
+      garment_des: "Bright neon sports bra for active wear",
+      buyUrl: "https://www.active.com/",
+      brand: "Active",
+      color: "Neon Green",
+      material: "Spandex",
+      size: "XS, S, M, L"
+    },
+    {
+      id: "vintage-band-tee",
+      name: "Vintage Band Tee",
+      price: 38,
+      rating: 4.7,
+      image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&auto=format&fit=crop&w=1200",
+      category: "upper",
+      garment_des: "Classic vintage band t-shirt",
+      buyUrl: "https://www.music.com/",
+      brand: "Music",
+      color: "Gray",
+      material: "Cotton",
+      size: "S, M, L, XL"
+    },
+    {
+      id: "crochet-bikini-top",
+      name: "Crochet Bikini Top",
+      price: 42,
+      rating: 4.3,
+      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
+      category: "upper",
+      garment_des: "Handmade crochet bikini top",
+      buyUrl: "https://www.beach.com/",
+      brand: "Beach",
+      color: "White",
+      material: "Cotton",
+      size: "XS, S, M"
+    },
+    {
+      id: "puff-sleeve-blouse",
+      name: "Puff Sleeve Blouse",
+      price: 58,
+      rating: 4.5,
+      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
+      category: "upper",
+      garment_des: "Feminine blouse with dramatic puff sleeves",
+      buyUrl: "https://www.feminine.com/",
+      brand: "Feminine",
+      color: "Lavender",
+      material: "Silk",
+      size: "XS, S, M, L"
+    },
+    {
+      id: "techwear-jacket",
+      name: "Techwear Jacket",
+      price: 120,
+      rating: 4.8,
+      image: "https://images.unsplash.com/photo-1551698618-1dfe5d97d256?q=80&auto=format&fit=crop&w=1200",
+      category: "outerwear",
+      garment_des: "Futuristic techwear jacket with multiple pockets",
+      buyUrl: "https://www.cyber.com/",
+      brand: "Cyber",
+      color: "Black",
+      material: "Nylon",
+      size: "S, M, L, XL"
+    },
+    // Top Wear - Men
+    {
+      id: "streetwear-hoodie-m",
+      name: "Streetwear Hoodie",
+      price: 68,
+      rating: 4.4,
+      image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?q=80&auto=format&fit=crop&w=1200",
+      category: "upper",
+      garment_des: "Comfortable streetwear hoodie for men",
+      buyUrl: "https://www.street.com/",
+      brand: "Street",
+      color: "Gray",
+      material: "Cotton",
+      size: "S, M, L, XL, XXL"
+    },
+    {
+      id: "vintage-logo-tee-m",
+      name: "Vintage Logo Tee",
+      price: 35,
+      rating: 4.6,
+      image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&auto=format&fit=crop&w=1200",
+      category: "upper",
+      garment_des: "Retro vintage logo t-shirt",
+      buyUrl: "https://www.retro.com/",
+      brand: "Retro",
+      color: "Black",
+      material: "Cotton",
+      size: "M, L, XL, XXL"
+    },
+    {
+      id: "oversized-button-up-m",
+      name: "Oversized Button-Up",
+      price: 75,
+      rating: 4.3,
+      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
+      category: "upper",
+      garment_des: "Relaxed fit button-up shirt",
+      buyUrl: "https://www.casual.com/",
+      brand: "Casual",
+      color: "White",
+      material: "Linen",
+      size: "M, L, XL, XXL"
+    },
+    {
+      id: "gaming-jersey-m",
+      name: "Gaming Jersey",
+      price: 55,
+      rating: 4.5,
+      image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&auto=format&fit=crop&w=1200",
+      category: "upper",
+      garment_des: "Gaming team jersey with team colors",
+      buyUrl: "https://www.gaming.com/",
+      brand: "Gaming",
+      color: "Blue",
+      material: "Polyester",
+      size: "S, M, L, XL"
+    },
+    {
+      id: "minimalist-tank-m",
+      name: "Minimalist Tank",
+      price: 25,
+      rating: 4.2,
+      image: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?q=80&auto=format&fit=crop&w=1200",
+      category: "upper",
+      garment_des: "Simple minimalist tank top",
+      buyUrl: "https://www.minimal.com/",
+      brand: "Minimal",
+      color: "White",
+      material: "Cotton",
+      size: "M, L, XL, XXL"
+    },
+    {
+      id: "tech-fleece-jacket-m",
+      name: "Tech Fleece Jacket",
+      price: 95,
+      rating: 4.7,
+      image: "https://images.unsplash.com/photo-1551698618-1dfe5d97d256?q=80&auto=format&fit=crop&w=1200",
+      category: "outerwear",
+      garment_des: "High-tech fleece jacket with advanced materials",
+      buyUrl: "https://www.tech.com/",
+      brand: "Tech",
+      color: "Navy",
+      material: "Fleece",
+      size: "S, M, L, XL, XXL"
+    },
+    {
+      id: "skater-longsleeve-m",
+      name: "Skater Longsleeve",
+      price: 42,
+      rating: 4.4,
+      image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&auto=format&fit=crop&w=1200",
+      category: "upper",
+      garment_des: "Skateboarding inspired long sleeve shirt",
+      buyUrl: "https://www.skate.com/",
+      brand: "Skate",
+      color: "Green",
+      material: "Cotton",
+      size: "S, M, L, XL"
+    },
+    {
+      id: "vintage-windbreaker-m",
+      name: "Vintage Windbreaker",
+      price: 85,
+      rating: 4.6,
+      image: "https://images.unsplash.com/photo-1551698618-1dfe5d97d256?q=80&auto=format&fit=crop&w=1200",
+      category: "outerwear",
+      garment_des: "Classic vintage windbreaker jacket",
+      buyUrl: "https://www.vintage.com/",
+      brand: "Vintage",
+      color: "Yellow",
+      material: "Nylon",
+      size: "M, L, XL, XXL"
+    },
+    {
+      id: "oversized-sweater-m",
+      name: "Oversized Sweater",
+      price: 65,
+      rating: 4.3,
+      image: "https://images.unsplash.com/photo-1578662996442-48f60103fc96?q=80&auto=format&fit=crop&w=1200",
+      category: "upper",
+      garment_des: "Comfortable oversized knit sweater",
+      buyUrl: "https://www.cozy.com/",
+      brand: "Cozy",
+      color: "Beige",
+      material: "Wool",
+      size: "L, XL, XXL"
+    },
+    {
+      id: "streetwear-vest-m",
+      name: "Streetwear Vest",
+      price: 48,
+      rating: 4.5,
+      image: "https://images.unsplash.com/photo-1551698618-1dfe5d97d256?q=80&auto=format&fit=crop&w=1200",
+      category: "outerwear",
+      garment_des: "Urban streetwear vest with utility pockets",
+      buyUrl: "https://www.urban.com/",
+      brand: "Urban",
+      color: "Black",
+      material: "Canvas",
+      size: "M, L, XL, XXL"
+    },
+    // Bottom Wear - Women
+    {
+      id: "genz-cargo-pants-w",
+      name: "Gen Z Cargo Pants",
+      price: 55,
+      rating: 4.4,
+      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
+      category: "lower",
+      garment_des: "Trendy cargo pants with multiple pockets",
+      buyUrl: "https://www.street.com/",
+      brand: "Street",
+      color: "Black",
+      material: "Cotton",
+      size: "XS, S, M, L"
+    },
+    {
+      id: "y2k-mini-skirt-w",
+      name: "Y2K Mini Skirt",
+      price: 38,
+      rating: 4.6,
+      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
+      category: "lower",
+      garment_des: "Retro Y2K style mini skirt",
+      buyUrl: "https://www.retro.com/",
+      brand: "Retro",
+      color: "Pink",
+      material: "Polyester",
+      size: "XS, S, M"
+    },
+    {
+      id: "oversized-sweatpants-w",
+      name: "Oversized Sweatpants",
+      price: 45,
+      rating: 4.3,
+      image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?q=80&auto=format&fit=crop&w=1200",
+      category: "lower",
+      garment_des: "Comfortable oversized sweatpants",
+      buyUrl: "https://www.comfy.com/",
+      brand: "Comfy",
+      color: "Gray",
+      material: "Cotton",
+      size: "S, M, L, XL"
+    },
+    {
+      id: "high-waist-jeans-w",
+      name: "High-Waist Jeans",
+      price: 68,
+      rating: 4.5,
+      image: "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&auto=format&fit=crop&w=1200",
+      category: "lower",
+      garment_des: "Flattering high-waist denim jeans",
+      buyUrl: "https://www.denim.com/",
+      brand: "Denim",
+      color: "Blue",
+      material: "Denim",
+      size: "24, 26, 28, 30, 32"
+    },
+    {
+      id: "mesh-shorts-w",
+      name: "Mesh Shorts",
+      price: 32,
+      rating: 4.2,
+      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
+      category: "lower",
+      garment_des: "Sporty mesh shorts for active wear",
+      buyUrl: "https://www.sport.com/",
+      brand: "Sport",
+      color: "Black",
+      material: "Mesh",
+      size: "XS, S, M, L"
+    },
+    {
+      id: "pleated-skirt-w",
+      name: "Pleated Skirt",
+      price: 42,
+      rating: 4.4,
+      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
+      category: "lower",
+      garment_des: "Classic pleated school-style skirt",
+      buyUrl: "https://www.school.com/",
+      brand: "School",
+      color: "Navy",
+      material: "Polyester",
+      size: "XS, S, M, L"
+    },
+    {
+      id: "wide-leg-trousers-w",
+      name: "Wide-Leg Trousers",
+      price: 58,
+      rating: 4.3,
+      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
+      category: "lower",
+      garment_des: "Professional wide-leg trousers",
+      buyUrl: "https://www.office.com/",
+      brand: "Office",
+      color: "Beige",
+      material: "Cotton",
+      size: "XS, S, M, L, XL"
+    },
+    {
+      id: "bike-shorts-w",
+      name: "Bike Shorts",
+      price: 28,
+      rating: 4.5,
+      image: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?q=80&auto=format&fit=crop&w=1200",
+      category: "lower",
+      garment_des: "Comfortable bike shorts for cycling",
+      buyUrl: "https://www.active.com/",
+      brand: "Active",
+      color: "Black",
+      material: "Spandex",
+      size: "XS, S, M, L"
+    },
+    {
+      id: "flare-jeans-w",
+      name: "Flare Jeans",
+      price: 72,
+      rating: 4.6,
+      image: "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&auto=format&fit=crop&w=1200",
+      category: "lower",
+      garment_des: "Retro flare leg denim jeans",
+      buyUrl: "https://www.vintage.com/",
+      brand: "Vintage",
+      color: "Light Blue",
+      material: "Denim",
+      size: "24, 26, 28, 30, 32"
+    },
+    {
+      id: "cargo-shorts-w",
+      name: "Cargo Shorts",
+      price: 48,
+      rating: 4.3,
+      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
+      category: "lower",
+      garment_des: "Utility cargo shorts with side pockets",
+      buyUrl: "https://www.utility.com/",
+      brand: "Utility",
+      color: "Olive",
+      material: "Cotton",
+      size: "XS, S, M, L"
+    },
+    // Bottom Wear - Men
+    {
+      id: "streetwear-joggers-m",
+      name: "Streetwear Joggers",
+      price: 52,
+      rating: 4.4,
+      image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?q=80&auto=format&fit=crop&w=1200",
+      category: "lower",
+      garment_des: "Comfortable streetwear jogger pants",
+      buyUrl: "https://www.street.com/",
+      brand: "Street",
+      color: "Black",
+      material: "Cotton",
+      size: "S, M, L, XL, XXL"
+    },
+    {
+      id: "vintage-denim-m",
+      name: "Vintage Denim",
+      price: 75,
+      rating: 4.6,
+      image: "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&auto=format&fit=crop&w=1200",
+      category: "lower",
+      garment_des: "Classic vintage denim jeans",
+      buyUrl: "https://www.retro.com/",
+      brand: "Retro",
+      color: "Blue",
+      material: "Denim",
+      size: "28, 30, 32, 34, 36, 38"
+    },
+    {
+      id: "cargo-pants-m",
+      name: "Cargo Pants",
+      price: 65,
+      rating: 4.3,
+      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
+      category: "lower",
+      garment_des: "Utility cargo pants with multiple pockets",
+      buyUrl: "https://www.utility.com/",
+      brand: "Utility",
+      color: "Khaki",
+      material: "Cotton",
+      size: "M, L, XL, XXL"
+    },
+    {
+      id: "basketball-shorts-m",
+      name: "Basketball Shorts",
+      price: 35,
+      rating: 4.5,
+      image: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?q=80&auto=format&fit=crop&w=1200",
+      category: "lower",
+      garment_des: "Performance basketball shorts",
+      buyUrl: "https://www.sport.com/",
+      brand: "Sport",
+      color: "Red",
+      material: "Polyester",
+      size: "S, M, L, XL, XXL"
+    },
+    {
+      id: "tech-pants-m",
+      name: "Tech Pants",
+      price: 85,
+      rating: 4.7,
+      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
+      category: "lower",
+      garment_des: "High-tech pants with advanced materials",
+      buyUrl: "https://www.tech.com/",
+      brand: "Tech",
+      color: "Black",
+      material: "Nylon",
+      size: "M, L, XL, XXL"
+    },
+    {
+      id: "chino-shorts-m",
+      name: "Chino Shorts",
+      price: 42,
+      rating: 4.2,
+      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
+      category: "lower",
+      garment_des: "Classic chino shorts for casual wear",
+      buyUrl: "https://www.casual.com/",
+      brand: "Casual",
+      color: "Navy",
+      material: "Cotton",
+      size: "S, M, L, XL"
+    },
+    {
+      id: "sweatpants-m",
+      name: "Sweatpants",
+      price: 38,
+      rating: 4.4,
+      image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?q=80&auto=format&fit=crop&w=1200",
+      category: "lower",
+      garment_des: "Comfortable sweatpants for lounging",
+      buyUrl: "https://www.comfy.com/",
+      brand: "Comfy",
+      color: "Gray",
+      material: "Cotton",
+      size: "M, L, XL, XXL"
+    },
+    {
+      id: "track-pants-m",
+      name: "Track Pants",
+      price: 48,
+      rating: 4.3,
+      image: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?q=80&auto=format&fit=crop&w=1200",
+      category: "lower",
+      garment_des: "Athletic track pants for training",
+      buyUrl: "https://www.athletic.com/",
+      brand: "Athletic",
+      color: "Blue",
+      material: "Polyester",
+      size: "M, L, XL, XXL"
+    },
+    {
+      id: "wide-leg-pants-m",
+      name: "Wide-Leg Pants",
+      price: 55,
+      rating: 4.5,
+      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
+      category: "lower",
+      garment_des: "Fashion-forward wide-leg pants",
+      buyUrl: "https://www.fashion.com/",
+      brand: "Fashion",
+      color: "Beige",
+      material: "Cotton",
+      size: "M, L, XL, XXL"
+    },
+    {
+      id: "cargo-shorts-m",
+      name: "Cargo Shorts",
+      price: 45,
+      rating: 4.3,
+      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
+      category: "lower",
+      garment_des: "Utility cargo shorts with side pockets",
+      buyUrl: "https://www.utility.com/",
+      brand: "Utility",
+      color: "Green",
+      material: "Cotton",
+      size: "S, M, L, XL"
     }
   ];
   
@@ -1133,8 +1697,10 @@ function TryOn() {
 
 function Explore() {
   const { setRoute } = useApp();
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [votedItems, setVotedItems] = useState(new Set());
   
-  // Dummy data for Explore page
+  // 30 items for Explore page with voting
   const exploreItems = [
     { 
       id: 'e1', 
@@ -1295,76 +1861,299 @@ function Explore() {
       comments: 4,
       isPodRecap: false,
       aiLabel: 'AI Styling'
+    },
+    { 
+      id: 'e16', 
+      type: 'public_post',
+      uri: 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@luna', 
+      sub: 'Y2K • Retro',
+      likes: 189,
+      comments: 8,
+      isPodRecap: false
+    },
+    { 
+      id: 'e17', 
+      type: 'pod_recap',
+      uri: 'https://images.unsplash.com/photo-1551698618-1dfe5d97d256?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@nova',
+      sub: 'Streetwear • Urban',
+      likes: 223,
+      comments: 14,
+      isPodRecap: true,
+      podResult: 'Global Mix says Yes (67%)'
+    },
+    { 
+      id: 'e18', 
+      type: 'ai_generated',
+      uri: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@zen', 
+      sub: 'Minimalist • Clean',
+      likes: 167,
+      comments: 6,
+      isPodRecap: false,
+      aiLabel: 'Trending Fit'
+    },
+    { 
+      id: 'e19', 
+      type: 'public_post',
+      uri: 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@phoenix', 
+      sub: 'Gothic • Dark',
+      likes: 198,
+      comments: 12,
+      isPodRecap: false
+    },
+    { 
+      id: 'e20', 
+      type: 'pod_recap',
+      uri: 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@sage',
+      sub: 'Vintage • Classic',
+      likes: 245,
+      comments: 19,
+      isPodRecap: true,
+      podResult: 'Taste Twins love this (89%)'
+    },
+    { 
+      id: 'e21', 
+      type: 'ai_generated',
+      uri: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@river', 
+      sub: 'Bohemian • Flowy',
+      likes: 134,
+      comments: 9,
+      isPodRecap: false,
+      aiLabel: 'Celeb Inspired'
+    },
+    { 
+      id: 'e22', 
+      type: 'public_post',
+      uri: 'https://images.unsplash.com/photo-1469334031218-e382a71b716b?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@storm', 
+      sub: 'Athletic • Performance',
+      likes: 176,
+      comments: 7,
+      isPodRecap: false
+    },
+    { 
+      id: 'e23', 
+      type: 'pod_recap',
+      uri: 'https://images.unsplash.com/photo-1475180098004-ca77a66827be?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@blaze',
+      sub: 'Formal • Elegant',
+      likes: 287,
+      comments: 16,
+      isPodRecap: true,
+      podResult: 'Friends approved (94%)'
+    },
+    { 
+      id: 'e24', 
+      type: 'ai_generated',
+      uri: 'https://images.unsplash.com/photo-1503342217505-b0a15cf70489?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@ember', 
+      sub: 'Casual • Comfort',
+      likes: 156,
+      comments: 5,
+      isPodRecap: false,
+      aiLabel: 'AI Styling'
+    },
+    { 
+      id: 'e25', 
+      type: 'public_post',
+      uri: 'https://images.unsplash.com/photo-1544441893-675973e31985?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@coral', 
+      sub: 'Summer • Bright',
+      likes: 203,
+      comments: 11,
+      isPodRecap: false
+    },
+    { 
+      id: 'e26', 
+      type: 'pod_recap',
+      uri: 'https://images.unsplash.com/photo-1516826957135-700dedea698c?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@mint',
+      sub: 'Preppy • Fresh',
+      likes: 167,
+      comments: 8,
+      isPodRecap: true,
+      podResult: 'Global Mix mixed (52%)'
+    },
+    { 
+      id: 'e27', 
+      type: 'ai_generated',
+      uri: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@pearl', 
+      sub: 'Luxury • High-end',
+      likes: 234,
+      comments: 13,
+      isPodRecap: false,
+      aiLabel: 'Trending Fit'
+    },
+    { 
+      id: 'e28', 
+      type: 'public_post',
+      uri: 'https://images.unsplash.com/photo-1515378791036-0648a3ef77b2?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@opal', 
+      sub: 'Artistic • Creative',
+      likes: 145,
+      comments: 6,
+      isPodRecap: false
+    },
+    { 
+      id: 'e29', 
+      type: 'pod_recap',
+      uri: 'https://images.unsplash.com/photo-1520975916090-3105956dac38?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@ruby',
+      sub: 'Bold • Statement',
+      likes: 198,
+      comments: 15,
+      isPodRecap: true,
+      podResult: 'Taste Twins split (45%)'
+    },
+    { 
+      id: 'e30', 
+      type: 'ai_generated',
+      uri: 'https://images.unsplash.com/photo-1503342217505-b0a15cf70489?q=80&auto=format&fit=crop&w=1200', 
+      handle: '@diamond', 
+      sub: 'Futuristic • Tech',
+      likes: 167,
+      comments: 9,
+      isPodRecap: false,
+      aiLabel: 'Celeb Inspired'
     }
   ];
 
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const current = exploreItems[currentIndex];
+  const currentItem = exploreItems[currentIndex];
+  const hasVoted = votedItems.has(currentItem.id);
 
-  const nextItem = () => {
-    setCurrentIndex((prev) => (prev + 1) % exploreItems.length);
+  const handleVote = (vote) => {
+    setVotedItems(prev => new Set([...prev, currentItem.id]));
+    // Auto advance after voting
+    setTimeout(() => {
+      if (currentIndex < exploreItems.length - 1) {
+        setCurrentIndex(prev => prev + 1);
+      }
+    }, 1000);
   };
 
-  const startPod = () => {
-    setRoute('createpod');
+  const nextItem = () => {
+    if (currentIndex < exploreItems.length - 1) {
+      setCurrentIndex(prev => prev + 1);
+    }
   };
 
   return (
     <View style={{ alignItems: 'center', flex: 1 }}>
       <View style={{ width: '100%', aspectRatio: 9 / 16, borderRadius: 24, overflow: 'hidden', position: 'relative', maxWidth: 420 }}>
-        <Image source={{ uri: current.uri }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
+        <Image source={{ uri: currentItem.uri }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
         
         {/* Top overlay with user info and type indicator */}
         <View style={{ position: 'absolute', left: 12, top: 12, right: 12 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <View>
-              <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700', textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: {width: 1, height: 1}, textShadowRadius: 3 }}>{current.handle}</Text>
-              <Text style={{ color: '#fff', opacity: 0.9, fontSize: 14, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: {width: 1, height: 1}, textShadowRadius: 3 }}>{current.sub}</Text>
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700', textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: {width: 1, height: 1}, textShadowRadius: 3 }}>{currentItem.handle}</Text>
+              <Text style={{ color: '#fff', opacity: 0.9, fontSize: 14, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: {width: 1, height: 1}, textShadowRadius: 3 }}>{currentItem.sub}</Text>
         </View>
 
-            {current.isPodRecap && (
+            {currentItem.isPodRecap && (
               <View style={{ backgroundColor: 'rgba(59, 130, 246, 0.9)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
                 <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>Pod Recap</Text>
               </View>
             )}
             
-            {current.aiLabel && (
+            {currentItem.aiLabel && (
               <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.9)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
-                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>{current.aiLabel}</Text>
+                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>{currentItem.aiLabel}</Text>
               </View>
             )}
           </View>
         </View>
 
         {/* Pod result overlay */}
-        {current.isPodRecap && current.podResult && (
+        {currentItem.isPodRecap && currentItem.podResult && (
           <View style={{ position: 'absolute', left: 12, top: 80, backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16 }}>
-            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>{current.podResult}</Text>
+            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>{currentItem.podResult}</Text>
           </View>
         )}
 
-        {/* Bottom overlay with actions */}
-        <View style={{ position: 'absolute', left: 12, right: 12, bottom: 12 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <View style={{ flexDirection: 'row', gap: 16 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>❤️</Text>
-                <Text style={{ color: '#fff', fontSize: 14, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: {width: 1, height: 1}, textShadowRadius: 3 }}>{current.likes}</Text>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>💬</Text>
-                <Text style={{ color: '#fff', fontSize: 14, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: {width: 1, height: 1}, textShadowRadius: 3 }}>{current.comments}</Text>
-              </View>
-            </View>
-            
-            <Pressable onPress={nextItem} style={{ backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 }}>
-              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>Next</Text>
+        {/* Top-right vertical action buttons */}
+        <View style={{ position: 'absolute', right: 12, top: 12, flexDirection: 'column', gap: 8 }}>
+          <Pressable 
+            onPress={() => setRoute('tryon')}
+            style={{ backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12 }}
+          >
+            <Text style={{ color: '#10b981', fontSize: 16 }}>👗</Text>
+          </Pressable>
+          <Pressable 
+            onPress={() => setRoute('createpod')}
+            style={{ backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12 }}
+          >
+            <Text style={{ color: '#10b981', fontSize: 16 }}>👥</Text>
+          </Pressable>
+        </View>
+
+        {/* Voting buttons */}
+        {!hasVoted ? (
+          <View style={{ position: 'absolute', bottom: 20, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 20 }}>
+            <Pressable 
+              onPress={() => handleVote('dislike')}
+              style={{ backgroundColor: 'rgba(239, 68, 68, 0.8)', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 25 }}
+            >
+              <Text style={{ color: '#fff', fontSize: 24 }}>❌</Text>
+            </Pressable>
+            <Pressable 
+              onPress={() => handleVote('like')}
+              style={{ backgroundColor: 'rgba(34, 197, 94, 0.8)', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 25 }}
+            >
+              <Text style={{ color: '#fff', fontSize: 24 }}>❤️</Text>
+            </Pressable>
+            <Pressable 
+              onPress={() => handleVote('fire')}
+              style={{ backgroundColor: 'rgba(251, 146, 60, 0.8)', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 25 }}
+            >
+              <Text style={{ color: '#fff', fontSize: 24 }}>🔥</Text>
             </Pressable>
           </View>
-          
-          <Pressable onPress={startPod} style={{ backgroundColor: 'rgba(59, 130, 246, 0.9)', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 16, alignItems: 'center' }}>
-            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>Try it / Start a Pod with this</Text>
-          </Pressable>
+        ) : (
+          <View style={{ position: 'absolute', bottom: 20, left: 0, right: 0, alignItems: 'center' }}>
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600', textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: {width: 1, height: 1}, textShadowRadius: 3 }}>
+              Voted! Moving to next...
+            </Text>
+          </View>
+        )}
+
+        {/* Next button */}
+        {hasVoted && (
+          <View style={{ position: 'absolute', bottom: 20, right: 20 }}>
+            <Pressable 
+              onPress={nextItem}
+              style={{ backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20 }}
+            >
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Next →</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* Progress indicator */}
+        <View style={{ position: 'absolute', top: 12, left: 12, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 }}>
+          <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>
+            {currentIndex + 1} / {exploreItems.length}
+          </Text>
+        </View>
+
+        {/* Bottom overlay with likes and comments */}
+        <View style={{ position: 'absolute', left: 12, right: 12, bottom: 12 }}>
+          <View style={{ flexDirection: 'row', gap: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>❤️</Text>
+              <Text style={{ color: '#fff', fontSize: 14, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: {width: 1, height: 1}, textShadowRadius: 3 }}>{currentItem.likes}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>💬</Text>
+              <Text style={{ color: '#fff', fontSize: 14, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: {width: 1, height: 1}, textShadowRadius: 3 }}>{currentItem.comments}</Text>
+            </View>
+          </View>
         </View>
       </View>
     </View>
@@ -1957,25 +2746,29 @@ function StyleCraft() {
               onPress={() => setDesignType('upload')}
               style={{ 
                 flex: 1, 
-                backgroundColor: designType === 'upload' ? '#3b82f6' : 'rgba(255,255,255,0.1)',
+                backgroundColor: designType === 'upload' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255,255,255,0.1)',
+                borderWidth: designType === 'upload' ? 1 : 0,
+                borderColor: designType === 'upload' ? 'rgba(16, 185, 129, 0.3)' : 'transparent',
                 padding: 12, 
                 borderRadius: 12, 
                 alignItems: 'center' 
               }}
             >
-              <Text style={{ color: designType === 'upload' ? '#fff' : '#a1a1aa', fontSize: 14, fontWeight: '600' }}>Upload Image</Text>
+              <Text style={{ color: designType === 'upload' ? '#10b981' : '#a1a1aa', fontSize: 14, fontWeight: '600' }}>Upload Image</Text>
             </Pressable>
             <Pressable 
               onPress={() => setDesignType('describe')}
               style={{ 
                 flex: 1, 
-                backgroundColor: designType === 'describe' ? '#3b82f6' : 'rgba(255,255,255,0.1)',
+                backgroundColor: designType === 'describe' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255,255,255,0.1)',
+                borderWidth: designType === 'describe' ? 1 : 0,
+                borderColor: designType === 'describe' ? 'rgba(16, 185, 129, 0.3)' : 'transparent',
                 padding: 12, 
                 borderRadius: 12, 
                 alignItems: 'center' 
               }}
             >
-              <Text style={{ color: designType === 'describe' ? '#fff' : '#a1a1aa', fontSize: 14, fontWeight: '600' }}>Describe</Text>
+              <Text style={{ color: designType === 'describe' ? '#10b981' : '#a1a1aa', fontSize: 14, fontWeight: '600' }}>Describe</Text>
             </Pressable>
           </View>
         </View>
