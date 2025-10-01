@@ -7,6 +7,7 @@ import { supabase } from './lib/supabase';
 import { uploadImageAsync } from './lib/upload';
 import productsData from './data/products.json';
 import { Linking } from 'react-native';
+import BottomBar from './components/BottomBar';
 
 // Upload garment image to Supabase for Replicate access
 async function uploadGarmentImage(imageUrl, productId) {
@@ -1329,8 +1330,8 @@ function Shop() {
 }
 
 function Product() {
-  const { state: { products, currentProductId }, setRoute } = useApp();
-  const product = products.find(p => p.id === currentProductId);
+  const { state: { currentProductId }, setRoute } = useApp();
+  const product = enhancedProducts.find(p => p.id === currentProductId);
   const [cleanUrl, setCleanUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isTracking, setIsTracking] = useState(false);
@@ -1462,8 +1463,8 @@ function Product() {
 }
 
 function TryOn() {
-  const { state: { twinUrl, currentProductId, products }, setRoute, setTwinUrl } = useApp();
-  const product = products.find(p => p.id === currentProductId);
+  const { state: { twinUrl, currentProductId }, setRoute, setTwinUrl } = useApp();
+  const product = enhancedProducts.find(p => p.id === currentProductId);
   const garmentCleanUrl = useApp().state.params?.garmentCleanUrl;
   const garmentId = useApp().state.params?.garmentId;
   const category = useApp().state.params?.category;
@@ -2744,31 +2745,27 @@ function StyleCraft() {
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <Pressable 
               onPress={() => setDesignType('upload')}
-              style={{ 
-                flex: 1, 
-                backgroundColor: designType === 'upload' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255,255,255,0.1)',
-                borderWidth: designType === 'upload' ? 1 : 0,
-                borderColor: designType === 'upload' ? 'rgba(16, 185, 129, 0.3)' : 'transparent',
-                padding: 12, 
-                borderRadius: 12, 
-                alignItems: 'center' 
-              }}
+            style={{ 
+              flex: 1, 
+              backgroundColor: designType === 'upload' ? 'rgba(255,255,255,0.12)' : 'transparent',
+              padding: 12, 
+              borderRadius: 12, 
+              alignItems: 'center' 
+            }}
             >
-              <Text style={{ color: designType === 'upload' ? '#10b981' : '#a1a1aa', fontSize: 14, fontWeight: '600' }}>Upload Image</Text>
+              <Text style={{ color: designType === 'upload' ? '#fff' : '#a1a1aa', fontSize: 14, fontWeight: '600' }}>Upload Image</Text>
             </Pressable>
             <Pressable 
               onPress={() => setDesignType('describe')}
               style={{ 
                 flex: 1, 
-                backgroundColor: designType === 'describe' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255,255,255,0.1)',
-                borderWidth: designType === 'describe' ? 1 : 0,
-                borderColor: designType === 'describe' ? 'rgba(16, 185, 129, 0.3)' : 'transparent',
+                backgroundColor: designType === 'describe' ? 'rgba(255,255,255,0.12)' : 'transparent',
                 padding: 12, 
                 borderRadius: 12, 
                 alignItems: 'center' 
               }}
             >
-              <Text style={{ color: designType === 'describe' ? '#10b981' : '#a1a1aa', fontSize: 14, fontWeight: '600' }}>Describe</Text>
+              <Text style={{ color: designType === 'describe' ? '#fff' : '#a1a1aa', fontSize: 14, fontWeight: '600' }}>Describe</Text>
             </Pressable>
           </View>
         </View>
@@ -2928,17 +2925,19 @@ function AccountScreen({ onBack }) {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#000', padding: 16 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-        <Pressable onPress={onBack} style={{ marginRight: 16 }}>
-          <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
-        </Pressable>
-        <Text style={{ color: '#e4e4e7', fontSize: 24, fontWeight: '700' }}>
-          Account
-        </Text>
+    <View style={{ flex: 1, backgroundColor: '#000' }}>
+      <View style={{ padding: 16, paddingBottom: 0 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+          <Pressable onPress={onBack} style={{ marginRight: 16 }}>
+            <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
+          </Pressable>
+          <Text style={{ color: '#e4e4e7', fontSize: 24, fontWeight: '700' }}>
+            Account
+          </Text>
+        </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} style={{ padding: 16 }}>
         {/* Profile Photo Section */}
         <View style={{ marginBottom: 24 }}>
           <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '600', marginBottom: 16 }}>Profile Photo</Text>
@@ -2953,7 +2952,7 @@ function AccountScreen({ onBack }) {
             )}
           </View>
           
-          <Pressable onPress={pickBodyPhoto} style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 12, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
+          <Pressable onPress={pickBodyPhoto} style={{ padding: 12, alignItems: 'center' }}>
             <Text style={{ color: '#10b981', fontSize: 14, fontWeight: '600' }}>
               {profileData.bodyPhoto ? 'Change Photo' : 'Upload Body Photo'}
             </Text>
@@ -3086,56 +3085,6 @@ function AccountScreen({ onBack }) {
   );
 }
 
-function BottomBar({ route, go }) {
-  const items = [
-    ['shop', 'Shop'], ['feed', 'Explore'], ['tryon', 'Try-On'], ['stylecraft', 'StyleCraft']
-  ];
-  return (
-    <View style={{
-      position: 'absolute', left: 0, right: 0, bottom: 0,
-      alignItems: 'center',
-      paddingBottom: 20, // Reduced bottom padding
-      backgroundColor: 'rgba(0,0,0,0.9)',
-      paddingTop: 8
-    }}>
-      <View style={{
-        flexDirection: 'row', gap: 8, backgroundColor: 'rgba(255,255,255,0.06)',
-        borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderRadius: 9999,
-        paddingHorizontal: 8, paddingVertical: 6
-      }}>
-        {items.map(([k, label]) => (
-          <Pressable
-            key={k}
-            onPress={() => go(k)}
-            style={{
-              paddingHorizontal: 12, paddingVertical: 6, borderRadius: 9999,
-              backgroundColor: route === k ? '#fff' : 'transparent'
-            }}
-          >
-            <Text style={{
-              color: route === k ? '#000' : '#d4d4d8',
-              fontWeight: route === k ? '700' : '500',
-              fontSize: 12
-            }}>{label}</Text>
-          </Pressable>
-        ))}
-        <Pressable
-          onPress={() => go('account')}
-          style={{
-            paddingHorizontal: 12, paddingVertical: 6, borderRadius: 9999,
-            backgroundColor: route === 'account' ? '#fff' : 'transparent'
-          }}
-        >
-          <Text style={{
-            color: route === 'account' ? '#000' : '#d4d4d8',
-            fontWeight: route === 'account' ? '700' : '500',
-            fontSize: 12
-          }}>⚙️</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-}
 
 function Card({ children }) {
   return (
@@ -3154,7 +3103,7 @@ function Card({ children }) {
 const s = StyleSheet.create({
   app: { flex: 1, backgroundColor: '#000' },
   container: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 100 },
+  scrollContent: { padding: 16, paddingBottom: 120 },
   grid2: { gap: 16 },
   h1: { color: '#e4e4e7', fontSize: 24, fontWeight: '700', marginBottom: 8 },
   muted: { color: '#a1a1aa', fontSize: 16, marginBottom: 16 },
