@@ -134,11 +134,11 @@ function Shell() {
   }
   
   return (
-    <SafeAreaView style={s.app} edges={['top', 'bottom']}>
+    <SafeAreaView style={s.app} edges={['top']}>
       <StatusBar barStyle="light-content" />
       <ScrollView 
         style={s.container} 
-        contentContainerStyle={{ padding: 16, paddingTop: 20, paddingBottom: 120 }}
+        contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         {route === "signin" && <SignInScreen onDone={() => setRoute("onboarding")} />}
@@ -1455,7 +1455,7 @@ function Product() {
             <Text style={{ color: '#fff', fontWeight: '600' }}>Buy Now</Text>
           </Pressable>
         </View>
-        <Pressable onPress={() => setRoute('shop')}><Text style={{ color: '#3b82f6', marginTop: 8 }}>Back to shop</Text></Pressable>
+        <Pressable onPress={() => setRoute('shop')}><Text style={{ color: '#a1a1aa', marginTop: 8 }}>Back to shop</Text></Pressable>
       </View>
     </View>
   );
@@ -2098,21 +2098,21 @@ function Explore() {
           <View style={{ position: 'absolute', bottom: 20, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 20 }}>
             <Pressable 
               onPress={() => handleVote('dislike')}
-              style={{ backgroundColor: 'rgba(239, 68, 68, 0.8)', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 25 }}
+              style={{ paddingHorizontal: 20, paddingVertical: 12 }}
             >
-              <Text style={{ color: '#fff', fontSize: 24 }}>❌</Text>
+              <Text style={{ fontSize: 32 }}>❌</Text>
             </Pressable>
             <Pressable 
               onPress={() => handleVote('like')}
-              style={{ backgroundColor: 'rgba(34, 197, 94, 0.8)', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 25 }}
+              style={{ paddingHorizontal: 20, paddingVertical: 12 }}
             >
-              <Text style={{ color: '#fff', fontSize: 24 }}>❤️</Text>
+              <Text style={{ fontSize: 32 }}>❤️</Text>
             </Pressable>
             <Pressable 
               onPress={() => handleVote('fire')}
-              style={{ backgroundColor: 'rgba(251, 146, 60, 0.8)', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 25 }}
+              style={{ paddingHorizontal: 20, paddingVertical: 12 }}
             >
-              <Text style={{ color: '#fff', fontSize: 24 }}>🔥</Text>
+              <Text style={{ fontSize: 32 }}>🔥</Text>
             </Pressable>
           </View>
         ) : (
@@ -2244,10 +2244,9 @@ function CreatePod() {
             key={mode.id} 
             onPress={() => setSelectedMode(mode.id)}
             style={{ 
-              backgroundColor: selectedMode === mode.id ? 'rgba(59, 130, 246, 0.1)' : 'rgba(255,255,255,0.05)',
-              borderColor: selectedMode === mode.id ? '#3b82f6' : 'rgba(255,255,255,0.08)',
-              borderWidth: 1,
-              borderRadius: 16,
+              backgroundColor: selectedMode === mode.id ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
+              borderWidth: selectedMode === mode.id ? 1 : 0,
+              borderColor: selectedMode === mode.id ? 'rgba(16, 185, 129, 0.3)' : 'transparent',
               padding: 16,
               marginBottom: 12
             }}
@@ -2284,13 +2283,14 @@ function CreatePod() {
                   key={mins}
                   onPress={() => setDuration(mins)}
                   style={{ 
-                    backgroundColor: duration === mins ? '#3b82f6' : 'rgba(255,255,255,0.1)',
+                    backgroundColor: duration === mins ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
+                    borderWidth: duration === mins ? 1 : 0,
+                    borderColor: duration === mins ? 'rgba(16, 185, 129, 0.3)' : 'transparent',
                     paddingHorizontal: 12,
-                    paddingVertical: 8,
-                    borderRadius: 8
+                    paddingVertical: 8
                   }}
                 >
-                  <Text style={{ color: duration === mins ? '#fff' : '#a1a1aa', fontSize: 14, fontWeight: '600' }}>
+                  <Text style={{ color: duration === mins ? '#10b981' : '#a1a1aa', fontSize: 14, fontWeight: '600' }}>
                     {mins}m
                   </Text>
                 </Pressable>
@@ -2361,7 +2361,7 @@ function RoomOwner() {
     <View style={{ flex: 1, backgroundColor: '#000', padding: 16 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
         <Pressable onPress={() => setRoute('createpod')} style={{ marginRight: 16 }}>
-          <Text style={{ color: '#3b82f6', fontSize: 16 }}>← Back</Text>
+          <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
         </Pressable>
         <Text style={{ color: '#e4e4e7', fontSize: 24, fontWeight: '700' }}>Pod Room</Text>
       </View>
@@ -2491,7 +2491,7 @@ function AIAnalytics() {
     <View style={{ flex: 1, backgroundColor: '#000', padding: 16 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
         <Pressable onPress={() => setRoute('tryon')} style={{ marginRight: 16 }}>
-          <Text style={{ color: '#3b82f6', fontSize: 16 }}>← Back</Text>
+          <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
         </Pressable>
         <Text style={{ color: '#e4e4e7', fontSize: 24, fontWeight: '700' }}>AI Analytics</Text>
       </View>
@@ -2512,7 +2512,7 @@ function AIAnalytics() {
             maxWidth: '80%'
           }}>
             <View style={{
-              backgroundColor: msg.type === 'user' ? '#3b82f6' : 'rgba(255,255,255,0.1)',
+              backgroundColor: msg.type === 'user' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255,255,255,0.1)',
               padding: 12,
               borderRadius: 16,
               borderTopLeftRadius: msg.type === 'ai' ? 4 : 16,
@@ -2931,7 +2931,7 @@ function AccountScreen({ onBack }) {
     <View style={{ flex: 1, backgroundColor: '#000', padding: 16 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
         <Pressable onPress={onBack} style={{ marginRight: 16 }}>
-          <Text style={{ color: '#3b82f6', fontSize: 16 }}>← Back</Text>
+          <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
         </Pressable>
         <Text style={{ color: '#e4e4e7', fontSize: 24, fontWeight: '700' }}>
           Account
@@ -2940,7 +2940,7 @@ function AccountScreen({ onBack }) {
 
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Profile Photo Section */}
-        <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderRadius: 24, padding: 20, marginBottom: 16 }}>
+        <View style={{ marginBottom: 24 }}>
           <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '600', marginBottom: 16 }}>Profile Photo</Text>
           
           <View style={{ alignItems: 'center', marginBottom: 16 }}>
@@ -2953,7 +2953,7 @@ function AccountScreen({ onBack }) {
             )}
           </View>
           
-          <Pressable onPress={pickBodyPhoto} style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
+          <Pressable onPress={pickBodyPhoto} style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 12, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
             <Text style={{ color: '#10b981', fontSize: 14, fontWeight: '600' }}>
               {profileData.bodyPhoto ? 'Change Photo' : 'Upload Body Photo'}
             </Text>
@@ -2961,11 +2961,11 @@ function AccountScreen({ onBack }) {
         </View>
 
         {/* Profile Information */}
-        <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderRadius: 24, padding: 20, marginBottom: 16 }}>
+        <View style={{ marginBottom: 24 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '600' }}>Profile Information</Text>
-            <Pressable onPress={() => setIsEditing(!isEditing)} style={{ backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}>
-              <Text style={{ color: '#e4e4e7', fontSize: 12, fontWeight: '600' }}>
+            <Pressable onPress={() => setIsEditing(!isEditing)} style={{ paddingHorizontal: 12, paddingVertical: 6 }}>
+              <Text style={{ color: '#10b981', fontSize: 12, fontWeight: '600' }}>
                 {isEditing ? 'Cancel' : 'Edit'}
               </Text>
             </Pressable>
@@ -3054,29 +3054,29 @@ function AccountScreen({ onBack }) {
         </View>
 
         {/* Account Settings */}
-        <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderRadius: 24, padding: 20, marginBottom: 16 }}>
+        <View style={{ marginBottom: 24 }}>
           <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '600', marginBottom: 16 }}>Settings</Text>
           
-          <View style={{ gap: 12 }}>
-            <Pressable style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 }}>
+          <View style={{ gap: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 }}>
               <Text style={{ color: '#e4e4e7', fontSize: 14 }}>Notifications</Text>
               <Text style={{ color: '#a1a1aa', fontSize: 12 }}>On</Text>
-            </Pressable>
+            </View>
             
-            <Pressable style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 }}>
               <Text style={{ color: '#e4e4e7', fontSize: 14 }}>Privacy</Text>
               <Text style={{ color: '#a1a1aa', fontSize: 12 }}>Public</Text>
-            </Pressable>
+            </View>
             
-            <Pressable style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 }}>
               <Text style={{ color: '#e4e4e7', fontSize: 14 }}>Data & Storage</Text>
               <Text style={{ color: '#a1a1aa', fontSize: 12 }}>Manage</Text>
-            </Pressable>
+            </View>
           </View>
         </View>
 
         {/* Sign Out */}
-        <Pressable onPress={handleSignOut} style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: 16, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.3)', marginBottom: 20 }}>
+        <Pressable onPress={handleSignOut} style={{ padding: 16, alignItems: 'center', marginBottom: 20 }}>
           <Text style={{ color: '#ef4444', fontSize: 16, fontWeight: '600' }}>
             Sign Out
           </Text>
@@ -3154,7 +3154,7 @@ function Card({ children }) {
 const s = StyleSheet.create({
   app: { flex: 1, backgroundColor: '#000' },
   container: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 100 }, // Add bottom padding for bottom bar
+  scrollContent: { padding: 16, paddingBottom: 100 },
   grid2: { gap: 16 },
   h1: { color: '#e4e4e7', fontSize: 24, fontWeight: '700', marginBottom: 8 },
   muted: { color: '#a1a1aa', fontSize: 16, marginBottom: 16 },
