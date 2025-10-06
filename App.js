@@ -918,24 +918,22 @@ function Shop() {
   
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      {/* Floating Search Bar */}
-      <View style={{ position: 'absolute', top: 16, left: 16, right: 16, zIndex: 10 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={{ color: '#a1a1aa', marginRight: 8 }}>🔍</Text>
-            <TextInput
-              value={searchQuery}
-              onChangeText={handleSearch}
-              placeholder="Search dresses, brands, colors..."
-              placeholderTextColor="#a1a1aa"
-              style={{ flex: 1, color: '#e4e4e7', fontSize: 14 }}
-            />
-            {searchQuery.length > 0 && (
-              <Pressable onPress={() => { setSearchQuery(''); setFilteredProducts(enhancedProducts); }}>
-                <Text style={{ color: '#a1a1aa', fontSize: 16 }}>✕</Text>
-              </Pressable>
-            )}
-          </View>
+      {/* Search Bar */}
+      <View style={{ padding: 16, paddingBottom: 8 }}>
+        <View style={{ backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={{ color: '#a1a1aa', marginRight: 8 }}>🔍</Text>
+          <TextInput
+            value={searchQuery}
+            onChangeText={handleSearch}
+            placeholder="Search dresses, brands, colors..."
+            placeholderTextColor="#a1a1aa"
+            style={{ flex: 1, color: '#e4e4e7', fontSize: 14 }}
+          />
+          {searchQuery.length > 0 && (
+            <Pressable onPress={() => { setSearchQuery(''); setFilteredProducts(enhancedProducts); }}>
+              <Text style={{ color: '#a1a1aa', fontSize: 16 }}>✕</Text>
+            </Pressable>
+          )}
         </View>
       </View>
       
@@ -1089,10 +1087,34 @@ function Product() {
   const isOnSale = product.price < priceHistory[0].price;
   
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 14, paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
-      <View style={{ width: '100%', aspectRatio: 9 / 16, borderRadius: 24, overflow: 'hidden' }}>
-        <Image source={{ uri: product.image }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
-      </View>
+    <View style={{ flex: 1, backgroundColor: '#000' }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 14, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+        <View style={{ width: '100%', aspectRatio: 9 / 16, borderRadius: 24, overflow: 'hidden', position: 'relative' }}>
+          <Image source={{ uri: product.image }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
+          
+          {/* Floating Try On Button */}
+          <Pressable 
+            onPress={() => setRoute('tryon', { garmentId: product.id, category: product.category })}
+            style={{
+              position: 'absolute',
+              top: 12,
+              right: 12,
+              backgroundColor: 'rgba(0,0,0,0.7)',
+              width: 50,
+              height: 50,
+              borderRadius: 25,
+              justifyContent: 'center',
+              alignItems: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.3,
+              shadowRadius: 4,
+              elevation: 5
+            }}
+          >
+            <Text style={{ fontSize: 20 }}>✨</Text>
+          </Pressable>
+        </View>
       <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderRadius: 24, padding: 16 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
           <View style={{ flex: 1 }}>
@@ -1114,27 +1136,53 @@ function Product() {
         
         {/* Price Tracking Section */}
         <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: 12, marginTop: 12, marginBottom: 12 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <Text style={{ color: '#e4e4e7', fontSize: 14, fontWeight: '600' }}>Price Tracking</Text>
-            <Pressable 
-              onPress={togglePriceTracking}
-              style={{ 
-                backgroundColor: isTracking ? '#10b981' : 'rgba(255,255,255,0.1)',
-                paddingHorizontal: 12,
-                paddingVertical: 6,
-                borderRadius: 8
-              }}
-            >
-              <Text style={{ color: isTracking ? '#fff' : '#a1a1aa', fontSize: 12, fontWeight: '600' }}>
-                {isTracking ? 'Tracking' : 'Track Price'}
-              </Text>
-            </Pressable>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <Text style={{ color: '#10b981', fontSize: 12 }}>30d Low: ${lowestPrice}</Text>
+              <Text style={{ color: '#ef4444', fontSize: 12 }}>30d High: ${Math.max(...priceHistory.map(p => p.price))}</Text>
+            </View>
           </View>
           
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-            <Text style={{ color: '#a1a1aa', fontSize: 12 }}>30-day low: ${lowestPrice}</Text>
-            <Text style={{ color: '#a1a1aa', fontSize: 12 }}>30-day high: ${Math.max(...priceHistory.map(p => p.price))}</Text>
+          {/* Custom Price Input */}
+          <View style={{ marginBottom: 12 }}>
+            <Text style={{ color: '#a1a1aa', fontSize: 12, marginBottom: 6 }}>Notify me when price drops below:</Text>
+            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+              <Text style={{ color: '#e4e4e7', fontSize: 16 }}>$</Text>
+              <TextInput
+                style={{
+                  flex: 1,
+                  backgroundColor: 'rgba(255,255,255,0.1)',
+                  borderRadius: 8,
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  color: '#e4e4e7',
+                  fontSize: 16,
+                  borderWidth: 1,
+                  borderColor: 'rgba(255,255,255,0.2)'
+                }}
+                placeholder={lowestPrice.toString()}
+                placeholderTextColor="#a1a1aa"
+                keyboardType="numeric"
+                defaultValue={lowestPrice.toString()}
+              />
+            </View>
           </View>
+          
+          <Pressable 
+            onPress={togglePriceTracking}
+            style={{ 
+              backgroundColor: isTracking ? '#10b981' : 'rgba(255,255,255,0.1)',
+              paddingHorizontal: 16,
+              paddingVertical: 10,
+              borderRadius: 8,
+              alignItems: 'center'
+            }}
+          >
+            <Text style={{ color: isTracking ? '#fff' : '#e4e4e7', fontSize: 14, fontWeight: '600' }}>
+              {isTracking ? '✓ Price Tracking Active' : 'Start Price Tracking'}
+            </Text>
+          </Pressable>
           
           {isTracking && (
             <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 8, borderRadius: 8 }}>
@@ -1145,38 +1193,30 @@ function Product() {
           )}
         </View>
         
-        <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-          <Pressable 
-            disabled={!cleanUrl || loading} 
-            onPress={() => setRoute('tryon', { garmentCleanUrl: cleanUrl, garmentId: product.id, category: product.category })} 
-            style={{ 
-              flex: 1, 
-              backgroundColor: (cleanUrl && !loading) ? '#fff' : 'rgba(255,255,255,0.3)', 
-              padding: 12, 
-              borderRadius: 14, 
-              alignItems: 'center' 
+        {/* Buy Now Section */}
+        <View style={{ marginTop: 16 }}>
+          <Pressable
+            style={{
+              backgroundColor: '#fff',
+              padding: 16,
+              borderRadius: 12,
+              alignItems: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+              elevation: 3
             }}
           >
-            <Text style={{ color: (cleanUrl && !loading) ? '#000' : '#111' }}>
-              {loading ? 'Preparing…' : 'Try On'}
-            </Text>
-          </Pressable>
-            <Pressable
-              onPress={() => Linking.openURL(product.buyUrl)}
-            style={{ 
-              flex: 1, 
-              backgroundColor: '#10b981', 
-              padding: 12, 
-              borderRadius: 14, 
-              alignItems: 'center' 
-            }}
-          >
-            <Text style={{ color: '#fff', fontWeight: '600' }}>Buy Now</Text>
+            <Text style={{ color: '#000', fontSize: 16, fontWeight: '700' }}>Buy Now - ${product.price}</Text>
           </Pressable>
         </View>
-        <Pressable onPress={() => setRoute('shop')}><Text style={{ color: '#a1a1aa', marginTop: 8 }}>Back to shop</Text></Pressable>
-      </View>
-    </ScrollView>
+        
+        <Pressable onPress={() => setRoute('shop')} style={{ marginTop: 16, alignItems: 'center' }}>
+          <Text style={{ color: '#a1a1aa', fontSize: 14 }}>← Back to shop</Text>
+        </Pressable>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -1361,9 +1401,9 @@ function TryOn() {
               })} 
               style={{ 
                 backgroundColor: 'rgba(0,0,0,0.7)', 
-                width: 48, 
-                height: 48, 
-                borderRadius: 24, 
+                width: 50, 
+                height: 50, 
+                borderRadius: 25, 
                 justifyContent: 'center', 
                 alignItems: 'center',
                 shadowColor: '#000',
@@ -1382,9 +1422,9 @@ function TryOn() {
               })} 
               style={{ 
                 backgroundColor: 'rgba(0,0,0,0.7)', 
-                width: 48, 
-                height: 48, 
-                borderRadius: 24, 
+                width: 50, 
+                height: 50, 
+                borderRadius: 25, 
                 justifyContent: 'center', 
                 alignItems: 'center',
                 shadowColor: '#000',
@@ -1403,9 +1443,9 @@ function TryOn() {
               })} 
               style={{ 
                 backgroundColor: 'rgba(0,0,0,0.7)', 
-                width: 48, 
-                height: 48, 
-                borderRadius: 24, 
+                width: 50, 
+                height: 50, 
+                borderRadius: 25, 
                 justifyContent: 'center', 
                 alignItems: 'center',
                 shadowColor: '#000',
@@ -2065,24 +2105,67 @@ function RoomsInbox() {
   const { state: { rooms }, setRoute } = useApp();
   
   return (
-    <View style={s.grid2}>
-      <Card>
-        <Text style={s.h1}>My Rooms</Text>
-        <Text style={s.muted}>Active help rooms</Text>
-        <View style={{ height: 24 }} />
-        {rooms.length === 0 ? (
-          <Text style={{ color: '#a1a1aa', textAlign: 'center' }}>No active rooms</Text>
-        ) : (
-          rooms.map(room => (
-            <Pressable key={room.id} onPress={() => setRoute('room_owner', { roomId: room.id })} style={s.btn}>
-              <Text style={s.btnText}>{room.title}</Text>
-            </Pressable>
-          ))
-        )}
-        <Pressable onPress={() => setRoute('askhelp')} style={s.btn}>
-          <Text style={s.btnText}>Back</Text>
+    <View style={{ flex: 1, backgroundColor: '#000' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+        <Pressable onPress={() => setRoute('askhelp')} style={{ marginRight: 16 }}>
+          <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
         </Pressable>
-      </Card>
+        <Text style={s.h1}>My Pods</Text>
+      </View>
+
+      <Text style={s.muted}>Active feedback rooms</Text>
+      
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {rooms.length === 0 ? (
+          <View style={{ alignItems: 'center', padding: 40 }}>
+            <Text style={{ fontSize: 48, marginBottom: 16 }}>👥</Text>
+            <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '600', marginBottom: 8 }}>No Active Pods</Text>
+            <Text style={{ color: '#a1a1aa', fontSize: 14, textAlign: 'center' }}>
+              Create your first Pod to get feedback on your outfits
+            </Text>
+          </View>
+        ) : (
+          <View style={{ gap: 12 }}>
+            {rooms.map(room => {
+              const getModeIcon = (mode) => {
+                switch(mode) {
+                  case 'friends': return '👥';
+                  case 'taste-twins': return '🎯';
+                  case 'global-mix': return '🌍';
+                  default: return '👥';
+                }
+              };
+              
+              return (
+                <Pressable 
+                  key={room.id} 
+                  onPress={() => setRoute('room_owner', { roomId: room.id })}
+                  style={{
+                    backgroundColor: 'rgba(255,255,255,0.05)',
+                    borderRadius: 16,
+                    padding: 16,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    borderWidth: 1,
+                    borderColor: 'rgba(255,255,255,0.08)'
+                  }}
+                >
+                  <Text style={{ fontSize: 24, marginRight: 12 }}>{getModeIcon(room.mode)}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: '#e4e4e7', fontSize: 16, fontWeight: '600', marginBottom: 4 }}>
+                      {room.title}
+                    </Text>
+                    <Text style={{ color: '#a1a1aa', fontSize: 12 }}>
+                      {room.votes.yes + room.votes.maybe + room.votes.no} votes • Expires in {Math.ceil((room.expiresAt - Date.now()) / 60000)}m
+                    </Text>
+                  </View>
+                  <Text style={{ color: '#10b981', fontSize: 12 }}>→</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 }
@@ -2112,20 +2195,28 @@ function RoomOwner() {
   const yesPercentage = totalVotes > 0 ? Math.round((room.votes.yes / totalVotes) * 100) : 0;
   
   return (
-    <View style={{ flex: 1, backgroundColor: '#000', padding: 16 }}>
+    <View style={{ flex: 1, backgroundColor: '#000' }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-        <Pressable onPress={() => setRoute('createpod')} style={{ marginRight: 16 }}>
+        <Pressable onPress={() => setRoute('rooms')} style={{ marginRight: 16 }}>
           <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
         </Pressable>
-        <Text style={{ color: '#e4e4e7', fontSize: 24, fontWeight: '700' }}>Pod Room</Text>
+        <Text style={s.h1}>Pod Room</Text>
       </View>
 
-      <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 16, marginBottom: 20 }}>
+      {/* Pod Status Header */}
+      <View style={{ 
+        backgroundColor: 'rgba(255,255,255,0.05)', 
+        borderRadius: 16, 
+        padding: 16, 
+        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)'
+      }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
           <Text style={{ fontSize: 24, marginRight: 12 }}>{modeInfo.icon}</Text>
           <View style={{ flex: 1 }}>
             <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '600' }}>{modeInfo.description}</Text>
-            <Text style={{ color: '#a1a1aa', fontSize: 14 }}>Active • {room.durationMins || 60} minutes</Text>
+            <Text style={{ color: '#a1a1aa', fontSize: 14 }}>Active • {Math.ceil((room.expiresAt - Date.now()) / 60000)}m left</Text>
           </View>
         </View>
         
@@ -2136,29 +2227,40 @@ function RoomOwner() {
           </View>
         )}
         
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-          <Text style={{ color: '#e4e4e7', fontSize: 16, fontWeight: '600' }}>Voting Results</Text>
-          <Text style={{ color: '#a1a1aa', fontSize: 14 }}>{totalVotes} votes</Text>
-        </View>
-        
-        <View style={{ marginBottom: 12 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-            <Text style={{ color: '#e4e4e7', fontSize: 14 }}>🔥 Yes</Text>
-            <Text style={{ color: '#e4e4e7', fontSize: 14, fontWeight: '600' }}>{room.votes.yes} ({yesPercentage}%)</Text>
+        {/* Live Voting Results */}
+        <View style={{ marginBottom: 20 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
+            <Text style={{ color: '#e4e4e7', fontSize: 16, fontWeight: '600' }}>Live Results</Text>
+            <Text style={{ color: '#a1a1aa', fontSize: 14 }}>{totalVotes} votes</Text>
           </View>
-          <View style={{ height: 6, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 3, overflow: 'hidden' }}>
-            <View style={{ width: `${yesPercentage}%`, height: '100%', backgroundColor: '#10b981', borderRadius: 3 }} />
+          
+          {/* Circular Progress for Yes votes */}
+          <View style={{ alignItems: 'center', marginBottom: 20 }}>
+            <View style={{ 
+              width: 80, 
+              height: 80, 
+              borderRadius: 40, 
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              justifyContent: 'center',
+              alignItems: 'center',
+              marginBottom: 8
+            }}>
+              <Text style={{ color: '#10b981', fontSize: 24, fontWeight: '700' }}>{yesPercentage}%</Text>
+            </View>
+            <Text style={{ color: '#e4e4e7', fontSize: 14, fontWeight: '600' }}>🔥 Yes</Text>
           </View>
-        </View>
-        
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-          <Text style={{ color: '#a1a1aa', fontSize: 14 }}>❤️ Maybe</Text>
-          <Text style={{ color: '#a1a1aa', fontSize: 14 }}>{room.votes.maybe}</Text>
-        </View>
-        
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          <Text style={{ color: '#a1a1aa', fontSize: 14 }}>❌ No</Text>
-          <Text style={{ color: '#a1a1aa', fontSize: 14 }}>{room.votes.no}</Text>
+          
+          {/* Vote Distribution */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ color: '#a1a1aa', fontSize: 12, marginBottom: 4 }}>❤️ Maybe</Text>
+              <Text style={{ color: '#a1a1aa', fontSize: 18, fontWeight: '600' }}>{room.votes.maybe}</Text>
+            </View>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ color: '#a1a1aa', fontSize: 12, marginBottom: 4 }}>❌ No</Text>
+              <Text style={{ color: '#a1a1aa', fontSize: 18, fontWeight: '600' }}>{room.votes.no}</Text>
+            </View>
+          </View>
         </View>
       </View>
 
@@ -2480,41 +2582,73 @@ function StyleCraft() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-        <Pressable onPress={() => setRoute('shop')} style={{ marginRight: 16 }}>
-          <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
-        </Pressable>
-        <Text style={s.h1}>StyleCraft</Text>
+      {/* Hero Section */}
+      <View style={{ 
+        backgroundColor: 'rgba(255,255,255,0.05)', 
+        borderRadius: 20, 
+        padding: 24, 
+        marginBottom: 24,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)'
+      }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+          <Text style={{ fontSize: 32, marginRight: 12 }}>✨</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={s.h1}>StyleCraft</Text>
+            <Text style={{ color: '#10b981', fontSize: 14, fontWeight: '600' }}>Custom Fashion Design</Text>
+          </View>
+        </View>
+        
+        <Text style={s.muted}>
+          Create your dream outfit with AI-powered design assistance and connect with professional tailors
+        </Text>
       </View>
 
-      <Text style={s.muted}>
-        Design your custom dress and get quotes from professional vendors
-      </Text>
-
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Design Type Selection */}
-        <View style={{ marginBottom: 16 }}>
-          <Text style={s.label}>Design Input</Text>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
+        {/* Quick Start Options */}
+        <View style={{ marginBottom: 24 }}>
+          <Text style={s.label}>How would you like to start?</Text>
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
             <Pressable 
               onPress={() => setDesignType('upload')}
-              style={[s.btn, { 
-                flex: 1, 
-                backgroundColor: designType === 'upload' ? 'rgba(255,255,255,0.12)' : 'transparent',
-                marginBottom: 0
-              }]}
+              style={{
+                flex: 1,
+                backgroundColor: designType === 'upload' ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)',
+                borderRadius: 16,
+                padding: 16,
+                alignItems: 'center',
+                borderWidth: designType === 'upload' ? 2 : 1,
+                borderColor: designType === 'upload' ? '#fff' : 'rgba(255,255,255,0.2)'
+              }}
             >
-              <Text style={[s.btnText, { color: designType === 'upload' ? '#fff' : '#a1a1aa' }]}>Upload Image</Text>
+              <Text style={{ fontSize: 24, marginBottom: 8 }}>📷</Text>
+              <Text style={{ color: designType === 'upload' ? '#fff' : '#e4e4e7', fontSize: 14, fontWeight: '600', textAlign: 'center' }}>
+                Upload Reference
+              </Text>
+              <Text style={{ color: '#a1a1aa', fontSize: 12, textAlign: 'center', marginTop: 4 }}>
+                Photo or sketch
+              </Text>
             </Pressable>
+            
             <Pressable 
               onPress={() => setDesignType('describe')}
-              style={[s.btn, { 
-                flex: 1, 
-                backgroundColor: designType === 'describe' ? 'rgba(255,255,255,0.12)' : 'transparent',
-                marginBottom: 0
-              }]}
+              style={{
+                flex: 1,
+                backgroundColor: designType === 'describe' ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)',
+                borderRadius: 16,
+                padding: 16,
+                alignItems: 'center',
+                borderWidth: designType === 'describe' ? 2 : 1,
+                borderColor: designType === 'describe' ? '#fff' : 'rgba(255,255,255,0.2)'
+              }}
             >
-              <Text style={[s.btnText, { color: designType === 'describe' ? '#fff' : '#a1a1aa' }]}>Describe</Text>
+              <Text style={{ fontSize: 24, marginBottom: 8 }}>✍️</Text>
+              <Text style={{ color: designType === 'describe' ? '#fff' : '#e4e4e7', fontSize: 14, fontWeight: '600', textAlign: 'center' }}>
+                Describe Design
+              </Text>
+              <Text style={{ color: '#a1a1aa', fontSize: 12, textAlign: 'center', marginTop: 4 }}>
+                Text description
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -2649,10 +2783,7 @@ function AccountScreen({ onBack }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-        <Pressable onPress={onBack} style={{ marginRight: 16 }}>
-          <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
-        </Pressable>
+      <View style={{ marginBottom: 16 }}>
         <Text style={s.h1}>Account</Text>
       </View>
 
