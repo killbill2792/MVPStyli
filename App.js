@@ -1407,71 +1407,66 @@ function TryOn() {
           <Text style={{ color: '#fff', fontSize: 12 }}>📷 Change Photo</Text>
         </Pressable>
         
-        {/* Floating action buttons */}
-        {result && (
-          <View style={{ position: 'absolute', right: 12, bottom: 77, flexDirection: 'column', gap: 12 }}>
-            <Pressable 
-              onPress={() => showFeatureOverlay({ 
-                title: 'AI Analytics', 
-                description: 'Get detailed analysis of your outfit including style recommendations, color harmony, and confidence scores.' 
-              })} 
-              style={{ 
-                width: 50, 
-                height: 50, 
-                borderRadius: 25, 
-                justifyContent: 'center', 
-                alignItems: 'center',
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.3,
-                shadowRadius: 4,
-                elevation: 5
-              }}
-            >
-              <Text style={{ fontSize: 20 }}>📊</Text>
-            </Pressable>
-            <Pressable 
-              onPress={() => showFeatureOverlay({ 
-                title: 'Pods', 
-                description: 'Create a Pod to get feedback from friends, taste twins, or the global community on your outfit.' 
-              })} 
-              style={{ 
-                width: 50, 
-                height: 50, 
-                borderRadius: 25, 
-                justifyContent: 'center', 
-                alignItems: 'center',
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.3,
-                shadowRadius: 4,
-                elevation: 5
-              }}
-            >
-              <Text style={{ fontSize: 20 }}>👥</Text>
-            </Pressable>
-            <Pressable 
-              onPress={() => showFeatureOverlay({ 
-                title: 'Suggested Outfits', 
-                description: 'Discover similar styles and complementary pieces that would work well with your current look.' 
-              })} 
-              style={{ 
-                width: 50, 
-                height: 50, 
-                borderRadius: 25, 
-                justifyContent: 'center', 
-                alignItems: 'center',
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.3,
-                shadowRadius: 4,
-                elevation: 5
-              }}
-            >
-              <Text style={{ fontSize: 20 }}>💡</Text>
-            </Pressable>
-          </View>
-        )}
+        {/* Top-right floating action buttons */}
+        <View style={{ position: 'absolute', top: 15, right: 12, flexDirection: 'column', gap: 12 }}>
+          <Pressable 
+            onPress={() => showFeatureOverlay({ 
+              title: 'AI Analytics', 
+              description: 'Get detailed analysis of your outfit including style recommendations, color harmony, and confidence scores.' 
+            })} 
+            style={{ 
+              width: 51, 
+              height: 51, 
+              borderRadius: 25.5, 
+              justifyContent: 'center', 
+              alignItems: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.3,
+              shadowRadius: 4,
+              elevation: 5
+            }}
+          >
+            <Text style={{ fontSize: 20 }}>📊</Text>
+          </Pressable>
+          <Pressable 
+            onPress={() => showFeatureOverlay({ 
+              title: 'Pods', 
+              description: 'Create a Pod to get feedback from friends, style twins, or the global community on your outfit.' 
+            })} 
+            style={{ 
+              width: 51, 
+              height: 51, 
+              borderRadius: 25.5, 
+              justifyContent: 'center', 
+              alignItems: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.3,
+              shadowRadius: 4,
+              elevation: 5
+            }}
+          >
+            <Text style={{ fontSize: 20 }}>👥</Text>
+          </Pressable>
+          <Pressable 
+            onPress={() => setRoute('suggest', { itemId: currentItem.id, itemType: currentItem.type })}
+            style={{ 
+              width: 51, 
+              height: 51, 
+              borderRadius: 25.5, 
+              justifyContent: 'center', 
+              alignItems: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.3,
+              shadowRadius: 4,
+              elevation: 5
+            }}
+          >
+            <Text style={{ fontSize: 20 }}>💡</Text>
+          </Pressable>
+        </View>
         
         <View style={{ position: 'absolute', left: 8, bottom: 8, flexDirection: 'row', gap: 8 }}>
           <Pressable 
@@ -1920,12 +1915,6 @@ function Explore() {
             >
               <Text style={{ fontSize: 32 }}>🔥</Text>
             </Pressable>
-            <Pressable 
-              onPress={() => setRoute('suggest', { itemId: currentItem.id, itemType: currentItem.type })}
-              style={{ paddingHorizontal: 20, paddingVertical: 12 }}
-            >
-              <Text style={{ fontSize: 32 }}>👗</Text>
-            </Pressable>
           </View>
         ) : (
           <View style={{ position: 'absolute', bottom: 20, left: 0, right: 0, alignItems: 'center' }}>
@@ -1949,38 +1938,63 @@ function Explore() {
 
         {/* Progress indicator removed */}
 
-        {/* Suggestion Thumbnails */}
+        {/* Instagram-style Suggested Items */}
         <View style={{ position: 'absolute', bottom: 80, left: 12, right: 12 }}>
           <Text style={{ color: '#e4e4e7', fontSize: 14, fontWeight: '600', marginBottom: 8 }}>
-            Suggested Items
+            Suggested by Community
           </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              {[
-                { id: 's1', name: 'White Shirt', price: 29, image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&auto=format&fit=crop&w=200' },
-                { id: 's2', name: 'Blue Jeans', price: 49, image: 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&auto=format&fit=crop&w=200' },
-                { id: 's3', name: 'Black Blazer', price: 89, image: 'https://images.unsplash.com/photo-1503342217505-b0a15cf70489?q=80&auto=format&fit=crop&w=200' }
-              ].map(suggestion => (
-                <Pressable 
-                  key={suggestion.id}
-                  style={{
-                    width: 60,
-                    height: 60,
-                    borderRadius: 8,
-                    overflow: 'hidden',
-                    borderWidth: 1,
-                    borderColor: 'rgba(255,255,255,0.2)'
-                  }}
-                >
-                  <Image 
-                    source={{ uri: suggestion.image }} 
-                    style={{ width: '100%', height: '100%' }}
-                    resizeMode="cover"
-                  />
-                </Pressable>
-              ))}
-            </View>
+          
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            pagingEnabled
+            style={{ height: 80 }}
+          >
+            {[
+              { id: 's1', name: 'White Shirt', price: 29, image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&auto=format&fit=crop&w=200', suggestedBy: '@sarah' },
+              { id: 's2', name: 'Blue Jeans', price: 49, image: 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&auto=format&fit=crop&w=200', suggestedBy: '@mike' },
+              { id: 's3', name: 'Black Blazer', price: 89, image: 'https://images.unsplash.com/photo-1503342217505-b0a15cf70489?q=80&auto=format&fit=crop&w=200', suggestedBy: '@alex' },
+              { id: 's4', name: 'Red Dress', price: 79, image: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?q=80&auto=format&fit=crop&w=200', suggestedBy: '@emma' },
+              { id: 's5', name: 'Green Jacket', price: 95, image: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?q=80&auto=format&fit=crop&w=200', suggestedBy: '@david' }
+            ].map((suggestion, index) => (
+              <View key={suggestion.id} style={{ width: 80, marginRight: 8, position: 'relative' }}>
+                <Image 
+                  source={{ uri: suggestion.image }} 
+                  style={{ width: '100%', height: '100%', borderRadius: 8 }}
+                  resizeMode="cover"
+                />
+                {/* Suggested by overlay */}
+                <View style={{ 
+                  position: 'absolute', 
+                  top: 4, 
+                  left: 4, 
+                  backgroundColor: 'rgba(0,0,0,0.7)', 
+                  paddingHorizontal: 6, 
+                  paddingVertical: 2, 
+                  borderRadius: 4 
+                }}>
+                  <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>
+                    {suggestion.suggestedBy}
+                  </Text>
+                </View>
+              </View>
+            ))}
           </ScrollView>
+          
+          {/* Dots indicator */}
+          <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 8, gap: 4 }}>
+            {[1, 2, 3, 4, 5].map((dot, index) => (
+              <View 
+                key={dot}
+                style={{ 
+                  width: 6, 
+                  height: 6, 
+                  borderRadius: 3, 
+                  backgroundColor: index === 0 ? '#10b981' : 'rgba(255,255,255,0.3)' 
+                }} 
+              />
+            ))}
+          </View>
         </View>
 
         {/* Bottom overlay with likes and comments */}
@@ -2068,50 +2082,136 @@ function CreatePod() {
   
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-        <Pressable onPress={() => setRoute('tryon')} style={{ marginRight: 16 }}>
-          <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
-        </Pressable>
-        <Text style={s.h1}>Create Pod</Text>
+      {/* Interactive Header */}
+      <View style={{ 
+        paddingHorizontal: 24, 
+        paddingTop: 32, 
+        paddingBottom: 24,
+        position: 'relative',
+        overflow: 'hidden'
+      }}>
+        {/* Animated Background Elements */}
+        <View style={{ 
+          position: 'absolute', 
+          top: -50, 
+          right: -50, 
+          width: 200, 
+          height: 200, 
+          borderRadius: 100, 
+          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+          opacity: 0.6
+        }} />
+        <View style={{ 
+          position: 'absolute', 
+          bottom: -30, 
+          left: -30, 
+          width: 120, 
+          height: 120, 
+          borderRadius: 60, 
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          opacity: 0.4
+        }} />
+        
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+          <View style={{ 
+            backgroundColor: 'rgba(16, 185, 129, 0.2)', 
+            borderRadius: 24, 
+            padding: 16, 
+            marginRight: 20,
+            shadowColor: '#10b981',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 8
+          }}>
+            <Text style={{ fontSize: 40 }}>👥</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: '#e4e4e7', fontSize: 32, fontWeight: '800', marginBottom: 6 }}>Create Pod</Text>
+            <Text style={{ color: '#10b981', fontSize: 18, fontWeight: '600' }}>Get Style Feedback</Text>
+          </View>
+        </View>
+        
+        <Text style={{ color: '#a1a1aa', fontSize: 18, lineHeight: 28, marginBottom: 24 }}>
+          Choose your audience and get instant feedback on your outfit from the community.
+        </Text>
       </View>
 
-      <Text style={s.muted}>
-        Choose your audience for feedback
-      </Text>
-
       <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}>
-          {podModes.map(mode => (
-            <Pressable 
-              key={mode.id} 
-              onPress={() => setSelectedMode(mode.id)}
-              style={{ 
-                flex: 1,
-                marginHorizontal: 4,
-                alignItems: 'center',
-                padding: 16,
-                borderRadius: 20,
-                backgroundColor: selectedMode === mode.id ? 'rgba(255,255,255,0.1)' : 'transparent',
-                borderWidth: selectedMode === mode.id ? 2 : 1,
-                borderColor: selectedMode === mode.id ? '#fff' : 'rgba(255,255,255,0.2)'
-              }}
-            >
-              <Text style={{ fontSize: 32, marginBottom: 8 }}>{mode.icon}</Text>
-              <Text style={{ color: '#e4e4e7', fontSize: 14, fontWeight: '600', textAlign: 'center', marginBottom: 4 }}>
-                {mode.title}
-              </Text>
-              <Text style={{ color: '#a1a1aa', fontSize: 12, textAlign: 'center', marginBottom: 8 }}>
-                {mode.duration}
-              </Text>
-              <View style={{ alignItems: 'center' }}>
-                {mode.features.slice(0, 2).map((feature, index) => (
-                  <Text key={index} style={{ color: '#a1a1aa', fontSize: 10, textAlign: 'center' }}>
-                    {feature}
-                  </Text>
-                ))}
-              </View>
-            </Pressable>
-          ))}
+        {/* Interactive Pod Mode Selection */}
+        <View style={{ paddingHorizontal: 24, marginBottom: 32 }}>
+          <Text style={{ color: '#e4e4e7', fontSize: 20, fontWeight: '700', marginBottom: 16, textAlign: 'center' }}>
+            Choose Your Audience
+          </Text>
+          
+          <View style={{ gap: 16 }}>
+            {podModes.map(mode => (
+              <Pressable 
+                key={mode.id}
+                onPress={() => setSelectedMode(mode.id)}
+                style={{
+                  backgroundColor: selectedMode === mode.id ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.05)',
+                  borderRadius: 20,
+                  padding: 20,
+                  borderWidth: selectedMode === mode.id ? 2 : 1,
+                  borderColor: selectedMode === mode.id ? '#10b981' : 'rgba(255,255,255,0.2)',
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}
+              >
+                {selectedMode === mode.id && (
+                  <View style={{ 
+                    position: 'absolute', 
+                    top: 12, 
+                    right: 12, 
+                    width: 24, 
+                    height: 24, 
+                    backgroundColor: '#10b981', 
+                    borderRadius: 12,
+                    justifyContent: 'center',
+                    alignItems: 'center'
+                  }}>
+                    <Text style={{ color: '#fff', fontSize: 14 }}>✓</Text>
+                  </View>
+                )}
+                
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  <Text style={{ fontSize: 32, marginRight: 16 }}>{mode.icon}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ 
+                      color: selectedMode === mode.id ? '#10b981' : '#e4e4e7', 
+                      fontSize: 18, 
+                      fontWeight: '700', 
+                      marginBottom: 4 
+                    }}>
+                      {mode.title}
+                    </Text>
+                    <Text style={{ color: '#a1a1aa', fontSize: 14 }}>
+                      {mode.description}
+                    </Text>
+                  </View>
+                </View>
+                
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {mode.features.map((feature, index) => (
+                    <View 
+                      key={index}
+                      style={{
+                        backgroundColor: 'rgba(255,255,255,0.1)',
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        borderRadius: 8,
+                        borderWidth: 1,
+                        borderColor: 'rgba(255,255,255,0.2)'
+                      }}
+                    >
+                      <Text style={{ color: '#a1a1aa', fontSize: 12 }}>{feature}</Text>
+                    </View>
+                  ))}
+                </View>
+              </Pressable>
+            ))}
+          </View>
         </View>
         
         {selectedMode === 'friends' && (
@@ -2676,70 +2776,100 @@ function StyleCraft() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      {/* Hero Section with Gradient Background */}
+      {/* Interactive Hero Section */}
       <View style={{ 
-        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%)',
-        backgroundColor: 'rgba(16, 185, 129, 0.05)',
-        borderRadius: 24, 
-        padding: 32, 
-        marginBottom: 32,
-        borderWidth: 1,
-        borderColor: 'rgba(16, 185, 129, 0.2)',
+        paddingHorizontal: 24, 
+        paddingTop: 32, 
+        paddingBottom: 24,
         position: 'relative',
         overflow: 'hidden'
       }}>
-        {/* Background Pattern */}
+        {/* Animated Background Elements */}
         <View style={{ 
           position: 'absolute', 
-          top: -20, 
-          right: -20, 
-          width: 100, 
-          height: 100, 
-          borderRadius: 50, 
-          backgroundColor: 'rgba(16, 185, 129, 0.1)' 
+          top: -50, 
+          right: -50, 
+          width: 200, 
+          height: 200, 
+          borderRadius: 100, 
+          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+          opacity: 0.6
         }} />
         <View style={{ 
           position: 'absolute', 
           bottom: -30, 
           left: -30, 
-          width: 80, 
-          height: 80, 
-          borderRadius: 40, 
-          backgroundColor: 'rgba(59, 130, 246, 0.1)' 
+          width: 120, 
+          height: 120, 
+          borderRadius: 60, 
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          opacity: 0.4
         }} />
         
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
           <View style={{ 
             backgroundColor: 'rgba(16, 185, 129, 0.2)', 
-            borderRadius: 20, 
-            padding: 12, 
-            marginRight: 16 
+            borderRadius: 24, 
+            padding: 16, 
+            marginRight: 20,
+            shadowColor: '#10b981',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 8
           }}>
-            <Text style={{ fontSize: 32 }}>✨</Text>
+            <Text style={{ fontSize: 40 }}>✨</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: '#e4e4e7', fontSize: 28, fontWeight: '800', marginBottom: 4 }}>StyleCraft</Text>
-            <Text style={{ color: '#10b981', fontSize: 16, fontWeight: '600' }}>AI-Powered Custom Fashion</Text>
+            <Text style={{ color: '#e4e4e7', fontSize: 32, fontWeight: '800', marginBottom: 6 }}>StyleCraft</Text>
+            <Text style={{ color: '#10b981', fontSize: 18, fontWeight: '600' }}>AI-Powered Custom Fashion</Text>
           </View>
         </View>
         
-        <Text style={{ color: '#a1a1aa', fontSize: 16, lineHeight: 24 }}>
-          Transform your vision into reality. Upload inspiration, describe your dream outfit, and connect with professional tailors who bring your designs to life.
+        <Text style={{ color: '#a1a1aa', fontSize: 18, lineHeight: 28, marginBottom: 24 }}>
+          Transform your vision into reality. Upload inspiration, describe your dream outfit, and connect with professional tailors.
         </Text>
         
-        {/* Quick Stats */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginTop: 24 }}>
-          <View style={{ alignItems: 'center' }}>
-            <Text style={{ color: '#10b981', fontSize: 20, fontWeight: '700' }}>500+</Text>
-            <Text style={{ color: '#a1a1aa', fontSize: 12 }}>Designs Created</Text>
+        {/* Interactive Stats Cards */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 32 }}>
+          <View style={{ alignItems: 'center', flex: 1 }}>
+            <View style={{ 
+              backgroundColor: 'rgba(16, 185, 129, 0.1)', 
+              borderRadius: 16, 
+              padding: 12, 
+              marginBottom: 8,
+              borderWidth: 1,
+              borderColor: 'rgba(16, 185, 129, 0.2)'
+            }}>
+              <Text style={{ color: '#10b981', fontSize: 24, fontWeight: '700' }}>500+</Text>
+            </View>
+            <Text style={{ color: '#a1a1aa', fontSize: 12, textAlign: 'center' }}>Designs Created</Text>
           </View>
-          <View style={{ alignItems: 'center' }}>
-            <Text style={{ color: '#10b981', fontSize: 20, fontWeight: '700' }}>50+</Text>
-            <Text style={{ color: '#a1a1aa', fontSize: 12 }}>Expert Tailors</Text>
+          <View style={{ alignItems: 'center', flex: 1 }}>
+            <View style={{ 
+              backgroundColor: 'rgba(59, 130, 246, 0.1)', 
+              borderRadius: 16, 
+              padding: 12, 
+              marginBottom: 8,
+              borderWidth: 1,
+              borderColor: 'rgba(59, 130, 246, 0.2)'
+            }}>
+              <Text style={{ color: '#3b82f6', fontSize: 24, fontWeight: '700' }}>50+</Text>
+            </View>
+            <Text style={{ color: '#a1a1aa', fontSize: 12, textAlign: 'center' }}>Expert Tailors</Text>
           </View>
-          <View style={{ alignItems: 'center' }}>
-            <Text style={{ color: '#10b981', fontSize: 20, fontWeight: '700' }}>4.9★</Text>
-            <Text style={{ color: '#a1a1aa', fontSize: 12 }}>Satisfaction</Text>
+          <View style={{ alignItems: 'center', flex: 1 }}>
+            <View style={{ 
+              backgroundColor: 'rgba(245, 158, 11, 0.1)', 
+              borderRadius: 16, 
+              padding: 12, 
+              marginBottom: 8,
+              borderWidth: 1,
+              borderColor: 'rgba(245, 158, 11, 0.2)'
+            }}>
+              <Text style={{ color: '#f59e0b', fontSize: 24, fontWeight: '700' }}>4.9★</Text>
+            </View>
+            <Text style={{ color: '#a1a1aa', fontSize: 12, textAlign: 'center' }}>Satisfaction</Text>
           </View>
         </View>
       </View>
@@ -2960,55 +3090,102 @@ function AccountScreen({ onBack }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      {/* Profile Header with Gradient */}
+      {/* Interactive Profile Header */}
       <View style={{ 
-        backgroundColor: 'rgba(59, 130, 246, 0.05)',
-        borderRadius: 24, 
-        padding: 32, 
-        marginBottom: 32,
-        borderWidth: 1,
-        borderColor: 'rgba(59, 130, 246, 0.2)',
+        paddingHorizontal: 24, 
+        paddingTop: 32, 
+        paddingBottom: 24,
         position: 'relative',
         overflow: 'hidden'
       }}>
-        {/* Background Elements */}
+        {/* Animated Background Elements */}
         <View style={{ 
           position: 'absolute', 
           top: -40, 
           right: -40, 
-          width: 120, 
-          height: 120, 
-          borderRadius: 60, 
-          backgroundColor: 'rgba(59, 130, 246, 0.1)' 
+          width: 160, 
+          height: 160, 
+          borderRadius: 80, 
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          opacity: 0.6
         }} />
         <View style={{ 
           position: 'absolute', 
           bottom: -20, 
           left: -20, 
-          width: 60, 
-          height: 60, 
-          borderRadius: 30, 
-          backgroundColor: 'rgba(16, 185, 129, 0.1)' 
+          width: 100, 
+          height: 100, 
+          borderRadius: 50, 
+          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+          opacity: 0.4
         }} />
         
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
           <View style={{ 
             backgroundColor: 'rgba(59, 130, 246, 0.2)', 
-            borderRadius: 20, 
-            padding: 12, 
-            marginRight: 16 
+            borderRadius: 24, 
+            padding: 16, 
+            marginRight: 20,
+            shadowColor: '#3b82f6',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 8
           }}>
-            <Text style={{ fontSize: 32 }}>👤</Text>
+            <Text style={{ fontSize: 40 }}>👤</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: '#e4e4e7', fontSize: 28, fontWeight: '800', marginBottom: 4 }}>My Profile</Text>
-            <Text style={{ color: '#3b82f6', fontSize: 16, fontWeight: '600' }}>Manage Your Account</Text>
+            <Text style={{ color: '#e4e4e7', fontSize: 32, fontWeight: '800', marginBottom: 6 }}>My Profile</Text>
+            <Text style={{ color: '#3b82f6', fontSize: 18, fontWeight: '600' }}>Manage Your Account</Text>
           </View>
         </View>
         
-        <Text style={{ color: '#a1a1aa', fontSize: 16, lineHeight: 24 }}>
+        <Text style={{ color: '#a1a1aa', fontSize: 18, lineHeight: 28, marginBottom: 24 }}>
           Customize your profile, manage preferences, and track your fashion journey.
         </Text>
+        
+        {/* Profile Stats */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 32 }}>
+          <View style={{ alignItems: 'center', flex: 1 }}>
+            <View style={{ 
+              backgroundColor: 'rgba(59, 130, 246, 0.1)', 
+              borderRadius: 16, 
+              padding: 12, 
+              marginBottom: 8,
+              borderWidth: 1,
+              borderColor: 'rgba(59, 130, 246, 0.2)'
+            }}>
+              <Text style={{ color: '#3b82f6', fontSize: 24, fontWeight: '700' }}>12</Text>
+            </View>
+            <Text style={{ color: '#a1a1aa', fontSize: 12, textAlign: 'center' }}>Outfits Created</Text>
+          </View>
+          <View style={{ alignItems: 'center', flex: 1 }}>
+            <View style={{ 
+              backgroundColor: 'rgba(16, 185, 129, 0.1)', 
+              borderRadius: 16, 
+              padding: 12, 
+              marginBottom: 8,
+              borderWidth: 1,
+              borderColor: 'rgba(16, 185, 129, 0.2)'
+            }}>
+              <Text style={{ color: '#10b981', fontSize: 24, fontWeight: '700' }}>8</Text>
+            </View>
+            <Text style={{ color: '#a1a1aa', fontSize: 12, textAlign: 'center' }}>Pods Joined</Text>
+          </View>
+          <View style={{ alignItems: 'center', flex: 1 }}>
+            <View style={{ 
+              backgroundColor: 'rgba(245, 158, 11, 0.1)', 
+              borderRadius: 16, 
+              padding: 12, 
+              marginBottom: 8,
+              borderWidth: 1,
+              borderColor: 'rgba(245, 158, 11, 0.2)'
+            }}>
+              <Text style={{ color: '#f59e0b', fontSize: 24, fontWeight: '700' }}>24</Text>
+            </View>
+            <Text style={{ color: '#a1a1aa', fontSize: 12, textAlign: 'center' }}>Suggestions Made</Text>
+          </View>
+        </View>
       </View>
 
         <ScrollView showsVerticalScrollIndicator={false}>
@@ -3335,7 +3512,7 @@ function SuggestScreen() {
 const s = StyleSheet.create({
   app: { flex: 1, backgroundColor: '#000' },
   safeArea: { flex: 1 },
-  container: { flex: 1, padding: 16, paddingBottom: 60 },
+  container: { flex: 1, padding: 16, paddingBottom: 100 },
   scrollContent: { padding: 16, paddingBottom: 100 },
   grid2: { gap: 16 },
   h1: { color: '#e4e4e7', fontSize: 24, fontWeight: '700', marginBottom: 8 },
