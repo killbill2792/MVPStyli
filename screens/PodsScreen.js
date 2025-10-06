@@ -8,13 +8,15 @@ import {
   Dimensions,
   Image,
   Animated,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
+import { createPod } from '../lib/pods';
 
 const { width, height } = Dimensions.get('window');
 
-const PodsScreen = ({ onBack, onCreatePod }) => {
+const PodsScreen = ({ onBack, onCreatePod, userId = 'demo-user' }) => {
   const [selectedMode, setSelectedMode] = useState(null);
   const [selectedDuration, setSelectedDuration] = useState(60);
   const [uploadedImage, setUploadedImage] = useState(null);
@@ -35,17 +37,47 @@ const PodsScreen = ({ onBack, onCreatePod }) => {
     }
   };
 
-  const handleLaunchPod = () => {
+  const handleLaunchPod = async () => {
+    if (!uploadedImage) {
+      Alert.alert('Upload Required', 'Please upload a look image first.');
+      return;
+    }
+
+    if (!selectedMode) {
+      Alert.alert('Mode Required', 'Please select an audience mode.');
+      return;
+    }
+
     setIsAnimating(true);
-    // Trigger confetti animation
-    setTimeout(() => {
-      onCreatePod({
-        mode: selectedMode,
-        duration: selectedDuration,
-        image: uploadedImage,
-      });
+
+    try {
+      // Create the pod
+      const podData = {
+        owner_id: userId,
+        image_url: uploadedImage,
+        audience: selectedMode,
+        duration_mins: selectedDuration,
+        title: 'My Look',
+        ends_at: new Date(Date.now() + selectedDuration * 60000).toISOString(),
+      };
+
+      const pod = await createPod(podData);
+      
+      if (pod) {
+        // Trigger confetti animation
+        setTimeout(() => {
+          onCreatePod(pod.id);
+          setIsAnimating(false);
+        }, 2000);
+      } else {
+        Alert.alert('Error', 'Failed to create pod. Please try again.');
+        setIsAnimating(false);
+      }
+    } catch (error) {
+      console.error('Error creating pod:', error);
+      Alert.alert('Error', 'Failed to create pod. Please try again.');
       setIsAnimating(false);
-    }, 2000);
+    }
   };
 
   const ModeCard = ({ mode, title, tagline, copy, tags, gradient, icon }) => (

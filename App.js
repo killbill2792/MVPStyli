@@ -11,6 +11,10 @@ import BottomBar from './components/BottomBar';
 import PodsScreen from './screens/PodsScreen';
 import StyleCraftScreen from './screens/StyleCraftScreen';
 import NewAccountScreen from './screens/AccountScreen';
+import PodLive from './screens/PodLive';
+import PodRecap from './screens/PodRecap';
+import PodsHome from './screens/PodsHome';
+import Inbox from './screens/Inbox';
 
 // Enhanced product data with more realistic information - expanded catalog
 const enhancedProducts = [
@@ -722,7 +726,7 @@ export default function App() {
 }
 
 function Shell() {
-  const { state: { route, user }, setRoute, setUser } = useApp();
+  const { state: { route, user, params }, setRoute, setUser } = useApp();
   
   // Initialize user on first load - create local user without Supabase
   useEffect(() => {
@@ -756,11 +760,37 @@ function Shell() {
         {route === "product" && <Product />}
         {route === "tryon" && <TryOn />}
         {route === "askhelp" && <AskHelp />}
-        {route === "createpod" && <PodsScreen onBack={() => setRoute("feed")} onCreatePod={(data) => {
-          // Handle pod creation logic
-          console.log('Creating pod with:', data);
-          setRoute("feed");
-        }} />}
+        {route === "createpod" && <PodsScreen 
+          onBack={() => setRoute("feed")} 
+          onCreatePod={(podId) => setRoute("podlive", { podId })}
+          userId={user?.id}
+        />}
+        {route === "podlive" && <PodLive 
+          podId={params?.podId || ''} 
+          onBack={() => setRoute("feed")} 
+          onRecap={(podId) => setRoute("podrecap", { podId })}
+          userId={user?.id}
+        />}
+        {route === "podrecap" && <PodRecap 
+          podId={params?.podId || ''} 
+          onBack={() => setRoute("feed")} 
+          onStyleCraft={() => setRoute("stylecraft")}
+          onShopSimilar={() => setRoute("shop")}
+        />}
+        {route === "podshome" && <PodsHome 
+          onBack={() => setRoute("feed")} 
+          onPodLive={(podId) => setRoute("podlive", { podId })}
+          onPodRecap={(podId) => setRoute("podrecap", { podId })}
+          onInbox={() => setRoute("inbox")}
+          userId={user?.id}
+          userEmail={user?.email}
+        />}
+        {route === "inbox" && <Inbox 
+          onBack={() => setRoute("podshome")} 
+          onPodLive={(podId) => setRoute("podlive", { podId })}
+          onPodRecap={(podId) => setRoute("podrecap", { podId })}
+          userId={user?.id}
+        />}
         {route === "rooms" && <RoomsInbox />}
         {route === "room_owner" && <RoomOwner />}
         {route === "room_guest" && <RoomGuest />}
