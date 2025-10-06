@@ -3124,7 +3124,7 @@ function StyleCraft() {
   );
 }
 
-function AccountScreen({ onBack }) {
+function OldAccountScreen({ onBack }) {
   const { state: { user, twinUrl }, setUser, setRoute, setTwinUrl } = useApp();
   const [isEditing, setIsEditing] = useState(false);
   const [profileData, setProfileData] = useState({
