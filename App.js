@@ -746,11 +746,7 @@ function Shell() {
     <View style={s.app}>
       <StatusBar barStyle="light-content" />
       <SafeAreaView style={s.safeArea} edges={['top']}>
-        <ScrollView 
-          style={s.container} 
-          contentContainerStyle={s.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
+        <View style={s.container}>
         {route === "signin" && <SignInScreen onDone={() => setRoute("onboarding")} />}
         {route === "onboarding" && <Onboarding />}
         {route === "shop" && <Shop />}
@@ -767,7 +763,7 @@ function Shell() {
         {route === "suggested-outfits" && <SuggestedOutfits />}
         {route === "stylecraft" && <StyleCraft />}
         {route === "account" && <AccountScreen onBack={() => setRoute("shop")} />}
-        </ScrollView>
+        </View>
         {route !== "signin" && <BottomBar route={route} go={setRoute} />}
       </SafeAreaView>
     </View>
@@ -1949,17 +1945,18 @@ function CreatePod() {
   };
   
   return (
-    <View style={{ flex: 1, backgroundColor: '#000', padding: 16 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-        <Pressable onPress={() => setRoute('tryon')} style={{ marginRight: 16 }}>
-          <Text style={{ color: '#3b82f6', fontSize: 16 }}>← Back</Text>
-        </Pressable>
-        <Text style={{ color: '#e4e4e7', fontSize: 24, fontWeight: '700' }}>Create Pod</Text>
-      </View>
+    <View style={s.grid2}>
+      <Card>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+          <Pressable onPress={() => setRoute('tryon')} style={{ marginRight: 16 }}>
+            <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
+          </Pressable>
+          <Text style={s.h1}>Create Pod</Text>
+        </View>
 
-      <Text style={{ color: '#a1a1aa', fontSize: 16, marginBottom: 20 }}>
-        Choose your audience for feedback
-      </Text>
+        <Text style={s.muted}>
+          Choose your audience for feedback
+        </Text>
 
       <ScrollView showsVerticalScrollIndicator={false}>
         {podModes.map(mode => (
@@ -1967,9 +1964,10 @@ function CreatePod() {
             key={mode.id} 
             onPress={() => setSelectedMode(mode.id)}
             style={{ 
-              backgroundColor: selectedMode === mode.id ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
-              borderWidth: selectedMode === mode.id ? 1 : 0,
-              borderColor: selectedMode === mode.id ? 'rgba(16, 185, 129, 0.3)' : 'transparent',
+              backgroundColor: selectedMode === mode.id ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255,255,255,0.05)',
+              borderWidth: selectedMode === mode.id ? 1 : 1,
+              borderColor: selectedMode === mode.id ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255,255,255,0.08)',
+              borderRadius: 16,
               padding: 16,
               marginBottom: 12
             }}
@@ -1997,9 +1995,9 @@ function CreatePod() {
         ))}
         
         {selectedMode === 'friends' && (
-          <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 16, marginBottom: 20 }}>
-            <Text style={{ color: '#e4e4e7', fontSize: 16, fontWeight: '600', marginBottom: 8 }}>Duration</Text>
-            <Text style={{ color: '#a1a1aa', fontSize: 14, marginBottom: 12 }}>How long should this pod stay active?</Text>
+          <View style={{ marginBottom: 20 }}>
+            <Text style={s.label}>Duration</Text>
+            <Text style={s.inputHint}>How long should this pod stay active?</Text>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {[30, 60, 90, 120].map(mins => (
                 <Pressable 
@@ -2022,10 +2020,11 @@ function CreatePod() {
           </View>
         )}
         
-        <Pressable onPress={create} style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 16, borderRadius: 16, alignItems: 'center', marginBottom: 20, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
-          <Text style={{ color: '#10b981', fontSize: 16, fontWeight: '600' }}>Create Pod</Text>
+        <Pressable onPress={create} style={[s.btn, s.btnPrimary]}>
+          <Text style={s.btnPrimaryText}>Create Pod</Text>
         </Pressable>
       </ScrollView>
+      </Card>
     </View>
   );
 }
@@ -2287,7 +2286,7 @@ function SuggestedOutfits() {
     <View style={{ flex: 1, backgroundColor: '#000', padding: 16 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
         <Pressable onPress={() => setRoute('tryon')} style={{ marginRight: 16 }}>
-          <Text style={{ color: '#3b82f6', fontSize: 16 }}>← Back</Text>
+          <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
         </Pressable>
         <Text style={{ color: '#e4e4e7', fontSize: 24, fontWeight: '700' }}>Suggested Outfits</Text>
       </View>
@@ -2395,7 +2394,7 @@ function StyleCraft() {
       <View style={{ flex: 1, backgroundColor: '#000', padding: 16 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
           <Pressable onPress={() => setShowQuotes(false)} style={{ marginRight: 16 }}>
-            <Text style={{ color: '#3b82f6', fontSize: 16 }}>← Back</Text>
+            <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
           </Pressable>
           <Text style={{ color: '#e4e4e7', fontSize: 24, fontWeight: '700' }}>Vendor Quotes</Text>
         </View>
@@ -2452,7 +2451,7 @@ function StyleCraft() {
       <Card>
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
           <Pressable onPress={() => setRoute('shop')} style={{ marginRight: 16 }}>
-            <Text style={{ color: '#3b82f6', fontSize: 16 }}>← Back</Text>
+            <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
           </Pressable>
           <Text style={s.h1}>StyleCraft</Text>
         </View>
@@ -2623,7 +2622,7 @@ function AccountScreen({ onBack }) {
       <Card>
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
           <Pressable onPress={onBack} style={{ marginRight: 16 }}>
-            <Text style={{ color: '#3b82f6', fontSize: 16 }}>← Back</Text>
+            <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
           </Pressable>
           <Text style={s.h1}>Account</Text>
         </View>
@@ -2795,7 +2794,7 @@ function Card({ children }) {
 const s = StyleSheet.create({
   app: { flex: 1, backgroundColor: '#000' },
   safeArea: { flex: 1 },
-  container: { flex: 1 },
+  container: { flex: 1, padding: 16, paddingBottom: 100 },
   scrollContent: { padding: 16, paddingBottom: 100 },
   grid2: { gap: 16 },
   h1: { color: '#e4e4e7', fontSize: 24, fontWeight: '700', marginBottom: 8 },
