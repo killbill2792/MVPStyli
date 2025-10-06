@@ -11,8 +11,8 @@ export default function BottomBar({ route, go }: { route: string; go: (r: string
       right: 0, 
       bottom: 0, 
       alignItems: 'center',
-      paddingBottom: 20, // Safe area bottom padding
-      backgroundColor: 'rgba(0,0,0,0.9)',
+      paddingBottom: 10, // Safe area bottom padding
+      backgroundColor: 'transparent',
       paddingTop: 8
     }}>
       <View style={{

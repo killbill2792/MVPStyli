@@ -765,8 +765,8 @@ function Shell() {
         {route === "account" && <AccountScreen onBack={() => setRoute("shop")} />}
         {route === "suggest" && <SuggestScreen />}
         </View>
-        {route !== "signin" && <BottomBar route={route} go={setRoute} />}
-      </SafeAreaView>
+      {route !== "signin" && <BottomBar route={route} go={setRoute} />}
+    </SafeAreaView>
     </View>
   );
 }
@@ -1100,7 +1100,7 @@ function Product() {
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 14, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         <View style={{ width: '100%', aspectRatio: 9 / 16, borderRadius: 24, overflow: 'hidden', position: 'relative' }}>
-          <Image source={{ uri: product.image }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
+        <Image source={{ uri: product.image }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
           
           {/* Floating Try On Button */}
           <Pressable 
@@ -1124,7 +1124,7 @@ function Product() {
           >
             <Text style={{ fontSize: 20 }}>✨</Text>
           </Pressable>
-        </View>
+      </View>
       <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderRadius: 24, padding: 16 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
           <View style={{ flex: 1 }}>
@@ -1147,9 +1147,9 @@ function Product() {
         {/* Action Buttons - Side by Side */}
         <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
           {/* Buy Now Button */}
-          <Pressable
-            style={{
-              flex: 1,
+          <Pressable 
+            style={{ 
+              flex: 1, 
               backgroundColor: '#fff',
               padding: 16,
               borderRadius: 12,
@@ -1238,7 +1238,7 @@ function Product() {
             </View>
             
             {!isTracking && (
-              <Pressable 
+            <Pressable
                 onPress={togglePriceTracking}
                 style={{
                   backgroundColor: '#10b981',
@@ -1251,9 +1251,9 @@ function Product() {
                 <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
                   Start Tracking at ${trackingPrice}
                 </Text>
-              </Pressable>
+            </Pressable>
             )}
-          </View>
+        </View>
         )}
       </View>
         
@@ -1874,8 +1874,8 @@ function Explore() {
   };
 
   return (
-    <View style={{ alignItems: 'center', flex: 1 }}>
-      <View style={{ width: '100%', aspectRatio: 9 / 16, borderRadius: 24, overflow: 'hidden', position: 'relative', maxWidth: 420 }}>
+    <View style={{ flex: 1, backgroundColor: '#000' }}>
+      <View style={{ width: '100%', height: '100%', position: 'relative' }}>
         <Image source={{ uri: currentItem.uri }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
         
         {/* Top overlay with user info and type indicator */}
@@ -1925,7 +1925,7 @@ function Explore() {
             }}
           >
             <Text style={{ fontSize: 20 }}>👗</Text>
-          </Pressable>
+            </Pressable>
           <Pressable 
             onPress={() => setRoute('createpod')}
             style={{ 
@@ -2016,9 +2016,11 @@ function Explore() {
             horizontal 
             showsHorizontalScrollIndicator={false}
             style={{ height: 80 }}
-            contentContainerStyle={{ paddingRight: 20 }}
-            bounces={false}
-            decelerationRate="fast"
+            contentContainerStyle={{ paddingRight: 20, alignItems: 'center' }}
+            bounces={true}
+            decelerationRate="normal"
+            snapToInterval={88}
+            snapToAlignment="start"
           >
             {[
               { id: 's1', name: 'White Shirt', price: 29, image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&auto=format&fit=crop&w=200', suggestedBy: '@sarah' },
@@ -2279,7 +2281,7 @@ function CreatePod() {
                     </View>
                   ))}
                 </View>
-              </Pressable>
+        </Pressable>
             ))}
           </View>
         </View>
@@ -2303,7 +2305,7 @@ function CreatePod() {
                   <Text style={[s.btnText, { color: duration === mins ? '#fff' : '#a1a1aa' }]}>
                     {mins}m
                   </Text>
-                </Pressable>
+        </Pressable>
               ))}
             </View>
           </View>
@@ -2376,7 +2378,7 @@ function RoomsInbox() {
                     </Text>
                   </View>
                   <Text style={{ color: '#10b981', fontSize: 12 }}>→</Text>
-                </Pressable>
+            </Pressable>
               );
             })}
           </View>
@@ -2788,18 +2790,18 @@ function StyleCraft() {
   };
 
   if (showQuotes) {
-    return (
+  return (
       <View style={{ flex: 1, backgroundColor: '#000', padding: 16 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
           <Pressable onPress={() => setShowQuotes(false)} style={{ marginRight: 16 }}>
             <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
-          </Pressable>
+        </Pressable>
           <Text style={{ color: '#e4e4e7', fontSize: 24, fontWeight: '700' }}>Vendor Quotes</Text>
-        </View>
+      </View>
 
         <Text style={{ color: '#a1a1aa', fontSize: 16, marginBottom: 20 }}>
           Choose your preferred vendor for your custom design
-        </Text>
+          </Text>
 
         <ScrollView showsVerticalScrollIndicator={false}>
           {quotes.map(quote => (
@@ -2817,37 +2819,37 @@ function StyleCraft() {
                   <Text style={{ color: '#e4e4e7', fontSize: 20, fontWeight: '700' }}>${quote.price}</Text>
                   <Text style={{ color: '#a1a1aa', fontSize: 12 }}>+ ${quote.shipping} shipping</Text>
                 </View>
-              </View>
+        </View>
 
               <Image source={{ uri: quote.refImage }} style={{ width: '100%', height: 150, borderRadius: 12, marginBottom: 12 }} resizeMode="cover" />
               
               <Text style={{ color: '#a1a1aa', fontSize: 14, marginBottom: 8 }}>{quote.description}</Text>
               
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
-                <View>
+        <View>
                   <Text style={{ color: '#e4e4e7', fontSize: 14, fontWeight: '600' }}>Stitching Time</Text>
                   <Text style={{ color: '#a1a1aa', fontSize: 12 }}>{quote.timeToStitch}</Text>
                 </View>
                 <View>
                   <Text style={{ color: '#e4e4e7', fontSize: 14, fontWeight: '600' }}>Delivery Time</Text>
                   <Text style={{ color: '#a1a1aa', fontSize: 12 }}>{quote.timeToDeliver}</Text>
-                </View>
-              </View>
+        </View>
+      </View>
 
               <Pressable style={{ padding: 12, borderRadius: 12, alignItems: 'center' }}>
                 <Text style={{ color: '#10b981', fontSize: 16, fontWeight: '600' }}>Proceed with this vendor</Text>
-              </Pressable>
+      </Pressable>
             </View>
           ))}
         </ScrollView>
-      </View>
-    );
-  }
+    </View>
+  );
+}
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       {/* Interactive Hero Section */}
-      <View style={{ 
+    <View style={{
         paddingHorizontal: 24, 
         paddingTop: 32, 
         paddingBottom: 24,
@@ -2855,7 +2857,7 @@ function StyleCraft() {
         overflow: 'hidden'
       }}>
         {/* Animated Background Elements */}
-        <View style={{ 
+      <View style={{
           position: 'absolute', 
           top: -50, 
           right: -50, 
@@ -2952,9 +2954,9 @@ function StyleCraft() {
           </Text>
           
           <View style={{ flexDirection: 'row', gap: 16, marginBottom: 24 }}>
-            <Pressable 
+          <Pressable
               onPress={() => setDesignType('upload')}
-              style={{
+            style={{
                 flex: 1,
                 backgroundColor: designType === 'upload' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.05)',
                 borderRadius: 20,
@@ -2988,11 +2990,11 @@ function StyleCraft() {
               <Text style={{ color: '#a1a1aa', fontSize: 12, textAlign: 'center', lineHeight: 16 }}>
                 Upload photos, sketches, or mood boards
               </Text>
-            </Pressable>
+          </Pressable>
             
-            <Pressable 
+        <Pressable
               onPress={() => setDesignType('describe')}
-              style={{
+          style={{
                 flex: 1,
                 backgroundColor: designType === 'describe' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.05)',
                 borderRadius: 20,
@@ -3026,8 +3028,8 @@ function StyleCraft() {
               <Text style={{ color: '#a1a1aa', fontSize: 12, textAlign: 'center', lineHeight: 16 }}>
                 Tell us about your dream outfit
               </Text>
-            </Pressable>
-          </View>
+        </Pressable>
+      </View>
         </View>
 
         {/* Image Upload */}
@@ -3582,7 +3584,7 @@ function SuggestScreen() {
 const s = StyleSheet.create({
   app: { flex: 1, backgroundColor: '#000' },
   safeArea: { flex: 1 },
-  container: { flex: 1, padding: 16, paddingTop: 40, paddingBottom: 120 },
+  container: { flex: 1, padding: 16, paddingTop: 40, paddingBottom: 80 },
   scrollContent: { padding: 16, paddingBottom: 100 },
   grid2: { gap: 16 },
   h1: { color: '#e4e4e7', fontSize: 24, fontWeight: '700', marginBottom: 8 },
