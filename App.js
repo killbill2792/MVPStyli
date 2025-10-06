@@ -1875,8 +1875,8 @@ function Explore() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      <View style={{ width: '100%', height: '100%', position: 'relative' }}>
-        <Image source={{ uri: currentItem.uri }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
+      <View style={{ width: '100%', height: '100%', position: 'relative', marginTop: 20 }}>
+        <Image source={{ uri: currentItem.uri }} resizeMode="cover" style={{ width: '100%', height: '100%', borderRadius: 24 }} />
         
         {/* Top overlay with user info and type indicator */}
         <View style={{ position: 'absolute', left: 12, top: 12, right: 12 }}>
@@ -1908,7 +1908,7 @@ function Explore() {
         )}
 
         {/* Top-right vertical action buttons */}
-        <View style={{ position: 'absolute', right: 12, top: 14, flexDirection: 'column', gap: 8 }}>
+        <View style={{ position: 'absolute', right: 12, top: 16, flexDirection: 'column', gap: 8 }}>
           <Pressable 
             onPress={() => setRoute('tryon')}
             style={{ 
@@ -2015,12 +2015,18 @@ function Explore() {
           <ScrollView 
             horizontal 
             showsHorizontalScrollIndicator={false}
-            style={{ height: 80 }}
-            contentContainerStyle={{ paddingRight: 20, alignItems: 'center' }}
+            style={{ height: 80, flexGrow: 0 }}
+            contentContainerStyle={{ 
+              paddingRight: 20, 
+              alignItems: 'center',
+              flexDirection: 'row'
+            }}
             bounces={true}
             decelerationRate="normal"
-            snapToInterval={88}
-            snapToAlignment="start"
+            scrollEventThrottle={16}
+            directionalLockEnabled={true}
+            alwaysBounceHorizontal={true}
+            pagingEnabled={false}
           >
             {[
               { id: 's1', name: 'White Shirt', price: 29, image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&auto=format&fit=crop&w=200', suggestedBy: '@sarah' },
@@ -2157,8 +2163,8 @@ function CreatePod() {
       {/* Interactive Header */}
       <View style={{ 
         paddingHorizontal: 24, 
-        paddingTop: 32, 
-        paddingBottom: 24,
+        paddingTop: 16, 
+        paddingBottom: 16,
         position: 'relative',
         overflow: 'hidden'
       }}>
@@ -2849,10 +2855,10 @@ function StyleCraft() {
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       {/* Interactive Hero Section */}
-    <View style={{
+      <View style={{ 
         paddingHorizontal: 24, 
-        paddingTop: 32, 
-        paddingBottom: 24,
+        paddingTop: 16, 
+        paddingBottom: 16,
         position: 'relative',
         overflow: 'hidden'
       }}>
@@ -3165,8 +3171,8 @@ function AccountScreen({ onBack }) {
       {/* Interactive Profile Header */}
       <View style={{ 
         paddingHorizontal: 24, 
-        paddingTop: 32, 
-        paddingBottom: 24,
+        paddingTop: 16, 
+        paddingBottom: 16,
         position: 'relative',
         overflow: 'hidden'
       }}>
