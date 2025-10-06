@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     paddingTop: 40,
     zIndex: 1000,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
   tabContainer: {
     flexDirection: 'row',
     paddingTop: 80,
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     paddingBottom: 16,
   },
   tab: {
@@ -336,7 +336,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
   },
   podCard: {
     marginBottom: 16,

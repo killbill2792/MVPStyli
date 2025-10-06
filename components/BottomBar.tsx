@@ -22,7 +22,7 @@ export default function BottomBar({ route, go }: { route: string; go: (r: string
         borderColor: 'rgba(255,255,255,0.08)',
         borderWidth: 1,
         borderRadius: 9999,
-        paddingHorizontal: 7,
+        paddingHorizontal: 5,
         paddingVertical: 8
       }}>
         {items.map(([k, label]) => (

@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     paddingTop: 40,
     zIndex: 1000,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
     paddingTop: 80,
   },
   scrollContent: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     paddingBottom: 40,
   },
   loadingText: {
@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   actionGradient: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     paddingVertical: 16,
     alignItems: 'center',
   },
@@ -399,7 +399,7 @@ const styles = StyleSheet.create({
   },
   shareButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',

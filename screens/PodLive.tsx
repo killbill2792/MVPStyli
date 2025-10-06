@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     paddingTop: 40,
     zIndex: 1000,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -328,7 +328,7 @@ const styles = StyleSheet.create({
     paddingTop: 80,
   },
   scrollContent: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     paddingBottom: 100,
   },
   loadingText: {
@@ -466,7 +466,7 @@ const styles = StyleSheet.create({
     right: 0,
     flexDirection: 'row',
     backgroundColor: 'rgba(0, 0, 0, 0.9)',
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     paddingVertical: 16,
     paddingBottom: 40,
   },

@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     paddingTop: 40,
     zIndex: 1000,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
     paddingTop: 80,
   },
   notificationsList: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     paddingBottom: 40,
   },
   notificationCard: {
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
   },
   emptyStateTitle: {
     fontSize: 20,

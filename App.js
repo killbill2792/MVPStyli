@@ -2205,7 +2205,7 @@ function CreatePod() {
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       {/* Interactive Header */}
       <View style={{ 
-        paddingHorizontal: 24, 
+        paddingHorizontal: 16, 
         paddingTop: 16, 
         paddingBottom: 16,
         position: 'relative',
@@ -2899,7 +2899,7 @@ function StyleCraft() {
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       {/* Interactive Hero Section */}
     <View style={{
-        paddingHorizontal: 24, 
+        paddingHorizontal: 16, 
         paddingTop: 16, 
         paddingBottom: 16,
         position: 'relative',
@@ -3213,7 +3213,7 @@ function OldAccountScreen({ onBack }) {
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       {/* Interactive Profile Header */}
       <View style={{ 
-        paddingHorizontal: 24, 
+        paddingHorizontal: 16, 
         paddingTop: 16, 
         paddingBottom: 16,
         position: 'relative',
@@ -3633,7 +3633,7 @@ function SuggestScreen() {
 const s = StyleSheet.create({
   app: { flex: 1, backgroundColor: '#000' },
   safeArea: { flex: 1 },
-  container: { flex: 1, padding: 16, paddingTop: 40, paddingBottom: 80 },
+  container: { flex: 1, paddingHorizontal: 16, paddingTop: 40, paddingBottom: 80 },
   scrollContent: { padding: 16, paddingBottom: 100 },
   grid2: { gap: 16 },
   h1: { color: '#e4e4e7', fontSize: 24, fontWeight: '700', marginBottom: 8 },
