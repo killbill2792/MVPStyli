@@ -10,7 +10,7 @@ import { Linking } from 'react-native';
 import BottomBar from './components/BottomBar';
 import PodsScreen from './screens/PodsScreen';
 import StyleCraftScreen from './screens/StyleCraftScreen';
-import AccountScreen from './screens/AccountScreen';
+import NewAccountScreen from './screens/AccountScreen';
 
 // Enhanced product data with more realistic information - expanded catalog
 const enhancedProducts = [
@@ -769,7 +769,7 @@ function Shell() {
         {route === "ai-analytics" && <AIAnalytics />}
         {route === "suggested-outfits" && <SuggestedOutfits />}
         {route === "stylecraft" && <StyleCraftScreen onBack={() => setRoute("shop")} />}
-        {route === "account" && <AccountScreen onBack={() => setRoute("shop")} />}
+        {route === "account" && <NewAccountScreen onBack={() => setRoute("shop")} />}
         {route === "suggest" && <SuggestScreen />}
         </View>
       {route !== "signin" && <BottomBar route={route} go={setRoute} />}
@@ -2862,7 +2862,7 @@ function StyleCraft() {
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       {/* Interactive Hero Section */}
-      <View style={{ 
+    <View style={{
         paddingHorizontal: 24, 
         paddingTop: 16, 
         paddingBottom: 16,
