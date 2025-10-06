@@ -763,6 +763,7 @@ function Shell() {
         {route === "suggested-outfits" && <SuggestedOutfits />}
         {route === "stylecraft" && <StyleCraft />}
         {route === "account" && <AccountScreen onBack={() => setRoute("shop")} />}
+        {route === "suggest" && <SuggestScreen />}
         </View>
         {route !== "signin" && <BottomBar route={route} go={setRoute} />}
       </SafeAreaView>
@@ -1408,14 +1409,13 @@ function TryOn() {
         
         {/* Floating action buttons */}
         {result && (
-          <View style={{ position: 'absolute', right: 12, bottom: 80, flexDirection: 'column', gap: 12 }}>
+          <View style={{ position: 'absolute', right: 12, bottom: 77, flexDirection: 'column', gap: 12 }}>
             <Pressable 
               onPress={() => showFeatureOverlay({ 
                 title: 'AI Analytics', 
                 description: 'Get detailed analysis of your outfit including style recommendations, color harmony, and confidence scores.' 
               })} 
               style={{ 
-                backgroundColor: 'rgba(0,0,0,0.7)', 
                 width: 50, 
                 height: 50, 
                 borderRadius: 25, 
@@ -1436,7 +1436,6 @@ function TryOn() {
                 description: 'Create a Pod to get feedback from friends, taste twins, or the global community on your outfit.' 
               })} 
               style={{ 
-                backgroundColor: 'rgba(0,0,0,0.7)', 
                 width: 50, 
                 height: 50, 
                 borderRadius: 25, 
@@ -1457,7 +1456,6 @@ function TryOn() {
                 description: 'Discover similar styles and complementary pieces that would work well with your current look.' 
               })} 
               style={{ 
-                backgroundColor: 'rgba(0,0,0,0.7)', 
                 width: 50, 
                 height: 50, 
                 borderRadius: 25, 
@@ -1563,7 +1561,7 @@ function Explore() {
       likes: 167,
       comments: 9,
       isPodRecap: true,
-      podResult: 'Taste Twins prefer this (82%)'
+      podResult: 'Style Twins prefer this (82%)'
     },
     { 
       id: 'e6', 
@@ -1659,7 +1657,7 @@ function Explore() {
       likes: 234,
       comments: 16,
       isPodRecap: true,
-      podResult: 'Taste Twins love this (89%)'
+      podResult: 'Style Twins love this (89%)'
     },
     { 
       id: 'e15', 
@@ -1723,7 +1721,7 @@ function Explore() {
       likes: 245,
       comments: 19,
       isPodRecap: true,
-      podResult: 'Taste Twins love this (89%)'
+      podResult: 'Style Twins love this (89%)'
     },
     { 
       id: 'e21', 
@@ -1819,7 +1817,7 @@ function Explore() {
       likes: 198,
       comments: 15,
       isPodRecap: true,
-      podResult: 'Taste Twins split (45%)'
+      podResult: 'Style Twins split (45%)'
     },
     { 
       id: 'e30', 
@@ -1839,12 +1837,10 @@ function Explore() {
 
   const handleVote = (vote) => {
     setVotedItems(prev => new Set([...prev, currentItem.id]));
-    // Auto advance after voting
-    setTimeout(() => {
-      if (currentIndex < exploreItems.length - 1) {
-        setCurrentIndex(prev => prev + 1);
-      }
-    }, 1000);
+    // Auto advance immediately after voting
+    if (currentIndex < exploreItems.length - 1) {
+      setCurrentIndex(prev => prev + 1);
+    }
   };
 
   const nextItem = () => {
@@ -1924,6 +1920,12 @@ function Explore() {
             >
               <Text style={{ fontSize: 32 }}>🔥</Text>
             </Pressable>
+            <Pressable 
+              onPress={() => setRoute('suggest', { itemId: currentItem.id, itemType: currentItem.type })}
+              style={{ paddingHorizontal: 20, paddingVertical: 12 }}
+            >
+              <Text style={{ fontSize: 32 }}>👗</Text>
+            </Pressable>
           </View>
         ) : (
           <View style={{ position: 'absolute', bottom: 20, left: 0, right: 0, alignItems: 'center' }}>
@@ -1945,11 +1947,40 @@ function Explore() {
           </View>
         )}
 
-        {/* Progress indicator */}
-        <View style={{ position: 'absolute', top: 12, left: 12, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 }}>
-          <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>
-            {currentIndex + 1} / {exploreItems.length}
+        {/* Progress indicator removed */}
+
+        {/* Suggestion Thumbnails */}
+        <View style={{ position: 'absolute', bottom: 80, left: 12, right: 12 }}>
+          <Text style={{ color: '#e4e4e7', fontSize: 14, fontWeight: '600', marginBottom: 8 }}>
+            Suggested Items
           </Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {[
+                { id: 's1', name: 'White Shirt', price: 29, image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&auto=format&fit=crop&w=200' },
+                { id: 's2', name: 'Blue Jeans', price: 49, image: 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&auto=format&fit=crop&w=200' },
+                { id: 's3', name: 'Black Blazer', price: 89, image: 'https://images.unsplash.com/photo-1503342217505-b0a15cf70489?q=80&auto=format&fit=crop&w=200' }
+              ].map(suggestion => (
+                <Pressable 
+                  key={suggestion.id}
+                  style={{
+                    width: 60,
+                    height: 60,
+                    borderRadius: 8,
+                    overflow: 'hidden',
+                    borderWidth: 1,
+                    borderColor: 'rgba(255,255,255,0.2)'
+                  }}
+                >
+                  <Image 
+                    source={{ uri: suggestion.image }} 
+                    style={{ width: '100%', height: '100%' }}
+                    resizeMode="cover"
+                  />
+                </Pressable>
+              ))}
+            </View>
+          </ScrollView>
         </View>
 
         {/* Bottom overlay with likes and comments */}
@@ -2008,7 +2039,7 @@ function CreatePod() {
     },
     {
       id: 'taste-twins',
-      title: 'Taste Twins',
+      title: 'Style Twins',
       description: 'AI finds people with similar style',
       duration: '5-15 min',
       features: ['Anonymous votes only', 'Style-matched audience', 'Fast feedback'],
@@ -2197,7 +2228,7 @@ function RoomOwner() {
       case 'friends':
         return { icon: '👥', color: '#3b82f6', description: 'Friends Pod' };
       case 'taste-twins':
-        return { icon: '🎯', color: '#10b981', description: 'Taste Twins' };
+        return { icon: '🎯', color: '#10b981', description: 'Style Twins' };
       case 'global-mix':
         return { icon: '🌍', color: '#f59e0b', description: 'Global Mix' };
       default:
@@ -2302,12 +2333,60 @@ function RoomOwner() {
 }
 
 function RoomGuest() {
+  const { setRoute } = useApp();
+  
   return (
-    <View style={s.grid2}>
-      <Card>
+    <View style={{ flex: 1, backgroundColor: '#000' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+        <Pressable onPress={() => setRoute('feed')} style={{ marginRight: 16 }}>
+          <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
+        </Pressable>
         <Text style={s.h1}>Guest Room</Text>
-        <Text style={s.muted}>Vote on this outfit</Text>
-      </Card>
+      </View>
+      
+      <Text style={s.muted}>Vote on this outfit and suggest alternatives</Text>
+      
+      {/* Voting Interface */}
+      <View style={{ 
+        backgroundColor: 'rgba(255,255,255,0.05)', 
+        borderRadius: 20, 
+        padding: 24, 
+        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)'
+      }}>
+        <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '600', marginBottom: 16, textAlign: 'center' }}>
+          What do you think?
+        </Text>
+        
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 20, marginBottom: 20 }}>
+          <Pressable style={{ paddingHorizontal: 20, paddingVertical: 12 }}>
+            <Text style={{ fontSize: 32 }}>❌</Text>
+          </Pressable>
+          <Pressable style={{ paddingHorizontal: 20, paddingVertical: 12 }}>
+            <Text style={{ fontSize: 32 }}>❤️</Text>
+          </Pressable>
+          <Pressable style={{ paddingHorizontal: 20, paddingVertical: 12 }}>
+            <Text style={{ fontSize: 32 }}>🔥</Text>
+          </Pressable>
+        </View>
+        
+        <Pressable 
+          onPress={() => setRoute('suggest', { itemId: 'pod-item', itemType: 'pod' })}
+          style={{
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            borderRadius: 12,
+            padding: 16,
+            alignItems: 'center',
+            borderWidth: 1,
+            borderColor: 'rgba(16, 185, 129, 0.3)'
+          }}
+        >
+          <Text style={{ color: '#10b981', fontSize: 16, fontWeight: '600' }}>
+            👗 Suggest Alternative
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -3095,10 +3174,168 @@ function Card({ children }) {
   );
 }
 
+function SuggestScreen() {
+  const { setRoute, state: { params } } = useApp();
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewResult, setPreviewResult] = useState(null);
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
+  
+  const itemId = params?.itemId;
+  const itemType = params?.itemType;
+  
+  const handleProductSelect = async (product) => {
+    setSelectedProduct(product);
+    setIsGeneratingPreview(true);
+    
+    try {
+      // Generate try-on preview using Replicate
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE}/api/tryon`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          human_img: 'https://images.unsplash.com/photo-1520975916090-3105956dac38?q=80&auto=format&fit=crop&w=1200', // Default user image
+          garm_img: product.image,
+          category: product.category,
+          garment_des: product.garment_des || product.name
+        })
+      });
+      
+      const { jobId } = await response.json();
+      
+      // Poll for result
+      const pollResult = async () => {
+        const resultResponse = await fetch(`${process.env.EXPO_PUBLIC_API_BASE}/api/tryon/${jobId}`);
+        const result = await resultResponse.json();
+        
+        if (result.status === 'succeeded') {
+          setPreviewResult(result.output);
+          setShowPreview(true);
+          setIsGeneratingPreview(false);
+        } else if (result.status === 'processing') {
+          setTimeout(pollResult, 2000);
+        } else {
+          setIsGeneratingPreview(false);
+          Alert.alert('Error', 'Failed to generate preview');
+        }
+      };
+      
+      setTimeout(pollResult, 2000);
+    } catch (error) {
+      console.error('Preview generation error:', error);
+      setIsGeneratingPreview(false);
+      Alert.alert('Error', 'Failed to generate preview');
+    }
+  };
+  
+  const handleSuggest = () => {
+    // Add suggestion logic here
+    Alert.alert('Suggestion Sent!', `You suggested ${selectedProduct.name} for this outfit.`);
+    setRoute('feed');
+  };
+  
+  return (
+    <View style={{ flex: 1, backgroundColor: '#000' }}>
+      {/* Header */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+        <Pressable onPress={() => setRoute('feed')} style={{ marginRight: 16 }}>
+          <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
+        </Pressable>
+        <Text style={s.h1}>Suggest Outfit</Text>
+      </View>
+      
+      <Text style={s.muted}>
+        Browse and suggest clothing items for this outfit
+      </Text>
+      
+      {showPreview && previewResult ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '600', marginBottom: 16 }}>
+            Preview: {selectedProduct.name}
+          </Text>
+          <Image 
+            source={{ uri: previewResult }} 
+            style={{ width: '100%', aspectRatio: 9/16, borderRadius: 20, marginBottom: 20 }}
+            resizeMode="cover"
+          />
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <Pressable 
+              onPress={() => setShowPreview(false)}
+              style={[s.btn, { flex: 1 }]}
+            >
+              <Text style={s.btnText}>Back to Browse</Text>
+            </Pressable>
+            <Pressable 
+              onPress={handleSuggest}
+              style={[s.btn, s.btnPrimary, { flex: 1 }]}
+            >
+              <Text style={s.btnPrimaryText}>Suggest This</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : (
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <View style={{ 
+            flexDirection: 'row', 
+            flexWrap: 'wrap', 
+            justifyContent: 'space-between',
+            gap: 12
+          }}>
+            {enhancedProducts.map(product => (
+              <Pressable 
+                key={product.id}
+                onPress={() => handleProductSelect(product)}
+                style={{
+                  width: '48%',
+                  backgroundColor: 'rgba(255,255,255,0.05)',
+                  borderRadius: 16,
+                  overflow: 'hidden',
+                  borderWidth: 1,
+                  borderColor: 'rgba(255,255,255,0.08)'
+                }}
+              >
+                <Image 
+                  source={{ uri: product.image }} 
+                  style={{ width: '100%', aspectRatio: 1, borderRadius: 12 }}
+                  resizeMode="cover"
+                />
+                <View style={{ padding: 12 }}>
+                  <Text style={{ color: '#e4e4e7', fontSize: 14, fontWeight: '600', marginBottom: 4 }}>
+                    {product.name}
+                  </Text>
+                  <Text style={{ color: '#10b981', fontSize: 16, fontWeight: '700' }}>
+                    ${product.price}
+                  </Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        </ScrollView>
+      )}
+      
+      {isGeneratingPreview && (
+        <View style={{ 
+          position: 'absolute', 
+          top: 0, 
+          left: 0, 
+          right: 0, 
+          bottom: 0, 
+          backgroundColor: 'rgba(0,0,0,0.8)', 
+          justifyContent: 'center', 
+          alignItems: 'center' 
+        }}>
+          <Text style={{ color: '#e4e4e7', fontSize: 18, marginBottom: 16 }}>Generating Preview...</Text>
+          <Text style={{ color: '#a1a1aa', fontSize: 14 }}>This may take a few moments</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
   app: { flex: 1, backgroundColor: '#000' },
   safeArea: { flex: 1 },
-  container: { flex: 1, padding: 16, paddingBottom: 80 },
+  container: { flex: 1, padding: 16, paddingBottom: 60 },
   scrollContent: { padding: 16, paddingBottom: 100 },
   grid2: { gap: 16 },
   h1: { color: '#e4e4e7', fontSize: 24, fontWeight: '700', marginBottom: 8 },
