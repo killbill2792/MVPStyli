@@ -745,7 +745,7 @@ function Shell() {
   return (
     <View style={s.app}>
       <StatusBar barStyle="light-content" />
-      <SafeAreaView style={s.safeArea} edges={['top']}>
+      <SafeAreaView style={s.safeArea} edges={['top', 'left', 'right']}>
         <View style={s.container}>
         {route === "signin" && <SignInScreen onDone={() => setRoute("onboarding")} />}
         {route === "onboarding" && <Onboarding />}
@@ -1437,16 +1437,16 @@ function TryOn() {
         </Pressable>
         
         {/* Top-right floating action buttons */}
-        <View style={{ position: 'absolute', top: 15, right: 12, flexDirection: 'column', gap: 12 }}>
+        <View style={{ position: 'absolute', top: 17, right: 12, flexDirection: 'column', gap: 12 }}>
           <Pressable 
             onPress={() => showFeatureOverlay({ 
               title: 'AI Analytics', 
               description: 'Get detailed analysis of your outfit including style recommendations, color harmony, and confidence scores.' 
             })} 
             style={{ 
-              width: 51, 
-              height: 51, 
-              borderRadius: 25.5, 
+              width: 52, 
+              height: 52, 
+              borderRadius: 26, 
               justifyContent: 'center', 
               alignItems: 'center',
               shadowColor: '#000',
@@ -1464,9 +1464,9 @@ function TryOn() {
               description: 'Create a Pod to get feedback from friends, style twins, or the global community on your outfit.' 
             })} 
             style={{ 
-              width: 51, 
-              height: 51, 
-              borderRadius: 25.5, 
+              width: 52, 
+              height: 52, 
+              borderRadius: 26, 
               justifyContent: 'center', 
               alignItems: 'center',
               shadowColor: '#000',
@@ -1481,9 +1481,9 @@ function TryOn() {
           <Pressable 
             onPress={() => setRoute('suggest', { itemId: currentItem.id, itemType: currentItem.type })}
             style={{ 
-              width: 51, 
-              height: 51, 
-              borderRadius: 25.5, 
+              width: 52, 
+              height: 52, 
+              borderRadius: 26, 
               justifyContent: 'center', 
               alignItems: 'center',
               shadowColor: '#000',
@@ -1908,13 +1908,13 @@ function Explore() {
         )}
 
         {/* Top-right vertical action buttons */}
-        <View style={{ position: 'absolute', right: 12, top: 12, flexDirection: 'column', gap: 8 }}>
+        <View style={{ position: 'absolute', right: 12, top: 14, flexDirection: 'column', gap: 8 }}>
           <Pressable 
             onPress={() => setRoute('tryon')}
             style={{ 
-              width: 51, 
-              height: 51, 
-              borderRadius: 25.5, 
+              width: 52, 
+              height: 52, 
+              borderRadius: 26, 
               justifyContent: 'center', 
               alignItems: 'center',
               shadowColor: '#000',
@@ -1929,9 +1929,9 @@ function Explore() {
           <Pressable 
             onPress={() => setRoute('createpod')}
             style={{ 
-              width: 51, 
-              height: 51, 
-              borderRadius: 25.5, 
+              width: 52, 
+              height: 52, 
+              borderRadius: 26, 
               justifyContent: 'center', 
               alignItems: 'center',
               shadowColor: '#000',
@@ -1946,9 +1946,9 @@ function Explore() {
           <Pressable 
             onPress={() => setRoute('suggest', { itemId: currentItem.id, itemType: currentItem.type })}
             style={{ 
-              width: 51, 
-              height: 51, 
-              borderRadius: 25.5, 
+              width: 52, 
+              height: 52, 
+              borderRadius: 26, 
               justifyContent: 'center', 
               alignItems: 'center',
               shadowColor: '#000',
@@ -2015,9 +2015,10 @@ function Explore() {
           <ScrollView 
             horizontal 
             showsHorizontalScrollIndicator={false}
-            pagingEnabled
             style={{ height: 80 }}
-            contentContainerStyle={{ paddingHorizontal: 0 }}
+            contentContainerStyle={{ paddingRight: 20 }}
+            bounces={false}
+            decelerationRate="fast"
           >
             {[
               { id: 's1', name: 'White Shirt', price: 29, image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&auto=format&fit=crop&w=200', suggestedBy: '@sarah' },
@@ -3581,7 +3582,7 @@ function SuggestScreen() {
 const s = StyleSheet.create({
   app: { flex: 1, backgroundColor: '#000' },
   safeArea: { flex: 1 },
-  container: { flex: 1, padding: 16, paddingBottom: 120 },
+  container: { flex: 1, padding: 16, paddingTop: 40, paddingBottom: 120 },
   scrollContent: { padding: 16, paddingBottom: 100 },
   grid2: { gap: 16 },
   h1: { color: '#e4e4e7', fontSize: 24, fontWeight: '700', marginBottom: 8 },
