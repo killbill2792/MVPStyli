@@ -1052,6 +1052,8 @@ function Product() {
   const [cleanUrl, setCleanUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isTracking, setIsTracking] = useState(false);
+  const [trackingPrice, setTrackingPrice] = useState('');
+  const [showPriceInput, setShowPriceInput] = useState(false);
   const [priceHistory, setPriceHistory] = useState([
     { date: '2024-01-15', price: 129 },
     { date: '2024-01-10', price: 119 },
@@ -1076,9 +1078,16 @@ function Product() {
   }, [product]);
   
   const togglePriceTracking = () => {
-    setIsTracking(!isTracking);
-    if (!isTracking) {
-      Alert.alert('Price Tracking Enabled', 'You\'ll be notified when the price drops below $' + (product.price - 10));
+    if (!showPriceInput) {
+      setShowPriceInput(true);
+      setTrackingPrice(lowestPrice.toString());
+    } else if (trackingPrice && !isTracking) {
+      setIsTracking(true);
+      Alert.alert('Price Tracking Enabled', `You'll be notified when the price drops below $${trackingPrice}`);
+    } else {
+      setIsTracking(false);
+      setShowPriceInput(false);
+      setTrackingPrice('');
     }
   };
   
@@ -1170,7 +1179,7 @@ function Product() {
             }}
           >
             <Text style={{ fontSize: 20, marginBottom: 4 }}>
-              {isTracking ? '🔔' : '📊'}
+              {isTracking ? '🔔' : '📈'}
             </Text>
             <Text style={{ 
               color: isTracking ? '#fff' : '#e4e4e7', 
@@ -1178,13 +1187,13 @@ function Product() {
               fontWeight: '600',
               textAlign: 'center'
             }}>
-              {isTracking ? 'Tracking Active' : 'Track Price'}
+              {isTracking ? 'Tracking Active' : showPriceInput ? 'Set Price & Track' : 'Track Price'}
             </Text>
           </Pressable>
         </View>
         
         {/* Price Tracking Details - Expandable */}
-        {isTracking && (
+        {showPriceInput && (
           <View style={{ 
             backgroundColor: 'rgba(16, 185, 129, 0.1)', 
             borderRadius: 12, 
@@ -1194,7 +1203,9 @@ function Product() {
             borderColor: 'rgba(16, 185, 129, 0.2)'
           }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <Text style={{ color: '#10b981', fontSize: 14, fontWeight: '600' }}>Price Tracking Active</Text>
+              <Text style={{ color: '#10b981', fontSize: 14, fontWeight: '600' }}>
+                {isTracking ? 'Price Tracking Active' : 'Set Your Price Alert'}
+              </Text>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <Text style={{ color: '#10b981', fontSize: 12 }}>30d Low: ${lowestPrice}</Text>
                 <Text style={{ color: '#ef4444', fontSize: 12 }}>30d High: ${Math.max(...priceHistory.map(p => p.price))}</Text>
@@ -1202,7 +1213,7 @@ function Product() {
             </View>
             
             {/* Custom Price Input - Inline */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
               <Text style={{ color: '#a1a1aa', fontSize: 14 }}>Notify me when price drops below:</Text>
               <Text style={{ color: '#e4e4e7', fontSize: 16 }}>$</Text>
               <TextInput
@@ -1221,9 +1232,27 @@ function Product() {
                 placeholder={lowestPrice.toString()}
                 placeholderTextColor="#a1a1aa"
                 keyboardType="numeric"
-                defaultValue={lowestPrice.toString()}
+                value={trackingPrice}
+                onChangeText={setTrackingPrice}
               />
             </View>
+            
+            {!isTracking && (
+              <Pressable 
+                onPress={togglePriceTracking}
+                style={{
+                  backgroundColor: '#10b981',
+                  paddingHorizontal: 16,
+                  paddingVertical: 10,
+                  borderRadius: 8,
+                  alignItems: 'center'
+                }}
+              >
+                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
+                  Start Tracking at ${trackingPrice}
+                </Text>
+              </Pressable>
+            )}
           </View>
         )}
       </View>
@@ -1882,15 +1911,54 @@ function Explore() {
         <View style={{ position: 'absolute', right: 12, top: 12, flexDirection: 'column', gap: 8 }}>
           <Pressable 
             onPress={() => setRoute('tryon')}
-            style={{ backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12 }}
+            style={{ 
+              width: 51, 
+              height: 51, 
+              borderRadius: 25.5, 
+              justifyContent: 'center', 
+              alignItems: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.3,
+              shadowRadius: 4,
+              elevation: 5
+            }}
           >
-            <Text style={{ color: '#10b981', fontSize: 16 }}>👗</Text>
-            </Pressable>
+            <Text style={{ fontSize: 20 }}>👗</Text>
+          </Pressable>
           <Pressable 
             onPress={() => setRoute('createpod')}
-            style={{ backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12 }}
+            style={{ 
+              width: 51, 
+              height: 51, 
+              borderRadius: 25.5, 
+              justifyContent: 'center', 
+              alignItems: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.3,
+              shadowRadius: 4,
+              elevation: 5
+            }}
           >
-            <Text style={{ color: '#10b981', fontSize: 16 }}>👥</Text>
+            <Text style={{ fontSize: 20 }}>👥</Text>
+          </Pressable>
+          <Pressable 
+            onPress={() => setRoute('suggest', { itemId: currentItem.id, itemType: currentItem.type })}
+            style={{ 
+              width: 51, 
+              height: 51, 
+              borderRadius: 25.5, 
+              justifyContent: 'center', 
+              alignItems: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.3,
+              shadowRadius: 4,
+              elevation: 5
+            }}
+          >
+            <Text style={{ fontSize: 20 }}>💡</Text>
           </Pressable>
         </View>
 
@@ -1949,6 +2017,7 @@ function Explore() {
             showsHorizontalScrollIndicator={false}
             pagingEnabled
             style={{ height: 80 }}
+            contentContainerStyle={{ paddingHorizontal: 0 }}
           >
             {[
               { id: 's1', name: 'White Shirt', price: 29, image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&auto=format&fit=crop&w=200', suggestedBy: '@sarah' },
@@ -3512,7 +3581,7 @@ function SuggestScreen() {
 const s = StyleSheet.create({
   app: { flex: 1, backgroundColor: '#000' },
   safeArea: { flex: 1 },
-  container: { flex: 1, padding: 16, paddingBottom: 100 },
+  container: { flex: 1, padding: 16, paddingBottom: 120 },
   scrollContent: { padding: 16, paddingBottom: 100 },
   grid2: { gap: 16 },
   h1: { color: '#e4e4e7', fontSize: 24, fontWeight: '700', marginBottom: 8 },
