@@ -743,13 +743,14 @@ function Shell() {
   }
   
   return (
-    <SafeAreaView style={s.app} edges={['top']}>
+    <View style={s.app}>
       <StatusBar barStyle="light-content" />
-      <ScrollView 
-        style={s.container} 
-        contentContainerStyle={s.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+      <SafeAreaView style={s.safeArea} edges={['top']}>
+        <ScrollView 
+          style={s.container} 
+          contentContainerStyle={s.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
         {route === "signin" && <SignInScreen onDone={() => setRoute("onboarding")} />}
         {route === "onboarding" && <Onboarding />}
         {route === "shop" && <Shop />}
@@ -766,9 +767,10 @@ function Shell() {
         {route === "suggested-outfits" && <SuggestedOutfits />}
         {route === "stylecraft" && <StyleCraft />}
         {route === "account" && <AccountScreen onBack={() => setRoute("shop")} />}
-      </ScrollView>
-      {route !== "signin" && <BottomBar route={route} go={setRoute} />}
-    </SafeAreaView>
+        </ScrollView>
+        {route !== "signin" && <BottomBar route={route} go={setRoute} />}
+      </SafeAreaView>
+    </View>
   );
 }
 
@@ -2446,55 +2448,52 @@ function StyleCraft() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#000', padding: 16 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-        <Pressable onPress={() => setRoute('shop')} style={{ marginRight: 16 }}>
-          <Text style={{ color: '#3b82f6', fontSize: 16 }}>← Back</Text>
-        </Pressable>
-        <Text style={{ color: '#e4e4e7', fontSize: 24, fontWeight: '700' }}>StyleCraft</Text>
-      </View>
+    <View style={s.grid2}>
+      <Card>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+          <Pressable onPress={() => setRoute('shop')} style={{ marginRight: 16 }}>
+            <Text style={{ color: '#3b82f6', fontSize: 16 }}>← Back</Text>
+          </Pressable>
+          <Text style={s.h1}>StyleCraft</Text>
+        </View>
 
-      <Text style={{ color: '#a1a1aa', fontSize: 16, marginBottom: 20 }}>
-        Design your custom dress and get quotes from professional vendors
-      </Text>
+        <Text style={s.muted}>
+          Design your custom dress and get quotes from professional vendors
+        </Text>
 
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Design Type Selection */}
-        <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 16, marginBottom: 16 }}>
-          <Text style={{ color: '#e4e4e7', fontSize: 16, fontWeight: '600', marginBottom: 12 }}>Design Input</Text>
+        <View style={{ marginBottom: 16 }}>
+          <Text style={s.label}>Design Input</Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <Pressable 
               onPress={() => setDesignType('upload')}
-            style={{ 
-              flex: 1, 
-              backgroundColor: designType === 'upload' ? 'rgba(255,255,255,0.12)' : 'transparent',
-              padding: 12, 
-              borderRadius: 12, 
-              alignItems: 'center' 
-            }}
+              style={[s.btn, { 
+                flex: 1, 
+                backgroundColor: designType === 'upload' ? 'rgba(255,255,255,0.12)' : 'transparent',
+                marginBottom: 0
+              }]}
             >
-              <Text style={{ color: designType === 'upload' ? '#fff' : '#a1a1aa', fontSize: 14, fontWeight: '600' }}>Upload Image</Text>
+              <Text style={[s.btnText, { color: designType === 'upload' ? '#fff' : '#a1a1aa' }]}>Upload Image</Text>
             </Pressable>
             <Pressable 
               onPress={() => setDesignType('describe')}
-              style={{ 
+              style={[s.btn, { 
                 flex: 1, 
                 backgroundColor: designType === 'describe' ? 'rgba(255,255,255,0.12)' : 'transparent',
-                padding: 12, 
-                borderRadius: 12, 
-                alignItems: 'center' 
-              }}
+                marginBottom: 0
+              }]}
             >
-              <Text style={{ color: designType === 'describe' ? '#fff' : '#a1a1aa', fontSize: 14, fontWeight: '600' }}>Describe</Text>
+              <Text style={[s.btnText, { color: designType === 'describe' ? '#fff' : '#a1a1aa' }]}>Describe</Text>
             </Pressable>
           </View>
         </View>
 
         {/* Image Upload */}
         {designType === 'upload' && (
-          <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 16, marginBottom: 16 }}>
-            <Text style={{ color: '#e4e4e7', fontSize: 16, fontWeight: '600', marginBottom: 12 }}>Upload Reference Image</Text>
-            <Pressable onPress={pickImage} style={{ backgroundColor: 'rgba(255,255,255,0.1)', padding: 20, borderRadius: 12, alignItems: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.2)', borderStyle: 'dashed' }}>
+          <View style={{ marginBottom: 16 }}>
+            <Text style={s.label}>Upload Reference Image</Text>
+            <Pressable onPress={pickImage} style={[s.inputBox, { height: 120, justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed' }]}>
               {uploadedImage ? (
                 <Image source={{ uri: uploadedImage }} style={{ width: 100, height: 100, borderRadius: 8 }} />
               ) : (
@@ -2509,7 +2508,7 @@ function StyleCraft() {
 
         {/* Description */}
         <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 16, marginBottom: 16 }}>
-          <Text style={{ color: '#e4e4e7', fontSize: 16, fontWeight: '600', marginBottom: 12 }}>Design Description</Text>
+          <Text style={s.label}>Design Description</Text>
           <TextInput
             value={description}
             onChangeText={setDescription}
@@ -2517,57 +2516,38 @@ function StyleCraft() {
             placeholderTextColor="#a1a1aa"
             multiline
             numberOfLines={4}
-            style={{
-              backgroundColor: 'rgba(255,255,255,0.1)',
-              padding: 12,
-              borderRadius: 12,
-              color: '#e4e4e7',
-              fontSize: 14,
-              textAlignVertical: 'top'
-            }}
+            style={[s.inputBox, { height: 100, textAlignVertical: 'top' }]}
           />
         </View>
 
         {/* Budget and Material */}
-        <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 16, marginBottom: 16 }}>
-          <Text style={{ color: '#e4e4e7', fontSize: 16, fontWeight: '600', marginBottom: 12 }}>Preferences</Text>
+        <View style={{ marginBottom: 16 }}>
+          <Text style={s.label}>Preferences</Text>
           
           <View style={{ marginBottom: 12 }}>
-            <Text style={{ color: '#a1a1aa', fontSize: 14, marginBottom: 8 }}>Budget Range</Text>
+            <Text style={s.inputHint}>Budget Range</Text>
             <TextInput
               value={budget}
               onChangeText={setBudget}
               placeholder="e.g., $200-500"
               placeholderTextColor="#a1a1aa"
-              style={{
-                backgroundColor: 'rgba(255,255,255,0.1)',
-                padding: 12,
-                borderRadius: 12,
-                color: '#e4e4e7',
-                fontSize: 14
-              }}
+              style={s.inputBox}
             />
           </View>
 
           <View style={{ marginBottom: 12 }}>
-            <Text style={{ color: '#a1a1aa', fontSize: 14, marginBottom: 8 }}>Preferred Material</Text>
+            <Text style={s.inputHint}>Preferred Material</Text>
             <TextInput
               value={material}
               onChangeText={setMaterial}
               placeholder="e.g., Silk, Cotton, Linen"
               placeholderTextColor="#a1a1aa"
-              style={{
-                backgroundColor: 'rgba(255,255,255,0.1)',
-                padding: 12,
-                borderRadius: 12,
-                color: '#e4e4e7',
-                fontSize: 14
-              }}
+              style={s.inputBox}
             />
           </View>
 
           <View>
-            <Text style={{ color: '#a1a1aa', fontSize: 14, marginBottom: 8 }}>Additional Notes</Text>
+            <Text style={s.inputHint}>Additional Notes</Text>
             <TextInput
               value={additionalNotes}
               onChangeText={setAdditionalNotes}
@@ -2575,22 +2555,16 @@ function StyleCraft() {
               placeholderTextColor="#a1a1aa"
               multiline
               numberOfLines={3}
-              style={{
-                backgroundColor: 'rgba(255,255,255,0.1)',
-                padding: 12,
-                borderRadius: 12,
-                color: '#e4e4e7',
-                fontSize: 14,
-                textAlignVertical: 'top'
-              }}
+              style={[s.inputBox, { height: 80, textAlignVertical: 'top' }]}
             />
           </View>
         </View>
 
-        <Pressable onPress={submitDesign} style={{ padding: 16, borderRadius: 16, alignItems: 'center', marginBottom: 20 }}>
-          <Text style={{ color: '#10b981', fontSize: 16, fontWeight: '600' }}>Get Vendor Quotes</Text>
+        <Pressable onPress={submitDesign} style={[s.btn, s.btnPrimary]}>
+          <Text style={s.btnPrimaryText}>Get Vendor Quotes</Text>
         </Pressable>
       </ScrollView>
+      </Card>
     </View>
   );
 }
@@ -2645,22 +2619,19 @@ function AccountScreen({ onBack }) {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#000' }}>
-      <View style={{ padding: 16, paddingBottom: 0 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-        <Pressable onPress={onBack} style={{ marginRight: 16 }}>
-            <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
-        </Pressable>
-        <Text style={{ color: '#e4e4e7', fontSize: 24, fontWeight: '700' }}>
-          Account
-        </Text>
+    <View style={s.grid2}>
+      <Card>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+          <Pressable onPress={onBack} style={{ marginRight: 16 }}>
+            <Text style={{ color: '#3b82f6', fontSize: 16 }}>← Back</Text>
+          </Pressable>
+          <Text style={s.h1}>Account</Text>
         </View>
-      </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} style={{ padding: 16 }}>
+        <ScrollView showsVerticalScrollIndicator={false}>
         {/* Profile Photo Section */}
         <View style={{ marginBottom: 24 }}>
-          <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '600', marginBottom: 16 }}>Profile Photo</Text>
+          <Text style={s.label}>Profile Photo</Text>
           
           <View style={{ alignItems: 'center', marginBottom: 16 }}>
             {profileData.bodyPhoto ? (
@@ -2800,7 +2771,8 @@ function AccountScreen({ onBack }) {
           Sign Out
         </Text>
       </Pressable>
-      </ScrollView>
+        </ScrollView>
+      </Card>
     </View>
   );
 }
@@ -2822,6 +2794,7 @@ function Card({ children }) {
 
 const s = StyleSheet.create({
   app: { flex: 1, backgroundColor: '#000' },
+  safeArea: { flex: 1 },
   container: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 100 },
   grid2: { gap: 16 },
