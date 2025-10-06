@@ -752,45 +752,52 @@ function Shell() {
   return (
     <View style={s.app}>
       <StatusBar barStyle="light-content" />
-      <SafeAreaView style={s.safeArea} edges={['top', 'left', 'right']}>
-        <View style={s.container}>
-        {route === "signin" && <SignInScreen onDone={() => setRoute("onboarding")} />}
-        {route === "onboarding" && <Onboarding />}
-        {route === "shop" && <Shop />}
-        {route === "product" && <Product />}
-        {route === "tryon" && <TryOn />}
-        {route === "askhelp" && <AskHelp />}
-        {route === "createpod" && <PodsScreen 
-          onBack={() => setRoute("feed")} 
-          onCreatePod={(podId) => setRoute("podlive", { podId })}
-          userId={user?.id}
-        />}
-        {route === "podlive" && <PodLive 
-          podId={params?.podId || ''} 
-          onBack={() => setRoute("feed")} 
-          onRecap={(podId) => setRoute("podrecap", { podId })}
-          userId={user?.id}
-        />}
-        {route === "podrecap" && <PodRecap 
-          podId={params?.podId || ''} 
-          onBack={() => setRoute("feed")} 
-          onStyleCraft={() => setRoute("stylecraft")}
-          onShopSimilar={() => setRoute("shop")}
-        />}
-        {route === "podshome" && <PodsHome 
-          onBack={() => setRoute("feed")} 
-          onPodLive={(podId) => setRoute("podlive", { podId })}
-          onPodRecap={(podId) => setRoute("podrecap", { podId })}
-          onInbox={() => setRoute("inbox")}
-          userId={user?.id}
-          userEmail={user?.email}
-        />}
-        {route === "inbox" && <Inbox 
-          onBack={() => setRoute("podshome")} 
-          onPodLive={(podId) => setRoute("podlive", { podId })}
-          onPodRecap={(podId) => setRoute("podrecap", { podId })}
-          userId={user?.id}
-        />}
+      
+      {/* New screens that need full screen control */}
+      {route === "createpod" && <PodsScreen 
+        onBack={() => setRoute("feed")} 
+        onCreatePod={(podId) => setRoute("podlive", { podId })}
+        userId={user?.id}
+      />}
+      {route === "podlive" && <PodLive 
+        podId={params?.podId || ''} 
+        onBack={() => setRoute("feed")} 
+        onRecap={(podId) => setRoute("podrecap", { podId })}
+        userId={user?.id}
+      />}
+      {route === "podrecap" && <PodRecap 
+        podId={params?.podId || ''} 
+        onBack={() => setRoute("feed")} 
+        onStyleCraft={() => setRoute("stylecraft")}
+        onShopSimilar={() => setRoute("shop")}
+      />}
+      {route === "podshome" && <PodsHome 
+        onBack={() => setRoute("feed")} 
+        onPodLive={(podId) => setRoute("podlive", { podId })}
+        onPodRecap={(podId) => setRoute("podrecap", { podId })}
+        onInbox={() => setRoute("inbox")}
+        userId={user?.id}
+        userEmail={user?.email}
+      />}
+      {route === "inbox" && <Inbox 
+        onBack={() => setRoute("podshome")} 
+        onPodLive={(podId) => setRoute("podlive", { podId })}
+        onPodRecap={(podId) => setRoute("podrecap", { podId })}
+        userId={user?.id}
+      />}
+      {route === "stylecraft" && <StyleCraftScreen onBack={() => setRoute("shop")} />}
+      {route === "account" && <NewAccountScreen onBack={() => setRoute("shop")} />}
+      
+      {/* Original screens that use the container */}
+      {!["createpod", "podlive", "podrecap", "podshome", "inbox", "stylecraft", "account"].includes(route) && (
+        <SafeAreaView style={s.safeArea} edges={['top', 'left', 'right']}>
+          <View style={s.container}>
+            {route === "signin" && <SignInScreen onDone={() => setRoute("onboarding")} />}
+            {route === "onboarding" && <Onboarding />}
+            {route === "shop" && <Shop />}
+            {route === "product" && <Product />}
+            {route === "tryon" && <TryOn />}
+            {route === "askhelp" && <AskHelp />}
         {route === "rooms" && <RoomsInbox />}
         {route === "room_owner" && <RoomOwner />}
         {route === "room_guest" && <RoomGuest />}
@@ -798,12 +805,11 @@ function Shell() {
         {route === "feed" && <Explore />}
         {route === "ai-analytics" && <AIAnalytics />}
         {route === "suggested-outfits" && <SuggestedOutfits />}
-        {route === "stylecraft" && <StyleCraftScreen onBack={() => setRoute("shop")} />}
-        {route === "account" && <NewAccountScreen onBack={() => setRoute("shop")} />}
         {route === "suggest" && <SuggestScreen />}
-        </View>
-      {route !== "signin" && <BottomBar route={route} go={setRoute} />}
-    </SafeAreaView>
+          </View>
+          {route !== "signin" && <BottomBar route={route} go={setRoute} />}
+        </SafeAreaView>
+      )}
     </View>
   );
 }
