@@ -8,6 +8,9 @@ import { uploadImageAsync } from './lib/upload';
 import productsData from './data/products.json';
 import { Linking } from 'react-native';
 import BottomBar from './components/BottomBar';
+import PodsScreen from './screens/PodsScreen';
+import StyleCraftScreen from './screens/StyleCraftScreen';
+import AccountScreen from './screens/AccountScreen';
 
 // Enhanced product data with more realistic information - expanded catalog
 const enhancedProducts = [
@@ -753,7 +756,11 @@ function Shell() {
         {route === "product" && <Product />}
         {route === "tryon" && <TryOn />}
         {route === "askhelp" && <AskHelp />}
-        {route === "createpod" && <CreatePod />}
+        {route === "createpod" && <PodsScreen onBack={() => setRoute("feed")} onCreatePod={(data) => {
+          // Handle pod creation logic
+          console.log('Creating pod with:', data);
+          setRoute("feed");
+        }} />}
         {route === "rooms" && <RoomsInbox />}
         {route === "room_owner" && <RoomOwner />}
         {route === "room_guest" && <RoomGuest />}
@@ -761,7 +768,7 @@ function Shell() {
         {route === "feed" && <Explore />}
         {route === "ai-analytics" && <AIAnalytics />}
         {route === "suggested-outfits" && <SuggestedOutfits />}
-        {route === "stylecraft" && <StyleCraft />}
+        {route === "stylecraft" && <StyleCraftScreen onBack={() => setRoute("shop")} />}
         {route === "account" && <AccountScreen onBack={() => setRoute("shop")} />}
         {route === "suggest" && <SuggestScreen />}
         </View>
