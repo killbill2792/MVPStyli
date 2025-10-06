@@ -83,6 +83,15 @@ const StyleCraftScreen = ({ onBack }) => {
           ))}
         </View>
 
+        {/* Fixed Header */}
+        <View style={styles.header}>
+          <Pressable style={styles.backButton} onPress={onBack}>
+            <Text style={styles.backButtonText}>← Back</Text>
+          </Pressable>
+          <Text style={styles.headerTitle}>StyleCraft — AI Tailor Studio</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -90,9 +99,8 @@ const StyleCraftScreen = ({ onBack }) => {
         >
           {/* Hero Section */}
           <View style={styles.heroSection}>
-            <Text style={styles.heroTitle}>AI Tailor Studio</Text>
             <Text style={styles.heroSubtitle}>
-              Design your dream outfit with AI as your stylist + maker
+              Drop your inspo, AI does the rest 🎨
             </Text>
 
             {/* Live Stats Cards */}
@@ -229,11 +237,6 @@ const StyleCraftScreen = ({ onBack }) => {
             </View>
           )}
         </ScrollView>
-
-        {/* Back Button */}
-        <Pressable style={styles.backButton} onPress={onBack}>
-          <Text style={styles.backButtonText}>← Back</Text>
-        </Pressable>
       </LinearGradient>
     </View>
   );
@@ -262,12 +265,38 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     opacity: 0.4,
   },
+  header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 80,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingTop: 40,
+    zIndex: 1000,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backdropFilter: 'blur(10px)',
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+    textAlign: 'center',
+    flex: 1,
+  },
+  headerSpacer: {
+    width: 60,
+  },
   scrollView: {
     flex: 1,
+    paddingTop: 80,
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 60,
+    paddingTop: 20,
     paddingBottom: 100,
   },
   heroSection: {
@@ -533,10 +562,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   backButton: {
-    position: 'absolute',
-    top: 50,
-    left: 24,
-    zIndex: 10,
+    padding: 8,
   },
   backButtonText: {
     color: '#fff',

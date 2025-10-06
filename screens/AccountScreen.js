@@ -156,6 +156,15 @@ const AccountScreen = ({ onBack }) => {
           ))}
         </View>
 
+        {/* Fixed Header */}
+        <View style={styles.header}>
+          <Pressable style={styles.backButton} onPress={onBack}>
+            <Text style={styles.backButtonText}>← Back</Text>
+          </Pressable>
+          <Text style={styles.headerTitle}>My Stylit Hub</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -235,11 +244,6 @@ const AccountScreen = ({ onBack }) => {
             </Pressable>
           </View>
         </ScrollView>
-
-        {/* Back Button */}
-        <Pressable style={styles.backButton} onPress={onBack}>
-          <Text style={styles.backButtonText}>← Back</Text>
-        </Pressable>
       </LinearGradient>
     </View>
   );
@@ -268,12 +272,36 @@ const styles = StyleSheet.create({
     borderRadius: 1.5,
     opacity: 0.3,
   },
+  header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 80,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingTop: 40,
+    zIndex: 1000,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backdropFilter: 'blur(10px)',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  headerSpacer: {
+    width: 60,
+  },
   scrollView: {
     flex: 1,
+    paddingTop: 80,
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 60,
+    paddingTop: 20,
     paddingBottom: 100,
   },
   heroSection: {
@@ -437,10 +465,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   backButton: {
-    position: 'absolute',
-    top: 50,
-    left: 24,
-    zIndex: 10,
+    padding: 8,
   },
   backButtonText: {
     color: '#fff',

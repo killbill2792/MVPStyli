@@ -103,6 +103,15 @@ const PodsScreen = ({ onBack, onCreatePod }) => {
           ))}
         </View>
 
+        {/* Fixed Header */}
+        <View style={styles.header}>
+          <Pressable style={styles.backButton} onPress={onBack}>
+            <Text style={styles.backButtonText}>← Back</Text>
+          </Pressable>
+          <Text style={styles.headerTitle}>Start a Pod</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -110,9 +119,8 @@ const PodsScreen = ({ onBack, onCreatePod }) => {
         >
           {/* Hero Section */}
           <View style={styles.heroSection}>
-            <Text style={styles.heroTitle}>Start a Pod</Text>
             <Text style={styles.heroSubtitle}>
-              Get instant vibes check from your fashion circle or the world.
+              Get instant vibe checks from your circle or the world.
             </Text>
             <Text style={styles.heroSubtext}>
               Upload your look → Choose audience → Get feedback fast.
@@ -212,11 +220,6 @@ const PodsScreen = ({ onBack, onCreatePod }) => {
             </LinearGradient>
           </Pressable>
         </ScrollView>
-
-        {/* Back Button */}
-        <Pressable style={styles.backButton} onPress={onBack}>
-          <Text style={styles.backButtonText}>← Back</Text>
-        </Pressable>
       </LinearGradient>
     </View>
   );
@@ -245,12 +248,36 @@ const styles = StyleSheet.create({
     borderRadius: 1,
     opacity: 0.6,
   },
+  header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 80,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingTop: 40,
+    zIndex: 1000,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backdropFilter: 'blur(10px)',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  headerSpacer: {
+    width: 60,
+  },
   scrollView: {
     flex: 1,
+    paddingTop: 80,
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 60,
+    paddingTop: 20,
     paddingBottom: 100,
   },
   heroSection: {
@@ -317,8 +344,9 @@ const styles = StyleSheet.create({
   },
   modeCard: {
     marginBottom: 16,
-    borderRadius: 20,
+    borderRadius: 24,
     overflow: 'hidden',
+    height: 160,
     transform: [{ scale: 1 }],
   },
   selectedCard: {
@@ -330,33 +358,36 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   cardGradient: {
-    padding: 24,
+    padding: 16,
+    flex: 1,
   },
   cardContent: {
     alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
   },
   cardIcon: {
-    fontSize: 32,
-    marginBottom: 12,
+    fontSize: 24,
+    marginBottom: 8,
   },
   cardTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: '#fff',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   cardTagline: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#e5e7eb',
-    marginBottom: 8,
+    marginBottom: 6,
     textAlign: 'center',
   },
   cardCopy: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#d1d5db',
     textAlign: 'center',
-    marginBottom: 16,
-    lineHeight: 20,
+    marginBottom: 12,
+    lineHeight: 16,
   },
   tagsContainer: {
     flexDirection: 'row',
@@ -422,10 +453,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   backButton: {
-    position: 'absolute',
-    top: 50,
-    left: 24,
-    zIndex: 10,
+    padding: 8,
   },
   backButtonText: {
     color: '#fff',
