@@ -9,6 +9,614 @@ import productsData from './data/products.json';
 import { Linking } from 'react-native';
 import BottomBar from './components/BottomBar';
 
+// Enhanced product data with more realistic information - expanded catalog
+const enhancedProducts = [
+  {
+    id: "zara-black-blazer",
+    name: "Zara Black Blazer",
+    price: 119,
+    rating: 4.4,
+    brand: "Zara",
+    category: "Blazers",
+    color: "Black",
+    material: "Wool Blend",
+    garment_des: "Classic black blazer perfect for office wear",
+    image: "https://images.unsplash.com/photo-1594938298603-c8148c4dae35?w=400"
+  },
+  {
+    id: "h&m-white-shirt",
+    name: "H&M White Shirt",
+    price: 29,
+    rating: 4.2,
+    brand: "H&M",
+    category: "Shirts",
+    color: "White",
+    material: "Cotton",
+    garment_des: "Crisp white button-down shirt",
+    image: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400"
+  },
+  {
+    id: "uniqlo-blue-jeans",
+    name: "Uniqlo Blue Jeans",
+    price: 49,
+    rating: 4.3,
+    brand: "Uniqlo",
+    category: "Jeans",
+    color: "Blue",
+    material: "Denim",
+    garment_des: "Comfortable blue denim jeans",
+    image: "https://images.unsplash.com/photo-1542272604-787c3835535d?w=400"
+  },
+  {
+    id: "nike-black-sneakers",
+    name: "Nike Black Sneakers",
+    price: 89,
+    rating: 4.5,
+    brand: "Nike",
+    category: "Shoes",
+    color: "Black",
+    material: "Mesh & Rubber",
+    garment_des: "Comfortable black running sneakers",
+    image: "https://images.unsplash.com/photo-1549298916-b41d501d3772?w=400"
+  },
+  {
+    id: "adidas-white-sneakers",
+    name: "Adidas White Sneakers",
+    price: 79,
+    rating: 4.4,
+    brand: "Adidas",
+    category: "Shoes",
+    color: "White",
+    material: "Canvas & Rubber",
+    garment_des: "Classic white canvas sneakers",
+    image: "https://images.unsplash.com/photo-1549298916-b41d501d3772?w=400"
+  },
+  {
+    id: "levis-501-jeans",
+    name: "Levi's 501 Jeans",
+    price: 69,
+    rating: 4.6,
+    brand: "Levi's",
+    category: "Jeans",
+    color: "Blue",
+    material: "Denim",
+    garment_des: "Classic 501 straight fit jeans",
+    image: "https://images.unsplash.com/photo-1542272604-787c3835535d?w=400"
+  },
+  {
+    id: "gap-hoodie",
+    name: "Gap Hoodie",
+    price: 39,
+    rating: 4.1,
+    brand: "Gap",
+    category: "Hoodies",
+    color: "Gray",
+    material: "Cotton Blend",
+    garment_des: "Comfortable gray pullover hoodie",
+    image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=400"
+  },
+  {
+    id: "calvin-klein-underwear",
+    name: "Calvin Klein Underwear",
+    price: 24,
+    rating: 4.3,
+    brand: "Calvin Klein",
+    category: "Underwear",
+    color: "Black",
+    material: "Cotton",
+    garment_des: "Comfortable cotton underwear",
+    image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=400"
+  },
+  {
+    id: "tommy-hilfiger-polo",
+    name: "Tommy Hilfiger Polo",
+    price: 59,
+    rating: 4.4,
+    brand: "Tommy Hilfiger",
+    category: "Polos",
+    color: "Navy",
+    material: "Cotton",
+    garment_des: "Classic navy polo shirt",
+    image: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400"
+  },
+  {
+    id: "ralph-lauren-chinos",
+    name: "Ralph Lauren Chinos",
+    price: 89,
+    rating: 4.5,
+    brand: "Ralph Lauren",
+    category: "Pants",
+    color: "Khaki",
+    material: "Cotton",
+    garment_des: "Smart khaki chino pants",
+    image: "https://images.unsplash.com/photo-1506629905607-1b1a3b1b1b1b?w=400"
+  },
+  // Women's Top Wear
+  {
+    id: "zara-women-blouse",
+    name: "Zara Floral Blouse",
+    price: 39,
+    rating: 4.3,
+    brand: "Zara",
+    category: "Blouses",
+    color: "Floral",
+    material: "Silk",
+    garment_des: "Elegant floral print blouse",
+    image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=400"
+  },
+  {
+    id: "h&m-women-tank",
+    name: "H&M Tank Top",
+    price: 19,
+    rating: 4.1,
+    brand: "H&M",
+    category: "Tanks",
+    color: "White",
+    material: "Cotton",
+    garment_des: "Basic white tank top",
+    image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=400"
+  },
+  {
+    id: "uniqlo-women-cardigan",
+    name: "Uniqlo Cardigan",
+    price: 49,
+    rating: 4.2,
+    brand: "Uniqlo",
+    category: "Cardigans",
+    color: "Beige",
+    material: "Wool Blend",
+    garment_des: "Cozy beige cardigan",
+    image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=400"
+  },
+  {
+    id: "gap-women-sweater",
+    name: "Gap Knit Sweater",
+    price: 59,
+    rating: 4.4,
+    brand: "Gap",
+    category: "Sweaters",
+    color: "Cream",
+    material: "Wool",
+    garment_des: "Warm cream knit sweater",
+    image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=400"
+  },
+  {
+    id: "forever21-women-crop",
+    name: "Forever 21 Crop Top",
+    price: 15,
+    rating: 3.9,
+    brand: "Forever 21",
+    category: "Crop Tops",
+    color: "Pink",
+    material: "Polyester",
+    garment_des: "Trendy pink crop top",
+    image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=400"
+  },
+  {
+    id: "zara-women-blazer",
+    name: "Zara Women's Blazer",
+    price: 89,
+    rating: 4.5,
+    brand: "Zara",
+    category: "Blazers",
+    color: "Navy",
+    material: "Wool",
+    garment_des: "Professional navy blazer",
+    image: "https://images.unsplash.com/photo-1594938298603-c8148c4dae35?w=400"
+  },
+  {
+    id: "h&m-women-dress",
+    name: "H&M Midi Dress",
+    price: 34,
+    rating: 4.2,
+    brand: "H&M",
+    category: "Dresses",
+    color: "Black",
+    material: "Polyester",
+    garment_des: "Elegant black midi dress",
+    image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=400"
+  },
+  {
+    id: "uniqlo-women-tee",
+    name: "Uniqlo Basic Tee",
+    price: 14,
+    rating: 4.0,
+    brand: "Uniqlo",
+    category: "T-Shirts",
+    color: "Gray",
+    material: "Cotton",
+    garment_des: "Comfortable gray t-shirt",
+    image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=400"
+  },
+  {
+    id: "gap-women-hoodie",
+    name: "Gap Women's Hoodie",
+    price: 45,
+    rating: 4.3,
+    brand: "Gap",
+    category: "Hoodies",
+    color: "Olive",
+    material: "Cotton Blend",
+    garment_des: "Comfortable olive hoodie",
+    image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=400"
+  },
+  {
+    id: "forever21-women-bodysuit",
+    name: "Forever 21 Bodysuit",
+    price: 22,
+    rating: 4.1,
+    brand: "Forever 21",
+    category: "Bodysuits",
+    color: "Black",
+    material: "Spandex",
+    garment_des: "Fitted black bodysuit",
+    image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=400"
+  },
+  // Women's Bottom Wear
+  {
+    id: "zara-women-jeans",
+    name: "Zara High-Waist Jeans",
+    price: 49,
+    rating: 4.4,
+    brand: "Zara",
+    category: "Jeans",
+    color: "Blue",
+    material: "Denim",
+    garment_des: "Trendy high-waist blue jeans",
+    image: "https://images.unsplash.com/photo-1542272604-787c3835535d?w=400"
+  },
+  {
+    id: "h&m-women-leggings",
+    name: "H&M Leggings",
+    price: 19,
+    rating: 4.0,
+    brand: "H&M",
+    category: "Leggings",
+    color: "Black",
+    material: "Polyester",
+    garment_des: "Comfortable black leggings",
+    image: "https://images.unsplash.com/photo-1542272604-787c3835535d?w=400"
+  },
+  {
+    id: "uniqlo-women-skirt",
+    name: "Uniqlo A-Line Skirt",
+    price: 29,
+    rating: 4.2,
+    brand: "Uniqlo",
+    category: "Skirts",
+    color: "Navy",
+    material: "Cotton",
+    garment_des: "Classic navy A-line skirt",
+    image: "https://images.unsplash.com/photo-1542272604-787c3835535d?w=400"
+  },
+  {
+    id: "gap-women-shorts",
+    name: "Gap Denim Shorts",
+    price: 34,
+    rating: 4.1,
+    brand: "Gap",
+    category: "Shorts",
+    color: "Blue",
+    material: "Denim",
+    garment_des: "Casual blue denim shorts",
+    image: "https://images.unsplash.com/photo-1542272604-787c3835535d?w=400"
+  },
+  {
+    id: "forever21-women-pants",
+    name: "Forever 21 Wide Leg Pants",
+    price: 28,
+    rating: 3.8,
+    brand: "Forever 21",
+    category: "Pants",
+    color: "Black",
+    material: "Polyester",
+    garment_des: "Trendy black wide leg pants",
+    image: "https://images.unsplash.com/photo-1506629905607-1b1a3b1b1b1b?w=400"
+  },
+  {
+    id: "zara-women-trousers",
+    name: "Zara Trousers",
+    price: 59,
+    rating: 4.3,
+    brand: "Zara",
+    category: "Trousers",
+    color: "Gray",
+    material: "Wool Blend",
+    garment_des: "Professional gray trousers",
+    image: "https://images.unsplash.com/photo-1506629905607-1b1a3b1b1b1b?w=400"
+  },
+  {
+    id: "h&m-women-joggers",
+    name: "H&M Joggers",
+    price: 24,
+    rating: 4.0,
+    brand: "H&M",
+    category: "Joggers",
+    color: "Gray",
+    material: "Cotton Blend",
+    garment_des: "Comfortable gray joggers",
+    image: "https://images.unsplash.com/photo-1506629905607-1b1a3b1b1b1b?w=400"
+  },
+  {
+    id: "uniqlo-women-culottes",
+    name: "Uniqlo Culottes",
+    price: 39,
+    rating: 4.2,
+    brand: "Uniqlo",
+    category: "Culottes",
+    color: "Beige",
+    material: "Cotton",
+    garment_des: "Stylish beige culottes",
+    image: "https://images.unsplash.com/photo-1506629905607-1b1a3b1b1b1b?w=400"
+  },
+  {
+    id: "gap-women-cargo",
+    name: "Gap Cargo Pants",
+    price: 49,
+    rating: 4.1,
+    brand: "Gap",
+    category: "Cargo Pants",
+    color: "Olive",
+    material: "Cotton",
+    garment_des: "Utility olive cargo pants",
+    image: "https://images.unsplash.com/photo-1506629905607-1b1a3b1b1b1b?w=400"
+  },
+  {
+    id: "forever21-women-palazzo",
+    name: "Forever 21 Palazzo Pants",
+    price: 32,
+    rating: 3.9,
+    brand: "Forever 21",
+    category: "Palazzo Pants",
+    color: "Floral",
+    material: "Polyester",
+    garment_des: "Flowing floral palazzo pants",
+    image: "https://images.unsplash.com/photo-1506629905607-1b1a3b1b1b1b?w=400"
+  },
+  // Men's Top Wear
+  {
+    id: "nike-men-tee",
+    name: "Nike Dri-FIT Tee",
+    price: 25,
+    rating: 4.3,
+    brand: "Nike",
+    category: "T-Shirts",
+    color: "White",
+    material: "Polyester",
+    garment_des: "Moisture-wicking white t-shirt",
+    image: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400"
+  },
+  {
+    id: "adidas-men-hoodie",
+    name: "Adidas Hoodie",
+    price: 65,
+    rating: 4.4,
+    brand: "Adidas",
+    category: "Hoodies",
+    color: "Black",
+    material: "Cotton Blend",
+    garment_des: "Comfortable black hoodie",
+    image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=400"
+  },
+  {
+    id: "puma-men-tank",
+    name: "Puma Tank Top",
+    price: 20,
+    rating: 4.1,
+    brand: "Puma",
+    category: "Tanks",
+    color: "Gray",
+    material: "Cotton",
+    garment_des: "Athletic gray tank top",
+    image: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400"
+  },
+  {
+    id: "under-armour-men-shirt",
+    name: "Under Armour Shirt",
+    price: 35,
+    rating: 4.2,
+    brand: "Under Armour",
+    category: "Shirts",
+    color: "Navy",
+    material: "Polyester",
+    garment_des: "Performance navy shirt",
+    image: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400"
+  },
+  {
+    id: "champion-men-sweater",
+    name: "Champion Sweater",
+    price: 45,
+    rating: 4.0,
+    brand: "Champion",
+    category: "Sweaters",
+    color: "Cream",
+    material: "Cotton",
+    garment_des: "Classic cream sweater",
+    image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=400"
+  },
+  {
+    id: "nike-men-polo",
+    name: "Nike Polo Shirt",
+    price: 40,
+    rating: 4.3,
+    brand: "Nike",
+    category: "Polos",
+    color: "Blue",
+    material: "Polyester",
+    garment_des: "Sporty blue polo shirt",
+    image: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400"
+  },
+  {
+    id: "adidas-men-jacket",
+    name: "Adidas Track Jacket",
+    price: 55,
+    rating: 4.2,
+    brand: "Adidas",
+    category: "Jackets",
+    color: "White",
+    material: "Polyester",
+    garment_des: "Lightweight white track jacket",
+    image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=400"
+  },
+  {
+    id: "puma-men-vest",
+    name: "Puma Vest",
+    price: 30,
+    rating: 4.0,
+    brand: "Puma",
+    category: "Vests",
+    color: "Black",
+    material: "Polyester",
+    garment_des: "Sleeveless black vest",
+    image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=400"
+  },
+  {
+    id: "under-armour-men-longsleeve",
+    name: "Under Armour Long Sleeve",
+    price: 38,
+    rating: 4.1,
+    brand: "Under Armour",
+    category: "Long Sleeves",
+    color: "Gray",
+    material: "Polyester",
+    garment_des: "Performance gray long sleeve",
+    image: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400"
+  },
+  {
+    id: "champion-men-windbreaker",
+    name: "Champion Windbreaker",
+    price: 50,
+    rating: 4.2,
+    brand: "Champion",
+    category: "Windbreakers",
+    color: "Red",
+    material: "Nylon",
+    garment_des: "Lightweight red windbreaker",
+    image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=400"
+  },
+  // Men's Bottom Wear
+  {
+    id: "nike-men-shorts",
+    name: "Nike Dri-FIT Shorts",
+    price: 35,
+    rating: 4.3,
+    brand: "Nike",
+    category: "Shorts",
+    color: "Black",
+    material: "Polyester",
+    garment_des: "Athletic black shorts",
+    image: "https://images.unsplash.com/photo-1542272604-787c3835535d?w=400"
+  },
+  {
+    id: "adidas-men-joggers",
+    name: "Adidas Joggers",
+    price: 45,
+    rating: 4.4,
+    brand: "Adidas",
+    category: "Joggers",
+    color: "Gray",
+    material: "Cotton Blend",
+    garment_des: "Comfortable gray joggers",
+    image: "https://images.unsplash.com/photo-1506629905607-1b1a3b1b1b1b?w=400"
+  },
+  {
+    id: "puma-men-sweatpants",
+    name: "Puma Sweatpants",
+    price: 40,
+    rating: 4.1,
+    brand: "Puma",
+    category: "Sweatpants",
+    color: "Navy",
+    material: "Cotton",
+    garment_des: "Relaxed navy sweatpants",
+    image: "https://images.unsplash.com/photo-1506629905607-1b1a3b1b1b1b?w=400"
+  },
+  {
+    id: "under-armour-men-compression",
+    name: "Under Armour Compression Pants",
+    price: 50,
+    rating: 4.2,
+    brand: "Under Armour",
+    category: "Compression Pants",
+    color: "Black",
+    material: "Spandex",
+    garment_des: "Performance compression pants",
+    image: "https://images.unsplash.com/photo-1506629905607-1b1a3b1b1b1b?w=400"
+  },
+  {
+    id: "champion-men-cargo",
+    name: "Champion Cargo Pants",
+    price: 55,
+    rating: 4.0,
+    brand: "Champion",
+    category: "Cargo Pants",
+    color: "Olive",
+    material: "Cotton",
+    garment_des: "Utility olive cargo pants",
+    image: "https://images.unsplash.com/photo-1506629905607-1b1a3b1b1b1b?w=400"
+  },
+  {
+    id: "nike-men-chinos",
+    name: "Nike Chinos",
+    price: 60,
+    rating: 4.3,
+    brand: "Nike",
+    category: "Chinos",
+    color: "Khaki",
+    material: "Cotton",
+    garment_des: "Smart khaki chinos",
+    image: "https://images.unsplash.com/photo-1506629905607-1b1a3b1b1b1b?w=400"
+  },
+  {
+    id: "adidas-men-trackpants",
+    name: "Adidas Track Pants",
+    price: 48,
+    rating: 4.2,
+    brand: "Adidas",
+    category: "Track Pants",
+    color: "White",
+    material: "Polyester",
+    garment_des: "Classic white track pants",
+    image: "https://images.unsplash.com/photo-1506629905607-1b1a3b1b1b1b?w=400"
+  },
+  {
+    id: "puma-men-board",
+    name: "Puma Board Shorts",
+    price: 32,
+    rating: 4.0,
+    brand: "Puma",
+    category: "Board Shorts",
+    color: "Blue",
+    material: "Polyester",
+    garment_des: "Swim-ready board shorts",
+    image: "https://images.unsplash.com/photo-1542272604-787c3835535d?w=400"
+  },
+  {
+    id: "under-armour-men-basketball",
+    name: "Under Armour Basketball Shorts",
+    price: 42,
+    rating: 4.1,
+    brand: "Under Armour",
+    category: "Basketball Shorts",
+    color: "Red",
+    material: "Polyester",
+    garment_des: "Performance basketball shorts",
+    image: "https://images.unsplash.com/photo-1542272604-787c3835535d?w=400"
+  },
+  {
+    id: "champion-men-sweatshorts",
+    name: "Champion Sweat Shorts",
+    price: 28,
+    rating: 4.0,
+    brand: "Champion",
+    category: "Sweat Shorts",
+    color: "Gray",
+    material: "Cotton",
+    garment_des: "Comfortable gray sweat shorts",
+    image: "https://images.unsplash.com/photo-1542272604-787c3835535d?w=400"
+  }
+];
+
 // Upload garment image to Supabase for Replicate access
 async function uploadGarmentImage(imageUrl, productId) {
   try {
@@ -228,11 +836,11 @@ function Onboarding() {
         }
       } else {
         console.error('No valid image selected:', res);
-        Alert.alert('Error', 'No image was selected.');
+        console.log('No image was selected');
       }
     } catch (error) {
       console.error('Upload error:', error);
-      Alert.alert('Upload Failed', 'Please try again.');
+      console.log('Upload failed, please try again');
     }
   };
   
@@ -240,7 +848,7 @@ function Onboarding() {
     if (twinUrl) {
       setRoute('shop');
     } else {
-      Alert.alert('Upload required', 'Please upload your photo.');
+      console.log('Please upload your photo to continue');
     }
   };
   
@@ -275,895 +883,7 @@ function Shop() {
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [showSearch, setShowSearch] = useState(false);
   
-  // Enhanced product data with more realistic information - expanded catalog
-  const enhancedProducts = [
-    {
-      id: "zara-black-blazer",
-      name: "Zara Black Blazer",
-      price: 119,
-      rating: 4.4,
-      image: "https://images.unsplash.com/photo-1503342217505-b0a15cf70489?q=80&auto=format&fit=crop&w=1200",
-      category: "upper",
-      garment_des: "Black blazer with structured fit and classic lapels",
-      buyUrl: "https://www.zara.com/",
-      brand: "Zara",
-      color: "Black",
-      material: "Wool Blend",
-      size: "S, M, L, XL"
-    },
-    {
-      id: "asos-denim-jacket",
-      name: "ASOS Denim Jacket",
-      price: 69,
-      rating: 4.6,
-      image: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&auto=format&fit=crop&w=1200",
-      category: "upper",
-      garment_des: "Classic blue denim jacket with button closure",
-      buyUrl: "https://www.asos.com/",
-      brand: "ASOS",
-      color: "Blue",
-      material: "Denim",
-      size: "XS, S, M, L, XL"
-    },
-    {
-      id: "cos-silk-dress",
-      name: "COS Silk Dress",
-      price: 159,
-      rating: 4.7,
-      image: "https://images.unsplash.com/photo-1544441893-675973e31985?q=80&auto=format&fit=crop&w=1200",
-      category: "dress",
-      garment_des: "Elegant silk dress with flowing silhouette",
-      buyUrl: "https://www.cos.com/",
-      brand: "COS",
-      color: "Navy",
-      material: "Silk",
-      size: "XS, S, M, L"
-    },
-    {
-      id: "nike-air-force-1",
-      name: "Nike Air Force 1",
-      price: 90,
-      rating: 4.8,
-      image: "https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&auto=format&fit=crop&w=1200",
-      category: "shoes",
-      garment_des: "Classic white leather sneakers with rubber sole",
-      buyUrl: "https://www.nike.com/",
-      brand: "Nike",
-      color: "White",
-      material: "Leather",
-      size: "6, 7, 8, 9, 10, 11"
-    },
-    {
-      id: "coach-leather-tote",
-      name: "Coach Leather Tote",
-      price: 295,
-      rating: 4.5,
-      image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?q=80&auto=format&fit=crop&w=1200",
-      category: "accessories",
-      garment_des: "Premium leather tote bag with shoulder straps",
-      buyUrl: "https://www.coach.com/",
-      brand: "Coach",
-      color: "Brown",
-      material: "Leather",
-      size: "One Size"
-    },
-    {
-      id: "uniqlo-cashmere",
-      name: "Uniqlo Cashmere Knit",
-      price: 79,
-      rating: 4.3,
-      image: "https://images.unsplash.com/photo-1434389677669-e08b4cac3105?q=80&auto=format&fit=crop&w=1200",
-      category: "upper",
-      garment_des: "Soft cashmere knit sweater with crew neck",
-      buyUrl: "https://www.uniqlo.com/",
-      brand: "Uniqlo",
-      color: "Cream",
-      material: "Cashmere",
-      size: "XS, S, M, L, XL"
-    },
-    {
-      id: "hm-trench",
-      name: "H&M Classic Trench",
-      price: 139,
-      rating: 4.2,
-      image: "https://images.unsplash.com/photo-1475180098004-ca77a66827be?q=80&auto=format&fit=crop&w=1200",
-      category: "outerwear",
-      garment_des: "Classic beige trench coat with belt closure",
-      buyUrl: "https://www2.hm.com/",
-      brand: "H&M",
-      color: "Beige",
-      material: "Cotton Blend",
-      size: "XS, S, M, L, XL"
-    },
-    {
-      id: "levi-501",
-      name: "Levi's 501 Original",
-      price: 98,
-      rating: 4.6,
-      image: "https://images.unsplash.com/photo-1516826957135-700dedea698c?q=80&auto=format&fit=crop&w=1200",
-      category: "lower",
-      garment_des: "Classic blue denim jeans with straight fit",
-      buyUrl: "https://www.levi.com/",
-      brand: "Levi's",
-      color: "Blue",
-      material: "Denim",
-      size: "24, 26, 28, 30, 32, 34"
-    },
-    {
-      id: "reformation-wrap",
-      name: "Reformation Wrap Dress",
-      price: 248,
-      rating: 4.7,
-      image: "https://images.unsplash.com/photo-1515378791036-0648a3ef77b2?q=80&auto=format&fit=crop&w=1200",
-      category: "dress",
-      garment_des: "Floral wrap dress with tie waist",
-      buyUrl: "https://www.thereformation.com/",
-      brand: "Reformation",
-      color: "Floral",
-      material: "Viscose",
-      size: "XXS, XS, S, M, L, XL"
-    },
-    {
-      id: "adidas-samba",
-      name: "Adidas Samba OG",
-      price: 100,
-      rating: 4.6,
-      image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&auto=format&fit=crop&w=1200",
-      category: "shoes",
-      garment_des: "Classic white and black leather sneakers",
-      buyUrl: "https://www.adidas.com/",
-      brand: "Adidas",
-      color: "White/Black",
-      material: "Leather",
-      size: "6, 7, 8, 9, 10, 11"
-    },
-    {
-      id: "aritzia-wilfred",
-      name: "Aritzia Wilfred Blouse",
-      price: 88,
-      rating: 4.4,
-      image: "https://images.unsplash.com/photo-1520975916090-3105956dac38?q=80&auto=format&fit=crop&w=1200",
-      category: "upper",
-      garment_des: "Silk blouse with button front and relaxed fit",
-      buyUrl: "https://www.aritzia.com/",
-      brand: "Aritzia",
-      color: "White",
-      material: "Silk",
-      size: "XXS, XS, S, M, L"
-    },
-    {
-      id: "mango-slip-dress",
-      name: "Mango Satin Slip",
-      price: 119,
-      rating: 4.3,
-      image: "https://images.unsplash.com/photo-1519741497674-611481863552?q=80&auto=format&fit=crop&w=1200",
-      category: "dress",
-      garment_des: "Satin slip dress with adjustable straps",
-      buyUrl: "https://shop.mango.com/",
-      brand: "Mango",
-      color: "Black",
-      material: "Satin",
-      size: "XS, S, M, L"
-    },
-    {
-      id: "hugo-boss-suit",
-      name: "Hugo Boss Business Suit",
-      price: 450,
-      rating: 4.8,
-      image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&auto=format&fit=crop&w=1200",
-      category: "suit",
-      garment_des: "Professional business suit with tailored fit",
-      buyUrl: "https://www.hugoboss.com/",
-      brand: "Hugo Boss",
-      color: "Navy",
-      material: "Wool",
-      size: "S, M, L, XL"
-    },
-    {
-      id: "calvin-klein-jeans",
-      name: "Calvin Klein Skinny Jeans",
-      price: 89,
-      rating: 4.5,
-      image: "https://images.unsplash.com/photo-1542272604-787c3835535d?q=80&auto=format&fit=crop&w=1200",
-      category: "jeans",
-      garment_des: "Skinny fit jeans with stretch denim",
-      buyUrl: "https://www.calvinklein.com/",
-      brand: "Calvin Klein",
-      color: "Blue",
-      material: "Denim",
-      size: "24, 26, 28, 30, 32"
-    },
-    {
-      id: "gucci-handbag",
-      name: "Gucci Leather Handbag",
-      price: 1200,
-      rating: 4.9,
-      image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?q=80&auto=format&fit=crop&w=1200",
-      category: "accessories",
-      garment_des: "Luxury leather handbag with gold hardware",
-      buyUrl: "https://www.gucci.com/",
-      brand: "Gucci",
-      color: "Brown",
-      material: "Leather",
-      size: "One Size"
-    },
-    {
-      id: "prada-sunglasses",
-      name: "Prada Sunglasses",
-      price: 350,
-      rating: 4.7,
-      image: "https://images.unsplash.com/photo-1511499767150-a48a237f0083?q=80&auto=format&fit=crop&w=1200",
-      category: "accessories",
-      garment_des: "Designer sunglasses with UV protection",
-      buyUrl: "https://www.prada.com/",
-      brand: "Prada",
-      color: "Black",
-      material: "Acetate",
-      size: "One Size"
-    },
-    {
-      id: "versace-dress",
-      name: "Versace Evening Dress",
-      price: 850,
-      rating: 4.8,
-      image: "https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?q=80&auto=format&fit=crop&w=1200",
-      category: "dress",
-      garment_des: "Elegant evening dress with sequin details",
-      buyUrl: "https://www.versace.com/",
-      brand: "Versace",
-      color: "Gold",
-      material: "Silk",
-      size: "XS, S, M, L"
-    },
-    {
-      id: "balenciaga-sneakers",
-      name: "Balenciaga Triple S",
-      price: 650,
-      rating: 4.6,
-      image: "https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&auto=format&fit=crop&w=1200",
-      category: "shoes",
-      garment_des: "Chunky sneakers with bold design",
-      buyUrl: "https://www.balenciaga.com/",
-      brand: "Balenciaga",
-      color: "White",
-      material: "Leather",
-      size: "6, 7, 8, 9, 10, 11"
-    },
-    {
-      id: "chanel-jacket",
-      name: "Chanel Tweed Jacket",
-      price: 4200,
-      rating: 4.9,
-      image: "https://images.unsplash.com/photo-1503342217505-b0a15cf70489?q=80&auto=format&fit=crop&w=1200",
-      category: "jacket",
-      garment_des: "Classic tweed jacket with signature buttons",
-      buyUrl: "https://www.chanel.com/",
-      brand: "Chanel",
-      color: "Beige",
-      material: "Tweed",
-      size: "XS, S, M, L"
-    },
-    {
-      id: "louis-vuitton-bag",
-      name: "Louis Vuitton Speedy",
-      price: 1800,
-      rating: 4.8,
-      image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?q=80&auto=format&fit=crop&w=1200",
-      category: "accessories",
-      garment_des: "Iconic monogram handbag",
-      buyUrl: "https://www.louisvuitton.com/",
-      brand: "Louis Vuitton",
-      color: "Brown",
-      material: "Canvas",
-      size: "One Size"
-    },
-    {
-      id: "hermes-scarf",
-      name: "Hermès Silk Scarf",
-      price: 450,
-      rating: 4.7,
-      image: "https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?q=80&auto=format&fit=crop&w=1200",
-      category: "accessories",
-      garment_des: "Luxury silk scarf with hand-rolled edges",
-      buyUrl: "https://www.hermes.com/",
-      brand: "Hermès",
-      color: "Multicolor",
-      material: "Silk",
-      size: "90cm"
-    },
-    {
-      id: "dior-heels",
-      name: "Dior J'Adior Pumps",
-      price: 750,
-      rating: 4.6,
-      image: "https://images.unsplash.com/photo-1543163521-1bf539c55dd2?q=80&auto=format&fit=crop&w=1200",
-      category: "shoes",
-      garment_des: "Elegant pumps with ribbon detail",
-      buyUrl: "https://www.dior.com/",
-      brand: "Dior",
-      color: "Black",
-      material: "Leather",
-      size: "6, 7, 8, 9, 10"
-    },
-    {
-      id: "burberry-trench",
-      name: "Burberry Heritage Trench",
-      price: 1650,
-      rating: 4.8,
-      image: "https://images.unsplash.com/photo-1475180098004-ca77a66827be?q=80&auto=format&fit=crop&w=1200",
-      category: "outerwear",
-      garment_des: "Classic trench coat with check lining",
-      buyUrl: "https://www.burberry.com/",
-      brand: "Burberry",
-      color: "Honey",
-      material: "Cotton",
-      size: "XS, S, M, L, XL"
-    },
-    // Top Wear - Women
-    {
-      id: "genz-crop-hoodie",
-      name: "Gen Z Crop Hoodie",
-      price: 45,
-      rating: 4.5,
-      image: "https://images.unsplash.com/photo-1578662996442-48f60103fc96?q=80&auto=format&fit=crop&w=1200",
-      category: "upper",
-      garment_des: "Trendy crop hoodie perfect for street style",
-      buyUrl: "https://www.streetwear.com/",
-      brand: "StreetWear",
-      color: "Pink",
-      material: "Cotton",
-      size: "XS, S, M, L"
-    },
-    {
-      id: "oversized-graphic-tee",
-      name: "Oversized Graphic Tee",
-      price: 28,
-      rating: 4.3,
-      image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&auto=format&fit=crop&w=1200",
-      category: "upper",
-      garment_des: "Comfortable oversized tee with bold graphics",
-      buyUrl: "https://www.urban.com/",
-      brand: "Urban",
-      color: "White",
-      material: "Cotton",
-      size: "S, M, L, XL"
-    },
-    {
-      id: "y2k-mesh-top",
-      name: "Y2K Mesh Top",
-      price: 35,
-      rating: 4.1,
-      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
-      category: "upper",
-      garment_des: "Retro mesh top with Y2K aesthetic",
-      buyUrl: "https://www.retro.com/",
-      brand: "Retro",
-      color: "Black",
-      material: "Mesh",
-      size: "XS, S, M, L"
-    },
-    {
-      id: "tie-dye-sweatshirt",
-      name: "Tie-Dye Sweatshirt",
-      price: 52,
-      rating: 4.4,
-      image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?q=80&auto=format&fit=crop&w=1200",
-      category: "upper",
-      garment_des: "Colorful tie-dye sweatshirt for casual wear",
-      buyUrl: "https://www.hippie.com/",
-      brand: "Hippie",
-      color: "Multi",
-      material: "Cotton",
-      size: "S, M, L, XL"
-    },
-    {
-      id: "corset-style-top",
-      name: "Corset Style Top",
-      price: 65,
-      rating: 4.6,
-      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
-      category: "upper",
-      garment_des: "Trendy corset-style top with structured fit",
-      buyUrl: "https://www.gothic.com/",
-      brand: "Gothic",
-      color: "Black",
-      material: "Satin",
-      size: "XS, S, M"
-    },
-    {
-      id: "neon-sports-bra",
-      name: "Neon Sports Bra",
-      price: 32,
-      rating: 4.2,
-      image: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?q=80&auto=format&fit=crop&w=1200",
-      category: "upper",
-      garment_des: "Bright neon sports bra for active wear",
-      buyUrl: "https://www.active.com/",
-      brand: "Active",
-      color: "Neon Green",
-      material: "Spandex",
-      size: "XS, S, M, L"
-    },
-    {
-      id: "vintage-band-tee",
-      name: "Vintage Band Tee",
-      price: 38,
-      rating: 4.7,
-      image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&auto=format&fit=crop&w=1200",
-      category: "upper",
-      garment_des: "Classic vintage band t-shirt",
-      buyUrl: "https://www.music.com/",
-      brand: "Music",
-      color: "Gray",
-      material: "Cotton",
-      size: "S, M, L, XL"
-    },
-    {
-      id: "crochet-bikini-top",
-      name: "Crochet Bikini Top",
-      price: 42,
-      rating: 4.3,
-      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
-      category: "upper",
-      garment_des: "Handmade crochet bikini top",
-      buyUrl: "https://www.beach.com/",
-      brand: "Beach",
-      color: "White",
-      material: "Cotton",
-      size: "XS, S, M"
-    },
-    {
-      id: "puff-sleeve-blouse",
-      name: "Puff Sleeve Blouse",
-      price: 58,
-      rating: 4.5,
-      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
-      category: "upper",
-      garment_des: "Feminine blouse with dramatic puff sleeves",
-      buyUrl: "https://www.feminine.com/",
-      brand: "Feminine",
-      color: "Lavender",
-      material: "Silk",
-      size: "XS, S, M, L"
-    },
-    {
-      id: "techwear-jacket",
-      name: "Techwear Jacket",
-      price: 120,
-      rating: 4.8,
-      image: "https://images.unsplash.com/photo-1551698618-1dfe5d97d256?q=80&auto=format&fit=crop&w=1200",
-      category: "outerwear",
-      garment_des: "Futuristic techwear jacket with multiple pockets",
-      buyUrl: "https://www.cyber.com/",
-      brand: "Cyber",
-      color: "Black",
-      material: "Nylon",
-      size: "S, M, L, XL"
-    },
-    // Top Wear - Men
-    {
-      id: "streetwear-hoodie-m",
-      name: "Streetwear Hoodie",
-      price: 68,
-      rating: 4.4,
-      image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?q=80&auto=format&fit=crop&w=1200",
-      category: "upper",
-      garment_des: "Comfortable streetwear hoodie for men",
-      buyUrl: "https://www.street.com/",
-      brand: "Street",
-      color: "Gray",
-      material: "Cotton",
-      size: "S, M, L, XL, XXL"
-    },
-    {
-      id: "vintage-logo-tee-m",
-      name: "Vintage Logo Tee",
-      price: 35,
-      rating: 4.6,
-      image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&auto=format&fit=crop&w=1200",
-      category: "upper",
-      garment_des: "Retro vintage logo t-shirt",
-      buyUrl: "https://www.retro.com/",
-      brand: "Retro",
-      color: "Black",
-      material: "Cotton",
-      size: "M, L, XL, XXL"
-    },
-    {
-      id: "oversized-button-up-m",
-      name: "Oversized Button-Up",
-      price: 75,
-      rating: 4.3,
-      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
-      category: "upper",
-      garment_des: "Relaxed fit button-up shirt",
-      buyUrl: "https://www.casual.com/",
-      brand: "Casual",
-      color: "White",
-      material: "Linen",
-      size: "M, L, XL, XXL"
-    },
-    {
-      id: "gaming-jersey-m",
-      name: "Gaming Jersey",
-      price: 55,
-      rating: 4.5,
-      image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&auto=format&fit=crop&w=1200",
-      category: "upper",
-      garment_des: "Gaming team jersey with team colors",
-      buyUrl: "https://www.gaming.com/",
-      brand: "Gaming",
-      color: "Blue",
-      material: "Polyester",
-      size: "S, M, L, XL"
-    },
-    {
-      id: "minimalist-tank-m",
-      name: "Minimalist Tank",
-      price: 25,
-      rating: 4.2,
-      image: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?q=80&auto=format&fit=crop&w=1200",
-      category: "upper",
-      garment_des: "Simple minimalist tank top",
-      buyUrl: "https://www.minimal.com/",
-      brand: "Minimal",
-      color: "White",
-      material: "Cotton",
-      size: "M, L, XL, XXL"
-    },
-    {
-      id: "tech-fleece-jacket-m",
-      name: "Tech Fleece Jacket",
-      price: 95,
-      rating: 4.7,
-      image: "https://images.unsplash.com/photo-1551698618-1dfe5d97d256?q=80&auto=format&fit=crop&w=1200",
-      category: "outerwear",
-      garment_des: "High-tech fleece jacket with advanced materials",
-      buyUrl: "https://www.tech.com/",
-      brand: "Tech",
-      color: "Navy",
-      material: "Fleece",
-      size: "S, M, L, XL, XXL"
-    },
-    {
-      id: "skater-longsleeve-m",
-      name: "Skater Longsleeve",
-      price: 42,
-      rating: 4.4,
-      image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&auto=format&fit=crop&w=1200",
-      category: "upper",
-      garment_des: "Skateboarding inspired long sleeve shirt",
-      buyUrl: "https://www.skate.com/",
-      brand: "Skate",
-      color: "Green",
-      material: "Cotton",
-      size: "S, M, L, XL"
-    },
-    {
-      id: "vintage-windbreaker-m",
-      name: "Vintage Windbreaker",
-      price: 85,
-      rating: 4.6,
-      image: "https://images.unsplash.com/photo-1551698618-1dfe5d97d256?q=80&auto=format&fit=crop&w=1200",
-      category: "outerwear",
-      garment_des: "Classic vintage windbreaker jacket",
-      buyUrl: "https://www.vintage.com/",
-      brand: "Vintage",
-      color: "Yellow",
-      material: "Nylon",
-      size: "M, L, XL, XXL"
-    },
-    {
-      id: "oversized-sweater-m",
-      name: "Oversized Sweater",
-      price: 65,
-      rating: 4.3,
-      image: "https://images.unsplash.com/photo-1578662996442-48f60103fc96?q=80&auto=format&fit=crop&w=1200",
-      category: "upper",
-      garment_des: "Comfortable oversized knit sweater",
-      buyUrl: "https://www.cozy.com/",
-      brand: "Cozy",
-      color: "Beige",
-      material: "Wool",
-      size: "L, XL, XXL"
-    },
-    {
-      id: "streetwear-vest-m",
-      name: "Streetwear Vest",
-      price: 48,
-      rating: 4.5,
-      image: "https://images.unsplash.com/photo-1551698618-1dfe5d97d256?q=80&auto=format&fit=crop&w=1200",
-      category: "outerwear",
-      garment_des: "Urban streetwear vest with utility pockets",
-      buyUrl: "https://www.urban.com/",
-      brand: "Urban",
-      color: "Black",
-      material: "Canvas",
-      size: "M, L, XL, XXL"
-    },
-    // Bottom Wear - Women
-    {
-      id: "genz-cargo-pants-w",
-      name: "Gen Z Cargo Pants",
-      price: 55,
-      rating: 4.4,
-      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
-      category: "lower",
-      garment_des: "Trendy cargo pants with multiple pockets",
-      buyUrl: "https://www.street.com/",
-      brand: "Street",
-      color: "Black",
-      material: "Cotton",
-      size: "XS, S, M, L"
-    },
-    {
-      id: "y2k-mini-skirt-w",
-      name: "Y2K Mini Skirt",
-      price: 38,
-      rating: 4.6,
-      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
-      category: "lower",
-      garment_des: "Retro Y2K style mini skirt",
-      buyUrl: "https://www.retro.com/",
-      brand: "Retro",
-      color: "Pink",
-      material: "Polyester",
-      size: "XS, S, M"
-    },
-    {
-      id: "oversized-sweatpants-w",
-      name: "Oversized Sweatpants",
-      price: 45,
-      rating: 4.3,
-      image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?q=80&auto=format&fit=crop&w=1200",
-      category: "lower",
-      garment_des: "Comfortable oversized sweatpants",
-      buyUrl: "https://www.comfy.com/",
-      brand: "Comfy",
-      color: "Gray",
-      material: "Cotton",
-      size: "S, M, L, XL"
-    },
-    {
-      id: "high-waist-jeans-w",
-      name: "High-Waist Jeans",
-      price: 68,
-      rating: 4.5,
-      image: "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&auto=format&fit=crop&w=1200",
-      category: "lower",
-      garment_des: "Flattering high-waist denim jeans",
-      buyUrl: "https://www.denim.com/",
-      brand: "Denim",
-      color: "Blue",
-      material: "Denim",
-      size: "24, 26, 28, 30, 32"
-    },
-    {
-      id: "mesh-shorts-w",
-      name: "Mesh Shorts",
-      price: 32,
-      rating: 4.2,
-      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
-      category: "lower",
-      garment_des: "Sporty mesh shorts for active wear",
-      buyUrl: "https://www.sport.com/",
-      brand: "Sport",
-      color: "Black",
-      material: "Mesh",
-      size: "XS, S, M, L"
-    },
-    {
-      id: "pleated-skirt-w",
-      name: "Pleated Skirt",
-      price: 42,
-      rating: 4.4,
-      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
-      category: "lower",
-      garment_des: "Classic pleated school-style skirt",
-      buyUrl: "https://www.school.com/",
-      brand: "School",
-      color: "Navy",
-      material: "Polyester",
-      size: "XS, S, M, L"
-    },
-    {
-      id: "wide-leg-trousers-w",
-      name: "Wide-Leg Trousers",
-      price: 58,
-      rating: 4.3,
-      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
-      category: "lower",
-      garment_des: "Professional wide-leg trousers",
-      buyUrl: "https://www.office.com/",
-      brand: "Office",
-      color: "Beige",
-      material: "Cotton",
-      size: "XS, S, M, L, XL"
-    },
-    {
-      id: "bike-shorts-w",
-      name: "Bike Shorts",
-      price: 28,
-      rating: 4.5,
-      image: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?q=80&auto=format&fit=crop&w=1200",
-      category: "lower",
-      garment_des: "Comfortable bike shorts for cycling",
-      buyUrl: "https://www.active.com/",
-      brand: "Active",
-      color: "Black",
-      material: "Spandex",
-      size: "XS, S, M, L"
-    },
-    {
-      id: "flare-jeans-w",
-      name: "Flare Jeans",
-      price: 72,
-      rating: 4.6,
-      image: "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&auto=format&fit=crop&w=1200",
-      category: "lower",
-      garment_des: "Retro flare leg denim jeans",
-      buyUrl: "https://www.vintage.com/",
-      brand: "Vintage",
-      color: "Light Blue",
-      material: "Denim",
-      size: "24, 26, 28, 30, 32"
-    },
-    {
-      id: "cargo-shorts-w",
-      name: "Cargo Shorts",
-      price: 48,
-      rating: 4.3,
-      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
-      category: "lower",
-      garment_des: "Utility cargo shorts with side pockets",
-      buyUrl: "https://www.utility.com/",
-      brand: "Utility",
-      color: "Olive",
-      material: "Cotton",
-      size: "XS, S, M, L"
-    },
-    // Bottom Wear - Men
-    {
-      id: "streetwear-joggers-m",
-      name: "Streetwear Joggers",
-      price: 52,
-      rating: 4.4,
-      image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?q=80&auto=format&fit=crop&w=1200",
-      category: "lower",
-      garment_des: "Comfortable streetwear jogger pants",
-      buyUrl: "https://www.street.com/",
-      brand: "Street",
-      color: "Black",
-      material: "Cotton",
-      size: "S, M, L, XL, XXL"
-    },
-    {
-      id: "vintage-denim-m",
-      name: "Vintage Denim",
-      price: 75,
-      rating: 4.6,
-      image: "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&auto=format&fit=crop&w=1200",
-      category: "lower",
-      garment_des: "Classic vintage denim jeans",
-      buyUrl: "https://www.retro.com/",
-      brand: "Retro",
-      color: "Blue",
-      material: "Denim",
-      size: "28, 30, 32, 34, 36, 38"
-    },
-    {
-      id: "cargo-pants-m",
-      name: "Cargo Pants",
-      price: 65,
-      rating: 4.3,
-      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
-      category: "lower",
-      garment_des: "Utility cargo pants with multiple pockets",
-      buyUrl: "https://www.utility.com/",
-      brand: "Utility",
-      color: "Khaki",
-      material: "Cotton",
-      size: "M, L, XL, XXL"
-    },
-    {
-      id: "basketball-shorts-m",
-      name: "Basketball Shorts",
-      price: 35,
-      rating: 4.5,
-      image: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?q=80&auto=format&fit=crop&w=1200",
-      category: "lower",
-      garment_des: "Performance basketball shorts",
-      buyUrl: "https://www.sport.com/",
-      brand: "Sport",
-      color: "Red",
-      material: "Polyester",
-      size: "S, M, L, XL, XXL"
-    },
-    {
-      id: "tech-pants-m",
-      name: "Tech Pants",
-      price: 85,
-      rating: 4.7,
-      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
-      category: "lower",
-      garment_des: "High-tech pants with advanced materials",
-      buyUrl: "https://www.tech.com/",
-      brand: "Tech",
-      color: "Black",
-      material: "Nylon",
-      size: "M, L, XL, XXL"
-    },
-    {
-      id: "chino-shorts-m",
-      name: "Chino Shorts",
-      price: 42,
-      rating: 4.2,
-      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
-      category: "lower",
-      garment_des: "Classic chino shorts for casual wear",
-      buyUrl: "https://www.casual.com/",
-      brand: "Casual",
-      color: "Navy",
-      material: "Cotton",
-      size: "S, M, L, XL"
-    },
-    {
-      id: "sweatpants-m",
-      name: "Sweatpants",
-      price: 38,
-      rating: 4.4,
-      image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?q=80&auto=format&fit=crop&w=1200",
-      category: "lower",
-      garment_des: "Comfortable sweatpants for lounging",
-      buyUrl: "https://www.comfy.com/",
-      brand: "Comfy",
-      color: "Gray",
-      material: "Cotton",
-      size: "M, L, XL, XXL"
-    },
-    {
-      id: "track-pants-m",
-      name: "Track Pants",
-      price: 48,
-      rating: 4.3,
-      image: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?q=80&auto=format&fit=crop&w=1200",
-      category: "lower",
-      garment_des: "Athletic track pants for training",
-      buyUrl: "https://www.athletic.com/",
-      brand: "Athletic",
-      color: "Blue",
-      material: "Polyester",
-      size: "M, L, XL, XXL"
-    },
-    {
-      id: "wide-leg-pants-m",
-      name: "Wide-Leg Pants",
-      price: 55,
-      rating: 4.5,
-      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
-      category: "lower",
-      garment_des: "Fashion-forward wide-leg pants",
-      buyUrl: "https://www.fashion.com/",
-      brand: "Fashion",
-      color: "Beige",
-      material: "Cotton",
-      size: "M, L, XL, XXL"
-    },
-    {
-      id: "cargo-shorts-m",
-      name: "Cargo Shorts",
-      price: 45,
-      rating: 4.3,
-      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&auto=format&fit=crop&w=1200",
-      category: "lower",
-      garment_des: "Utility cargo shorts with side pockets",
-      buyUrl: "https://www.utility.com/",
-      brand: "Utility",
-      color: "Green",
-      material: "Cotton",
-      size: "S, M, L, XL"
-    }
-  ];
+  // Use the global enhancedProducts array
   
   // Enhanced NLP search function
   const performSearch = (query) => {
@@ -1223,7 +943,7 @@ function Shop() {
       
       {/* Products Grid */}
       <ScrollView 
-        style={{ flex: 1, marginTop: 80 }} 
+        style={{ flex: 1 }} 
         contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
       >
@@ -1248,7 +968,7 @@ function Shop() {
                 overflow: 'hidden',
                 position: 'relative'
               }}>
-                <Image 
+            <Image 
                   source={{ uri: product.image }} 
                   style={{ 
                     width: '100%', 
@@ -1271,7 +991,7 @@ function Shop() {
                   <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>
                     ${product.price}
                   </Text>
-                </View>
+            </View>
                 
                 <View style={{ 
                   position: 'absolute', 
@@ -1286,7 +1006,7 @@ function Shop() {
                 </View>
                 
                 {/* Product Info */}
-                <View style={{ padding: 12 }}>
+            <View style={{ padding: 12 }}>
                   <Text style={{ 
                     color: '#e4e4e7', 
                     fontSize: 14, 
@@ -1307,11 +1027,11 @@ function Shop() {
                     <Text style={{ color: '#10b981', fontSize: 12 }}>⭐ {product.rating}</Text>
                     <Text style={{ color: '#a1a1aa', fontSize: 12 }}>•</Text>
                     <Text style={{ color: '#a1a1aa', fontSize: 12 }}>{product.color}</Text>
-                  </View>
+            </View>
                 </View>
               </View>
-            </Pressable>
-          ))}
+        </Pressable>
+      ))}
         </View>
         
         {filteredProducts.length === 0 && (
@@ -1348,13 +1068,13 @@ function Product() {
       uploadGarmentImage(product.image, product.id)
         .then(url => {
           setCleanUrl(url);
-          setLoading(false);
-        })
-        .catch(error => {
+        setLoading(false);
+      })
+      .catch(error => {
           console.error('Garment upload error:', error);
-          setCleanUrl(product.image);
-          setLoading(false);
-        });
+        setCleanUrl(product.image);
+        setLoading(false);
+      });
     }
   }, [product]);
   
@@ -1379,7 +1099,7 @@ function Product() {
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={{ color: '#e4e4e7', fontWeight: '700', fontSize: 16 }}>${product.price}</Text>
+          <Text style={{ color: '#e4e4e7', fontWeight: '700', fontSize: 16 }}>${product.price}</Text>
               {isOnSale && (
                 <View style={{ backgroundColor: '#ef4444', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
                   <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>SALE</Text>
@@ -1443,8 +1163,8 @@ function Product() {
               {loading ? 'Preparing…' : 'Try On'}
             </Text>
           </Pressable>
-          <Pressable
-            onPress={() => Linking.openURL(product.buyUrl)}
+            <Pressable
+              onPress={() => Linking.openURL(product.buyUrl)}
             style={{ 
               flex: 1, 
               backgroundColor: '#10b981', 
@@ -1487,7 +1207,7 @@ function TryOn() {
   
   const handleTryOn = async () => {
     if (!twinUrl || !garmentCleanUrl) {
-      Alert.alert('Error', 'Please upload your photo and select a garment first.');
+      console.log('Please upload your photo and select a garment first.');
       return;
     }
     
@@ -1551,7 +1271,7 @@ function TryOn() {
       }
     } catch (error) {
       console.error('Try-on error:', error);
-      Alert.alert('Try-On Error', `AI try-on failed: ${error.message}`);
+      console.log(`AI try-on failed: ${error.message}`);
     } finally {
       setBusy(false);
     }
@@ -2085,7 +1805,7 @@ function Explore() {
             style={{ backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12 }}
           >
             <Text style={{ color: '#10b981', fontSize: 16 }}>👗</Text>
-          </Pressable>
+            </Pressable>
           <Pressable 
             onPress={() => setRoute('createpod')}
             style={{ backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12 }}
@@ -2420,7 +2140,7 @@ function RoomOwner() {
         {room.mode === 'friends' && (
           <Pressable style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
             <Text style={{ color: '#10b981', fontSize: 14, fontWeight: '600' }}>Copy Link</Text>
-          </Pressable>
+        </Pressable>
         )}
       </View>
 
@@ -2715,7 +2435,7 @@ function StyleCraft() {
                 </View>
               </View>
 
-              <Pressable style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
+              <Pressable style={{ padding: 12, borderRadius: 12, alignItems: 'center' }}>
                 <Text style={{ color: '#10b981', fontSize: 16, fontWeight: '600' }}>Proceed with this vendor</Text>
               </Pressable>
             </View>
@@ -2867,7 +2587,7 @@ function StyleCraft() {
           </View>
         </View>
 
-        <Pressable onPress={submitDesign} style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 16, borderRadius: 16, alignItems: 'center', marginBottom: 20, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
+        <Pressable onPress={submitDesign} style={{ padding: 16, borderRadius: 16, alignItems: 'center', marginBottom: 20 }}>
           <Text style={{ color: '#10b981', fontSize: 16, fontWeight: '600' }}>Get Vendor Quotes</Text>
         </Pressable>
       </ScrollView>
@@ -2927,13 +2647,13 @@ function AccountScreen({ onBack }) {
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       <View style={{ padding: 16, paddingBottom: 0 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-          <Pressable onPress={onBack} style={{ marginRight: 16 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+        <Pressable onPress={onBack} style={{ marginRight: 16 }}>
             <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
-          </Pressable>
-          <Text style={{ color: '#e4e4e7', fontSize: 24, fontWeight: '700' }}>
-            Account
-          </Text>
+        </Pressable>
+        <Text style={{ color: '#e4e4e7', fontSize: 24, fontWeight: '700' }}>
+          Account
+        </Text>
         </View>
       </View>
 
@@ -2971,7 +2691,7 @@ function AccountScreen({ onBack }) {
           </View>
 
           <View style={{ gap: 16 }}>
-            <View>
+        <View>
               <Text style={{ color: '#a1a1aa', fontSize: 14, marginBottom: 8 }}>Name</Text>
               {isEditing ? (
                 <TextInput
@@ -2990,7 +2710,7 @@ function AccountScreen({ onBack }) {
               ) : (
                 <Text style={{ color: '#e4e4e7', fontSize: 16 }}>
                   {profileData.name || 'Not set'}
-                </Text>
+          </Text>
               )}
             </View>
 
@@ -3012,13 +2732,13 @@ function AccountScreen({ onBack }) {
                   }}
                 />
               ) : (
-                <Text style={{ color: '#e4e4e7', fontSize: 16 }}>
+          <Text style={{ color: '#e4e4e7', fontSize: 16 }}>
                   {profileData.email || 'Not set'}
-                </Text>
+          </Text>
               )}
-            </View>
+        </View>
 
-            <View>
+        <View>
               <Text style={{ color: '#a1a1aa', fontSize: 14, marginBottom: 8 }}>Bio</Text>
               {isEditing ? (
                 <TextInput
@@ -3040,17 +2760,17 @@ function AccountScreen({ onBack }) {
               ) : (
                 <Text style={{ color: '#e4e4e7', fontSize: 16 }}>
                   {profileData.bio || 'No bio added'}
-                </Text>
+          </Text>
               )}
             </View>
 
             {isEditing && (
-              <Pressable onPress={saveProfile} style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
+              <Pressable onPress={saveProfile} style={{ padding: 12, borderRadius: 12, alignItems: 'center' }}>
                 <Text style={{ color: '#10b981', fontSize: 14, fontWeight: '600' }}>Save Changes</Text>
               </Pressable>
             )}
-          </View>
         </View>
+      </View>
 
         {/* Account Settings */}
         <View style={{ marginBottom: 24 }}>
@@ -3076,10 +2796,10 @@ function AccountScreen({ onBack }) {
 
         {/* Sign Out */}
         <Pressable onPress={handleSignOut} style={{ padding: 16, alignItems: 'center', marginBottom: 20 }}>
-          <Text style={{ color: '#ef4444', fontSize: 16, fontWeight: '600' }}>
-            Sign Out
-          </Text>
-        </Pressable>
+        <Text style={{ color: '#ef4444', fontSize: 16, fontWeight: '600' }}>
+          Sign Out
+        </Text>
+      </Pressable>
       </ScrollView>
     </View>
   );
@@ -3103,7 +2823,7 @@ function Card({ children }) {
 const s = StyleSheet.create({
   app: { flex: 1, backgroundColor: '#000' },
   container: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 120 },
+  scrollContent: { padding: 16, paddingBottom: 100 },
   grid2: { gap: 16 },
   h1: { color: '#e4e4e7', fontSize: 24, fontWeight: '700', marginBottom: 8 },
   muted: { color: '#a1a1aa', fontSize: 16, marginBottom: 16 },
@@ -3117,5 +2837,230 @@ const s = StyleSheet.create({
   productImageContainer: { width: '100%', height: 200, borderRadius: 16, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.05)' },
   productImage: { width: '100%', height: '100%' },
   productTitle: { color: '#e4e4e7', fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  productPrice: { color: '#a1a1aa', fontSize: 14 }
+  productPrice: { color: '#a1a1aa', fontSize: 14 },
+  productsGrid: { 
+    flexDirection: 'row', 
+    flexWrap: 'wrap', 
+    justifyContent: 'space-between',
+    gap: 8
+  },
+  productCard: { 
+    width: '48%', 
+    marginBottom: 16,
+    borderRadius: 16,
+    overflow: 'hidden'
+  },
+  productOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    padding: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  productPriceContainer: {
+    flex: 1
+  },
+  productOriginalPrice: {
+    color: '#a1a1aa',
+    fontSize: 12,
+    textDecorationLine: 'line-through',
+    marginLeft: 4
+  },
+  productActionContainer: {
+    marginLeft: 8
+  },
+  productActionButton: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  productActionText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600'
+  },
+  discountBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#ef4444',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8
+  },
+  discountText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600'
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40
+  },
+  emptyStateText: {
+    color: '#e4e4e7',
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 8
+  },
+  emptyStateSubtext: {
+    color: '#a1a1aa',
+    fontSize: 14
+  }
 });
+
+// StyleCraft - Custom Dress Creation Feature
+function StyleCraft() {
+  const { setRoute } = useApp();
+  const [designDescription, setDesignDescription] = useState('');
+  const [budget, setBudget] = useState('');
+  const [material, setMaterial] = useState('');
+  const [additionalNotes, setAdditionalNotes] = useState('');
+  const [uploadedImage, setUploadedImage] = useState(null);
+  
+  const pickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        console.log('Permission required for photo access');
+        return;
+      }
+      
+      const res = await ImagePicker.launchImageLibraryAsync({ 
+        mediaTypes: ['images'], 
+        quality: 0.9 
+      });
+      
+      if (!res.canceled && res.assets && res.assets[0]) {
+        setUploadedImage(res.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Image picker error:', error);
+    }
+  };
+  
+  const submitDesign = () => {
+    // This would send the design request to vendors
+    console.log('Design submitted:', {
+      description: designDescription,
+      budget,
+      material,
+      notes: additionalNotes,
+      image: uploadedImage
+    });
+    
+    // Show success message
+    console.log('Design request sent to vendors! You will receive quotes soon.');
+    setRoute('shop');
+  };
+  
+  return (
+    <View style={{ flex: 1, backgroundColor: '#000', padding: 16 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 24 }}>
+        <Pressable onPress={() => setRoute('shop')} style={{ marginRight: 16 }}>
+          <Text style={{ color: '#3b82f6', fontSize: 16 }}>← Back</Text>
+        </Pressable>
+        <Text style={{ color: '#e4e4e7', fontSize: 24, fontWeight: '700' }}>
+          StyleCraft
+        </Text>
+      </View>
+      
+      <Text style={{ color: '#a1a1aa', fontSize: 16, marginBottom: 24 }}>
+        Create your custom dress design and get quotes from professional tailors
+      </Text>
+      
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Design Description */}
+        <View style={{ marginBottom: 20 }}>
+          <Text style={s.label}>Design Description *</Text>
+          <TextInput
+            style={[s.inputBox, { height: 100, textAlignVertical: 'top' }]}
+            placeholder="Describe your dream dress... (e.g., A-line wedding dress with lace sleeves)"
+            placeholderTextColor="#a1a1aa"
+            value={designDescription}
+            onChangeText={setDesignDescription}
+            multiline
+          />
+        </View>
+        
+        {/* Budget */}
+        <View style={{ marginBottom: 20 }}>
+          <Text style={s.label}>Budget Range</Text>
+          <TextInput
+            style={s.inputBox}
+            placeholder="e.g., $200-500"
+            placeholderTextColor="#a1a1aa"
+            value={budget}
+            onChangeText={setBudget}
+          />
+        </View>
+        
+        {/* Material Preference */}
+        <View style={{ marginBottom: 20 }}>
+          <Text style={s.label}>Material Preference</Text>
+          <TextInput
+            style={s.inputBox}
+            placeholder="e.g., Silk, Cotton, Linen, etc."
+            placeholderTextColor="#a1a1aa"
+            value={material}
+            onChangeText={setMaterial}
+          />
+        </View>
+        
+        {/* Additional Notes */}
+        <View style={{ marginBottom: 20 }}>
+          <Text style={s.label}>Additional Notes</Text>
+          <TextInput
+            style={[s.inputBox, { height: 80, textAlignVertical: 'top' }]}
+            placeholder="Any specific requirements, colors, or details..."
+            placeholderTextColor="#a1a1aa"
+            value={additionalNotes}
+            onChangeText={setAdditionalNotes}
+            multiline
+          />
+        </View>
+        
+        {/* Image Upload */}
+        <View style={{ marginBottom: 20 }}>
+          <Text style={s.label}>Reference Image (Optional)</Text>
+          <Pressable onPress={pickImage} style={[s.inputBox, { height: 120, justifyContent: 'center', alignItems: 'center' }]}>
+            {uploadedImage ? (
+              <Image source={{ uri: uploadedImage }} style={{ width: 100, height: 100, borderRadius: 8 }} />
+            ) : (
+              <View style={{ alignItems: 'center' }}>
+                <Text style={{ fontSize: 32, marginBottom: 8 }}>📷</Text>
+                <Text style={{ color: '#a1a1aa', fontSize: 14 }}>Tap to upload reference image</Text>
+              </View>
+            )}
+          </Pressable>
+        </View>
+        
+        {/* Submit Button */}
+        <Pressable 
+          onPress={submitDesign}
+          disabled={!designDescription.trim()}
+          style={[
+            s.btn, 
+            s.btnPrimary, 
+            { opacity: designDescription.trim() ? 1 : 0.5 }
+          ]}
+        >
+          <Text style={s.btnPrimaryText}>Submit Design Request</Text>
+        </Pressable>
+        
+        <Text style={{ color: '#a1a1aa', fontSize: 12, textAlign: 'center', marginTop: 16 }}>
+          Professional tailors will review your request and send quotes within 24-48 hours
+        </Text>
+      </ScrollView>
+    </View>
+  );
+}

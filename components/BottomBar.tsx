@@ -45,6 +45,21 @@ export default function BottomBar({ route, go }: { route: string; go: (r: string
             </Text>
           </Pressable>
         ))}
+        <Pressable
+          onPress={() => go('account')}
+          style={{
+            paddingHorizontal: 12,
+            paddingVertical: 6,
+            borderRadius: 9999,
+            backgroundColor: route === 'account' ? '#fff' : 'transparent'
+          }}
+        >
+          <Text style={{
+            color: route === 'account' ? '#000' : '#d4d4d8',
+            fontWeight: route === 'account' ? '700' : '500',
+            fontSize: 12
+          }}>⚙️</Text>
+        </Pressable>
       </View>
     </View>
   );
