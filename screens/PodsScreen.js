@@ -112,7 +112,7 @@ const PodsScreen = ({ onBack, onCreatePod, userId = 'demo-user' }) => {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={styles.fullScreenContainer}>
       {/* Animated Background */}
       <LinearGradient
         colors={['#000000', '#0a0a0a', '#1a1a2e']}
@@ -185,29 +185,29 @@ const PodsScreen = ({ onBack, onCreatePod, userId = 'demo-user' }) => {
               mode="friends"
               title="Friends Pod"
               tagline="Keep it real — invite your crew."
-              copy="Private feedback from your friends, with comments and reactions."
-              tags={["💬 Comments", "👥 Trusted", "⏳ Longer"]}
-              gradient={['#10b981', '#059669']}
-              icon="👥"
+              copy="Private, honest feedback from people you trust."
+              tags={["💬 Comments", "👥 Trusted", "⏳ Longer Run"]}
+              gradient={['#a7f3d0', '#6ee7b7']}
+              icon="👯‍♀️"
             />
 
             <ModeCard
               mode="style_twins"
               title="Style Twins"
               tagline="AI finds your fashion doubles."
-              copy="Stylit matches you with users who share your aesthetic — get unbiased feedback."
+              copy="Stylit matches you with users who share your aesthetic — unbiased, fast feedback."
               tags={["⚡ Instant", "🧠 Smart Match", "🔒 Anonymous"]}
-              gradient={['#8b5cf6', '#7c3aed']}
-              icon="🧠"
+              gradient={['#c4b5fd', '#a78bfa']}
+              icon="🎯"
             />
 
             <ModeCard
               mode="global_mix"
               title="Global Mix"
               tagline="See how your style plays worldwide."
-              copy="Cultural insights from a global audience. Pure, diverse, no filters."
-              tags={["🌈 Open", "🕶️ Cultural", "✨ Fresh Perspective"]}
-              gradient={['#f59e0b', '#d97706']}
+              copy="Cultural insights from diverse audiences — pure, unfiltered perspective."
+              tags={["🌈 Open", "🕶️ Cultural", "✨ Fresh View"]}
+              gradient={['#fbbf24', '#f59e0b', '#c4b5fd']}
               icon="🌍"
             />
           </View>
@@ -258,7 +258,7 @@ const PodsScreen = ({ onBack, onCreatePod, userId = 'demo-user' }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
+  fullScreenContainer: {
     flex: 1,
     backgroundColor: '#000',
   },
@@ -285,12 +285,12 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 80,
+    height: 100,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 24,
-    paddingTop: 40,
+    paddingTop: 50,
     zIndex: 1000,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
     backdropFilter: 'blur(10px)',
@@ -305,7 +305,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    paddingTop: 80,
+    paddingTop: 100,
   },
   scrollContent: {
     paddingHorizontal: 24,

@@ -60,7 +60,7 @@ const StyleCraftScreen = ({ onBack }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={styles.fullScreenContainer}>
       {/* Animated Background */}
       <LinearGradient
         colors={['#000000', '#0a0a0a', '#1a1a2e']}
@@ -243,7 +243,7 @@ const StyleCraftScreen = ({ onBack }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
+  fullScreenContainer: {
     flex: 1,
     backgroundColor: '#000',
   },
@@ -270,12 +270,12 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 80,
+    height: 100,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 24,
-    paddingTop: 40,
+    paddingTop: 50,
     zIndex: 1000,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
     backdropFilter: 'blur(10px)',
@@ -292,7 +292,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    paddingTop: 80,
+    paddingTop: 100,
   },
   scrollContent: {
     paddingHorizontal: 24,

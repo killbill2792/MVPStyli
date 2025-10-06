@@ -46,30 +46,8 @@ export interface Notification {
   created_at: string;
 }
 
-// Check if Supabase is configured
-const isSupabaseConfigured = () => {
-  return !!process.env.EXPO_PUBLIC_SUPABASE_URL;
-};
-
 // Create a new pod
 export const createPod = async (podData: Omit<Pod, 'id' | 'created_at' | 'status'>): Promise<Pod | null> => {
-  if (!isSupabaseConfigured()) {
-    // Fallback to local storage
-    const localPod: Pod = {
-      id: `local-${Date.now()}`,
-      ...podData,
-      status: 'live',
-      created_at: new Date().toISOString(),
-    };
-    
-    // Store in local storage
-    const existingPods = JSON.parse(localStorage.getItem('localPods') || '[]');
-    existingPods.push(localPod);
-    localStorage.setItem('localPods', JSON.stringify(existingPods));
-    
-    return localPod;
-  }
-
   try {
     const { data, error } = await supabase
       .from('pods')
@@ -90,11 +68,6 @@ export const createPod = async (podData: Omit<Pod, 'id' | 'created_at' | 'status
 
 // Get pod by ID
 export const getPod = async (podId: string): Promise<Pod | null> => {
-  if (!isSupabaseConfigured()) {
-    const localPods = JSON.parse(localStorage.getItem('localPods') || '[]');
-    return localPods.find((pod: Pod) => pod.id === podId) || null;
-  }
-
   try {
     const { data, error } = await supabase
       .from('pods')
@@ -112,11 +85,6 @@ export const getPod = async (podId: string): Promise<Pod | null> => {
 
 // Get votes for a pod
 export const getPodVotes = async (podId: string): Promise<PodVote[]> => {
-  if (!isSupabaseConfigured()) {
-    const localVotes = JSON.parse(localStorage.getItem('localVotes') || '[]');
-    return localVotes.filter((vote: PodVote) => vote.pod_id === podId);
-  }
-
   try {
     const { data, error } = await supabase
       .from('pod_votes')
@@ -133,22 +101,6 @@ export const getPodVotes = async (podId: string): Promise<PodVote[]> => {
 
 // Submit a vote
 export const submitVote = async (podId: string, choice: 'yes' | 'maybe' | 'no', voterId?: string): Promise<boolean> => {
-  if (!isSupabaseConfigured()) {
-    const localVote: PodVote = {
-      id: `local-vote-${Date.now()}`,
-      pod_id: podId,
-      voter_id: voterId,
-      choice,
-      created_at: new Date().toISOString(),
-    };
-    
-    const existingVotes = JSON.parse(localStorage.getItem('localVotes') || '[]');
-    existingVotes.push(localVote);
-    localStorage.setItem('localVotes', JSON.stringify(existingVotes));
-    
-    return true;
-  }
-
   try {
     const { error } = await supabase
       .from('pod_votes')
@@ -168,11 +120,6 @@ export const submitVote = async (podId: string, choice: 'yes' | 'maybe' | 'no', 
 
 // Get comments for a pod (friends only)
 export const getPodComments = async (podId: string): Promise<PodComment[]> => {
-  if (!isSupabaseConfigured()) {
-    const localComments = JSON.parse(localStorage.getItem('localComments') || '[]');
-    return localComments.filter((comment: PodComment) => comment.pod_id === podId);
-  }
-
   try {
     const { data, error } = await supabase
       .from('pod_comments')
@@ -190,22 +137,6 @@ export const getPodComments = async (podId: string): Promise<PodComment[]> => {
 
 // Add a comment
 export const addComment = async (podId: string, authorId: string, body: string): Promise<boolean> => {
-  if (!isSupabaseConfigured()) {
-    const localComment: PodComment = {
-      id: `local-comment-${Date.now()}`,
-      pod_id: podId,
-      author_id: authorId,
-      body,
-      created_at: new Date().toISOString(),
-    };
-    
-    const existingComments = JSON.parse(localStorage.getItem('localComments') || '[]');
-    existingComments.push(localComment);
-    localStorage.setItem('localComments', JSON.stringify(existingComments));
-    
-    return true;
-  }
-
   try {
     const { error } = await supabase
       .from('pod_comments')
@@ -225,11 +156,6 @@ export const addComment = async (podId: string, authorId: string, body: string):
 
 // Get user's active pods
 export const getUserActivePods = async (userId: string): Promise<Pod[]> => {
-  if (!isSupabaseConfigured()) {
-    const localPods = JSON.parse(localStorage.getItem('localPods') || '[]');
-    return localPods.filter((pod: Pod) => pod.owner_id === userId && pod.status === 'live');
-  }
-
   try {
     const { data, error } = await supabase
       .from('pods')
@@ -248,11 +174,6 @@ export const getUserActivePods = async (userId: string): Promise<Pod[]> => {
 
 // Get user's past pods
 export const getUserPastPods = async (userId: string): Promise<Pod[]> => {
-  if (!isSupabaseConfigured()) {
-    const localPods = JSON.parse(localStorage.getItem('localPods') || '[]');
-    return localPods.filter((pod: Pod) => pod.owner_id === userId && pod.status === 'expired');
-  }
-
   try {
     const { data, error } = await supabase
       .from('pods')
@@ -271,11 +192,6 @@ export const getUserPastPods = async (userId: string): Promise<Pod[]> => {
 
 // Get user's pending invites
 export const getUserInvites = async (userEmail: string): Promise<PodInvite[]> => {
-  if (!isSupabaseConfigured()) {
-    const localInvites = JSON.parse(localStorage.getItem('localInvites') || '[]');
-    return localInvites.filter((invite: PodInvite) => invite.to_user === userEmail && invite.status === 'pending');
-  }
-
   try {
     const { data, error } = await supabase
       .from('pod_invites')
@@ -294,16 +210,6 @@ export const getUserInvites = async (userEmail: string): Promise<PodInvite[]> =>
 
 // Accept an invite
 export const acceptInvite = async (inviteId: string): Promise<boolean> => {
-  if (!isSupabaseConfigured()) {
-    const localInvites = JSON.parse(localStorage.getItem('localInvites') || '[]');
-    const inviteIndex = localInvites.findIndex((invite: PodInvite) => invite.id === inviteId);
-    if (inviteIndex !== -1) {
-      localInvites[inviteIndex].status = 'accepted';
-      localStorage.setItem('localInvites', JSON.stringify(localInvites));
-    }
-    return true;
-  }
-
   try {
     const { error } = await supabase
       .from('pod_invites')
@@ -320,16 +226,6 @@ export const acceptInvite = async (inviteId: string): Promise<boolean> => {
 
 // Decline an invite
 export const declineInvite = async (inviteId: string): Promise<boolean> => {
-  if (!isSupabaseConfigured()) {
-    const localInvites = JSON.parse(localStorage.getItem('localInvites') || '[]');
-    const inviteIndex = localInvites.findIndex((invite: PodInvite) => invite.id === inviteId);
-    if (inviteIndex !== -1) {
-      localInvites[inviteIndex].status = 'declined';
-      localStorage.setItem('localInvites', JSON.stringify(localInvites));
-    }
-    return true;
-  }
-
   try {
     const { error } = await supabase
       .from('pod_invites')
@@ -346,16 +242,6 @@ export const declineInvite = async (inviteId: string): Promise<boolean> => {
 
 // Expire a pod
 export const expirePod = async (podId: string): Promise<boolean> => {
-  if (!isSupabaseConfigured()) {
-    const localPods = JSON.parse(localStorage.getItem('localPods') || '[]');
-    const podIndex = localPods.findIndex((pod: Pod) => pod.id === podId);
-    if (podIndex !== -1) {
-      localPods[podIndex].status = 'expired';
-      localStorage.setItem('localPods', JSON.stringify(localPods));
-    }
-    return true;
-  }
-
   try {
     const { error } = await supabase
       .from('pods')
@@ -372,16 +258,6 @@ export const expirePod = async (podId: string): Promise<boolean> => {
 
 // Subscribe to pod votes (realtime)
 export const subscribeToPodVotes = (podId: string, callback: (votes: PodVote[]) => void) => {
-  if (!isSupabaseConfigured()) {
-    // Fallback: poll every 2 seconds
-    const interval = setInterval(async () => {
-      const votes = await getPodVotes(podId);
-      callback(votes);
-    }, 2000);
-    
-    return () => clearInterval(interval);
-  }
-
   const subscription = supabase
     .channel(`pod_votes_${podId}`)
     .on('postgres_changes', 
