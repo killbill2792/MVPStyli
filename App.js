@@ -1211,6 +1211,7 @@ function Product() {
             <Text style={{ color: '#000', fontSize: 16, fontWeight: '700' }}>Buy Now - ${product.price}</Text>
           </Pressable>
         </View>
+      </View>
         
         <Pressable onPress={() => setRoute('shop')} style={{ marginTop: 16, alignItems: 'center' }}>
           <Text style={{ color: '#a1a1aa', fontSize: 14 }}>← Back to shop</Text>
