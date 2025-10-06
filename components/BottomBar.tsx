@@ -22,16 +22,16 @@ export default function BottomBar({ route, go }: { route: string; go: (r: string
         borderColor: 'rgba(255,255,255,0.08)',
         borderWidth: 1,
         borderRadius: 9999,
-        paddingHorizontal: 8,
-        paddingVertical: 6
+        paddingHorizontal: 12,
+        paddingVertical: 8
       }}>
         {items.map(([k, label]) => (
           <Pressable
             key={k}
             onPress={() => go(k)}
             style={{
-              paddingHorizontal: 12,
-              paddingVertical: 6,
+              paddingHorizontal: 16,
+              paddingVertical: 8,
               borderRadius: 9999,
               backgroundColor: route === k ? '#fff' : 'transparent'
             }}
@@ -39,7 +39,7 @@ export default function BottomBar({ route, go }: { route: string; go: (r: string
             <Text style={{
               color: route === k ? '#000' : '#d4d4d8',
               fontWeight: route === k ? '700' : '500',
-              fontSize: 12
+              fontSize: 14
             }}>
               {label}
             </Text>
@@ -48,8 +48,8 @@ export default function BottomBar({ route, go }: { route: string; go: (r: string
         <Pressable
           onPress={() => go('account')}
           style={{
-            paddingHorizontal: 12,
-            paddingVertical: 6,
+            paddingHorizontal: 16,
+            paddingVertical: 8,
             borderRadius: 9999,
             backgroundColor: route === 'account' ? '#fff' : 'transparent'
           }}
@@ -57,7 +57,7 @@ export default function BottomBar({ route, go }: { route: string; go: (r: string
           <Text style={{
             color: route === 'account' ? '#000' : '#d4d4d8',
             fontWeight: route === 'account' ? '700' : '500',
-            fontSize: 12
+            fontSize: 14
           }}>⚙️</Text>
         </Pressable>
       </View>

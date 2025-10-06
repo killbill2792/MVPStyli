@@ -1089,7 +1089,7 @@ function Product() {
   const isOnSale = product.price < priceHistory[0].price;
   
   return (
-    <View style={{ gap: 14 }}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 14, paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
       <View style={{ width: '100%', aspectRatio: 9 / 16, borderRadius: 24, overflow: 'hidden' }}>
         <Image source={{ uri: product.image }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
       </View>
@@ -1176,7 +1176,7 @@ function Product() {
         </View>
         <Pressable onPress={() => setRoute('shop')}><Text style={{ color: '#a1a1aa', marginTop: 8 }}>Back to shop</Text></Pressable>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -1351,35 +1351,71 @@ function TryOn() {
           <Text style={{ color: '#fff', fontSize: 12 }}>📷 Change Photo</Text>
         </Pressable>
         
-        {/* Top-right vertical buttons */}
+        {/* Floating action buttons */}
         {result && (
-          <View style={{ position: 'absolute', right: 12, top: 12, flexDirection: 'column', gap: 8 }}>
+          <View style={{ position: 'absolute', right: 12, bottom: 80, flexDirection: 'column', gap: 12 }}>
             <Pressable 
               onPress={() => showFeatureOverlay({ 
                 title: 'AI Analytics', 
                 description: 'Get detailed analysis of your outfit including style recommendations, color harmony, and confidence scores.' 
               })} 
-              style={{ backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12 }}
+              style={{ 
+                backgroundColor: 'rgba(0,0,0,0.7)', 
+                width: 48, 
+                height: 48, 
+                borderRadius: 24, 
+                justifyContent: 'center', 
+                alignItems: 'center',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.3,
+                shadowRadius: 4,
+                elevation: 5
+              }}
             >
-              <Text style={{ color: '#10b981', fontSize: 16 }}>📊</Text>
+              <Text style={{ fontSize: 20 }}>📊</Text>
             </Pressable>
             <Pressable 
               onPress={() => showFeatureOverlay({ 
                 title: 'Pods', 
                 description: 'Create a Pod to get feedback from friends, taste twins, or the global community on your outfit.' 
               })} 
-              style={{ backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12 }}
+              style={{ 
+                backgroundColor: 'rgba(0,0,0,0.7)', 
+                width: 48, 
+                height: 48, 
+                borderRadius: 24, 
+                justifyContent: 'center', 
+                alignItems: 'center',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.3,
+                shadowRadius: 4,
+                elevation: 5
+              }}
             >
-              <Text style={{ color: '#10b981', fontSize: 16 }}>👥</Text>
+              <Text style={{ fontSize: 20 }}>👥</Text>
             </Pressable>
             <Pressable 
               onPress={() => showFeatureOverlay({ 
                 title: 'Suggested Outfits', 
                 description: 'Discover similar styles and complementary pieces that would work well with your current look.' 
               })} 
-              style={{ backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12 }}
+              style={{ 
+                backgroundColor: 'rgba(0,0,0,0.7)', 
+                width: 48, 
+                height: 48, 
+                borderRadius: 24, 
+                justifyContent: 'center', 
+                alignItems: 'center',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.3,
+                shadowRadius: 4,
+                elevation: 5
+              }}
             >
-              <Text style={{ color: '#10b981', fontSize: 16 }}>💡</Text>
+              <Text style={{ fontSize: 20 }}>💡</Text>
             </Pressable>
           </View>
         )}
@@ -1945,73 +1981,70 @@ function CreatePod() {
   };
   
   return (
-    <View style={s.grid2}>
-      <Card>
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-          <Pressable onPress={() => setRoute('tryon')} style={{ marginRight: 16 }}>
-            <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
-          </Pressable>
-          <Text style={s.h1}>Create Pod</Text>
-        </View>
+    <View style={{ flex: 1, backgroundColor: '#000' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+        <Pressable onPress={() => setRoute('tryon')} style={{ marginRight: 16 }}>
+          <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
+        </Pressable>
+        <Text style={s.h1}>Create Pod</Text>
+      </View>
 
-        <Text style={s.muted}>
-          Choose your audience for feedback
-        </Text>
+      <Text style={s.muted}>
+        Choose your audience for feedback
+      </Text>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {podModes.map(mode => (
-          <Pressable 
-            key={mode.id} 
-            onPress={() => setSelectedMode(mode.id)}
-            style={{ 
-              backgroundColor: selectedMode === mode.id ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255,255,255,0.05)',
-              borderWidth: selectedMode === mode.id ? 1 : 1,
-              borderColor: selectedMode === mode.id ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255,255,255,0.08)',
-              borderRadius: 16,
-              padding: 16,
-              marginBottom: 12
-            }}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-              <Text style={{ fontSize: 24, marginRight: 12 }}>{mode.icon}</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '600' }}>{mode.title}</Text>
-                <Text style={{ color: '#a1a1aa', fontSize: 14 }}>{mode.description}</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}>
+          {podModes.map(mode => (
+            <Pressable 
+              key={mode.id} 
+              onPress={() => setSelectedMode(mode.id)}
+              style={{ 
+                flex: 1,
+                marginHorizontal: 4,
+                alignItems: 'center',
+                padding: 16,
+                borderRadius: 20,
+                backgroundColor: selectedMode === mode.id ? 'rgba(255,255,255,0.1)' : 'transparent',
+                borderWidth: selectedMode === mode.id ? 2 : 1,
+                borderColor: selectedMode === mode.id ? '#fff' : 'rgba(255,255,255,0.2)'
+              }}
+            >
+              <Text style={{ fontSize: 32, marginBottom: 8 }}>{mode.icon}</Text>
+              <Text style={{ color: '#e4e4e7', fontSize: 14, fontWeight: '600', textAlign: 'center', marginBottom: 4 }}>
+                {mode.title}
+              </Text>
+              <Text style={{ color: '#a1a1aa', fontSize: 12, textAlign: 'center', marginBottom: 8 }}>
+                {mode.duration}
+              </Text>
+              <View style={{ alignItems: 'center' }}>
+                {mode.features.slice(0, 2).map((feature, index) => (
+                  <Text key={index} style={{ color: '#a1a1aa', fontSize: 10, textAlign: 'center' }}>
+                    {feature}
+                  </Text>
+                ))}
               </View>
-            </View>
-            
-            <Text style={{ color: '#10b981', fontSize: 14, fontWeight: '600', marginBottom: 8 }}>
-              Duration: {mode.duration}
-            </Text>
-            
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {mode.features.map((feature, index) => (
-                <View key={index} style={{ backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}>
-                  <Text style={{ color: '#a1a1aa', fontSize: 12 }}>{feature}</Text>
-                </View>
-              ))}
-            </View>
-        </Pressable>
-        ))}
+            </Pressable>
+          ))}
+        </View>
         
         {selectedMode === 'friends' && (
           <View style={{ marginBottom: 20 }}>
             <Text style={s.label}>Duration</Text>
             <Text style={s.inputHint}>How long should this pod stay active?</Text>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
               {[30, 60, 90, 120].map(mins => (
                 <Pressable 
                   key={mins}
                   onPress={() => setDuration(mins)}
-                  style={{ 
-                    backgroundColor: duration === mins ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
-                    borderWidth: duration === mins ? 1 : 0,
-                    borderColor: duration === mins ? 'rgba(16, 185, 129, 0.3)' : 'transparent',
-                    paddingHorizontal: 12,
-                    paddingVertical: 8
-                  }}
+                  style={[s.btn, { 
+                    flex: 1,
+                    backgroundColor: duration === mins ? 'rgba(255,255,255,0.1)' : 'transparent',
+                    borderColor: duration === mins ? '#fff' : 'rgba(255,255,255,0.2)',
+                    marginBottom: 0
+                  }]}
                 >
-                  <Text style={{ color: duration === mins ? '#10b981' : '#a1a1aa', fontSize: 14, fontWeight: '600' }}>
+                  <Text style={[s.btnText, { color: duration === mins ? '#fff' : '#a1a1aa' }]}>
                     {mins}m
                   </Text>
                 </Pressable>
@@ -2024,7 +2057,6 @@ function CreatePod() {
           <Text style={s.btnPrimaryText}>Create Pod</Text>
         </Pressable>
       </ScrollView>
-      </Card>
     </View>
   );
 }
@@ -2447,18 +2479,17 @@ function StyleCraft() {
   }
 
   return (
-    <View style={s.grid2}>
-      <Card>
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-          <Pressable onPress={() => setRoute('shop')} style={{ marginRight: 16 }}>
-            <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
-          </Pressable>
-          <Text style={s.h1}>StyleCraft</Text>
-        </View>
+    <View style={{ flex: 1, backgroundColor: '#000' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+        <Pressable onPress={() => setRoute('shop')} style={{ marginRight: 16 }}>
+          <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
+        </Pressable>
+        <Text style={s.h1}>StyleCraft</Text>
+      </View>
 
-        <Text style={s.muted}>
-          Design your custom dress and get quotes from professional vendors
-        </Text>
+      <Text style={s.muted}>
+        Design your custom dress and get quotes from professional vendors
+      </Text>
 
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Design Type Selection */}
@@ -2563,7 +2594,6 @@ function StyleCraft() {
           <Text style={s.btnPrimaryText}>Get Vendor Quotes</Text>
         </Pressable>
       </ScrollView>
-      </Card>
     </View>
   );
 }
@@ -2618,14 +2648,13 @@ function AccountScreen({ onBack }) {
   };
 
   return (
-    <View style={s.grid2}>
-      <Card>
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-          <Pressable onPress={onBack} style={{ marginRight: 16 }}>
-            <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
-          </Pressable>
-          <Text style={s.h1}>Account</Text>
-        </View>
+    <View style={{ flex: 1, backgroundColor: '#000' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+        <Pressable onPress={onBack} style={{ marginRight: 16 }}>
+          <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
+        </Pressable>
+        <Text style={s.h1}>Account</Text>
+      </View>
 
         <ScrollView showsVerticalScrollIndicator={false}>
         {/* Profile Photo Section */}
@@ -2771,7 +2800,6 @@ function AccountScreen({ onBack }) {
         </Text>
       </Pressable>
         </ScrollView>
-      </Card>
     </View>
   );
 }
