@@ -22,7 +22,7 @@ export default function BottomBar({ route, go }: { route: string; go: (r: string
         borderColor: 'rgba(255,255,255,0.08)',
         borderWidth: 1,
         borderRadius: 9999,
-        paddingHorizontal: 10,
+        paddingHorizontal: 9,
         paddingVertical: 8
       }}>
         {items.map(([k, label]) => (
@@ -30,7 +30,7 @@ export default function BottomBar({ route, go }: { route: string; go: (r: string
             key={k}
             onPress={() => go(k)}
             style={{
-              paddingHorizontal: 14,
+              paddingHorizontal: 13,
               paddingVertical: 8,
               borderRadius: 9999,
               backgroundColor: route === k ? '#fff' : 'transparent'
@@ -48,7 +48,7 @@ export default function BottomBar({ route, go }: { route: string; go: (r: string
         <Pressable
           onPress={() => go('account')}
           style={{
-            paddingHorizontal: 14,
+            paddingHorizontal: 13,
             paddingVertical: 8,
             borderRadius: 9999,
             backgroundColor: route === 'account' ? '#fff' : 'transparent'

@@ -1134,69 +1134,12 @@ function Product() {
         </View>
         <Text style={{ color: '#a1a1aa' }}>Fabric: Cotton blend • Shipping: 2–4 days • Returns: 30 days</Text>
         
-        {/* Price Tracking Section */}
-        <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: 12, marginTop: 12, marginBottom: 12 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <Text style={{ color: '#e4e4e7', fontSize: 14, fontWeight: '600' }}>Price Tracking</Text>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Text style={{ color: '#10b981', fontSize: 12 }}>30d Low: ${lowestPrice}</Text>
-              <Text style={{ color: '#ef4444', fontSize: 12 }}>30d High: ${Math.max(...priceHistory.map(p => p.price))}</Text>
-            </View>
-          </View>
-          
-          {/* Custom Price Input */}
-          <View style={{ marginBottom: 12 }}>
-            <Text style={{ color: '#a1a1aa', fontSize: 12, marginBottom: 6 }}>Notify me when price drops below:</Text>
-            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-              <Text style={{ color: '#e4e4e7', fontSize: 16 }}>$</Text>
-              <TextInput
-                style={{
-                  flex: 1,
-                  backgroundColor: 'rgba(255,255,255,0.1)',
-                  borderRadius: 8,
-                  paddingHorizontal: 12,
-                  paddingVertical: 8,
-                  color: '#e4e4e7',
-                  fontSize: 16,
-                  borderWidth: 1,
-                  borderColor: 'rgba(255,255,255,0.2)'
-                }}
-                placeholder={lowestPrice.toString()}
-                placeholderTextColor="#a1a1aa"
-                keyboardType="numeric"
-                defaultValue={lowestPrice.toString()}
-              />
-            </View>
-          </View>
-          
-          <Pressable 
-            onPress={togglePriceTracking}
-            style={{ 
-              backgroundColor: isTracking ? '#10b981' : 'rgba(255,255,255,0.1)',
-              paddingHorizontal: 16,
-              paddingVertical: 10,
-              borderRadius: 8,
-              alignItems: 'center'
-            }}
-          >
-            <Text style={{ color: isTracking ? '#fff' : '#e4e4e7', fontSize: 14, fontWeight: '600' }}>
-              {isTracking ? '✓ Price Tracking Active' : 'Start Price Tracking'}
-            </Text>
-          </Pressable>
-          
-          {isTracking && (
-            <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 8, borderRadius: 8 }}>
-              <Text style={{ color: '#10b981', fontSize: 12, textAlign: 'center' }}>
-                🔔 We'll notify you when price drops below ${product.price - 10}
-              </Text>
-            </View>
-          )}
-        </View>
-        
-        {/* Buy Now Section */}
-        <View style={{ marginTop: 16 }}>
+        {/* Action Buttons - Side by Side */}
+        <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+          {/* Buy Now Button */}
           <Pressable
             style={{
+              flex: 1,
               backgroundColor: '#fff',
               padding: 16,
               borderRadius: 12,
@@ -1208,9 +1151,80 @@ function Product() {
               elevation: 3
             }}
           >
-            <Text style={{ color: '#000', fontSize: 16, fontWeight: '700' }}>Buy Now - ${product.price}</Text>
+            <Text style={{ color: '#000', fontSize: 16, fontWeight: '700' }}>Buy Now</Text>
+            <Text style={{ color: '#000', fontSize: 14, fontWeight: '600' }}>${product.price}</Text>
+          </Pressable>
+          
+          {/* Price Tracking Button */}
+          <Pressable 
+            onPress={togglePriceTracking}
+            style={{
+              flex: 1,
+              backgroundColor: isTracking ? '#10b981' : 'rgba(255,255,255,0.1)',
+              padding: 16,
+              borderRadius: 12,
+              alignItems: 'center',
+              borderWidth: isTracking ? 0 : 1,
+              borderColor: 'rgba(255,255,255,0.2)'
+            }}
+          >
+            <Text style={{ fontSize: 20, marginBottom: 4 }}>
+              {isTracking ? '🔔' : '📊'}
+            </Text>
+            <Text style={{ 
+              color: isTracking ? '#fff' : '#e4e4e7', 
+              fontSize: 14, 
+              fontWeight: '600',
+              textAlign: 'center'
+            }}>
+              {isTracking ? 'Tracking Active' : 'Track Price'}
+            </Text>
           </Pressable>
         </View>
+        
+        {/* Price Tracking Details - Expandable */}
+        {isTracking && (
+          <View style={{ 
+            backgroundColor: 'rgba(16, 185, 129, 0.1)', 
+            borderRadius: 12, 
+            padding: 16, 
+            marginTop: 12,
+            borderWidth: 1,
+            borderColor: 'rgba(16, 185, 129, 0.2)'
+          }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <Text style={{ color: '#10b981', fontSize: 14, fontWeight: '600' }}>Price Tracking Active</Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Text style={{ color: '#10b981', fontSize: 12 }}>30d Low: ${lowestPrice}</Text>
+                <Text style={{ color: '#ef4444', fontSize: 12 }}>30d High: ${Math.max(...priceHistory.map(p => p.price))}</Text>
+              </View>
+            </View>
+            
+            {/* Custom Price Input - Inline */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={{ color: '#a1a1aa', fontSize: 14 }}>Notify me when price drops below:</Text>
+              <Text style={{ color: '#e4e4e7', fontSize: 16 }}>$</Text>
+              <TextInput
+                style={{
+                  flex: 1,
+                  backgroundColor: 'rgba(255,255,255,0.1)',
+                  borderRadius: 8,
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  color: '#e4e4e7',
+                  fontSize: 16,
+                  borderWidth: 1,
+                  borderColor: 'rgba(255,255,255,0.2)',
+                  maxWidth: 80
+                }}
+                placeholder={lowestPrice.toString()}
+                placeholderTextColor="#a1a1aa"
+                keyboardType="numeric"
+                defaultValue={lowestPrice.toString()}
+              />
+            </View>
+          </View>
+        )}
       </View>
         
         <Pressable onPress={() => setRoute('shop')} style={{ marginTop: 16, alignItems: 'center' }}>
@@ -2583,51 +2597,117 @@ function StyleCraft() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      {/* Hero Section */}
+      {/* Hero Section with Gradient Background */}
       <View style={{ 
-        backgroundColor: 'rgba(255,255,255,0.05)', 
-        borderRadius: 20, 
-        padding: 24, 
-        marginBottom: 24,
+        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%)',
+        backgroundColor: 'rgba(16, 185, 129, 0.05)',
+        borderRadius: 24, 
+        padding: 32, 
+        marginBottom: 32,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)'
+        borderColor: 'rgba(16, 185, 129, 0.2)',
+        position: 'relative',
+        overflow: 'hidden'
       }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-          <Text style={{ fontSize: 32, marginRight: 12 }}>✨</Text>
+        {/* Background Pattern */}
+        <View style={{ 
+          position: 'absolute', 
+          top: -20, 
+          right: -20, 
+          width: 100, 
+          height: 100, 
+          borderRadius: 50, 
+          backgroundColor: 'rgba(16, 185, 129, 0.1)' 
+        }} />
+        <View style={{ 
+          position: 'absolute', 
+          bottom: -30, 
+          left: -30, 
+          width: 80, 
+          height: 80, 
+          borderRadius: 40, 
+          backgroundColor: 'rgba(59, 130, 246, 0.1)' 
+        }} />
+        
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+          <View style={{ 
+            backgroundColor: 'rgba(16, 185, 129, 0.2)', 
+            borderRadius: 20, 
+            padding: 12, 
+            marginRight: 16 
+          }}>
+            <Text style={{ fontSize: 32 }}>✨</Text>
+          </View>
           <View style={{ flex: 1 }}>
-            <Text style={s.h1}>StyleCraft</Text>
-            <Text style={{ color: '#10b981', fontSize: 14, fontWeight: '600' }}>Custom Fashion Design</Text>
+            <Text style={{ color: '#e4e4e7', fontSize: 28, fontWeight: '800', marginBottom: 4 }}>StyleCraft</Text>
+            <Text style={{ color: '#10b981', fontSize: 16, fontWeight: '600' }}>AI-Powered Custom Fashion</Text>
           </View>
         </View>
         
-        <Text style={s.muted}>
-          Create your dream outfit with AI-powered design assistance and connect with professional tailors
+        <Text style={{ color: '#a1a1aa', fontSize: 16, lineHeight: 24 }}>
+          Transform your vision into reality. Upload inspiration, describe your dream outfit, and connect with professional tailors who bring your designs to life.
         </Text>
+        
+        {/* Quick Stats */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginTop: 24 }}>
+          <View style={{ alignItems: 'center' }}>
+            <Text style={{ color: '#10b981', fontSize: 20, fontWeight: '700' }}>500+</Text>
+            <Text style={{ color: '#a1a1aa', fontSize: 12 }}>Designs Created</Text>
+          </View>
+          <View style={{ alignItems: 'center' }}>
+            <Text style={{ color: '#10b981', fontSize: 20, fontWeight: '700' }}>50+</Text>
+            <Text style={{ color: '#a1a1aa', fontSize: 12 }}>Expert Tailors</Text>
+          </View>
+          <View style={{ alignItems: 'center' }}>
+            <Text style={{ color: '#10b981', fontSize: 20, fontWeight: '700' }}>4.9★</Text>
+            <Text style={{ color: '#a1a1aa', fontSize: 12 }}>Satisfaction</Text>
+          </View>
+        </View>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Quick Start Options */}
-        <View style={{ marginBottom: 24 }}>
-          <Text style={s.label}>How would you like to start?</Text>
-          <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+        {/* Creative Input Section */}
+        <View style={{ marginBottom: 32 }}>
+          <Text style={{ color: '#e4e4e7', fontSize: 20, fontWeight: '700', marginBottom: 16, textAlign: 'center' }}>
+            Choose Your Creative Path
+          </Text>
+          
+          <View style={{ flexDirection: 'row', gap: 16, marginBottom: 24 }}>
             <Pressable 
               onPress={() => setDesignType('upload')}
               style={{
                 flex: 1,
-                backgroundColor: designType === 'upload' ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)',
-                borderRadius: 16,
-                padding: 16,
+                backgroundColor: designType === 'upload' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.05)',
+                borderRadius: 20,
+                padding: 20,
                 alignItems: 'center',
                 borderWidth: designType === 'upload' ? 2 : 1,
-                borderColor: designType === 'upload' ? '#fff' : 'rgba(255,255,255,0.2)'
+                borderColor: designType === 'upload' ? '#10b981' : 'rgba(255,255,255,0.2)',
+                position: 'relative',
+                overflow: 'hidden'
               }}
             >
-              <Text style={{ fontSize: 24, marginBottom: 8 }}>📷</Text>
-              <Text style={{ color: designType === 'upload' ? '#fff' : '#e4e4e7', fontSize: 14, fontWeight: '600', textAlign: 'center' }}>
-                Upload Reference
+              {designType === 'upload' && (
+                <View style={{ 
+                  position: 'absolute', 
+                  top: 0, 
+                  right: 0, 
+                  width: 30, 
+                  height: 30, 
+                  backgroundColor: '#10b981', 
+                  borderRadius: 15,
+                  justifyContent: 'center',
+                  alignItems: 'center'
+                }}>
+                  <Text style={{ color: '#fff', fontSize: 16 }}>✓</Text>
+                </View>
+              )}
+              <Text style={{ fontSize: 32, marginBottom: 12 }}>📷</Text>
+              <Text style={{ color: designType === 'upload' ? '#10b981' : '#e4e4e7', fontSize: 16, fontWeight: '700', textAlign: 'center', marginBottom: 6 }}>
+                Visual Inspiration
               </Text>
-              <Text style={{ color: '#a1a1aa', fontSize: 12, textAlign: 'center', marginTop: 4 }}>
-                Photo or sketch
+              <Text style={{ color: '#a1a1aa', fontSize: 12, textAlign: 'center', lineHeight: 16 }}>
+                Upload photos, sketches, or mood boards
               </Text>
             </Pressable>
             
@@ -2635,20 +2715,37 @@ function StyleCraft() {
               onPress={() => setDesignType('describe')}
               style={{
                 flex: 1,
-                backgroundColor: designType === 'describe' ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)',
-                borderRadius: 16,
-                padding: 16,
+                backgroundColor: designType === 'describe' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.05)',
+                borderRadius: 20,
+                padding: 20,
                 alignItems: 'center',
                 borderWidth: designType === 'describe' ? 2 : 1,
-                borderColor: designType === 'describe' ? '#fff' : 'rgba(255,255,255,0.2)'
+                borderColor: designType === 'describe' ? '#10b981' : 'rgba(255,255,255,0.2)',
+                position: 'relative',
+                overflow: 'hidden'
               }}
             >
-              <Text style={{ fontSize: 24, marginBottom: 8 }}>✍️</Text>
-              <Text style={{ color: designType === 'describe' ? '#fff' : '#e4e4e7', fontSize: 14, fontWeight: '600', textAlign: 'center' }}>
-                Describe Design
+              {designType === 'describe' && (
+                <View style={{ 
+                  position: 'absolute', 
+                  top: 0, 
+                  right: 0, 
+                  width: 30, 
+                  height: 30, 
+                  backgroundColor: '#10b981', 
+                  borderRadius: 15,
+                  justifyContent: 'center',
+                  alignItems: 'center'
+                }}>
+                  <Text style={{ color: '#fff', fontSize: 16 }}>✓</Text>
+                </View>
+              )}
+              <Text style={{ fontSize: 32, marginBottom: 12 }}>✍️</Text>
+              <Text style={{ color: designType === 'describe' ? '#10b981' : '#e4e4e7', fontSize: 16, fontWeight: '700', textAlign: 'center', marginBottom: 6 }}>
+                Describe Your Vision
               </Text>
-              <Text style={{ color: '#a1a1aa', fontSize: 12, textAlign: 'center', marginTop: 4 }}>
-                Text description
+              <Text style={{ color: '#a1a1aa', fontSize: 12, textAlign: 'center', lineHeight: 16 }}>
+                Tell us about your dream outfit
               </Text>
             </Pressable>
           </View>
@@ -2784,8 +2881,55 @@ function AccountScreen({ onBack }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      <View style={{ marginBottom: 16 }}>
-        <Text style={s.h1}>Account</Text>
+      {/* Profile Header with Gradient */}
+      <View style={{ 
+        backgroundColor: 'rgba(59, 130, 246, 0.05)',
+        borderRadius: 24, 
+        padding: 32, 
+        marginBottom: 32,
+        borderWidth: 1,
+        borderColor: 'rgba(59, 130, 246, 0.2)',
+        position: 'relative',
+        overflow: 'hidden'
+      }}>
+        {/* Background Elements */}
+        <View style={{ 
+          position: 'absolute', 
+          top: -40, 
+          right: -40, 
+          width: 120, 
+          height: 120, 
+          borderRadius: 60, 
+          backgroundColor: 'rgba(59, 130, 246, 0.1)' 
+        }} />
+        <View style={{ 
+          position: 'absolute', 
+          bottom: -20, 
+          left: -20, 
+          width: 60, 
+          height: 60, 
+          borderRadius: 30, 
+          backgroundColor: 'rgba(16, 185, 129, 0.1)' 
+        }} />
+        
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+          <View style={{ 
+            backgroundColor: 'rgba(59, 130, 246, 0.2)', 
+            borderRadius: 20, 
+            padding: 12, 
+            marginRight: 16 
+          }}>
+            <Text style={{ fontSize: 32 }}>👤</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: '#e4e4e7', fontSize: 28, fontWeight: '800', marginBottom: 4 }}>My Profile</Text>
+            <Text style={{ color: '#3b82f6', fontSize: 16, fontWeight: '600' }}>Manage Your Account</Text>
+          </View>
+        </View>
+        
+        <Text style={{ color: '#a1a1aa', fontSize: 16, lineHeight: 24 }}>
+          Customize your profile, manage preferences, and track your fashion journey.
+        </Text>
       </View>
 
         <ScrollView showsVerticalScrollIndicator={false}>
@@ -2954,7 +3098,7 @@ function Card({ children }) {
 const s = StyleSheet.create({
   app: { flex: 1, backgroundColor: '#000' },
   safeArea: { flex: 1 },
-  container: { flex: 1, padding: 16, paddingBottom: 100 },
+  container: { flex: 1, padding: 16, paddingBottom: 80 },
   scrollContent: { padding: 16, paddingBottom: 100 },
   grid2: { gap: 16 },
   h1: { color: '#e4e4e7', fontSize: 24, fontWeight: '700', marginBottom: 8 },
