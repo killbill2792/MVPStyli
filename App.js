@@ -750,7 +750,7 @@ function Shell() {
   }
   
   return (
-    <View style={s.app}>
+    <SafeAreaView style={s.safeArea} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="light-content" />
       
       {/* New screens that need full screen control */}
@@ -790,27 +790,27 @@ function Shell() {
       
       {/* Original screens that use the container */}
       {!["createpod", "podlive", "podrecap", "podshome", "inbox", "stylecraft", "account"].includes(route) && (
-        <SafeAreaView style={s.safeArea} edges={['top', 'left', 'right']}>
-          <View style={s.container}>
-            {route === "signin" && <SignInScreen onDone={() => setRoute("onboarding")} />}
-            {route === "onboarding" && <Onboarding />}
-            {route === "shop" && <Shop />}
-            {route === "product" && <Product />}
-            {route === "tryon" && <TryOn />}
-            {route === "askhelp" && <AskHelp />}
-        {route === "rooms" && <RoomsInbox />}
-        {route === "room_owner" && <RoomOwner />}
-        {route === "room_guest" && <RoomGuest />}
-        {route === "recap" && <Recap />}
-        {route === "feed" && <Explore />}
-        {route === "ai-analytics" && <AIAnalytics />}
-        {route === "suggested-outfits" && <SuggestedOutfits />}
-        {route === "suggest" && <SuggestScreen />}
-          </View>
-          {route !== "signin" && <BottomBar route={route} go={setRoute} />}
-        </SafeAreaView>
+        <View style={s.container}>
+          {route === "signin" && <SignInScreen onDone={() => setRoute("onboarding")} />}
+          {route === "onboarding" && <Onboarding />}
+          {route === "shop" && <Shop />}
+          {route === "product" && <Product />}
+          {route === "tryon" && <TryOn />}
+          {route === "askhelp" && <AskHelp />}
+      {route === "rooms" && <RoomsInbox />}
+      {route === "room_owner" && <RoomOwner />}
+      {route === "room_guest" && <RoomGuest />}
+      {route === "recap" && <Recap />}
+      {route === "feed" && <Explore />}
+      {route === "ai-analytics" && <AIAnalytics />}
+      {route === "suggested-outfits" && <SuggestedOutfits />}
+      {route === "suggest" && <SuggestScreen />}
+        </View>
       )}
-    </View>
+      
+      {/* Bottom bar for all screens except signin */}
+      {route !== "signin" && <BottomBar route={route} go={setRoute} />}
+    </SafeAreaView>
   );
 }
 
@@ -3633,7 +3633,7 @@ function SuggestScreen() {
 const s = StyleSheet.create({
   app: { flex: 1, backgroundColor: '#000' },
   safeArea: { flex: 1 },
-  container: { flex: 1, paddingHorizontal: 16, paddingTop: 40, paddingBottom: 80 },
+  container: { flex: 1, paddingHorizontal: 16, paddingBottom: 80 },
   scrollContent: { padding: 16, paddingBottom: 100 },
   grid2: { gap: 16 },
   h1: { color: '#e4e4e7', fontSize: 24, fontWeight: '700', marginBottom: 8 },

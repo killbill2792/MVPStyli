@@ -32,6 +32,7 @@ export interface PodComment {
 export interface PodInvite {
   id: string;
   pod_id: string;
+  from_user: string;
   to_user: string;
   status: 'pending' | 'accepted' | 'declined';
   created_at: string;
@@ -291,4 +292,75 @@ export const getVoteCounts = (votes: PodVote[]) => {
     no: votes.filter(v => v.choice === 'no').length,
     total: votes.length,
   };
+};
+
+// Get pod with stats from the view
+export const getPodWithStats = async (podId: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('pod_stats')
+      .select('*')
+      .eq('id', podId)
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error fetching pod with stats:', error);
+    return null;
+  }
+};
+
+// Get all active pods with stats
+export const getActivePodsWithStats = async (): Promise<any[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('pod_stats')
+      .select('*')
+      .eq('status', 'live')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching active pods with stats:', error);
+    return [];
+  }
+};
+
+// Send an invite
+export const sendInvite = async (podId: string, fromUser: string, toUser: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('pod_invites')
+      .insert({
+        pod_id: podId,
+        from_user: fromUser,
+        to_user: toUser,
+        status: 'pending',
+      });
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Error sending invite:', error);
+    return false;
+  }
+};
+
+// Get invites sent by user
+export const getSentInvites = async (userId: string): Promise<PodInvite[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('pod_invites')
+      .select('*')
+      .eq('from_user', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching sent invites:', error);
+    return [];
+  }
 };
