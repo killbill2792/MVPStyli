@@ -1342,7 +1342,8 @@ function TryOn() {
   
   const handleTryOn = async () => {
     if (!twinUrl || !garmentCleanUrl) {
-      console.log('Please upload your photo and select a garment first.');
+      // Silently return - user will just see the original images
+      console.log('Try-on skipped - missing user photo or garment');
       return;
     }
     
@@ -1407,14 +1408,17 @@ function TryOn() {
           setResult(status.resultUrl);
           // AI try-on generated successfully
         } else {
-          throw new Error(status.error || 'Try-on failed');
+          // Silently handle failures - log for debugging but don't show to user
+          console.log('Try-on failed silently:', status.error || 'Unknown error');
+          // Just return without setting result - user will see the original images
         }
       } else {
         throw new Error(data.error || 'Failed to start try-on');
       }
     } catch (error) {
+      // Log error for debugging but don't show to user
       console.error('Try-on error:', error);
-      console.log(`AI try-on failed: ${error.message}`);
+      // Silently handle - user will just see the original images
     } finally {
       setBusy(false);
     }
