@@ -12,8 +12,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!human_img || !garm_img || !category) {
       return res.status(400).json({ error: 'Missing human_img, garm_img or category' });
     }
-    if (typeof garm_img !== 'string' || !garm_img.startsWith('http')) {
-      return res.status(400).json({ error: 'garm_img_must_be_url' });
+    if (typeof garm_img !== 'string' || (!garm_img.startsWith('http') && !garm_img.startsWith('data:'))) {
+      return res.status(400).json({ error: 'garm_img_must_be_url_or_data_uri' });
     }
 
     // Map category to Replicate's expected format

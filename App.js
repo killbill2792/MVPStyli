@@ -1373,13 +1373,32 @@ function TryOn() {
         console.log('Garment image uploaded:', garmentImgUrl);
       }
       
+      // Convert URLs to data URIs for Replicate compatibility
+      const convertToDataUri = async (url) => {
+        try {
+          const response = await fetch(url);
+          const blob = await response.blob();
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+          });
+        } catch (error) {
+          console.log('Failed to convert to data URI, using original URL:', error);
+          return url;
+        }
+      };
+      
+      const humanDataUri = await convertToDataUri(humanImgUrl);
+      const garmentDataUri = await convertToDataUri(garmentImgUrl);
+      
       // Call try-on API directly
       const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE}/api/tryon`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          human_img: humanImgUrl, 
-          garm_img: garmentImgUrl, 
+          human_img: humanDataUri, 
+          garm_img: garmentDataUri, 
           category,
           garment_des: product?.garment_des || "Garment item"
         })
