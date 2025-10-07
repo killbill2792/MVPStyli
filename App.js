@@ -731,8 +731,17 @@ function Shell() {
   // Initialize user on first load - create local user without Supabase
   useEffect(() => {
     if (!user) {
+      // Generate a proper UUID for the user
+      const generateUUID = () => {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0;
+          const v = c == 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
+      
       // Create a local user without Supabase auth
-      setUser({ id: "local-user-" + Date.now(), email: null });
+      setUser({ id: generateUUID(), email: null });
       // Set Explore as default home page after user creation
       setRoute('feed');
     }
@@ -1147,7 +1156,7 @@ function Product() {
           
           {/* Floating Try On Button */}
           <Pressable 
-            onPress={() => setRoute('tryon', { garmentId: product.id, category: product.category })}
+            onPress={() => setRoute('tryon', { garmentId: product.id, category: product.category, garmentCleanUrl: product.image })}
             style={{
               position: 'absolute',
               top: 12,
@@ -1355,13 +1364,21 @@ function TryOn() {
         console.log('User image uploaded:', humanImgUrl);
       }
       
+      // Upload garment image to Supabase for Replicate access
+      let garmentImgUrl = garmentCleanUrl;
+      if (!garmentCleanUrl.startsWith('https://rlbfdnzwkgxkzsapetdt.supabase.co')) {
+        console.log('Uploading garment image to Supabase...');
+        garmentImgUrl = await uploadGarmentImage(garmentCleanUrl, garmentId || 'unknown');
+        console.log('Garment image uploaded:', garmentImgUrl);
+      }
+      
       // Call try-on API directly
       const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE}/api/tryon`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           human_img: humanImgUrl, 
-          garm_img: garmentCleanUrl, 
+          garm_img: garmentImgUrl, 
           category,
           garment_des: product?.garment_des || "Garment item"
         })
