@@ -1389,8 +1389,29 @@ function TryOn() {
         }
       };
       
-      const humanDataUri = await convertToDataUri(humanImgUrl);
-      const garmentDataUri = await convertToDataUri(garmentImgUrl);
+      // Try to convert to data URIs, but fallback to URLs if they're too large
+      let humanDataUri = humanImgUrl;
+      let garmentDataUri = garmentImgUrl;
+      
+      try {
+        const humanUri = await convertToDataUri(humanImgUrl);
+        const garmentUri = await convertToDataUri(garmentImgUrl);
+        
+        // Use data URIs only if they're reasonable size (less than 1MB)
+        if (humanUri.length < 1000000) {
+          humanDataUri = humanUri;
+        }
+        if (garmentUri.length < 1000000) {
+          garmentDataUri = garmentUri;
+        }
+        
+        console.log('Using data URIs:', {
+          human: humanDataUri !== humanImgUrl,
+          garment: garmentDataUri !== garmentImgUrl
+        });
+      } catch (error) {
+        console.log('Data URI conversion failed, using URLs:', error);
+      }
       
       // Call try-on API directly
       const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE}/api/tryon`, {
@@ -1404,7 +1425,22 @@ function TryOn() {
         })
       });
       
-      const data = await response.json();
+      console.log('API response status:', response.status);
+      console.log('API response headers:', response.headers);
+      
+      const responseText = await response.text();
+      console.log('API response text:', responseText.substring(0, 200));
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.log('JSON parse error - response is not JSON:', parseError);
+        console.log('Full response:', responseText);
+        // Silently handle - user will see original images
+        return;
+      }
+      
       console.log('Try-on response:', data);
       
       if (data.cache) {
