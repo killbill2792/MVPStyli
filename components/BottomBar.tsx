@@ -1,7 +1,9 @@
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function BottomBar({ route, go }: { route: string; go: (r: string) => void }) {
+  const insets = useSafeAreaInsets();
   const items: [string, string][] = [['shop', 'Shop'], ['feed', 'Explore'], ['tryon', 'Try-On'], ['podshome', 'Pods'], ['stylecraft', 'StyleCraft']];
   
   return (
@@ -11,7 +13,7 @@ export default function BottomBar({ route, go }: { route: string; go: (r: string
       right: 0, 
       bottom: 0, 
       alignItems: 'center',
-      paddingBottom: 20, // Increased safe area bottom padding
+      paddingBottom: insets.bottom + 10, // Use safe area insets
       backgroundColor: 'transparent',
       paddingTop: 8
     }}>

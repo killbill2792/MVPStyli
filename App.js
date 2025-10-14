@@ -366,8 +366,8 @@ function Shell() {
   }
   
   return (
-    <SafeAreaView style={s.safeArea} edges={['top', 'left', 'right', 'bottom']}>
-      <StatusBar barStyle="light-content" />
+    <SafeAreaView style={s.safeArea} edges={['top']}>
+      <StatusBar barStyle="light-content" translucent={true} />
       
       {/* New screens that need full screen control */}
       {route === "createpod" && <PodsScreen 
@@ -582,7 +582,7 @@ function Shop() {
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       {/* Search Bar */}
-      <View style={{ padding: 16, paddingBottom: 8, paddingTop: 20 }}>
+      <View style={{ padding: 16, paddingBottom: 8, paddingTop: 40 }}>
         <View style={{ backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center' }}>
           <Text style={{ color: '#a1a1aa', marginRight: 8 }}>⌕</Text>
           <TextInput
@@ -1100,7 +1100,7 @@ function TryOn() {
   };
   
   return (
-    <View style={{ flex: 1, backgroundColor: '#000' }}>
+    <View style={{ flex: 1, backgroundColor: '#000', paddingTop: 40 }}>
 
       {/* Transparent Overlay */}
       {showOverlay && (
