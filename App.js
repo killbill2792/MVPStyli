@@ -179,6 +179,55 @@ const enhancedProducts = [
   }
 ];
 
+// Save try-on result to Supabase for persistence
+async function saveTryOnResult(resultUrl, productId, productName, setTryOnResults) {
+  try {
+    console.log('Saving try-on result:', resultUrl);
+    
+    // Upload the result image to Supabase
+    const response = await fetch(resultUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch result image: ${response.status}`);
+    }
+    
+    const arrayBuffer = await response.arrayBuffer();
+    const path = `tryon-results/${productId}-${Date.now()}.jpg`;
+    
+    const { error } = await supabase.storage
+      .from('images')
+      .upload(path, arrayBuffer, {
+        cacheControl: '3600',
+        upsert: true,
+        contentType: 'image/jpeg',
+      });
+    
+    if (error) {
+      console.error('Try-on result upload error:', error);
+      throw error;
+    }
+    
+    const { data } = supabase.storage.from('images').getPublicUrl(path);
+    console.log('Try-on result saved to Supabase:', data.publicUrl);
+    
+    // Store metadata in global state
+    const tryOnData = {
+      id: `${productId}-${Date.now()}`,
+      productId,
+      productName,
+      resultUrl: data.publicUrl,
+      createdAt: new Date().toISOString()
+    };
+    
+    // Update global state
+    setTryOnResults(prev => [tryOnData, ...prev.slice(0, 19)]); // Keep last 20
+    
+    return data.publicUrl;
+  } catch (error) {
+    console.error('Save try-on result error:', error);
+    // Don't throw - this is not critical for the user experience
+  }
+}
+
 // Upload garment image to Supabase for Replicate access
 async function uploadGarmentImage(imageUrl, productId) {
   try {
@@ -228,7 +277,8 @@ const initial = {
   currentProductId: 'denim-jacket',
   feedItems: [],
   currentFeedIndex: 0,
-  rooms: []
+  rooms: [],
+  tryOnResults: []
 };
 
 export function AppProvider({ children }) {
@@ -239,6 +289,7 @@ export function AppProvider({ children }) {
     setRoute: (route, params) => setState(s => ({ ...s, route, params: params || {} })),
     setTwinUrl: (url) => setState(s => ({ ...s, twinUrl: url })),
     setUser: (user) => setState(s => ({ ...s, user })),
+    setTryOnResults: (results) => setState(s => ({ ...s, tryOnResults: results })),
     setCurrentProduct: (id) => setState(s => ({ ...s, currentProductId: id })),
     nextFeedItem: () => setState(s => ({ ...s, currentFeedIndex: (s.currentFeedIndex + 1) % s.feedItems.length })),
     createRoom: ({ lookId, mode, durationMins = 60, title }) => {
@@ -314,7 +365,7 @@ function Shell() {
   }
   
   return (
-    <SafeAreaView style={s.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={s.safeArea} edges={['top', 'left', 'right', 'bottom']}>
       <StatusBar barStyle="light-content" />
       
       {/* New screens that need full screen control */}
@@ -351,7 +402,7 @@ function Shell() {
         userId={user?.id}
       />}
       {route === "stylecraft" && <StyleCraftScreen onBack={() => setRoute("shop")} />}
-      {route === "account" && <NewAccountScreen onBack={() => setRoute("shop")} />}
+      {route === "account" && <NewAccountScreen onBack={() => setRoute("shop")} tryOnResults={state.tryOnResults} />}
       
       {/* Shop screen - full screen like other new screens */}
       {route === "shop" && <Shop />}
@@ -789,7 +840,7 @@ function Product() {
             }}
           >
             <Text style={{ fontSize: 20, marginBottom: 4 }}>
-              {isTracking ? '🔔' : '📈'}
+              {isTracking ? '🔔' : '📊'}
             </Text>
             <Text style={{ 
               color: isTracking ? '#fff' : '#e4e4e7', 
@@ -876,7 +927,7 @@ function Product() {
 }
 
 function TryOn() {
-  const { state: { twinUrl, currentProductId }, setRoute, setTwinUrl } = useApp();
+  const { state: { twinUrl, currentProductId, tryOnResults }, setRoute, setTwinUrl, setTryOnResults } = useApp();
   const product = enhancedProducts.find(p => p.id === currentProductId);
   const garmentCleanUrl = useApp().state.params?.garmentCleanUrl;
   const garmentId = useApp().state.params?.garmentId;
@@ -1019,6 +1070,8 @@ function TryOn() {
         
         if (status.status === 'succeeded' && status.resultUrl) {
           setResult(status.resultUrl);
+          // Save try-on result to Supabase for persistence
+          await saveTryOnResult(status.resultUrl, product?.id, product?.name, setTryOnResults);
           // AI try-on generated successfully
         } else {
           // Silently handle failures - log for debugging but don't show to user
@@ -1048,7 +1101,7 @@ function TryOn() {
   };
   
   return (
-    <View style={{ alignItems: 'center', flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: '#000' }}>
 
       {/* Transparent Overlay */}
       {showOverlay && (
@@ -1092,7 +1145,7 @@ function TryOn() {
         </TouchableWithoutFeedback>
       )}
       
-      <View style={{ width: '100%', aspectRatio: 9 / 16, borderRadius: 24, overflow: 'hidden', position: 'relative', maxWidth: 420 }}>
+      <View style={{ flex: 1, width: '100%', position: 'relative' }}>
         <Image source={{ uri: result || twinUrl }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
         
         {/* Processing indicator in middle of photo */}
@@ -1202,7 +1255,7 @@ function TryOn() {
             }}
           >
             <Text style={{ color: busy ? '#666' : '#000', fontWeight: '700' }}>
-              {busy ? '⏳ Processing...' : '👗 Try On'}
+              {busy ? '⏳ Processing...' : '✨ Try On'}
             </Text>
           </Pressable>
           {result && (
