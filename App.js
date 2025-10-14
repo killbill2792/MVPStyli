@@ -176,6 +176,7 @@ const enhancedProducts = [
     garment_des: "Satin slip dress with adjustable straps",
     image: "https://images.unsplash.com/photo-1519741497674-611481863552?q=80&auto=format&fit=crop&w=1200",
     buyUrl: "https://shop.mango.com/"
+  }
 ];
 
 // Upload garment image to Supabase for Replicate access
