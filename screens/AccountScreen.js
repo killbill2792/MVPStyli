@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 const { width, height } = Dimensions.get('window');
 
-const AccountScreen = ({ onBack }) => {
+const AccountScreen = ({ onBack, tryOnResults = [] }) => {
   const [username] = useState('Fashionista');
   const [isSigningOut, setIsSigningOut] = useState(false);
 
@@ -50,7 +50,7 @@ const AccountScreen = ({ onBack }) => {
       title: 'My Try-Ons',
       icon: '👕',
       color: '#6366f1',
-      count: 3,
+      count: tryOnResults.length,
     },
     {
       id: 'pods',
@@ -189,7 +189,7 @@ const AccountScreen = ({ onBack }) => {
             
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
-                <Text style={styles.statNumber}>3</Text>
+                <Text style={styles.statNumber}>{tryOnResults.length}</Text>
                 <Text style={styles.statLabel}>👕 Try-Ons</Text>
               </View>
               <View style={styles.statItem}>
@@ -215,6 +215,31 @@ const AccountScreen = ({ onBack }) => {
               contentContainerStyle={styles.insightsList}
             />
           </View>
+
+          {/* Try-On Results Section */}
+          {tryOnResults.length > 0 && (
+            <View style={styles.tryOnSection}>
+              <Text style={styles.sectionTitle}>👕 My Try-Ons</Text>
+              <FlatList
+                data={tryOnResults}
+                renderItem={({ item }) => (
+                  <View style={styles.tryOnCard}>
+                    <Image source={{ uri: item.resultUrl }} style={styles.tryOnImage} />
+                    <View style={styles.tryOnInfo}>
+                      <Text style={styles.tryOnProductName}>{item.productName}</Text>
+                      <Text style={styles.tryOnDate}>
+                        {new Date(item.createdAt).toLocaleDateString()}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+                keyExtractor={(item) => item.id}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.tryOnList}
+              />
+            </View>
+          )}
 
           {/* Core Sections Grid */}
           <View style={styles.sectionsSection}>
@@ -397,6 +422,37 @@ const styles = StyleSheet.create({
     right: 0,
     width: 4,
     height: '100%',
+  },
+  tryOnSection: {
+    marginBottom: 32,
+  },
+  tryOnList: {
+    paddingRight: 24,
+  },
+  tryOnCard: {
+    width: 160,
+    marginRight: 16,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    overflow: 'hidden',
+  },
+  tryOnImage: {
+    width: '100%',
+    height: 200,
+    resizeMode: 'cover',
+  },
+  tryOnInfo: {
+    padding: 12,
+  },
+  tryOnProductName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  tryOnDate: {
+    fontSize: 12,
+    color: '#9ca3af',
   },
   sectionsSection: {
     marginBottom: 32,
