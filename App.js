@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useMemo, useEffect, useState } from 'react';
 import { View, Text, Pressable, Image, StyleSheet, Alert, StatusBar, TextInput, ScrollView, TouchableWithoutFeedback } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { customAlphabet } from 'nanoid/non-secure';
 import { supabase } from './lib/supabase';
@@ -325,9 +325,11 @@ export default function App() {
   });
   
   return (
-    <AppProvider>
-      <Shell />
-    </AppProvider>
+    <SafeAreaProvider>
+      <AppProvider>
+        <Shell />
+      </AppProvider>
+    </SafeAreaProvider>
   );
 }
 
