@@ -158,6 +158,8 @@ export const addComment = async (podId: string, authorId: string, body: string):
 // Get user's active pods
 export const getUserActivePods = async (userId: string): Promise<Pod[]> => {
   try {
+    console.log('Fetching active pods for user:', userId);
+    
     const { data, error } = await supabase
       .from('pods')
       .select('*')
@@ -165,10 +167,16 @@ export const getUserActivePods = async (userId: string): Promise<Pod[]> => {
       .eq('status', 'live')
       .order('ends_at', { ascending: true });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error fetching active pods:', error);
+      throw error;
+    }
+    
+    console.log('Active pods fetched successfully:', data?.length || 0);
     return data || [];
   } catch (error) {
     console.error('Error fetching user active pods:', error);
+    // Return empty array instead of throwing to prevent app crashes
     return [];
   }
 };
@@ -176,6 +184,8 @@ export const getUserActivePods = async (userId: string): Promise<Pod[]> => {
 // Get user's past pods
 export const getUserPastPods = async (userId: string): Promise<Pod[]> => {
   try {
+    console.log('Fetching past pods for user:', userId);
+    
     const { data, error } = await supabase
       .from('pods')
       .select('*')
@@ -183,7 +193,12 @@ export const getUserPastPods = async (userId: string): Promise<Pod[]> => {
       .eq('status', 'expired')
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error fetching past pods:', error);
+      throw error;
+    }
+    
+    console.log('Past pods fetched successfully:', data?.length || 0);
     return data || [];
   } catch (error) {
     console.error('Error fetching user past pods:', error);
