@@ -11,14 +11,14 @@ export default function BottomBar({ route, go }: { route: string; go: (r: string
       right: 0, 
       bottom: 0, 
       alignItems: 'center',
-      paddingBottom: 10, // Safe area bottom padding
+      paddingBottom: 20, // Increased safe area bottom padding
       backgroundColor: 'transparent',
       paddingTop: 8
     }}>
       <View style={{
         flexDirection: 'row',
         gap: 6, // Reduced from 8 to 6 (2 points less)
-        backgroundColor: 'rgba(255,255,255,0.08)',
+        backgroundColor: 'rgba(128,128,128,0.15)',
         borderColor: 'rgba(255,255,255,0.12)',
         borderWidth: 1,
         borderRadius: 9999,

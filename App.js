@@ -332,7 +332,8 @@ export default function App() {
 }
 
 function Shell() {
-  const { state: { route, user, params }, setRoute, setUser } = useApp();
+  const { state, setRoute, setUser } = useApp();
+  const { route, user, params } = state;
   
   // Initialize user on first load - create local user without Supabase
   useEffect(() => {
@@ -770,12 +771,10 @@ function Product() {
               position: 'absolute',
               top: 12,
               right: 12,
-              backgroundColor: 'rgba(0,0,0,0.7)',
-              width: 50,
-              height: 50,
-              borderRadius: 25,
-              justifyContent: 'center',
-              alignItems: 'center',
+              backgroundColor: '#fff',
+              paddingHorizontal: 14,
+              paddingVertical: 10,
+              borderRadius: 14,
               shadowColor: '#000',
               shadowOffset: { width: 0, height: 2 },
               shadowOpacity: 0.3,
@@ -783,7 +782,7 @@ function Product() {
               elevation: 5
             }}
           >
-            <Text style={{ fontSize: 20 }}>✦</Text>
+            <Text style={{ color: '#000', fontWeight: '700' }}>✦ Try On</Text>
           </Pressable>
       </View>
       <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderRadius: 24, padding: 16 }}>
@@ -840,7 +839,7 @@ function Product() {
             }}
           >
             <Text style={{ fontSize: 20, marginBottom: 4 }}>
-              {isTracking ? '🔔' : '▣'}
+              {isTracking ? '🔔' : '◉'}
             </Text>
             <Text style={{ 
               color: isTracking ? '#fff' : '#e4e4e7', 
@@ -1187,7 +1186,10 @@ function TryOn() {
         {/* Top-right floating action buttons */}
         <View style={{ position: 'absolute', top: 17, right: 12, flexDirection: 'column', gap: 12 }}>
           <Pressable 
-            onPress={() => setRoute('ai-analytics')}
+            onPress={() => showFeatureOverlay({
+              title: 'AI Analytics',
+              description: 'Get detailed insights about your outfit choices, color preferences, and style trends. AI analyzes your fashion patterns to provide personalized recommendations.'
+            })}
             style={{ 
               width: 52, 
               height: 52, 
@@ -1238,7 +1240,7 @@ function TryOn() {
               elevation: 5
             }}
           >
-            <Text style={{ fontSize: 20 }}>◈</Text>
+            <Text style={{ fontSize: 20 }}>◊</Text>
           </Pressable>
         </View>
         
@@ -1265,6 +1267,68 @@ function TryOn() {
             >
               <Text style={{ color: '#fff', fontWeight: '600' }}>◉ Buy</Text>
             </Pressable>
+          )}
+        </View>
+        
+        {/* Expandable Outfit Analysis */}
+        <View style={{ 
+          backgroundColor: 'rgba(255,255,255,0.05)', 
+          borderRadius: 16, 
+          margin: 16, 
+          borderWidth: 1, 
+          borderColor: 'rgba(255,255,255,0.1)' 
+        }}>
+          <Pressable 
+            onPress={() => setShowOverlay(!showOverlay)}
+            style={{ 
+              flexDirection: 'row', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              padding: 16 
+            }}
+          >
+            <Text style={{ color: '#e4e4e7', fontSize: 16, fontWeight: '600' }}>
+              Outfit Analysis
+            </Text>
+            <Text style={{ color: '#a1a1aa', fontSize: 20 }}>
+              {showOverlay ? '−' : '+'}
+            </Text>
+          </Pressable>
+          
+          {showOverlay && (
+            <View style={{ padding: 16, paddingTop: 0 }}>
+              <Text style={{ color: '#a1a1aa', fontSize: 14, lineHeight: 20, marginBottom: 12 }}>
+                This outfit features a modern silhouette with excellent color coordination. The proportions work well for your body type, and the styling suggests a contemporary, confident look.
+              </Text>
+              
+              {/* Chat Input */}
+              <View style={{ 
+                flexDirection: 'row', 
+                backgroundColor: 'rgba(255,255,255,0.05)', 
+                borderRadius: 12, 
+                padding: 8,
+                alignItems: 'center'
+              }}>
+                <TextInput
+                  placeholder="Ask about this outfit..."
+                  placeholderTextColor="#a1a1aa"
+                  style={{ 
+                    flex: 1, 
+                    color: '#e4e4e7', 
+                    fontSize: 14, 
+                    paddingHorizontal: 8 
+                  }}
+                />
+                <Pressable style={{ 
+                  backgroundColor: '#10b981', 
+                  paddingHorizontal: 12, 
+                  paddingVertical: 6, 
+                  borderRadius: 8 
+                }}>
+                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>Send</Text>
+                </Pressable>
+              </View>
+            </View>
           )}
         </View>
       </View>
