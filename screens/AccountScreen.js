@@ -48,42 +48,42 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
     {
       id: 'tryons',
       title: 'My Try-Ons',
-      icon: '👕',
+      icon: '◉',
       color: '#6366f1',
       count: tryOnResults.length,
     },
     {
       id: 'pods',
       title: 'Active Pods',
-      icon: '💬',
+      icon: '◈',
       color: '#8b5cf6',
       count: 2,
     },
     {
       id: 'designs',
       title: 'StyleCraft Designs',
-      icon: '⭐',
+      icon: '✦',
       color: '#f59e0b',
       count: 1,
     },
     {
       id: 'favorites',
       title: 'Favorites',
-      icon: '❤️',
+      icon: '◈',
       color: '#ef4444',
       count: 12,
     },
     {
       id: 'settings',
       title: 'Settings',
-      icon: '⚙️',
+      icon: '⚙',
       color: '#6b7280',
       count: null,
     },
     {
       id: 'help',
       title: 'Help & Support',
-      icon: '💬',
+      icon: '◈',
       color: '#10b981',
       count: null,
     },
@@ -190,22 +190,22 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
                 <Text style={styles.statNumber}>{tryOnResults.length}</Text>
-                <Text style={styles.statLabel}>👕 Try-Ons</Text>
+                <Text style={styles.statLabel}>◉ Try-Ons</Text>
               </View>
               <View style={styles.statItem}>
                 <Text style={styles.statNumber}>2</Text>
-                <Text style={styles.statLabel}>💬 Pods Running</Text>
+                <Text style={styles.statLabel}>◈ Pods Running</Text>
               </View>
               <View style={styles.statItem}>
                 <Text style={styles.statNumber}>1</Text>
-                <Text style={styles.statLabel}>⭐ StyleCraft Design</Text>
+                <Text style={styles.statLabel}>✦ StyleCraft Design</Text>
               </View>
             </View>
           </View>
 
           {/* AI Insights Section */}
           <View style={styles.insightsSection}>
-            <Text style={styles.sectionTitle}>📈 AI Insights</Text>
+            <Text style={styles.sectionTitle}>▣ AI Insights</Text>
             <FlatList
               data={aiInsights}
               renderItem={({ item }) => <InsightCard insight={item} />}
@@ -219,7 +219,7 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
           {/* Try-On Results Section */}
           {tryOnResults.length > 0 && (
             <View style={styles.tryOnSection}>
-              <Text style={styles.sectionTitle}>👕 My Try-Ons</Text>
+              <Text style={styles.sectionTitle}>◉ My Try-Ons</Text>
               <FlatList
                 data={tryOnResults}
                 renderItem={({ item }) => (

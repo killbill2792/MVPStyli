@@ -583,7 +583,7 @@ function Shop() {
       {/* Search Bar */}
       <View style={{ padding: 16, paddingBottom: 8, paddingTop: 20 }}>
         <View style={{ backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center' }}>
-          <Text style={{ color: '#a1a1aa', marginRight: 8 }}>🔍</Text>
+          <Text style={{ color: '#a1a1aa', marginRight: 8 }}>⌕</Text>
           <TextInput
             value={searchQuery}
             onChangeText={handleSearch}
@@ -660,7 +660,7 @@ function Shop() {
                   paddingVertical: 4,
                   borderRadius: 12
                 }}>
-                  <Text style={{ color: '#fff', fontSize: 12 }}>👁️</Text>
+                  <Text style={{ color: '#fff', fontSize: 12 }}>👁</Text>
                 </View>
                 
                 {/* Product Info */}
@@ -783,7 +783,7 @@ function Product() {
               elevation: 5
             }}
           >
-            <Text style={{ fontSize: 20 }}>✨</Text>
+            <Text style={{ fontSize: 20 }}>✦</Text>
           </Pressable>
       </View>
       <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderRadius: 24, padding: 16 }}>
@@ -840,7 +840,7 @@ function Product() {
             }}
           >
             <Text style={{ fontSize: 20, marginBottom: 4 }}>
-              {isTracking ? '🔔' : '📊'}
+              {isTracking ? '🔔' : '▣'}
             </Text>
             <Text style={{ 
               color: isTracking ? '#fff' : '#e4e4e7', 
@@ -1202,7 +1202,7 @@ function TryOn() {
               elevation: 5
             }}
           >
-            <Text style={{ fontSize: 20 }}>📊</Text>
+            <Text style={{ fontSize: 20 }}>⌕</Text>
           </Pressable>
           <Pressable 
             onPress={() => setRoute('createpod')}
@@ -1238,7 +1238,7 @@ function TryOn() {
               elevation: 5
             }}
           >
-            <Text style={{ fontSize: 20 }}>💡</Text>
+            <Text style={{ fontSize: 20 }}>◈</Text>
           </Pressable>
         </View>
         
@@ -1255,7 +1255,7 @@ function TryOn() {
             }}
           >
             <Text style={{ color: busy ? '#666' : '#000', fontWeight: '700' }}>
-              {busy ? '⏳ Processing...' : '✨ Try On'}
+              {busy ? '⏳ Processing...' : '✦ Try On'}
             </Text>
           </Pressable>
           {result && (
@@ -1263,7 +1263,7 @@ function TryOn() {
               onPress={() => Linking.openURL(product?.buyUrl || 'https://example.com')} 
               style={{ backgroundColor: '#10b981', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14 }}
             >
-              <Text style={{ color: '#fff', fontWeight: '600' }}>🛒 Buy</Text>
+              <Text style={{ color: '#fff', fontWeight: '600' }}>◉ Buy</Text>
             </Pressable>
           )}
         </View>
@@ -1703,7 +1703,7 @@ function Explore() {
               elevation: 5
             }}
           >
-            <Text style={{ fontSize: 20 }}>💡</Text>
+            <Text style={{ fontSize: 20 }}>◈</Text>
           </Pressable>
         </View>
 
