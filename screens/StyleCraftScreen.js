@@ -88,7 +88,7 @@ const StyleCraftScreen = ({ onBack }) => {
           <Pressable style={styles.backButton} onPress={onBack}>
             <Text style={styles.backButtonText}>← Back</Text>
           </Pressable>
-          <Text style={styles.headerTitle}>StyleCraft — AI Tailor Studio</Text>
+          <Text style={styles.headerTitle}>StyleCraft</Text>
           <View style={styles.headerSpacer} />
         </View>
 

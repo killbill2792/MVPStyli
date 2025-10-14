@@ -29,6 +29,7 @@ interface PodsHomeProps {
   onPodLive: (podId: string) => void;
   onPodRecap: (podId: string) => void;
   onInbox: () => void;
+  onCreatePod: () => void;
   userId?: string;
   userEmail?: string;
 }
@@ -38,6 +39,7 @@ const PodsHome: React.FC<PodsHomeProps> = ({
   onPodLive, 
   onPodRecap, 
   onInbox, 
+  onCreatePod,
   userId, 
   userEmail 
 }) => {
@@ -227,9 +229,14 @@ const PodsHome: React.FC<PodsHomeProps> = ({
             <Text style={styles.backButtonText}>← Back</Text>
           </Pressable>
           <Text style={styles.headerTitle}>Pods</Text>
-          <Pressable style={styles.inboxButton} onPress={onInbox}>
-            <Text style={styles.inboxButtonText}>🔔</Text>
-          </Pressable>
+          <View style={styles.headerActions}>
+            <Pressable style={styles.createPodButton} onPress={onCreatePod}>
+              <Text style={styles.createPodButtonText}>+</Text>
+            </Pressable>
+            <Pressable style={styles.inboxButton} onPress={onInbox}>
+              <Text style={styles.inboxButtonText}>🔔</Text>
+            </Pressable>
+          </View>
         </View>
 
         {/* Tab Navigation */}
@@ -282,12 +289,12 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 80,
+    height: 60,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 40,
+    paddingTop: 10,
     zIndex: 1000,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
   },
@@ -304,6 +311,24 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#fff',
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  createPodButton: {
+    backgroundColor: '#10b981',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  createPodButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+  },
   inboxButton: {
     padding: 8,
   },
@@ -312,7 +337,7 @@ const styles = StyleSheet.create({
   },
   tabContainer: {
     flexDirection: 'row',
-    paddingTop: 80,
+    paddingTop: 20,
     paddingHorizontal: 16,
     paddingBottom: 16,
   },

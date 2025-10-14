@@ -161,7 +161,7 @@ const AccountScreen = ({ onBack }) => {
           <Pressable style={styles.backButton} onPress={onBack}>
             <Text style={styles.backButtonText}>← Back</Text>
           </Pressable>
-          <Text style={styles.headerTitle}>My Stylit Hub</Text>
+          <Text style={styles.headerTitle}>Account</Text>
           <View style={styles.headerSpacer} />
         </View>
 
@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    paddingTop: 60,
+    paddingTop: 20,
   },
   scrollContent: {
     paddingHorizontal: 16,
