@@ -8,6 +8,7 @@ import {
   Dimensions,
   Image,
   FlatList,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -220,16 +221,15 @@ const PodsHome: React.FC<PodsHomeProps> = ({
   };
 
   return (
-    <View style={styles.container}>
+    <TouchableWithoutFeedback onLongPress={onBack}>
+      <View style={styles.container}>
       <LinearGradient
         colors={['#000000', '#0a0a0a', '#1a1a2e']}
         style={styles.background}
       >
         {/* Fixed Header */}
-        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-          <Pressable style={styles.backButton} onPress={onBack}>
-            <Text style={styles.backButtonText}>← Back</Text>
-          </Pressable>
+        <View style={styles.header}>
+          <View style={{ width: 60 }} />
           <Text style={styles.headerTitle}>Pods</Text>
           <View style={styles.headerActions}>
             <Pressable style={styles.createPodButton} onPress={onCreatePod}>
@@ -242,7 +242,7 @@ const PodsHome: React.FC<PodsHomeProps> = ({
         </View>
 
         {/* Tab Navigation */}
-        <View style={[styles.tabContainer, { paddingTop: insets.top + 80 }]}>
+        <View style={styles.tabContainer}>
           <Pressable 
             style={[styles.tab, activeTab === 'active' && styles.activeTab]}
             onPress={() => setActiveTab('active')}
@@ -275,6 +275,7 @@ const PodsHome: React.FC<PodsHomeProps> = ({
         </View>
       </LinearGradient>
     </View>
+    </TouchableWithoutFeedback>
   );
 };
 
@@ -296,6 +297,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
+    paddingTop: 10,
     zIndex: 1000,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
   },
@@ -338,6 +340,7 @@ const styles = StyleSheet.create({
   },
   tabContainer: {
     flexDirection: 'row',
+    paddingTop: 20,
     paddingHorizontal: 16,
     paddingBottom: 16,
   },

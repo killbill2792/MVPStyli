@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useMemo, useEffect, useState } from 'react';
-import { View, Text, Pressable, Image, StyleSheet, Alert, StatusBar, TextInput, ScrollView, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, Pressable, Image, StyleSheet, Alert, StatusBar, TextInput, ScrollView, TouchableWithoutFeedback, PanGestureHandler } from 'react-native';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { customAlphabet } from 'nanoid/non-secure';
@@ -368,7 +368,7 @@ function Shell() {
   }
   
   return (
-    <SafeAreaView style={[s.safeArea, { paddingTop: 0 }]} edges={['left', 'right']}>
+    <SafeAreaView style={s.safeArea} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="light-content" translucent={true} />
       
       {/* New screens that need full screen control */}
@@ -1103,7 +1103,8 @@ function TryOn() {
   };
   
   return (
-    <View style={{ flex: 1, backgroundColor: '#000' }}>
+    <TouchableWithoutFeedback onLongPress={() => setRoute('shop')}>
+      <View style={{ flex: 1, backgroundColor: '#000' }}>
 
       {/* Transparent Overlay */}
       {showOverlay && (
@@ -1332,7 +1333,7 @@ function TryOn() {
           </View>
         )}
       </View>
-    </View>
+    </TouchableWithoutFeedback>
   );
 }
 
