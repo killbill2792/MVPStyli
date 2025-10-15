@@ -368,7 +368,7 @@ function Shell() {
   }
   
   return (
-    <SafeAreaView style={s.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[s.safeArea, { paddingTop: 0 }]} edges={['left', 'right']}>
       <StatusBar barStyle="light-content" translucent={true} />
       
       {/* New screens that need full screen control */}
@@ -938,6 +938,7 @@ function TryOn() {
   const [result, setResult] = useState(null);
   const [showOverlay, setShowOverlay] = useState(false);
   const [overlayContent, setOverlayContent] = useState(null);
+  const [showOutfitAnalysis, setShowOutfitAnalysis] = useState(false);
   
   if (!twinUrl) {
     return (
@@ -977,9 +978,9 @@ function TryOn() {
       
       // Upload garment image to Supabase for Replicate access
       let garmentImgUrl = garmentCleanUrl;
-      if (!garmentCleanUrl.startsWith('https://rlbfdnzwkgxkzsapetdt.supabase.co')) {
+      if (garmentCleanUrl && !garmentCleanUrl.includes('supabase')) {
         console.log('Uploading garment image to Supabase...');
-        garmentImgUrl = await uploadGarmentImage(garmentCleanUrl, garmentId || 'unknown');
+        garmentImgUrl = await uploadGarmentImage(garmentCleanUrl, garmentId);
         console.log('Garment image uploaded:', garmentImgUrl);
       }
       
@@ -1146,7 +1147,7 @@ function TryOn() {
         </TouchableWithoutFeedback>
       )}
       
-      <View style={{ flex: 1, width: '100%', position: 'relative' }}>
+      <View style={{ flex: 1, width: '100%', position: 'relative', borderRadius: 24, overflow: 'hidden' }}>
         <Image source={{ uri: result || twinUrl }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
         
         {/* Processing indicator in middle of photo */}
@@ -1188,10 +1189,7 @@ function TryOn() {
         {/* Top-right floating action buttons */}
         <View style={{ position: 'absolute', top: 17, right: 12, flexDirection: 'column', gap: 12 }}>
           <Pressable 
-            onPress={() => showFeatureOverlay({
-              title: 'AI Analytics',
-              description: 'Get detailed insights about your outfit choices, color preferences, and style trends. AI analyzes your fashion patterns to provide personalized recommendations.'
-            })}
+            onPress={() => setShowOutfitAnalysis(!showOutfitAnalysis)}
             style={{ 
               width: 52, 
               height: 52, 
@@ -1273,31 +1271,31 @@ function TryOn() {
         </View>
         
         {/* Expandable Outfit Analysis */}
-        <View style={{ 
-          backgroundColor: 'rgba(255,255,255,0.05)', 
-          borderRadius: 16, 
-          margin: 16, 
-          borderWidth: 1, 
-          borderColor: 'rgba(255,255,255,0.1)' 
-        }}>
-          <Pressable 
-            onPress={() => setShowOverlay(!showOverlay)}
-            style={{ 
-              flexDirection: 'row', 
-              justifyContent: 'space-between', 
-              alignItems: 'center', 
-              padding: 16 
-            }}
-          >
-            <Text style={{ color: '#e4e4e7', fontSize: 16, fontWeight: '600' }}>
-              Outfit Analysis
-            </Text>
-            <Text style={{ color: '#a1a1aa', fontSize: 20 }}>
-              {showOverlay ? '−' : '+'}
-            </Text>
-          </Pressable>
-          
-          {showOverlay && (
+        {showOutfitAnalysis && (
+          <View style={{ 
+            backgroundColor: 'rgba(128,128,128,0.15)', 
+            borderRadius: 16, 
+            margin: 16, 
+            borderWidth: 1, 
+            borderColor: 'rgba(255,255,255,0.1)' 
+          }}>
+            <Pressable 
+              onPress={() => setShowOutfitAnalysis(false)}
+              style={{ 
+                flexDirection: 'row', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                padding: 16 
+              }}
+            >
+              <Text style={{ color: '#e4e4e7', fontSize: 16, fontWeight: '600' }}>
+                Outfit Analysis
+              </Text>
+              <Text style={{ color: '#a1a1aa', fontSize: 20 }}>
+                −
+              </Text>
+            </Pressable>
+            
             <View style={{ padding: 16, paddingTop: 0 }}>
               <Text style={{ color: '#a1a1aa', fontSize: 14, lineHeight: 20, marginBottom: 12 }}>
                 This outfit features a modern silhouette with excellent color coordination. The proportions work well for your body type, and the styling suggests a contemporary, confident look.
@@ -1331,8 +1329,8 @@ function TryOn() {
                 </Pressable>
               </View>
             </View>
-          )}
-        </View>
+          </View>
+        )}
       </View>
     </View>
   );

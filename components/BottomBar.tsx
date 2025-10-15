@@ -13,7 +13,7 @@ export default function BottomBar({ route, go }: { route: string; go: (r: string
       right: 0, 
       bottom: 0, 
       alignItems: 'center',
-      paddingBottom: insets.bottom + 10, // Use safe area insets
+      paddingBottom: insets.bottom + 5, // Reduced from 10 to 5
       backgroundColor: 'transparent',
       paddingTop: 8
     }}>
