@@ -326,9 +326,9 @@ export default function App() {
   
   return (
     <SafeAreaProvider>
-      <AppProvider>
-        <Shell />
-      </AppProvider>
+    <AppProvider>
+      <Shell />
+    </AppProvider>
     </SafeAreaProvider>
   );
 }
@@ -1328,11 +1328,10 @@ function TryOn() {
                 }}>
                   <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>Send</Text>
                 </Pressable>
-              </View>
-            </View>
+      </View>
+    </View>
           </View>
         )}
-      </View>
     </TouchableWithoutFeedback>
   );
 }
