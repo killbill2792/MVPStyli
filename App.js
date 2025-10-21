@@ -1332,6 +1332,8 @@ function TryOn() {
             </View>
           </View>
         )}
+        
+      </View>
       </View>
     </TouchableWithoutFeedback>
   );
