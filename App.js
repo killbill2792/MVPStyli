@@ -1328,10 +1328,11 @@ function TryOn() {
                 }}>
                   <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>Send</Text>
                 </Pressable>
-      </View>
-    </View>
+              </View>
+            </View>
           </View>
         )}
+      </View>
     </TouchableWithoutFeedback>
   );
 }
