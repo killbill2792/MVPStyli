@@ -1117,53 +1117,20 @@ function TryOn() {
         console.log('Garment image uploaded:', garmentImgUrl);
       }
       
-      // Convert URLs to data URIs for Replicate compatibility
-      const convertToDataUri = async (url) => {
-        try {
-          const response = await fetch(url);
-          const blob = await response.blob();
-          return new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result);
-            reader.readAsDataURL(blob);
-          });
-        } catch (error) {
-          console.log('Failed to convert to data URI, using original URL:', error);
-          return url;
-        }
-      };
-      
-      // Try to convert to data URIs, but fallback to URLs if they're too large
-      let humanDataUri = humanImgUrl;
-      let garmentDataUri = garmentImgUrl;
-      
-      try {
-        const humanUri = await convertToDataUri(humanImgUrl);
-        const garmentUri = await convertToDataUri(garmentImgUrl);
-        
-        // Use data URIs only if they're reasonable size (less than 1MB)
-        if (humanUri.length < 1000000) {
-          humanDataUri = humanUri;
-        }
-        if (garmentUri.length < 1000000) {
-          garmentDataUri = garmentUri;
-        }
-        
-        console.log('Using data URIs:', {
-          human: humanDataUri !== humanImgUrl,
-          garment: garmentDataUri !== garmentImgUrl
-        });
-      } catch (error) {
-        console.log('Data URI conversion failed, using URLs:', error);
-      }
+      // Use Supabase URLs directly - they work fine with Replicate
+      // No need to convert to data URIs as Supabase URLs are accessible
+      console.log('Using Supabase URLs directly:', {
+        human: humanImgUrl,
+        garment: garmentImgUrl
+      });
       
       // Call try-on API directly
       const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE}/api/tryon`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          human_img: humanDataUri, 
-          garm_img: garmentDataUri, 
+          human_img: humanImgUrl, 
+          garm_img: garmentImgUrl, 
           category,
           garment_des: product?.garment_des || "Garment item"
         })
