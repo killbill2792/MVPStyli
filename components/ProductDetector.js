@@ -17,14 +17,20 @@ export const ProductDetector = ({ onProductDetected, onClose }) => {
 
     setAnalyzing(true);
     try {
+      console.log('ProductDetector: Starting URL analysis...');
       const productData = await analyzeProductUrl(url);
+      console.log('ProductDetector: Received product data:', productData);
+      
       if (productData) {
         // Navigate directly to product details without popup
+        console.log('ProductDetector: Navigating to product details');
         onProductDetected(productData);
       } else {
+        console.log('ProductDetector: No product data received');
         Alert.alert('Error', 'Could not detect product from this URL');
       }
     } catch (error) {
+      console.error('ProductDetector: Error analyzing URL:', error);
       Alert.alert('Error', 'Failed to analyze URL');
     } finally {
       setAnalyzing(false);
