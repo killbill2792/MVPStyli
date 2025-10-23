@@ -15,6 +15,8 @@ import PodLive from './screens/PodLive';
 import PodRecap from './screens/PodRecap';
 import PodsHome from './screens/PodsHome';
 import Inbox from './screens/Inbox';
+import { ProductDetector } from './components/ProductDetector';
+import { fetchFakeStoreProducts } from './lib/productApi';
 
 // Enhanced product data with working model images - upper body and lower body items
 const enhancedProducts = [
@@ -545,18 +547,35 @@ function Shop() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [showSearch, setShowSearch] = useState(false);
+  const [showProductDetector, setShowProductDetector] = useState(false);
+  const [allProducts, setAllProducts] = useState(enhancedProducts);
   
   // Use the global enhancedProducts array
   
+  // Load additional products from APIs
+  useEffect(() => {
+    const loadAdditionalProducts = async () => {
+      try {
+        const fakeProducts = await fetchFakeStoreProducts();
+        setAllProducts([...enhancedProducts, ...fakeProducts]);
+      } catch (error) {
+        console.error('Error loading additional products:', error);
+        setAllProducts(enhancedProducts);
+      }
+    };
+    
+    loadAdditionalProducts();
+  }, []);
+
   // Enhanced NLP search function
   const performSearch = (query) => {
     if (!query.trim()) {
-      setFilteredProducts(enhancedProducts);
+      setFilteredProducts(allProducts);
       return;
     }
     
     const searchTerms = query.toLowerCase().split(' ').filter(term => term.length > 0);
-    const filtered = enhancedProducts.filter(product => {
+    const filtered = allProducts.filter(product => {
       const searchableText = `${product.name} ${product.brand} ${product.category} ${product.color} ${product.material} ${product.garment_des}`.toLowerCase();
       
       // Check for exact matches first
@@ -573,32 +592,54 @@ function Shop() {
 
   // Initialize with all products
   useEffect(() => {
-    setFilteredProducts(enhancedProducts);
-  }, []);
+    setFilteredProducts(allProducts);
+  }, [allProducts]);
   
   const handleSearch = (text) => {
     setSearchQuery(text);
     performSearch(text);
+  };
+
+  const handleProductDetected = (newProduct) => {
+    setAllProducts(prev => [newProduct, ...prev]);
+    setFilteredProducts(prev => [newProduct, ...prev]);
+    setShowProductDetector(false);
   };
   
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       {/* Search Bar */}
       <View style={{ padding: 16, paddingBottom: 8 }}>
-        <View style={{ backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center' }}>
-          <Text style={{ color: '#a1a1aa', marginRight: 8 }}>⌕</Text>
-          <TextInput
-            value={searchQuery}
-            onChangeText={handleSearch}
-            placeholder="Search dresses, brands, colors..."
-            placeholderTextColor="#a1a1aa"
-            style={{ flex: 1, color: '#e4e4e7', fontSize: 14 }}
-          />
-          {searchQuery.length > 0 && (
-            <Pressable onPress={() => { setSearchQuery(''); setFilteredProducts(enhancedProducts); }}>
-              <Text style={{ color: '#a1a1aa', fontSize: 16 }}>✕</Text>
-            </Pressable>
-          )}
+        <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+          <View style={{ backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+            <Text style={{ color: '#a1a1aa', marginRight: 8 }}>⌕</Text>
+            <TextInput
+              value={searchQuery}
+              onChangeText={handleSearch}
+              placeholder="Search dresses, brands, colors..."
+              placeholderTextColor="#a1a1aa"
+              style={{ flex: 1, color: '#e4e4e7', fontSize: 14 }}
+            />
+            {searchQuery.length > 0 && (
+              <Pressable onPress={() => { setSearchQuery(''); setFilteredProducts(allProducts); }}>
+                <Text style={{ color: '#a1a1aa', fontSize: 16 }}>✕</Text>
+              </Pressable>
+            )}
+          </View>
+          
+          <Pressable 
+            onPress={() => setShowProductDetector(true)}
+            style={{ 
+              backgroundColor: '#10b981', 
+              paddingHorizontal: 16, 
+              paddingVertical: 12, 
+              borderRadius: 16 
+            }}
+          >
+            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
+              + Detect
+            </Text>
+          </Pressable>
         </View>
       </View>
       
@@ -706,6 +747,25 @@ function Shop() {
           </View>
         )}
       </ScrollView>
+
+      {/* Product Detector Overlay */}
+      {showProductDetector && (
+        <View style={{ 
+          position: 'absolute', 
+          top: 0, 
+          left: 0, 
+          right: 0, 
+          bottom: 0, 
+          backgroundColor: 'rgba(0,0,0,0.8)', 
+          justifyContent: 'center', 
+          alignItems: 'center' 
+        }}>
+          <ProductDetector 
+            onProductDetected={handleProductDetected}
+            onClose={() => setShowProductDetector(false)}
+          />
+        </View>
+      )}
     </View>
   );
 }
