@@ -16,7 +16,7 @@ import PodRecap from './screens/PodRecap';
 import PodsHome from './screens/PodsHome';
 import Inbox from './screens/Inbox';
 import { ProductDetector } from './components/ProductDetector';
-import { fetchFakeStoreProducts } from './lib/productApi';
+import { fetchRealClothingProducts } from './lib/productApi';
 
 // Enhanced product data with working model images - upper body and lower body items
 const enhancedProducts = [
@@ -280,7 +280,8 @@ const initial = {
   feedItems: [],
   currentFeedIndex: 0,
   rooms: [],
-  tryOnResults: []
+  tryOnResults: [],
+  detectedProduct: null
 };
 
 export function AppProvider({ children }) {
@@ -293,6 +294,7 @@ export function AppProvider({ children }) {
     setUser: (user) => setState(s => ({ ...s, user })),
     setTryOnResults: (results) => setState(s => ({ ...s, tryOnResults: results })),
     setCurrentProduct: (id) => setState(s => ({ ...s, currentProductId: id })),
+    setDetectedProduct: (product) => setState(s => ({ ...s, detectedProduct: product })),
     nextFeedItem: () => setState(s => ({ ...s, currentFeedIndex: (s.currentFeedIndex + 1) % s.feedItems.length })),
     createRoom: ({ lookId, mode, durationMins = 60, title }) => {
       const room = {
@@ -543,7 +545,7 @@ function Onboarding() {
 }
 
 function Shop() {
-  const { state: { products }, setRoute, setCurrentProduct } = useApp();
+  const { state: { products }, setRoute, setCurrentProduct, setDetectedProduct } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [showSearch, setShowSearch] = useState(false);
@@ -552,12 +554,12 @@ function Shop() {
   
   // Use the global enhancedProducts array
   
-  // Load additional products from APIs
+  // Load additional products from real clothing brands
   useEffect(() => {
     const loadAdditionalProducts = async () => {
       try {
-        const fakeProducts = await fetchFakeStoreProducts();
-        setAllProducts([...enhancedProducts, ...fakeProducts]);
+        const realProducts = await fetchRealClothingProducts();
+        setAllProducts([...enhancedProducts, ...realProducts]);
       } catch (error) {
         console.error('Error loading additional products:', error);
         setAllProducts(enhancedProducts);
@@ -601,8 +603,10 @@ function Shop() {
   };
 
   const handleProductDetected = (newProduct) => {
-    setAllProducts(prev => [newProduct, ...prev]);
-    setFilteredProducts(prev => [newProduct, ...prev]);
+    // Store the detected product and navigate to product details
+    setDetectedProduct(newProduct);
+    setCurrentProduct(newProduct.id);
+    setRoute('product');
     setShowProductDetector(false);
   };
   
@@ -771,8 +775,9 @@ function Shop() {
 }
 
 function Product() {
-  const { state: { currentProductId }, setRoute } = useApp();
-  const product = enhancedProducts.find(p => p.id === currentProductId);
+  const { state: { currentProductId, detectedProduct }, setRoute } = useApp();
+  const [allProducts, setAllProducts] = useState([...enhancedProducts]);
+  const [product, setProduct] = useState(null);
   const [cleanUrl, setCleanUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isTracking, setIsTracking] = useState(false);
@@ -784,22 +789,44 @@ function Product() {
     { date: '2024-01-05', price: 139 },
     { date: '2024-01-01', price: 119 }
   ]);
-  
+
+  // Load all products including detected ones
   useEffect(() => {
-    if (product) {
-      // Upload garment image to Supabase for Replicate access
-      uploadGarmentImage(product.image, product.id)
-        .then(url => {
-          setCleanUrl(url);
+    const loadAllProducts = async () => {
+      try {
+        const realProducts = await fetchRealClothingProducts();
+        const allProductsList = [...enhancedProducts, ...realProducts];
+        setAllProducts(allProductsList);
+        
+        // Find the current product
+        const currentProduct = allProductsList.find(p => p.id === currentProductId);
+        setProduct(currentProduct);
+        
+        if (currentProduct) {
+          // Upload garment image to Supabase for Replicate access
+          uploadGarmentImage(currentProduct.image, currentProduct.id)
+            .then(url => {
+              setCleanUrl(url);
+              setLoading(false);
+            })
+            .catch(error => {
+              console.error('Garment upload error:', error);
+              setCleanUrl(currentProduct.image);
+              setLoading(false);
+            });
+        } else {
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error loading products:', error);
+        const currentProduct = enhancedProducts.find(p => p.id === currentProductId);
+        setProduct(currentProduct);
         setLoading(false);
-      })
-      .catch(error => {
-          console.error('Garment upload error:', error);
-        setCleanUrl(product.image);
-        setLoading(false);
-      });
-    }
-  }, [product]);
+      }
+    };
+    
+    loadAllProducts();
+  }, [currentProductId]);
   
   const togglePriceTracking = () => {
     if (!showPriceInput) {
@@ -815,7 +842,31 @@ function Product() {
     }
   };
   
-  if (!product) return null;
+  if (!product) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+        <Text style={{ color: '#fff', fontSize: 18, fontWeight: '600', marginBottom: 12, textAlign: 'center' }}>
+          Product Not Found
+        </Text>
+        <Text style={{ color: '#a1a1aa', fontSize: 14, textAlign: 'center', marginBottom: 24 }}>
+          The product you're looking for doesn't exist or has been removed.
+        </Text>
+        <Pressable 
+          onPress={() => setRoute('shop')}
+          style={{ 
+            backgroundColor: '#10b981', 
+            paddingHorizontal: 24, 
+            paddingVertical: 12, 
+            borderRadius: 12 
+          }}
+        >
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>
+            Back to Shop
+          </Text>
+        </Pressable>
+      </View>
+    );
+  }
   
   const lowestPrice = Math.min(...priceHistory.map(p => p.price));
   const isOnSale = product.price < priceHistory[0].price;
@@ -828,7 +879,7 @@ function Product() {
           
           {/* Floating Try On Button */}
           <Pressable 
-            onPress={() => setRoute('tryon', { garmentId: product.id, category: product.category, garmentCleanUrl: product.image })}
+            onPress={() => setRoute('tryon', { garmentId: product.id, category: product.category, garmentCleanUrl: cleanUrl || product.image })}
             style={{
               position: 'absolute',
               top: 12,
@@ -989,7 +1040,8 @@ function Product() {
 
 function TryOn() {
   const { state: { twinUrl, currentProductId, tryOnResults }, setRoute, setTwinUrl, setTryOnResults } = useApp();
-  const product = enhancedProducts.find(p => p.id === currentProductId);
+  const [allProducts, setAllProducts] = useState([...enhancedProducts]);
+  const [product, setProduct] = useState(null);
   const garmentCleanUrl = useApp().state.params?.garmentCleanUrl;
   const garmentId = useApp().state.params?.garmentId;
   const category = useApp().state.params?.category;
@@ -999,6 +1051,27 @@ function TryOn() {
   const [showOverlay, setShowOverlay] = useState(false);
   const [overlayContent, setOverlayContent] = useState(null);
   const [showOutfitAnalysis, setShowOutfitAnalysis] = useState(false);
+
+  // Load all products including detected ones
+  useEffect(() => {
+    const loadAllProducts = async () => {
+      try {
+        const realProducts = await fetchRealClothingProducts();
+        const allProductsList = [...enhancedProducts, ...realProducts];
+        setAllProducts(allProductsList);
+        
+        // Find the current product
+        const currentProduct = allProductsList.find(p => p.id === currentProductId);
+        setProduct(currentProduct);
+      } catch (error) {
+        console.error('Error loading products:', error);
+        const currentProduct = enhancedProducts.find(p => p.id === currentProductId);
+        setProduct(currentProduct);
+      }
+    };
+    
+    loadAllProducts();
+  }, [currentProductId]);
   
   if (!twinUrl) {
     return (

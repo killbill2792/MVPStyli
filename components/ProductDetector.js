@@ -19,9 +19,9 @@ export const ProductDetector = ({ onProductDetected, onClose }) => {
     try {
       const productData = await analyzeProductUrl(url);
       if (productData) {
-        const savedProduct = await saveDetectedProduct(productData, productData.image);
-        onProductDetected(savedProduct);
-        Alert.alert('Success', 'Product detected and added to shop!');
+        // Instead of saving to shop, show the product details
+        onProductDetected(productData);
+        Alert.alert('Success', 'Product detected! You can now view details and try it on.');
       } else {
         Alert.alert('Error', 'Could not detect product from this URL');
       }
@@ -55,9 +55,9 @@ export const ProductDetector = ({ onProductDetected, onClose }) => {
     try {
       const productData = await analyzeProductImage(selectedImage.uri);
       if (productData) {
-        const savedProduct = await saveDetectedProduct(productData, selectedImage.uri);
-        onProductDetected(savedProduct);
-        Alert.alert('Success', 'Product detected and added to shop!');
+        // Instead of saving to shop, show the product details
+        onProductDetected(productData);
+        Alert.alert('Success', 'Product detected! You can now view details and try it on.');
       } else {
         Alert.alert('Error', 'Could not detect product from this image');
       }
