@@ -798,8 +798,17 @@ function Product() {
         const allProductsList = [...enhancedProducts, ...realProducts];
         setAllProducts(allProductsList);
         
-        // Find the current product
-        const currentProduct = allProductsList.find(p => p.id === currentProductId);
+        // Check if we have a detected product first
+        let currentProduct = null;
+        if (detectedProduct && detectedProduct.id === currentProductId) {
+          currentProduct = detectedProduct;
+          console.log('Using detected product:', currentProduct);
+        } else {
+          // Find the current product in the list
+          currentProduct = allProductsList.find(p => p.id === currentProductId);
+          console.log('Found product in list:', currentProduct);
+        }
+        
         setProduct(currentProduct);
         
         if (currentProduct) {
@@ -815,6 +824,7 @@ function Product() {
               setLoading(false);
             });
         } else {
+          console.log('No product found for ID:', currentProductId);
           setLoading(false);
         }
       } catch (error) {
@@ -826,7 +836,7 @@ function Product() {
     };
     
     loadAllProducts();
-  }, [currentProductId]);
+  }, [currentProductId, detectedProduct]);
   
   const togglePriceTracking = () => {
     if (!showPriceInput) {
