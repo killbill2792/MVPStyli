@@ -144,7 +144,7 @@ export async function searchWebProducts(query: string): Promise<NormalizedProduc
   // Try to get API URL from environment, fallback to default
   const apiUrl = process.env.EXPO_PUBLIC_API_URL || 
                  process.env.API_URL || 
-                 'https://mvpstyli-fresh.vercel.app';
+                 'https://mvp-styli.vercel.app';
   
   // Ensure no trailing slash
   const baseUrl = apiUrl.replace(/\/$/, '');

@@ -15,9 +15,9 @@ import PodLive from './screens/PodLive';
 import PodRecap from './screens/PodRecap';
 import PodsHome from './screens/PodsHome';
 import Inbox from './screens/Inbox';
+import ChatScreen from './screens/ChatScreen';
 import { ProductDetector } from './components/ProductDetector';
 import { fetchRealClothingProducts } from './lib/productApi';
-import { isUrl, importProductFromUrl, searchWebProducts, normalizeProduct } from './lib/productSearch';
 import { Colors, Typography, Spacing, BorderRadius, ButtonStyles, CardStyles, InputStyles, TextStyles, createButtonStyle, getButtonTextStyle } from './lib/designSystem';
 
 // Enhanced product data with working model images - upper body and lower body items
@@ -412,6 +412,16 @@ function Shell() {
       />}
       {route === "stylecraft" && <StyleCraftScreen onBack={() => setRoute("shop")} />}
       {route === "account" && <NewAccountScreen onBack={() => setRoute("shop")} tryOnResults={state.tryOnResults} />}
+      {route === "chat" && <ChatScreen 
+        onBack={() => setRoute("shop")} 
+        onProductSelect={(product) => {
+          if (product.kind === 'web' || product.kind === 'imported') {
+            setDetectedProduct(product);
+          }
+          setCurrentProduct(product.id);
+          setRoute('product');
+        }}
+      />}
       
       {/* Shop screen - full screen like other new screens */}
       {route === "shop" && <Shop />}
@@ -548,20 +558,9 @@ function Onboarding() {
 
 function Shop() {
   const { state: { products }, setRoute, setCurrentProduct, setDetectedProduct } = useApp();
-  const [searchQuery, setSearchQuery] = useState('');
   const [filteredProducts, setFilteredProducts] = useState([]);
-  const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchError, setSearchError] = useState(null);
-  const [showSearch, setShowSearch] = useState(false);
   const [showProductDetector, setShowProductDetector] = useState(false);
   const [allProducts, setAllProducts] = useState(enhancedProducts);
-  const [isWebSearch, setIsWebSearch] = useState(false);
-  const [chatHistory, setChatHistory] = useState([
-    { type: 'ai', message: 'Hi! I\'m your AI shopping assistant. Ask me anything like "show me red polka dot dresses" or "what dress would suit me?" You can also paste a product URL to get details!' }
-  ]);
-  const [showChat, setShowChat] = useState(false);
-  const chatScrollRef = useRef(null);
   
   // Use the global enhancedProducts array
   
@@ -580,300 +579,10 @@ function Shop() {
     loadAdditionalProducts();
   }, []);
 
-  // Enhanced NLP search function (for local products only)
-  const performLocalSearch = (query) => {
-    if (!query.trim()) {
-      setFilteredProducts(allProducts);
-      setIsWebSearch(false);
-      setSearchResults([]);
-      return;
-    }
-    
-    const searchTerms = query.toLowerCase().split(' ').filter(term => term.length > 0);
-    const filtered = allProducts.filter(product => {
-      const searchableText = `${product.name} ${product.brand} ${product.category} ${product.color} ${product.material} ${product.garment_des}`.toLowerCase();
-      
-      // Check for exact matches first
-      if (searchableText.includes(query.toLowerCase())) {
-        return true;
-      }
-      
-      // Check for partial matches
-      return searchTerms.every(term => searchableText.includes(term));
-    });
-    
-    setFilteredProducts(filtered);
-    setIsWebSearch(false);
-    setSearchResults([]);
-  };
-
   // Initialize with all products
   useEffect(() => {
-    if (!isWebSearch && searchResults.length === 0) {
     setFilteredProducts(allProducts);
-    }
-  }, [allProducts, isWebSearch, searchResults]);
-  
-  // Enhanced natural language query processing
-  const processQuery = (query) => {
-    const lowerQuery = query.toLowerCase();
-    
-    // Extract intent and parameters
-    const intent = {
-      type: 'search', // 'search', 'recommend', 'question'
-      category: null,
-      color: null,
-      pattern: null,
-      priceRange: null,
-      style: null
-    };
-    
-    // Detect category
-    if (lowerQuery.includes('dress') || lowerQuery.includes('gown')) intent.category = 'dress';
-    else if (lowerQuery.includes('shirt') || lowerQuery.includes('blouse') || lowerQuery.includes('top') || lowerQuery.includes('sweater') || lowerQuery.includes('jacket') || lowerQuery.includes('blazer')) intent.category = 'upper';
-    else if (lowerQuery.includes('pants') || lowerQuery.includes('jeans') || lowerQuery.includes('trousers') || lowerQuery.includes('shorts')) intent.category = 'lower';
-    else if (lowerQuery.includes('shoes') || lowerQuery.includes('sneakers') || lowerQuery.includes('boots')) intent.category = 'shoes';
-    
-    // Detect color
-    const colors = ['red', 'blue', 'green', 'yellow', 'black', 'white', 'gray', 'grey', 'pink', 'purple', 'orange', 'brown', 'beige', 'navy'];
-    for (const color of colors) {
-      if (lowerQuery.includes(color)) {
-        intent.color = color;
-        break;
-      }
-    }
-    
-    // Detect pattern
-    if (lowerQuery.includes('polka dot') || lowerQuery.includes('polkadot')) intent.pattern = 'polka dot';
-    else if (lowerQuery.includes('striped') || lowerQuery.includes('stripe')) intent.pattern = 'striped';
-    else if (lowerQuery.includes('floral') || lowerQuery.includes('flower')) intent.pattern = 'floral';
-    else if (lowerQuery.includes('plaid') || lowerQuery.includes('check')) intent.pattern = 'plaid';
-    
-    // Detect price range
-    const priceMatch = lowerQuery.match(/(?:under|below|less than|max|maximum)\s*\$?(\d+)/i);
-    if (priceMatch) {
-      intent.priceRange = { max: parseInt(priceMatch[1]) };
-    }
-    const priceRangeMatch = lowerQuery.match(/\$?(\d+)\s*(?:to|-|and)\s*\$?(\d+)/i);
-    if (priceRangeMatch) {
-      intent.priceRange = { min: parseInt(priceRangeMatch[1]), max: parseInt(priceRangeMatch[2]) };
-    }
-    
-    // Detect style questions
-    if (lowerQuery.includes('what') && (lowerQuery.includes('suit') || lowerQuery.includes('fit') || lowerQuery.includes('look good'))) {
-      intent.type = 'recommend';
-    }
-    
-    return intent;
-  };
-
-  // Handle search submission (URL or natural language) with AI chat interface
-  const handleSearchSubmit = async () => {
-    const query = searchQuery.trim();
-    
-    if (!query) {
-      // Clear search, show default products
-      setSearchResults([]);
-      setIsWebSearch(false);
-      setFilteredProducts(allProducts);
-      setSearchError(null);
-      return;
-    }
-    
-    // Add user message to chat
-    const userMessage = { type: 'user', message: query };
-    setChatHistory(prev => [...prev, userMessage]);
-    setShowChat(true);
-    
-    // Scroll to bottom after a brief delay
-    setTimeout(() => {
-      if (chatScrollRef.current) {
-        chatScrollRef.current.scrollToEnd({ animated: true });
-      }
-    }, 100);
-    
-    setIsSearching(true);
-    setSearchError(null);
-    
-    try {
-      if (isUrl(query)) {
-        // URL import
-        console.log('Importing product from URL:', query);
-        
-        // Add AI thinking message
-        const thinkingMessage = { type: 'ai', message: 'Analyzing product URL...' };
-        setChatHistory(prev => [...prev, thinkingMessage]);
-        
-        const importedProduct = await importProductFromUrl(query);
-        const normalized = normalizeProduct(importedProduct);
-        
-        // Convert to format expected by UI
-        const productForUI = {
-          id: normalized.id,
-          name: normalized.title || normalized.name,
-          title: normalized.title || normalized.name,
-          price: normalized.price || 0,
-          rating: normalized.rating || 4.0,
-          brand: normalized.brand || normalized.sourceLabel || 'Online Store',
-          category: normalized.category || 'upper',
-          color: normalized.color || 'Mixed',
-          material: normalized.material || 'Unknown',
-          garment_des: normalized.garment_des || '',
-          image: normalized.imageUrl || normalized.image,
-          buyUrl: normalized.productUrl || normalized.buyUrl,
-          kind: normalized.kind,
-          sourceLabel: normalized.sourceLabel
-        };
-        
-        setSearchResults([productForUI]);
-        setIsWebSearch(true);
-        setFilteredProducts([]);
-        
-        // Add AI success message
-        const successMessage = { 
-          type: 'ai', 
-          message: `Found product: ${productForUI.name} by ${productForUI.brand} - $${productForUI.price}. Tap to view details!` 
-        };
-        setChatHistory(prev => [...prev, successMessage]);
-        setTimeout(() => {
-          if (chatScrollRef.current) {
-            chatScrollRef.current.scrollToEnd({ animated: true });
-          }
-        }, 100);
-      } else {
-        // Process natural language query
-        const intent = processQuery(query);
-        
-        // Add AI thinking message
-        let thinkingMsg = 'Searching for products...';
-        if (intent.type === 'recommend') {
-          thinkingMsg = 'Finding recommendations based on your preferences...';
-        } else if (intent.color || intent.pattern) {
-          thinkingMsg = `Looking for ${intent.color || ''} ${intent.pattern || ''} ${intent.category || 'items'}...`;
-        }
-        const thinkingMessage = { type: 'ai', message: thinkingMsg };
-        setChatHistory(prev => [...prev, thinkingMessage]);
-        
-        // Natural language web search
-        console.log('Searching web for:', query);
-        const webProducts = await searchWebProducts(query);
-        
-        if (webProducts.length === 0) {
-          // Try local search as fallback
-          performLocalSearch(query);
-          const localResults = allProducts.filter(product => {
-            const searchableText = `${product.name} ${product.brand} ${product.category} ${product.color} ${product.material} ${product.garment_des}`.toLowerCase();
-            return searchableText.includes(query.toLowerCase());
-          });
-          
-          if (localResults.length > 0) {
-            setFilteredProducts(localResults);
-            setIsWebSearch(false);
-            setSearchResults([]);
-            const localMessage = { 
-              type: 'ai', 
-              message: `Found ${localResults.length} local product${localResults.length > 1 ? 's' : ''} matching your search!` 
-            };
-            setChatHistory(prev => [...prev, localMessage]);
-            setTimeout(() => {
-              if (chatScrollRef.current) {
-                chatScrollRef.current.scrollToEnd({ animated: true });
-              }
-            }, 100);
-          } else {
-            setSearchError('No products found. Try another search or paste a product link.');
-            setSearchResults([]);
-            setIsWebSearch(false);
-            setFilteredProducts([]);
-            const errorMessage = { 
-              type: 'ai', 
-              message: 'Sorry, I couldn\'t find any products matching your search. Try asking differently, like "show me red dresses" or paste a product URL.' 
-            };
-            setChatHistory(prev => [...prev, errorMessage]);
-            setTimeout(() => {
-              if (chatScrollRef.current) {
-                chatScrollRef.current.scrollToEnd({ animated: true });
-              }
-            }, 100);
-          }
-        } else {
-          // Convert to format expected by UI
-          const productsForUI = webProducts.map(normalized => ({
-            id: normalized.id,
-            name: normalized.title || normalized.name,
-            title: normalized.title || normalized.name,
-            price: normalized.price || 0,
-            rating: normalized.rating || 4.0,
-            brand: normalized.brand || normalized.sourceLabel || 'Online Store',
-            category: normalized.category || 'upper',
-            color: normalized.color || 'Mixed',
-            material: normalized.material || 'Unknown',
-            garment_des: normalized.garment_des || '',
-            image: normalized.imageUrl || normalized.image,
-            buyUrl: normalized.productUrl || normalized.buyUrl,
-            kind: normalized.kind,
-            sourceLabel: normalized.sourceLabel
-          }));
-          setSearchResults(productsForUI);
-          setIsWebSearch(true);
-          setFilteredProducts([]);
-          
-          // Add AI success message
-          const successMessage = { 
-            type: 'ai', 
-            message: `Found ${productsForUI.length} product${productsForUI.length > 1 ? 's' : ''} for you! Scroll to see them all.` 
-          };
-          setChatHistory(prev => [...prev, successMessage]);
-          setTimeout(() => {
-            if (chatScrollRef.current) {
-              chatScrollRef.current.scrollToEnd({ animated: true });
-            }
-          }, 100);
-        }
-      }
-    } catch (error) {
-      console.error('Search error:', error);
-      const errorMsg = error.message || 'Search failed. Please try again.';
-      setSearchError(errorMsg);
-      setSearchResults([]);
-      setIsWebSearch(false);
-      setFilteredProducts([]);
-      
-      // Add error message to chat
-      const errorMessage = { 
-        type: 'ai', 
-        message: `Sorry, I encountered an error: ${errorMsg}. Please try again or paste a product URL directly.` 
-      };
-      setChatHistory(prev => [...prev, errorMessage]);
-      setTimeout(() => {
-        if (chatScrollRef.current) {
-          chatScrollRef.current.scrollToEnd({ animated: true });
-        }
-      }, 100);
-    } finally {
-      setIsSearching(false);
-      setSearchQuery(''); // Clear input after search
-    }
-  };
-  
-  const handleSearch = (text) => {
-    setSearchQuery(text);
-    // If user clears search, reset to local products
-    if (!text.trim()) {
-      setSearchResults([]);
-      setIsWebSearch(false);
-      setSearchError(null);
-      performLocalSearch('');
-    }
-  };
-  
-  const handleClearSearch = () => {
-    setSearchQuery('');
-    setSearchResults([]);
-    setIsWebSearch(false);
-    setSearchError(null);
-    setFilteredProducts(allProducts);
-  };
+  }, [allProducts]);
 
   const handleProductDetected = (newProduct) => {
     // Store the detected product and navigate to product details
@@ -883,114 +592,47 @@ function Shop() {
     setShowProductDetector(false);
   };
   
+  const handleProductSelect = (product) => {
+    // Store web/imported products in state so Product screen can access them
+    if (product.kind === 'web' || product.kind === 'imported') {
+      setDetectedProduct(product);
+    }
+    setCurrentProduct(product.id);
+    setRoute('product');
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: Colors.background }}>
-      {/* AI Chat Search Bar */}
+      {/* Header with Chat Button */}
       <View style={{ padding: Spacing.lg, paddingBottom: Spacing.sm }}>
         <View style={{ flexDirection: 'row', gap: Spacing.md, alignItems: 'center' }}>
-          <View style={{ ...InputStyles.container, flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-            <Text style={{ ...TextStyles.caption, marginRight: Spacing.sm }}>💬</Text>
-            <TextInput
-              value={searchQuery}
-              onChangeText={handleSearch}
-              onSubmitEditing={handleSearchSubmit}
-              placeholder="Ask me anything: 'red polka dot dresses', 'what dress suits me?', or paste a URL"
-              placeholderTextColor={Colors.textSecondary}
-              style={{ flex: 1, ...InputStyles.text, fontSize: Typography.sm }}
-              returnKeyType="send"
-              multiline={false}
-            />
-            {searchQuery.length > 0 && (
-              <Pressable onPress={handleClearSearch}>
-                <Text style={{ ...TextStyles.bodySecondary, fontSize: Typography.base }}>✕</Text>
-              </Pressable>
-            )}
-          </View>
+          <Pressable 
+            onPress={() => setRoute('chat')}
+            style={{ 
+              ...createButtonStyle('primary'),
+              flex: 1,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: Spacing.sm
+            }}
+          >
+            <Text style={{ fontSize: Typography.lg }}>💬</Text>
+            <Text style={getButtonTextStyle('primary')}>
+              AI Shopping Assistant
+            </Text>
+          </Pressable>
           
-          {searchQuery.length > 0 && (
-            <Pressable 
-              onPress={handleSearchSubmit}
-              disabled={isSearching}
-              style={createButtonStyle('primary', isSearching)}
-            >
-              <Text style={getButtonTextStyle('primary')}>
-                {isSearching ? '...' : 'Send'}
-              </Text>
-            </Pressable>
-          )}
-          
-          {searchQuery.length === 0 && (
           <Pressable 
             onPress={() => setShowProductDetector(true)}
-            style={createButtonStyle('primary')}
+            style={createButtonStyle('secondary')}
           >
-            <Text style={getButtonTextStyle('primary')}>
+            <Text style={getButtonTextStyle('secondary')}>
               + Detect
             </Text>
           </Pressable>
-          )}
         </View>
-        
-        {/* Chat History Toggle */}
-        {chatHistory.length > 1 && (
-          <Pressable 
-            onPress={() => setShowChat(!showChat)}
-            style={{ marginTop: Spacing.sm, padding: Spacing.sm, alignItems: 'center' }}
-          >
-            <Text style={{ ...TextStyles.caption, color: Colors.primary }}>
-              {showChat ? '▼ Hide conversation' : '▲ Show conversation'}
-            </Text>
-          </Pressable>
-        )}
       </View>
-      
-      {/* Chat History Display */}
-      {showChat && chatHistory.length > 0 && (
-        <View style={{ 
-          maxHeight: 200, 
-          ...CardStyles.container,
-          marginHorizontal: Spacing.lg, 
-          marginBottom: Spacing.sm,
-          padding: Spacing.md
-        }}>
-          <ScrollView 
-            ref={chatScrollRef}
-            style={{ maxHeight: 200 }}
-            showsVerticalScrollIndicator={true}
-            onContentSizeChange={() => {
-              if (chatScrollRef.current) {
-                chatScrollRef.current.scrollToEnd({ animated: true });
-              }
-            }}
-          >
-            {chatHistory.map((msg, idx) => (
-              <View 
-                key={idx} 
-                style={{ 
-                  marginBottom: Spacing.md,
-                  flexDirection: 'row',
-                  justifyContent: msg.type === 'user' ? 'flex-end' : 'flex-start'
-                }}
-              >
-                <View style={{
-                  backgroundColor: msg.type === 'user' ? Colors.primaryLight : Colors.backgroundSecondary,
-                  padding: Spacing.md,
-                  borderRadius: BorderRadius.md,
-                  maxWidth: '80%'
-                }}>
-                  <Text style={{ 
-                    ...TextStyles.caption,
-                    color: msg.type === 'user' ? Colors.primary : Colors.textPrimary,
-                    lineHeight: Typography.sm * Typography.lineHeightNormal
-                  }}>
-                    {msg.message}
-                  </Text>
-                </View>
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-      )}
       
       {/* Products Grid */}
       <ScrollView 
@@ -998,36 +640,13 @@ function Shop() {
         contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Loading State */}
-        {isSearching && (
-          <View style={{ alignItems: 'center', padding: Spacing['4xl'] }}>
-            <Text style={{ ...TextStyles.bodySecondary, textAlign: 'center' }}>
-              Searching the web for fits…
-            </Text>
-          </View>
-        )}
-        
-        {/* Error State */}
-        {searchError && !isSearching && (
-          <View style={{ alignItems: 'center', padding: Spacing['4xl'] }}>
-            <Text style={{ ...TextStyles.body, color: Colors.error, textAlign: 'center', marginBottom: Spacing.sm }}>
-              {searchError}
-            </Text>
-            <Text style={{ ...TextStyles.caption, textAlign: 'center' }}>
-              Try another search or paste a product link
-            </Text>
-          </View>
-        )}
-        
-        {/* Products Grid */}
-        {!isSearching && (
         <View style={{ 
           flexDirection: 'row', 
           flexWrap: 'wrap', 
           justifyContent: 'space-between',
           gap: Spacing.md
         }}>
-            {(isWebSearch ? searchResults : filteredProducts).map((product, index) => (
+            {filteredProducts.map((product, index) => (
             <Pressable 
               key={product.id} 
               onPress={() => { 
@@ -1115,24 +734,20 @@ function Shop() {
         </View>
         )}
         
-        {/* Empty State */}
-        {!isSearching && !searchError && (isWebSearch ? searchResults : filteredProducts).length === 0 && searchQuery.length > 0 && (
-          <View style={{ alignItems: 'center', padding: Spacing['4xl'] }}>
-            <Text style={{ ...TextStyles.bodySecondary, textAlign: 'center' }}>
-              No results found for "{searchQuery}"
-            </Text>
-            <Text style={{ ...TextStyles.caption, textAlign: 'center', marginTop: Spacing.sm }}>
-              Try another search or paste a product link
-            </Text>
-          </View>
-        )}
-        
-        {/* Default Empty State (no search) */}
-        {!isSearching && !searchError && !isWebSearch && filteredProducts.length === 0 && searchQuery.length === 0 && (
+        {/* Default Empty State */}
+        {filteredProducts.length === 0 && (
           <View style={{ alignItems: 'center', padding: Spacing['4xl'] }}>
             <Text style={{ ...TextStyles.bodySecondary, textAlign: 'center' }}>
               No products available
             </Text>
+            <Pressable 
+              onPress={() => setRoute('chat')}
+              style={{ ...createButtonStyle('primary'), marginTop: Spacing.lg }}
+            >
+              <Text style={getButtonTextStyle('primary')}>
+                Search with AI Assistant
+              </Text>
+            </Pressable>
           </View>
         )}
       </ScrollView>
