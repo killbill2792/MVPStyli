@@ -79,45 +79,83 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 async function searchWithSerpAPI(query: string, apiKey: string): Promise<NormalizedProduct[]> {
   try {
     // Use Google Shopping search via SerpAPI
+    // Documentation: https://serpapi.com/google-shopping-api
     const url = `https://serpapi.com/search.json?engine=google_shopping&q=${encodeURIComponent(query)}&api_key=${apiKey}&num=20`;
     
+    console.log('SerpAPI request URL:', url.replace(apiKey, 'API_KEY_HIDDEN'));
+    
     const response = await fetch(url);
+    
+    // Check if response is ok
     if (!response.ok) {
-      throw new Error(`SerpAPI returned ${response.status}`);
+      const errorText = await response.text();
+      console.error('SerpAPI error response:', errorText.substring(0, 500));
+      throw new Error(`SerpAPI returned ${response.status}: ${errorText.substring(0, 100)}`);
     }
     
     const data = await response.json();
     
-    if (!data.shopping_results || data.shopping_results.length === 0) {
+    // Check for SerpAPI errors
+    if (data.error) {
+      console.error('SerpAPI API error:', data.error);
+      throw new Error(`SerpAPI error: ${data.error}`);
+    }
+    
+    // SerpAPI Google Shopping returns results in 'shopping_results' array
+    const shoppingResults = data.shopping_results || [];
+    
+    if (shoppingResults.length === 0) {
+      console.log('No shopping results found for query:', query);
       return [];
     }
     
-    return data.shopping_results.map((item: any, index: number) => {
+    console.log(`Found ${shoppingResults.length} shopping results`);
+    
+    return shoppingResults.map((item: any, index: number) => {
       // Generate stable ID from URL
-      const id = crypto.createHash('md5').update(item.link || item.product_link || '').digest('hex');
+      const productUrl = item.link || item.product_link || item.organic_link || '';
+      const id = crypto.createHash('md5').update(productUrl || `item-${index}`).digest('hex');
       
-      // Extract price
+      // Extract price - SerpAPI returns price as string like "$29.99" or number
       let price: number | undefined;
       let currency = 'USD';
       
       if (item.price) {
-        const priceStr = String(item.price).replace(/[^0-9.]/g, '');
-        price = parseFloat(priceStr);
+        if (typeof item.price === 'number') {
+          price = item.price;
+        } else if (typeof item.price === 'string') {
+          // Extract number from price string like "$29.99" or "29.99 USD"
+          const priceMatch = item.price.match(/(\d+\.?\d*)/);
+          if (priceMatch) {
+            price = parseFloat(priceMatch[1]);
+          }
+          // Extract currency if present
+          if (item.price.includes('USD') || item.price.includes('$')) {
+            currency = 'USD';
+          } else if (item.price.includes('EUR') || item.price.includes('€')) {
+            currency = 'EUR';
+          } else if (item.price.includes('GBP') || item.price.includes('£')) {
+            currency = 'GBP';
+          }
+        }
       }
       
       // Extract source/store name
       let sourceLabel = 'Online Store';
       if (item.source) {
         sourceLabel = item.source;
-      } else if (item.link) {
+      } else if (productUrl) {
         try {
-          const domain = new URL(item.link).hostname;
+          const domain = new URL(productUrl).hostname;
           sourceLabel = domain.replace('www.', '').split('.')[0];
           sourceLabel = sourceLabel.charAt(0).toUpperCase() + sourceLabel.slice(1);
         } catch (e) {
           // Ignore
         }
       }
+      
+      // Get image - SerpAPI returns thumbnail
+      const imageUrl = item.thumbnail || item.image || item.original_image || '';
       
       // Detect category from title
       const category = detectCategoryFromText(item.title || '');
@@ -126,20 +164,27 @@ async function searchWithSerpAPI(query: string, apiKey: string): Promise<Normali
         id: `web-${id}`,
         kind: 'web' as const,
         title: item.title || 'Product',
-        brand: item.source || undefined,
+        brand: item.source || item.brand || undefined,
         price,
         currency,
-        imageUrl: item.thumbnail || item.image || '',
-        productUrl: item.link || item.product_link || '',
+        imageUrl,
+        productUrl,
         sourceLabel,
         category,
         rating: item.rating ? parseFloat(String(item.rating)) : undefined
       };
-    }).filter((p: NormalizedProduct) => p.imageUrl && p.title && p.productUrl);
+    }).filter((p: NormalizedProduct) => {
+      // Filter out products missing critical fields
+      const hasImage = p.imageUrl && p.imageUrl.length > 0;
+      const hasTitle = p.title && p.title.length > 0 && p.title !== 'Product';
+      const hasUrl = p.productUrl && p.productUrl.length > 0;
+      return hasImage && hasTitle && hasUrl;
+    });
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error with SerpAPI:', error);
-    throw error;
+    // Re-throw with more context
+    throw new Error(`SerpAPI search failed: ${error.message || error}`);
   }
 }
 

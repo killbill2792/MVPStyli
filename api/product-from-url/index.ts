@@ -96,8 +96,10 @@ async function scrapeProductFromUrl(url: string): Promise<any> {
     return await scrapeCOSProduct(url);
   } else if (domain.includes('amazon.com') || domain.includes('amazon.')) {
     return await scrapeAmazonProduct(url);
-  } else if (domain.includes('macy.com')) {
+  } else if (domain.includes('macy.com') || domain.includes('macys.com')) {
     return await scrapeMacyProduct(url);
+  } else if (domain.includes('gapfactory.com') || domain.includes('bananarepublicfactory.com') || domain.includes('gap.com')) {
+    return await scrapeGapProduct(url);
   } else {
     // Generic scraping for any other store
     return await scrapeGenericProduct(url);
@@ -440,6 +442,116 @@ function detectCategoryFromUrl(url: string, productName: string = ''): string {
   return 'upper'; // default
 }
 
+async function scrapeGapProduct(url: string) {
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5'
+      }
+    });
+    
+    const html = await response.text();
+    
+    // Try JSON-LD first
+    const jsonLdMatch = html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+    let productData = null;
+    
+    if (jsonLdMatch) {
+      for (const match of jsonLdMatch) {
+        try {
+          const jsonStr = match.replace(/<script[^>]*>/, '').replace(/<\/script>/, '');
+          const data = JSON.parse(jsonStr);
+          if (data['@type'] === 'Product' || (Array.isArray(data) && data.find((item: any) => item['@type'] === 'Product'))) {
+            productData = Array.isArray(data) ? data.find((item: any) => item['@type'] === 'Product') : data;
+            break;
+          }
+        } catch (e) {
+          // Continue
+        }
+      }
+    }
+    
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    const name = productData?.name || (titleMatch ? titleMatch[1].replace(/\s*\|\s*(Gap|Banana Republic|Old Navy).*/i, '').trim() : 'Product');
+    
+    // Try multiple price patterns
+    let price: number | undefined;
+    const pricePatterns = [
+      /<span[^>]*class="[^"]*price[^"]*"[^>]*>\s*\$?\s*(\d+(?:\.\d{2})?)/i,
+      /"price"\s*:\s*"?\$?(\d+(?:\.\d{2})?)/i,
+      /\$(\d+(?:\.\d{2})?)/,
+      /price["\s:]+(\d+(?:\.\d{2})?)/
+    ];
+    
+    for (const pattern of pricePatterns) {
+      const match = html.match(pattern);
+      if (match) {
+        price = parseFloat(match[1]);
+        break;
+      }
+    }
+    
+    // Use productData price if available
+    if (!price && productData?.offers?.price) {
+      price = typeof productData.offers.price === 'number' ? productData.offers.price : parseFloat(String(productData.offers.price));
+    }
+    
+    // Try multiple image patterns
+    let image = '';
+    if (productData?.image) {
+      image = Array.isArray(productData.image) ? productData.image[0] : productData.image;
+    }
+    
+    if (!image) {
+      const imagePatterns = [
+        /<meta property="og:image" content="([^"]+)"/i,
+        /<meta name="og:image" content="([^"]+)"/i,
+        /<img[^>]*class="[^"]*product[^"]*image[^"]*"[^>]*src="([^"]+)"/i,
+        /<img[^>]*data-src="([^"]+)"/i
+      ];
+      
+      for (const pattern of imagePatterns) {
+        const match = html.match(pattern);
+        if (match && match[1]) {
+          image = match[1];
+          // Make sure it's a full URL
+          if (image.startsWith('//')) {
+            image = 'https:' + image;
+          } else if (image.startsWith('/')) {
+            const urlObj = new URL(url);
+            image = urlObj.origin + image;
+          }
+          break;
+        }
+      }
+    }
+    
+    // Detect brand from URL
+    let brand = 'Gap';
+    if (url.includes('bananarepublic')) {
+      brand = 'Banana Republic';
+    } else if (url.includes('oldnavy')) {
+      brand = 'Old Navy';
+    } else if (url.includes('athleta')) {
+      brand = 'Athleta';
+    }
+    
+    return {
+      name,
+      price,
+      image,
+      brand,
+      category: detectCategoryFromUrl(url, name),
+      description: productData?.description || ''
+    };
+  } catch (error) {
+    console.error('Error scraping Gap product:', error);
+    return null;
+  }
+}
+
 function extractBrandFromUrl(url: string): string {
   try {
     const domain = new URL(url).hostname.toLowerCase();
@@ -464,6 +576,9 @@ function extractBrandFromUrl(url: string): string {
     if (domain.includes('macy')) return 'Macy\'s';
     if (domain.includes('nordstrom')) return 'Nordstrom';
     if (domain.includes('ssense')) return 'SSENSE';
+    if (domain.includes('gapfactory') || domain.includes('gap.com')) return 'Gap';
+    if (domain.includes('bananarepublic')) return 'Banana Republic';
+    if (domain.includes('oldnavy')) return 'Old Navy';
     
     return brand || 'Online Store';
   } catch (error) {
