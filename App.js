@@ -630,7 +630,11 @@ function Shop() {
   return (
     <View style={{ flex: 1, backgroundColor: Colors.background }}>
       {/* Header with Chat Button */}
-      <View style={{ padding: Spacing.lg, paddingBottom: Spacing.sm }}>
+      <View style={{ 
+        paddingTop: Spacing.xl,
+        paddingHorizontal: Spacing.lg, 
+        paddingBottom: Spacing.md 
+      }}>
         <View style={{ flexDirection: 'row', gap: Spacing.md, alignItems: 'center' }}>
           <Pressable 
             onPress={() => setRoute('chat')}
