@@ -732,7 +732,6 @@ function Shop() {
         </Pressable>
       ))}
         </View>
-        )}
         
         {/* Default Empty State */}
         {filteredProducts.length === 0 && (
