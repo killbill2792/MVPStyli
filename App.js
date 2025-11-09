@@ -1245,23 +1245,18 @@ function Product() {
   
   if (!product) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-        <Text style={{ color: '#fff', fontSize: 18, fontWeight: '600', marginBottom: 12, textAlign: 'center' }}>
+      <View style={{ flex: 1, backgroundColor: Colors.background, justifyContent: 'center', alignItems: 'center', padding: Spacing.xl }}>
+        <Text style={{ ...TextStyles.h3, marginBottom: Spacing.md, textAlign: 'center' }}>
           Product Not Found
         </Text>
-        <Text style={{ color: '#a1a1aa', fontSize: 14, textAlign: 'center', marginBottom: 24 }}>
+        <Text style={{ ...TextStyles.caption, textAlign: 'center', marginBottom: Spacing['2xl'] }}>
           The product you're looking for doesn't exist or has been removed.
         </Text>
         <Pressable 
           onPress={() => setRoute('shop')}
-          style={{ 
-            backgroundColor: '#10b981', 
-            paddingHorizontal: 24, 
-            paddingVertical: 12, 
-            borderRadius: 12 
-          }}
+          style={createButtonStyle('primary')}
         >
-          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>
+          <Text style={getButtonTextStyle('primary')}>
             Back to Shop
           </Text>
         </Pressable>
