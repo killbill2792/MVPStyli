@@ -586,3 +586,4 @@ function extractBrandFromUrl(url: string): string {
   }
 }
 
+// Deployment check Sun Nov  9 01:23:08 EST 2025
