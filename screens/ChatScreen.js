@@ -316,7 +316,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             {/* Thumbnail Strip */}
             <View style={{
               position: 'absolute',
-              bottom: 80, // Above bottom bar
+              bottom: 90, // Above bottom bar (BottomBar is ~70px + safe area)
               left: 0,
               right: 0,
               backgroundColor: 'rgba(0,0,0,0.8)',

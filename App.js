@@ -452,7 +452,7 @@ function Shell() {
           style={{
             position: 'absolute',
             left: Spacing.lg,
-            bottom: 100, // Above bottom bar
+            bottom: 90, // Above bottom bar (BottomBar is ~70px + safe area)
             width: 56,
             height: 56,
             borderRadius: 28,
