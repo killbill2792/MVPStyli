@@ -18,6 +18,7 @@ import Inbox from './screens/Inbox';
 import { ProductDetector } from './components/ProductDetector';
 import { fetchRealClothingProducts } from './lib/productApi';
 import { isUrl, importProductFromUrl, searchWebProducts, normalizeProduct } from './lib/productSearch';
+import { Colors, Typography, Spacing, BorderRadius, ButtonStyles, InputStyles, TextStyles, createButtonStyle, getButtonTextStyle } from './lib/designSystem';
 
 // Enhanced product data with working model images - upper body and lower body items
 const enhancedProducts = [
@@ -556,6 +557,11 @@ function Shop() {
   const [showProductDetector, setShowProductDetector] = useState(false);
   const [allProducts, setAllProducts] = useState(enhancedProducts);
   const [isWebSearch, setIsWebSearch] = useState(false);
+  const [chatHistory, setChatHistory] = useState([
+    { type: 'ai', message: 'Hi! I\'m your AI shopping assistant. Ask me anything like "show me red polka dot dresses" or "what dress would suit me?" You can also paste a product URL to get details!' }
+  ]);
+  const [showChat, setShowChat] = useState(false);
+  const chatScrollRef = React.useRef(null);
   
   // Use the global enhancedProducts array
   
@@ -608,7 +614,60 @@ function Shop() {
     }
   }, [allProducts, isWebSearch, searchResults]);
   
-  // Handle search submission (URL or natural language)
+  // Enhanced natural language query processing
+  const processQuery = (query) => {
+    const lowerQuery = query.toLowerCase();
+    
+    // Extract intent and parameters
+    const intent = {
+      type: 'search', // 'search', 'recommend', 'question'
+      category: null,
+      color: null,
+      pattern: null,
+      priceRange: null,
+      style: null
+    };
+    
+    // Detect category
+    if (lowerQuery.includes('dress') || lowerQuery.includes('gown')) intent.category = 'dress';
+    else if (lowerQuery.includes('shirt') || lowerQuery.includes('blouse') || lowerQuery.includes('top') || lowerQuery.includes('sweater') || lowerQuery.includes('jacket') || lowerQuery.includes('blazer')) intent.category = 'upper';
+    else if (lowerQuery.includes('pants') || lowerQuery.includes('jeans') || lowerQuery.includes('trousers') || lowerQuery.includes('shorts')) intent.category = 'lower';
+    else if (lowerQuery.includes('shoes') || lowerQuery.includes('sneakers') || lowerQuery.includes('boots')) intent.category = 'shoes';
+    
+    // Detect color
+    const colors = ['red', 'blue', 'green', 'yellow', 'black', 'white', 'gray', 'grey', 'pink', 'purple', 'orange', 'brown', 'beige', 'navy'];
+    for (const color of colors) {
+      if (lowerQuery.includes(color)) {
+        intent.color = color;
+        break;
+      }
+    }
+    
+    // Detect pattern
+    if (lowerQuery.includes('polka dot') || lowerQuery.includes('polkadot')) intent.pattern = 'polka dot';
+    else if (lowerQuery.includes('striped') || lowerQuery.includes('stripe')) intent.pattern = 'striped';
+    else if (lowerQuery.includes('floral') || lowerQuery.includes('flower')) intent.pattern = 'floral';
+    else if (lowerQuery.includes('plaid') || lowerQuery.includes('check')) intent.pattern = 'plaid';
+    
+    // Detect price range
+    const priceMatch = lowerQuery.match(/(?:under|below|less than|max|maximum)\s*\$?(\d+)/i);
+    if (priceMatch) {
+      intent.priceRange = { max: parseInt(priceMatch[1]) };
+    }
+    const priceRangeMatch = lowerQuery.match(/\$?(\d+)\s*(?:to|-|and)\s*\$?(\d+)/i);
+    if (priceRangeMatch) {
+      intent.priceRange = { min: parseInt(priceRangeMatch[1]), max: parseInt(priceRangeMatch[2]) };
+    }
+    
+    // Detect style questions
+    if (lowerQuery.includes('what') && (lowerQuery.includes('suit') || lowerQuery.includes('fit') || lowerQuery.includes('look good'))) {
+      intent.type = 'recommend';
+    }
+    
+    return intent;
+  };
+
+  // Handle search submission (URL or natural language) with AI chat interface
   const handleSearchSubmit = async () => {
     const query = searchQuery.trim();
     
@@ -621,6 +680,18 @@ function Shop() {
       return;
     }
     
+    // Add user message to chat
+    const userMessage = { type: 'user', message: query };
+    setChatHistory(prev => [...prev, userMessage]);
+    setShowChat(true);
+    
+    // Scroll to bottom after a brief delay
+    setTimeout(() => {
+      if (chatScrollRef.current) {
+        chatScrollRef.current.scrollToEnd({ animated: true });
+      }
+    }, 100);
+    
     setIsSearching(true);
     setSearchError(null);
     
@@ -628,8 +699,14 @@ function Shop() {
       if (isUrl(query)) {
         // URL import
         console.log('Importing product from URL:', query);
+        
+        // Add AI thinking message
+        const thinkingMessage = { type: 'ai', message: 'Analyzing product URL...' };
+        setChatHistory(prev => [...prev, thinkingMessage]);
+        
         const importedProduct = await importProductFromUrl(query);
         const normalized = normalizeProduct(importedProduct);
+        
         // Convert to format expected by UI
         const productForUI = {
           id: normalized.id,
@@ -647,18 +724,78 @@ function Shop() {
           kind: normalized.kind,
           sourceLabel: normalized.sourceLabel
         };
+        
         setSearchResults([productForUI]);
         setIsWebSearch(true);
         setFilteredProducts([]);
+        
+        // Add AI success message
+        const successMessage = { 
+          type: 'ai', 
+          message: `Found product: ${productForUI.name} by ${productForUI.brand} - $${productForUI.price}. Tap to view details!` 
+        };
+        setChatHistory(prev => [...prev, successMessage]);
+        setTimeout(() => {
+          if (chatScrollRef.current) {
+            chatScrollRef.current.scrollToEnd({ animated: true });
+          }
+        }, 100);
       } else {
+        // Process natural language query
+        const intent = processQuery(query);
+        
+        // Add AI thinking message
+        let thinkingMsg = 'Searching for products...';
+        if (intent.type === 'recommend') {
+          thinkingMsg = 'Finding recommendations based on your preferences...';
+        } else if (intent.color || intent.pattern) {
+          thinkingMsg = `Looking for ${intent.color || ''} ${intent.pattern || ''} ${intent.category || 'items'}...`;
+        }
+        const thinkingMessage = { type: 'ai', message: thinkingMsg };
+        setChatHistory(prev => [...prev, thinkingMessage]);
+        
         // Natural language web search
         console.log('Searching web for:', query);
         const webProducts = await searchWebProducts(query);
+        
         if (webProducts.length === 0) {
-          setSearchError('No products found. Try another search or paste a product link.');
-          setSearchResults([]);
-          setIsWebSearch(false);
-          setFilteredProducts([]);
+          // Try local search as fallback
+          performLocalSearch(query);
+          const localResults = allProducts.filter(product => {
+            const searchableText = `${product.name} ${product.brand} ${product.category} ${product.color} ${product.material} ${product.garment_des}`.toLowerCase();
+            return searchableText.includes(query.toLowerCase());
+          });
+          
+          if (localResults.length > 0) {
+            setFilteredProducts(localResults);
+            setIsWebSearch(false);
+            setSearchResults([]);
+            const localMessage = { 
+              type: 'ai', 
+              message: `Found ${localResults.length} local product${localResults.length > 1 ? 's' : ''} matching your search!` 
+            };
+            setChatHistory(prev => [...prev, localMessage]);
+            setTimeout(() => {
+              if (chatScrollRef.current) {
+                chatScrollRef.current.scrollToEnd({ animated: true });
+              }
+            }, 100);
+          } else {
+            setSearchError('No products found. Try another search or paste a product link.');
+            setSearchResults([]);
+            setIsWebSearch(false);
+            setFilteredProducts([]);
+            const errorMessage = { 
+              type: 'ai', 
+              message: 'Sorry, I couldn\'t find any products matching your search. Try asking differently, like "show me red dresses" or paste a product URL.' 
+            };
+            setChatHistory(prev => [...prev, errorMessage]);
+            setTimeout(() => {
+              if (chatScrollRef.current) {
+                chatScrollRef.current.scrollToEnd({ animated: true });
+              }
+            }, 100);
+          }
         } else {
           // Convert to format expected by UI
           const productsForUI = webProducts.map(normalized => ({
@@ -680,16 +817,42 @@ function Shop() {
           setSearchResults(productsForUI);
           setIsWebSearch(true);
           setFilteredProducts([]);
+          
+          // Add AI success message
+          const successMessage = { 
+            type: 'ai', 
+            message: `Found ${productsForUI.length} product${productsForUI.length > 1 ? 's' : ''} for you! Scroll to see them all.` 
+          };
+          setChatHistory(prev => [...prev, successMessage]);
+          setTimeout(() => {
+            if (chatScrollRef.current) {
+              chatScrollRef.current.scrollToEnd({ animated: true });
+            }
+          }, 100);
         }
       }
     } catch (error) {
       console.error('Search error:', error);
-      setSearchError(error.message || 'Search failed. Please try again.');
+      const errorMsg = error.message || 'Search failed. Please try again.';
+      setSearchError(errorMsg);
       setSearchResults([]);
       setIsWebSearch(false);
       setFilteredProducts([]);
+      
+      // Add error message to chat
+      const errorMessage = { 
+        type: 'ai', 
+        message: `Sorry, I encountered an error: ${errorMsg}. Please try again or paste a product URL directly.` 
+      };
+      setChatHistory(prev => [...prev, errorMessage]);
+      setTimeout(() => {
+        if (chatScrollRef.current) {
+          chatScrollRef.current.scrollToEnd({ animated: true });
+        }
+      }, 100);
     } finally {
       setIsSearching(false);
+      setSearchQuery(''); // Clear input after search
     }
   };
   
@@ -721,24 +884,25 @@ function Shop() {
   };
   
   return (
-    <View style={{ flex: 1, backgroundColor: '#000' }}>
-      {/* Search Bar */}
-      <View style={{ padding: 16, paddingBottom: 8 }}>
-        <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
-          <View style={{ backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-            <Text style={{ color: '#a1a1aa', marginRight: 8 }}>⌕</Text>
+    <View style={{ flex: 1, backgroundColor: Colors.background }}>
+      {/* AI Chat Search Bar */}
+      <View style={{ padding: Spacing.lg, paddingBottom: Spacing.sm }}>
+        <View style={{ flexDirection: 'row', gap: Spacing.md, alignItems: 'center' }}>
+          <View style={{ ...InputStyles.container, flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+            <Text style={{ ...TextStyles.caption, marginRight: Spacing.sm }}>💬</Text>
             <TextInput
               value={searchQuery}
               onChangeText={handleSearch}
               onSubmitEditing={handleSearchSubmit}
-              placeholder="Paste a link or type 'red satin dress under $100'"
-              placeholderTextColor="#a1a1aa"
-              style={{ flex: 1, color: '#e4e4e7', fontSize: 14 }}
-              returnKeyType="search"
+              placeholder="Ask me anything: 'red polka dot dresses', 'what dress suits me?', or paste a URL"
+              placeholderTextColor={Colors.textSecondary}
+              style={{ flex: 1, ...InputStyles.text, fontSize: Typography.sm }}
+              returnKeyType="send"
+              multiline={false}
             />
             {searchQuery.length > 0 && (
               <Pressable onPress={handleClearSearch}>
-                <Text style={{ color: '#a1a1aa', fontSize: 16 }}>✕</Text>
+                <Text style={{ ...TextStyles.bodySecondary, fontSize: Typography.base }}>✕</Text>
               </Pressable>
             )}
           </View>
@@ -747,15 +911,10 @@ function Shop() {
             <Pressable 
               onPress={handleSearchSubmit}
               disabled={isSearching}
-              style={{ 
-                backgroundColor: isSearching ? '#6b7280' : '#10b981', 
-                paddingHorizontal: 16, 
-                paddingVertical: 12, 
-                borderRadius: 16 
-              }}
+              style={createButtonStyle('primary', isSearching)}
             >
-              <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
-                {isSearching ? '...' : 'Search'}
+              <Text style={getButtonTextStyle('primary')}>
+                {isSearching ? '...' : 'Send'}
               </Text>
             </Pressable>
           )}
@@ -763,31 +922,86 @@ function Shop() {
           {searchQuery.length === 0 && (
           <Pressable 
             onPress={() => setShowProductDetector(true)}
-            style={{ 
-              backgroundColor: '#10b981', 
-              paddingHorizontal: 16, 
-              paddingVertical: 12, 
-              borderRadius: 16 
-            }}
+            style={createButtonStyle('primary')}
           >
-            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
+            <Text style={getButtonTextStyle('primary')}>
               + Detect
             </Text>
           </Pressable>
           )}
         </View>
+        
+        {/* Chat History Toggle */}
+        {chatHistory.length > 1 && (
+          <Pressable 
+            onPress={() => setShowChat(!showChat)}
+            style={{ marginTop: Spacing.sm, padding: Spacing.sm, alignItems: 'center' }}
+          >
+            <Text style={{ ...TextStyles.caption, color: Colors.primary }}>
+              {showChat ? '▼ Hide conversation' : '▲ Show conversation'}
+            </Text>
+          </Pressable>
+        )}
       </View>
+      
+      {/* Chat History Display */}
+      {showChat && chatHistory.length > 0 && (
+        <View style={{ 
+          maxHeight: 200, 
+          ...CardStyles.container,
+          marginHorizontal: Spacing.lg, 
+          marginBottom: Spacing.sm,
+          padding: Spacing.md
+        }}>
+          <ScrollView 
+            ref={chatScrollRef}
+            style={{ maxHeight: 200 }}
+            showsVerticalScrollIndicator={true}
+            onContentSizeChange={() => {
+              if (chatScrollRef.current) {
+                chatScrollRef.current.scrollToEnd({ animated: true });
+              }
+            }}
+          >
+            {chatHistory.map((msg, idx) => (
+              <View 
+                key={idx} 
+                style={{ 
+                  marginBottom: Spacing.md,
+                  flexDirection: 'row',
+                  justifyContent: msg.type === 'user' ? 'flex-end' : 'flex-start'
+                }}
+              >
+                <View style={{
+                  backgroundColor: msg.type === 'user' ? Colors.primaryLight : Colors.backgroundSecondary,
+                  padding: Spacing.md,
+                  borderRadius: BorderRadius.md,
+                  maxWidth: '80%'
+                }}>
+                  <Text style={{ 
+                    ...TextStyles.caption,
+                    color: msg.type === 'user' ? Colors.primary : Colors.textPrimary,
+                    lineHeight: Typography.sm * Typography.lineHeightNormal
+                  }}>
+                    {msg.message}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      )}
       
       {/* Products Grid */}
       <ScrollView 
         style={{ flex: 1 }} 
-        contentContainerStyle={{ padding: 16, paddingBottom: 120 }}
+        contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
       >
         {/* Loading State */}
         {isSearching && (
-          <View style={{ alignItems: 'center', padding: 40 }}>
-            <Text style={{ color: '#a1a1aa', fontSize: 16, textAlign: 'center' }}>
+          <View style={{ alignItems: 'center', padding: Spacing['4xl'] }}>
+            <Text style={{ ...TextStyles.bodySecondary, textAlign: 'center' }}>
               Searching the web for fits…
             </Text>
           </View>
@@ -795,11 +1009,11 @@ function Shop() {
         
         {/* Error State */}
         {searchError && !isSearching && (
-          <View style={{ alignItems: 'center', padding: 40 }}>
-            <Text style={{ color: '#ef4444', fontSize: 16, textAlign: 'center', marginBottom: 8 }}>
+          <View style={{ alignItems: 'center', padding: Spacing['4xl'] }}>
+            <Text style={{ ...TextStyles.body, color: Colors.error, textAlign: 'center', marginBottom: Spacing.sm }}>
               {searchError}
             </Text>
-            <Text style={{ color: '#a1a1aa', fontSize: 14, textAlign: 'center' }}>
+            <Text style={{ ...TextStyles.caption, textAlign: 'center' }}>
               Try another search or paste a product link
             </Text>
           </View>
@@ -811,7 +1025,7 @@ function Shop() {
           flexDirection: 'row', 
           flexWrap: 'wrap', 
           justifyContent: 'space-between',
-          gap: 12
+          gap: Spacing.md
         }}>
             {(isWebSearch ? searchResults : filteredProducts).map((product, index) => (
             <Pressable 
@@ -826,21 +1040,21 @@ function Shop() {
               }}
               style={{ 
                 width: '48%',
-                marginBottom: 16
+                marginBottom: Spacing.lg
               }}
             >
               <View style={{ 
-                backgroundColor: 'rgba(255,255,255,0.05)',
-                borderRadius: 16,
+                ...CardStyles.container,
                 overflow: 'hidden',
-                position: 'relative'
+                position: 'relative',
+                padding: 0
               }}>
             <Image 
                   source={{ uri: product.image }} 
                   style={{ 
                     width: '100%', 
                     height: 200,
-                    backgroundColor: 'rgba(255,255,255,0.05)'
+                    backgroundColor: Colors.backgroundSecondary
                   }}
                   resizeMode="cover"
                 />
@@ -848,52 +1062,51 @@ function Shop() {
                 {/* Floating Overlays */}
                 <View style={{ 
                   position: 'absolute', 
-                  top: 8, 
-                  right: 8,
-                  backgroundColor: 'rgba(0,0,0,0.7)',
-                  paddingHorizontal: 8,
-                  paddingVertical: 4,
-                  borderRadius: 12
+                  top: Spacing.sm, 
+                  right: Spacing.sm,
+                  backgroundColor: Colors.backgroundOverlay,
+                  paddingHorizontal: Spacing.sm,
+                  paddingVertical: Spacing.xs,
+                  borderRadius: BorderRadius.md
                 }}>
-                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>
+                  <Text style={{ ...TextStyles.small, color: Colors.textWhite, fontWeight: Typography.semibold }}>
                     ${product.price}
                   </Text>
             </View>
                 
                 <View style={{ 
                   position: 'absolute', 
-                  bottom: 8, 
-                  right: 8,
-                  backgroundColor: 'rgba(0,0,0,0.7)',
-                  paddingHorizontal: 8,
-                  paddingVertical: 4,
-                  borderRadius: 12
+                  bottom: Spacing.sm, 
+                  right: Spacing.sm,
+                  backgroundColor: Colors.backgroundOverlay,
+                  paddingHorizontal: Spacing.sm,
+                  paddingVertical: Spacing.xs,
+                  borderRadius: BorderRadius.md
                 }}>
-                  <Text style={{ color: '#fff', fontSize: 12 }}>👁</Text>
+                  <Text style={{ ...TextStyles.small, color: Colors.textWhite }}>👁</Text>
                 </View>
                 
                 {/* Product Info */}
-            <View style={{ padding: 12 }}>
+            <View style={{ padding: Spacing.md }}>
                   <Text style={{ 
-                    color: '#e4e4e7', 
-                    fontSize: 14, 
-                    fontWeight: '600', 
-                    marginBottom: 4,
+                    ...TextStyles.body,
+                    fontSize: Typography.sm,
+                    fontWeight: Typography.semibold,
+                    marginBottom: Spacing.xs,
                     numberOfLines: 1
                   }}>
                     {product.name}
                   </Text>
                   <Text style={{ 
-                    color: '#a1a1aa', 
-                    fontSize: 12, 
-                    marginBottom: 2
+                    ...TextStyles.caption,
+                    marginBottom: Spacing.xs
                   }}>
                     {product.brand}
                   </Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Text style={{ color: '#10b981', fontSize: 12 }}>⭐ {product.rating}</Text>
-                    <Text style={{ color: '#a1a1aa', fontSize: 12 }}>•</Text>
-                    <Text style={{ color: '#a1a1aa', fontSize: 12 }}>{product.color}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
+                    <Text style={{ ...TextStyles.small, color: Colors.primary }}>⭐ {product.rating}</Text>
+                    <Text style={{ ...TextStyles.small }}>•</Text>
+                    <Text style={{ ...TextStyles.small }}>{product.color}</Text>
             </View>
                 </View>
               </View>
@@ -904,11 +1117,11 @@ function Shop() {
         
         {/* Empty State */}
         {!isSearching && !searchError && (isWebSearch ? searchResults : filteredProducts).length === 0 && searchQuery.length > 0 && (
-          <View style={{ alignItems: 'center', padding: 40 }}>
-            <Text style={{ color: '#a1a1aa', fontSize: 16, textAlign: 'center' }}>
+          <View style={{ alignItems: 'center', padding: Spacing['4xl'] }}>
+            <Text style={{ ...TextStyles.bodySecondary, textAlign: 'center' }}>
               No results found for "{searchQuery}"
             </Text>
-            <Text style={{ color: '#a1a1aa', fontSize: 14, textAlign: 'center', marginTop: 8 }}>
+            <Text style={{ ...TextStyles.caption, textAlign: 'center', marginTop: Spacing.sm }}>
               Try another search or paste a product link
             </Text>
           </View>
@@ -916,8 +1129,8 @@ function Shop() {
         
         {/* Default Empty State (no search) */}
         {!isSearching && !searchError && !isWebSearch && filteredProducts.length === 0 && searchQuery.length === 0 && (
-          <View style={{ alignItems: 'center', padding: 40 }}>
-            <Text style={{ color: '#a1a1aa', fontSize: 16, textAlign: 'center' }}>
+          <View style={{ alignItems: 'center', padding: Spacing['4xl'] }}>
+            <Text style={{ ...TextStyles.bodySecondary, textAlign: 'center' }}>
               No products available
             </Text>
           </View>
@@ -932,7 +1145,7 @@ function Shop() {
           left: 0, 
           right: 0, 
           bottom: 0, 
-          backgroundColor: 'rgba(0,0,0,0.8)', 
+          backgroundColor: Colors.backgroundOverlay, 
           justifyContent: 'center', 
           alignItems: 'center' 
         }}>

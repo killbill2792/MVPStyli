@@ -69,14 +69,19 @@ export async function importProductFromUrl(url: string): Promise<NormalizedProdu
                  process.env.API_URL || 
                  'https://mvpstyli-fresh.vercel.app';
   
-  console.log('API URL:', apiUrl);
-  console.log('Calling:', `${apiUrl}/api/productfromurl`);
+  // Ensure no trailing slash
+  const baseUrl = apiUrl.replace(/\/$/, '');
+  const endpoint = `${baseUrl}/api/productfromurl`;
+  
+  console.log('API URL:', baseUrl);
+  console.log('Calling:', endpoint);
   
   try {
-    const response = await fetch(`${apiUrl}/api/productfromurl`, {
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
       body: JSON.stringify({ url }),
     });
@@ -86,12 +91,18 @@ export async function importProductFromUrl(url: string): Promise<NormalizedProdu
     const text = await response.text();
     
     if (!contentType || !contentType.includes('application/json')) {
-      console.error('Non-JSON response from API:', text.substring(0, 200));
+      console.error('Non-JSON response from API:', text.substring(0, 500));
       // Check for common Vercel errors
-      if (text.includes('DEPLOYMENT_NOT_FOUND') || text.includes('Function not found')) {
-        throw new Error('API endpoint not deployed yet. Please wait for Vercel deployment to complete.');
+      if (text.includes('DEPLOYMENT_NOT_FOUND') || text.includes('Function not found') || text.includes('404')) {
+        throw new Error('API endpoint not found. Please ensure the API is deployed on Vercel. Check: https://mvpstyli-fresh.vercel.app/api/productfromurl');
       }
-      throw new Error(`Server returned non-JSON response: ${response.status} ${response.statusText}`);
+      if (text.includes('502') || text.includes('503') || text.includes('504')) {
+        throw new Error('API server is temporarily unavailable. Please try again in a moment.');
+      }
+      if (response.status === 404) {
+        throw new Error('API endpoint not found. Please verify the deployment on Vercel.');
+      }
+      throw new Error(`Server returned non-JSON response: ${response.status} ${response.statusText}. Response: ${text.substring(0, 100)}`);
     }
     
     let data;
@@ -129,14 +140,19 @@ export async function searchWebProducts(query: string): Promise<NormalizedProduc
                  process.env.API_URL || 
                  'https://mvpstyli-fresh.vercel.app';
   
-  console.log('API URL:', apiUrl);
-  console.log('Calling:', `${apiUrl}/api/searchwebproducts`);
+  // Ensure no trailing slash
+  const baseUrl = apiUrl.replace(/\/$/, '');
+  const endpoint = `${baseUrl}/api/searchwebproducts`;
+  
+  console.log('API URL:', baseUrl);
+  console.log('Calling:', endpoint);
   
   try {
-    const response = await fetch(`${apiUrl}/api/searchwebproducts`, {
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
       body: JSON.stringify({ query }),
     });
@@ -146,12 +162,18 @@ export async function searchWebProducts(query: string): Promise<NormalizedProduc
     const text = await response.text();
     
     if (!contentType || !contentType.includes('application/json')) {
-      console.error('Non-JSON response from API:', text.substring(0, 200));
+      console.error('Non-JSON response from API:', text.substring(0, 500));
       // Check for common Vercel errors
-      if (text.includes('DEPLOYMENT_NOT_FOUND') || text.includes('Function not found')) {
-        throw new Error('API endpoint not deployed yet. Please wait for Vercel deployment to complete.');
+      if (text.includes('DEPLOYMENT_NOT_FOUND') || text.includes('Function not found') || text.includes('404')) {
+        throw new Error('API endpoint not found. Please ensure the API is deployed on Vercel. Check: https://mvpstyli-fresh.vercel.app/api/searchwebproducts');
       }
-      throw new Error(`Server returned non-JSON response: ${response.status} ${response.statusText}`);
+      if (text.includes('502') || text.includes('503') || text.includes('504')) {
+        throw new Error('API server is temporarily unavailable. Please try again in a moment.');
+      }
+      if (response.status === 404) {
+        throw new Error('API endpoint not found. Please verify the deployment on Vercel.');
+      }
+      throw new Error(`Server returned non-JSON response: ${response.status} ${response.statusText}. Response: ${text.substring(0, 100)}`);
     }
     
     let data;
