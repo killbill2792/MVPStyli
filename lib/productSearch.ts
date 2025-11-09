@@ -114,7 +114,10 @@ export async function importProductFromUrl(url: string): Promise<NormalizedProdu
     }
 
     if (!response.ok) {
-      throw new Error(data.error || `Failed to import product: ${response.status}`);
+      const errorMsg = typeof data.error === 'string' 
+        ? data.error 
+        : (data.error?.message || data.details || `Failed to import product: ${response.status}`);
+      throw new Error(errorMsg);
     }
 
     if (!data.item) {
@@ -124,10 +127,13 @@ export async function importProductFromUrl(url: string): Promise<NormalizedProdu
     return normalizeProduct(data.item);
   } catch (error: any) {
     console.error('Error importing product from URL:', error);
-    if (error.message) {
+    // Ensure we always throw a proper Error with a string message
+    if (error instanceof Error && error.message) {
       throw error;
     }
-    throw new Error('Failed to import product from URL. Please check the URL and try again.');
+    // Handle case where error might be an object
+    const errorMessage = error?.message || error?.error || (typeof error === 'string' ? error : 'Failed to import product from URL. Please check the URL and try again.');
+    throw new Error(errorMessage);
   }
 }
 
@@ -186,26 +192,33 @@ export async function searchWebProducts(query: string): Promise<NormalizedProduc
 
     if (!response.ok) {
       // If API key not configured, return empty array with warning
-      if (data.error && data.error.includes('API key')) {
-        console.warn('Product search API not configured:', data.error);
+      const errorMsg = typeof data.error === 'string' ? data.error : (data.error?.message || data.details || `Failed to search products: ${response.status}`);
+      if (errorMsg && typeof errorMsg === 'string' && errorMsg.includes('API key')) {
+        console.warn('Product search API not configured:', errorMsg);
         return [];
       }
-      throw new Error(data.error || `Failed to search products: ${response.status}`);
+      throw new Error(errorMsg);
     }
   
     // If API returns error message (e.g., API key not configured), return empty array
     if (data.error && (!data.items || data.items.length === 0)) {
-      console.warn('Product search API not configured:', data.error);
-      return [];
+      const errorMsg = typeof data.error === 'string' ? data.error : (data.error?.message || data.details || 'Unknown error');
+      if (typeof errorMsg === 'string' && errorMsg.includes('API key')) {
+        console.warn('Product search API not configured:', errorMsg);
+        return [];
+      }
     }
   
     return (data.items || []).map((item: any) => normalizeProduct(item));
   } catch (error: any) {
     console.error('Error searching web products:', error);
-    if (error.message) {
+    // Ensure we always throw a proper Error with a string message
+    if (error instanceof Error && error.message) {
       throw error;
     }
-    throw new Error('Failed to search products. Please try again.');
+    // Handle case where error might be an object
+    const errorMessage = error?.message || error?.error || (typeof error === 'string' ? error : 'Failed to search products. Please try again.');
+    throw new Error(errorMessage);
   }
 }
 
