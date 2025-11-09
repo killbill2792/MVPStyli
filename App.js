@@ -17,6 +17,7 @@ import PodsHome from './screens/PodsHome';
 import Inbox from './screens/Inbox';
 import { ProductDetector } from './components/ProductDetector';
 import { fetchRealClothingProducts } from './lib/productApi';
+import { isUrl, importProductFromUrl, searchWebProducts, normalizeProduct } from './lib/productSearch';
 
 // Enhanced product data with working model images - upper body and lower body items
 const enhancedProducts = [
@@ -548,9 +549,13 @@ function Shop() {
   const { state: { products }, setRoute, setCurrentProduct, setDetectedProduct } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredProducts, setFilteredProducts] = useState([]);
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState(null);
   const [showSearch, setShowSearch] = useState(false);
   const [showProductDetector, setShowProductDetector] = useState(false);
   const [allProducts, setAllProducts] = useState(enhancedProducts);
+  const [isWebSearch, setIsWebSearch] = useState(false);
   
   // Use the global enhancedProducts array
   
@@ -569,10 +574,12 @@ function Shop() {
     loadAdditionalProducts();
   }, []);
 
-  // Enhanced NLP search function
-  const performSearch = (query) => {
+  // Enhanced NLP search function (for local products only)
+  const performLocalSearch = (query) => {
     if (!query.trim()) {
       setFilteredProducts(allProducts);
+      setIsWebSearch(false);
+      setSearchResults([]);
       return;
     }
     
@@ -590,16 +597,119 @@ function Shop() {
     });
     
     setFilteredProducts(filtered);
+    setIsWebSearch(false);
+    setSearchResults([]);
   };
 
   // Initialize with all products
   useEffect(() => {
+    if (!isWebSearch && searchResults.length === 0) {
     setFilteredProducts(allProducts);
-  }, [allProducts]);
+    }
+  }, [allProducts, isWebSearch, searchResults]);
+  
+  // Handle search submission (URL or natural language)
+  const handleSearchSubmit = async () => {
+    const query = searchQuery.trim();
+    
+    if (!query) {
+      // Clear search, show default products
+      setSearchResults([]);
+      setIsWebSearch(false);
+      setFilteredProducts(allProducts);
+      setSearchError(null);
+      return;
+    }
+    
+    setIsSearching(true);
+    setSearchError(null);
+    
+    try {
+      if (isUrl(query)) {
+        // URL import
+        console.log('Importing product from URL:', query);
+        const importedProduct = await importProductFromUrl(query);
+        const normalized = normalizeProduct(importedProduct);
+        // Convert to format expected by UI
+        const productForUI = {
+          id: normalized.id,
+          name: normalized.title || normalized.name,
+          title: normalized.title || normalized.name,
+          price: normalized.price || 0,
+          rating: normalized.rating || 4.0,
+          brand: normalized.brand || normalized.sourceLabel || 'Online Store',
+          category: normalized.category || 'upper',
+          color: normalized.color || 'Mixed',
+          material: normalized.material || 'Unknown',
+          garment_des: normalized.garment_des || '',
+          image: normalized.imageUrl || normalized.image,
+          buyUrl: normalized.productUrl || normalized.buyUrl,
+          kind: normalized.kind,
+          sourceLabel: normalized.sourceLabel
+        };
+        setSearchResults([productForUI]);
+        setIsWebSearch(true);
+        setFilteredProducts([]);
+      } else {
+        // Natural language web search
+        console.log('Searching web for:', query);
+        const webProducts = await searchWebProducts(query);
+        if (webProducts.length === 0) {
+          setSearchError('No products found. Try another search or paste a product link.');
+          setSearchResults([]);
+          setIsWebSearch(false);
+          setFilteredProducts([]);
+        } else {
+          // Convert to format expected by UI
+          const productsForUI = webProducts.map(normalized => ({
+            id: normalized.id,
+            name: normalized.title || normalized.name,
+            title: normalized.title || normalized.name,
+            price: normalized.price || 0,
+            rating: normalized.rating || 4.0,
+            brand: normalized.brand || normalized.sourceLabel || 'Online Store',
+            category: normalized.category || 'upper',
+            color: normalized.color || 'Mixed',
+            material: normalized.material || 'Unknown',
+            garment_des: normalized.garment_des || '',
+            image: normalized.imageUrl || normalized.image,
+            buyUrl: normalized.productUrl || normalized.buyUrl,
+            kind: normalized.kind,
+            sourceLabel: normalized.sourceLabel
+          }));
+          setSearchResults(productsForUI);
+          setIsWebSearch(true);
+          setFilteredProducts([]);
+        }
+      }
+    } catch (error) {
+      console.error('Search error:', error);
+      setSearchError(error.message || 'Search failed. Please try again.');
+      setSearchResults([]);
+      setIsWebSearch(false);
+      setFilteredProducts([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
   
   const handleSearch = (text) => {
     setSearchQuery(text);
-    performSearch(text);
+    // If user clears search, reset to local products
+    if (!text.trim()) {
+      setSearchResults([]);
+      setIsWebSearch(false);
+      setSearchError(null);
+      performLocalSearch('');
+    }
+  };
+  
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    setSearchResults([]);
+    setIsWebSearch(false);
+    setSearchError(null);
+    setFilteredProducts(allProducts);
   };
 
   const handleProductDetected = (newProduct) => {
@@ -620,17 +730,37 @@ function Shop() {
             <TextInput
               value={searchQuery}
               onChangeText={handleSearch}
-              placeholder="Search dresses, brands, colors..."
+              onSubmitEditing={handleSearchSubmit}
+              placeholder="Paste a link or type 'red satin dress under $100'"
               placeholderTextColor="#a1a1aa"
               style={{ flex: 1, color: '#e4e4e7', fontSize: 14 }}
+              returnKeyType="search"
             />
             {searchQuery.length > 0 && (
-              <Pressable onPress={() => { setSearchQuery(''); setFilteredProducts(allProducts); }}>
+              <Pressable onPress={handleClearSearch}>
                 <Text style={{ color: '#a1a1aa', fontSize: 16 }}>✕</Text>
               </Pressable>
             )}
           </View>
           
+          {searchQuery.length > 0 && (
+            <Pressable 
+              onPress={handleSearchSubmit}
+              disabled={isSearching}
+              style={{ 
+                backgroundColor: isSearching ? '#6b7280' : '#10b981', 
+                paddingHorizontal: 16, 
+                paddingVertical: 12, 
+                borderRadius: 16 
+              }}
+            >
+              <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
+                {isSearching ? '...' : 'Search'}
+              </Text>
+            </Pressable>
+          )}
+          
+          {searchQuery.length === 0 && (
           <Pressable 
             onPress={() => setShowProductDetector(true)}
             style={{ 
@@ -644,6 +774,7 @@ function Shop() {
               + Detect
             </Text>
           </Pressable>
+          )}
         </View>
       </View>
       
@@ -653,16 +784,46 @@ function Shop() {
         contentContainerStyle={{ padding: 16, paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
       >
+        {/* Loading State */}
+        {isSearching && (
+          <View style={{ alignItems: 'center', padding: 40 }}>
+            <Text style={{ color: '#a1a1aa', fontSize: 16, textAlign: 'center' }}>
+              Searching the web for fits…
+            </Text>
+          </View>
+        )}
+        
+        {/* Error State */}
+        {searchError && !isSearching && (
+          <View style={{ alignItems: 'center', padding: 40 }}>
+            <Text style={{ color: '#ef4444', fontSize: 16, textAlign: 'center', marginBottom: 8 }}>
+              {searchError}
+            </Text>
+            <Text style={{ color: '#a1a1aa', fontSize: 14, textAlign: 'center' }}>
+              Try another search or paste a product link
+            </Text>
+          </View>
+        )}
+        
+        {/* Products Grid */}
+        {!isSearching && (
         <View style={{ 
           flexDirection: 'row', 
           flexWrap: 'wrap', 
           justifyContent: 'space-between',
           gap: 12
         }}>
-          {filteredProducts.map((product, index) => (
+            {(isWebSearch ? searchResults : filteredProducts).map((product, index) => (
             <Pressable 
               key={product.id} 
-              onPress={() => { setCurrentProduct(product.id); setRoute('product'); }}
+              onPress={() => { 
+                // Store web/imported products in state so Product screen can access them
+                if (product.kind === 'web' || product.kind === 'imported') {
+                  setDetectedProduct(product);
+                }
+                setCurrentProduct(product.id); 
+                setRoute('product'); 
+              }}
               style={{ 
                 width: '48%',
                 marginBottom: 16
@@ -739,14 +900,25 @@ function Shop() {
         </Pressable>
       ))}
         </View>
+        )}
         
-        {filteredProducts.length === 0 && (
+        {/* Empty State */}
+        {!isSearching && !searchError && (isWebSearch ? searchResults : filteredProducts).length === 0 && searchQuery.length > 0 && (
           <View style={{ alignItems: 'center', padding: 40 }}>
             <Text style={{ color: '#a1a1aa', fontSize: 16, textAlign: 'center' }}>
-              No products found for "{searchQuery}"
+              No results found for "{searchQuery}"
             </Text>
             <Text style={{ color: '#a1a1aa', fontSize: 14, textAlign: 'center', marginTop: 8 }}>
-              Try searching for brands, colors, or categories
+              Try another search or paste a product link
+            </Text>
+          </View>
+        )}
+        
+        {/* Default Empty State (no search) */}
+        {!isSearching && !searchError && !isWebSearch && filteredProducts.length === 0 && searchQuery.length === 0 && (
+          <View style={{ alignItems: 'center', padding: 40 }}>
+            <Text style={{ color: '#a1a1aa', fontSize: 16, textAlign: 'center' }}>
+              No products available
             </Text>
           </View>
         )}
@@ -798,15 +970,21 @@ function Product() {
         const allProductsList = [...enhancedProducts, ...realProducts];
         setAllProducts(allProductsList);
         
-        // Check if we have a detected product first
+        // Check if we have a detected/web/imported product first
         let currentProduct = null;
         if (detectedProduct && detectedProduct.id === currentProductId) {
           currentProduct = detectedProduct;
-          console.log('Using detected product:', currentProduct);
+          console.log('Using detected/web product:', currentProduct);
         } else {
           // Find the current product in the list
           currentProduct = allProductsList.find(p => p.id === currentProductId);
           console.log('Found product in list:', currentProduct);
+        }
+        
+        // If still not found and it's a web/imported product ID, try to fetch from URL
+        if (!currentProduct && currentProductId && (currentProductId.startsWith('web-') || currentProductId.startsWith('imported-'))) {
+          console.log('Product not found, may be a web/imported product that needs to be reloaded');
+          // Product should have been set via setDetectedProduct, but if not, we'll show error
         }
         
         setProduct(currentProduct);
@@ -927,8 +1105,100 @@ function Product() {
         </View>
         <Text style={{ color: '#a1a1aa' }}>Fabric: Cotton blend • Shipping: 2–4 days • Returns: 30 days</Text>
         
-        {/* Action Buttons - Side by Side */}
-        <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+        {/* Action Buttons */}
+        <View style={{ gap: 12, marginTop: 16 }}>
+          {/* Primary Actions Row */}
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            {/* Try On Button */}
+            <Pressable 
+              onPress={() => setRoute('tryon', { garmentId: product.id, category: product.category, garmentCleanUrl: cleanUrl || product.image })}
+              style={{ 
+                flex: 1, 
+                backgroundColor: '#fff',
+                padding: 16,
+                borderRadius: 12,
+                alignItems: 'center',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 4,
+                elevation: 3
+              }}
+            >
+              <Text style={{ color: '#000', fontSize: 16, fontWeight: '700' }}>✦ Try On</Text>
+            </Pressable>
+            
+            {/* Ask a Pod Button */}
+            <Pressable 
+              onPress={() => setRoute('createpod')}
+              style={{
+                flex: 1,
+                backgroundColor: 'rgba(255,255,255,0.1)',
+                padding: 16,
+                borderRadius: 12,
+                alignItems: 'center',
+                borderWidth: 1,
+                borderColor: 'rgba(255,255,255,0.2)'
+              }}
+            >
+              <Text style={{ 
+                color: '#e4e4e7', 
+                fontSize: 16, 
+                fontWeight: '600',
+                textAlign: 'center'
+              }}>
+                Ask a Pod
+              </Text>
+            </Pressable>
+          </View>
+          
+          {/* View Original Button (for web/imported products) */}
+          {(product.kind === 'web' || product.kind === 'imported' || product.buyUrl || product.productUrl) && (
+            <Pressable 
+              onPress={async () => {
+                const url = product.productUrl || product.buyUrl;
+                if (url) {
+                  const canOpen = await Linking.canOpenURL(url);
+                  if (canOpen) {
+                    await Linking.openURL(url);
+                  } else {
+                    Alert.alert('Error', 'Cannot open this URL');
+                  }
+                }
+              }}
+              style={{
+                backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                padding: 16,
+                borderRadius: 12,
+                alignItems: 'center',
+                borderWidth: 1,
+                borderColor: 'rgba(99, 102, 241, 0.3)'
+              }}
+            >
+              <Text style={{ 
+                color: '#a5b4fc', 
+                fontSize: 16, 
+                fontWeight: '600',
+                textAlign: 'center'
+              }}>
+                🔗 View Original
+              </Text>
+              {product.sourceLabel && (
+                <Text style={{ 
+                  color: '#a5b4fc', 
+                  fontSize: 12, 
+                  marginTop: 4,
+                  opacity: 0.8
+                }}>
+                  {product.sourceLabel}
+                </Text>
+              )}
+            </Pressable>
+          )}
+          
+          {/* Buy Now / Price Tracking Row (for catalog products) */}
+          {(!product.kind || product.kind === 'catalog') && (
+            <View style={{ flexDirection: 'row', gap: 12 }}>
           {/* Buy Now Button */}
           <Pressable 
             style={{ 
@@ -973,6 +1243,8 @@ function Product() {
               {isTracking ? 'Tracking Active' : showPriceInput ? 'Set Price & Track' : 'Track Price'}
             </Text>
           </Pressable>
+            </View>
+          )}
         </View>
         
         {/* Price Tracking Details - Expandable */}
