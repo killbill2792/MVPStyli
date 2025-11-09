@@ -405,21 +405,47 @@ async function scrapeGenericProduct(url: string) {
     const price = productData?.offers?.price || undefined;
     const currency = productData?.offers?.priceCurrency || 'USD';
     
-    const image = productData?.image?.[0] || 
-                  html.match(/<meta property="og:image" content="([^"]+)"/i)?.[1] ||
-                  html.match(/<meta name="og:image" content="([^"]+)"/i)?.[1] || '';
+    // Try multiple image extraction methods
+    let image = productData?.image?.[0] || 
+                productData?.image ||
+                html.match(/<meta property="og:image" content="([^"]+)"/i)?.[1] ||
+                html.match(/<meta name="og:image" content="([^"]+)"/i)?.[1] ||
+                html.match(/<img[^>]*class="[^"]*product[^"]*"[^>]*src="([^"]+)"/i)?.[1] ||
+                html.match(/<img[^>]*data-src="([^"]+)"/i)?.[1] ||
+                html.match(/<img[^>]*src="([^"]*product[^"]*\.(jpg|jpeg|png|webp))"/i)?.[1] ||
+                '';
+    
+    // If image is an array, get first item
+    if (Array.isArray(image)) {
+      image = image[0] || '';
+    }
+    
+    // If image is relative, make it absolute
+    if (image && !image.startsWith('http')) {
+      try {
+        const urlObj = new URL(url);
+        image = image.startsWith('/') 
+          ? `${urlObj.protocol}//${urlObj.host}${image}`
+          : `${urlObj.protocol}//${urlObj.host}/${image}`;
+      } catch (e) {
+        // Keep original if URL parsing fails
+      }
+    }
     
     const descMatch = html.match(/<meta property="og:description" content="([^"]+)"/i);
     const description = productData?.description || descMatch?.[1] || '';
     
+    // Ensure we have at least a name (use URL as fallback)
+    const finalName = name || extractBrandFromUrl(url) + ' Product' || 'Online Product';
+    
     return {
-      name,
+      name: finalName,
       price,
       currency,
       image,
       description,
       brand: extractBrandFromUrl(url),
-      category: detectCategoryFromUrl(url, name)
+      category: detectCategoryFromUrl(url, finalName)
     };
   } catch (error) {
     console.error('Error scraping generic product:', error);

@@ -427,7 +427,7 @@ function Shell() {
       {route === "shop" && <Shop />}
       
       {/* Original screens that use the container */}
-      {!["createpod", "podlive", "podrecap", "podshome", "inbox", "stylecraft", "account", "shop"].includes(route) && (
+      {!["createpod", "podlive", "podrecap", "podshome", "inbox", "stylecraft", "account", "shop", "chat"].includes(route) && (
         <View style={s.container}>
           {route === "signin" && <SignInScreen onDone={() => setRoute("onboarding")} />}
           {route === "onboarding" && <Onboarding />}
