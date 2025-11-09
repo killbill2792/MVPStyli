@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo, useEffect, useState } from 'react';
+import React, { createContext, useContext, useMemo, useEffect, useState, useRef } from 'react';
 import { View, Text, Pressable, Image, StyleSheet, Alert, StatusBar, TextInput, ScrollView, TouchableWithoutFeedback, PanGestureHandler } from 'react-native';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -561,7 +561,7 @@ function Shop() {
     { type: 'ai', message: 'Hi! I\'m your AI shopping assistant. Ask me anything like "show me red polka dot dresses" or "what dress would suit me?" You can also paste a product URL to get details!' }
   ]);
   const [showChat, setShowChat] = useState(false);
-  const chatScrollRef = React.useRef(null);
+  const chatScrollRef = useRef(null);
   
   // Use the global enhancedProducts array
   
