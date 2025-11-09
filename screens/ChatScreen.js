@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, Image, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, Image, KeyboardAvoidingView, Platform, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, BorderRadius, ButtonStyles, CardStyles, InputStyles, TextStyles, createButtonStyle, getButtonTextStyle } from '../lib/designSystem';
 import { isUrl, importProductFromUrl, searchWebProducts, normalizeProduct } from '../lib/productSearch';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function ChatScreen({ onBack, onProductSelect }) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -11,16 +13,18 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   ]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
+  const [selectedProductIndex, setSelectedProductIndex] = useState(0);
   const chatScrollRef = useRef(null);
+  const [showResults, setShowResults] = useState(false);
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
-    if (chatScrollRef.current) {
+    if (chatScrollRef.current && !showResults) {
       setTimeout(() => {
         chatScrollRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }
-  }, [chatHistory]);
+  }, [chatHistory, showResults]);
 
   // Enhanced natural language query processing
   const processQuery = (query) => {
@@ -74,6 +78,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
     setChatHistory(prev => [...prev, userMessage]);
     setSearchQuery('');
     setIsSearching(true);
+    setShowResults(false);
     
     try {
       if (isUrl(query)) {
@@ -81,34 +86,50 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         const thinkingMessage = { type: 'ai', message: 'Analyzing product URL...' };
         setChatHistory(prev => [...prev, thinkingMessage]);
         
-        const importedProduct = await importProductFromUrl(query);
-        const normalized = normalizeProduct(importedProduct);
-        
-        const productForUI = {
-          id: normalized.id,
-          name: normalized.title || normalized.name,
-          title: normalized.title || normalized.name,
-          price: normalized.price || 0,
-          rating: normalized.rating || 4.0,
-          brand: normalized.brand || normalized.sourceLabel || 'Online Store',
-          category: normalized.category || 'upper',
-          color: normalized.color || 'Mixed',
-          material: normalized.material || 'Unknown',
-          garment_des: normalized.garment_des || '',
-          image: normalized.imageUrl || normalized.image,
-          buyUrl: normalized.productUrl || normalized.buyUrl,
-          kind: normalized.kind,
-          sourceLabel: normalized.sourceLabel
-        };
-        
-        setSearchResults([productForUI]);
-        
-        const successMessage = { 
-          type: 'ai', 
-          message: `Found product: ${productForUI.name} by ${productForUI.brand} - $${productForUI.price}. Tap to view details!`,
-          product: productForUI
-        };
-        setChatHistory(prev => [...prev, successMessage]);
+        try {
+          const importedProduct = await importProductFromUrl(query);
+          const normalized = normalizeProduct(importedProduct);
+          
+          const productForUI = {
+            id: normalized.id || `imported-${Date.now()}`,
+            name: normalized.title || normalized.name || 'Imported Product',
+            title: normalized.title || normalized.name || 'Imported Product',
+            price: normalized.price || 0,
+            rating: normalized.rating || 4.0,
+            brand: normalized.brand || normalized.sourceLabel || 'Online Store',
+            category: normalized.category || 'upper',
+            color: normalized.color || 'Mixed',
+            material: normalized.material || 'Unknown',
+            garment_des: normalized.garment_des || '',
+            image: normalized.imageUrl || normalized.image || 'https://via.placeholder.com/400',
+            buyUrl: normalized.productUrl || normalized.buyUrl,
+            kind: normalized.kind || 'imported',
+            sourceLabel: normalized.sourceLabel
+          };
+          
+          // Ensure required fields
+          if (!productForUI.image || productForUI.image === 'https://via.placeholder.com/400') {
+            throw new Error('Product image could not be extracted from URL. Please try a different product page.');
+          }
+          
+          setSearchResults([productForUI]);
+          setSelectedProductIndex(0);
+          setShowResults(true);
+          
+          const successMessage = { 
+            type: 'ai', 
+            message: `Found product: ${productForUI.name} by ${productForUI.brand} - $${productForUI.price}. Tap the image to view details!`
+          };
+          setChatHistory(prev => [...prev, successMessage]);
+        } catch (urlError) {
+          console.error('URL import error:', urlError);
+          const errorMessage = { 
+            type: 'ai', 
+            message: `Sorry, I couldn't extract product information from that URL. Error: ${urlError.message || 'Please try a different product page or paste a direct product link.'}` 
+          };
+          setChatHistory(prev => [...prev, errorMessage]);
+          setSearchResults([]);
+        }
       } else {
         // Natural language search
         const intent = processQuery(query);
@@ -122,48 +143,71 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         const thinkingMessage = { type: 'ai', message: thinkingMsg };
         setChatHistory(prev => [...prev, thinkingMessage]);
         
-        const webProducts = await searchWebProducts(query);
-        
-        if (webProducts.length === 0) {
+        try {
+          const webProducts = await searchWebProducts(query);
+          
+          if (webProducts.length === 0) {
+            const errorMessage = { 
+              type: 'ai', 
+              message: 'Sorry, I couldn\'t find any products matching your search. Try asking differently, like "show me red dresses" or paste a product URL.' 
+            };
+            setChatHistory(prev => [...prev, errorMessage]);
+            setSearchResults([]);
+          } else {
+            // Limit to 10 results
+            const limitedProducts = webProducts.slice(0, 10);
+            
+            const productsForUI = limitedProducts.map(normalized => ({
+              id: normalized.id || `web-${Date.now()}-${Math.random()}`,
+              name: normalized.title || normalized.name || 'Product',
+              title: normalized.title || normalized.name || 'Product',
+              price: normalized.price || 0,
+              rating: normalized.rating || 4.0,
+              brand: normalized.brand || normalized.sourceLabel || 'Online Store',
+              category: normalized.category || 'upper',
+              color: normalized.color || 'Mixed',
+              material: normalized.material || 'Unknown',
+              garment_des: normalized.garment_des || '',
+              image: normalized.imageUrl || normalized.image || 'https://via.placeholder.com/400',
+              buyUrl: normalized.productUrl || normalized.buyUrl,
+              kind: normalized.kind || 'web',
+              sourceLabel: normalized.sourceLabel
+            })).filter(p => p.image && p.image !== 'https://via.placeholder.com/400'); // Filter out products without images
+            
+            if (productsForUI.length === 0) {
+              const errorMessage = { 
+                type: 'ai', 
+                message: 'Found products but couldn\'t load images. Please try again.' 
+              };
+              setChatHistory(prev => [...prev, errorMessage]);
+              setSearchResults([]);
+            } else {
+              setSearchResults(productsForUI);
+              setSelectedProductIndex(0);
+              setShowResults(true);
+              
+              const successMessage = { 
+                type: 'ai', 
+                message: `Found ${productsForUI.length} product${productsForUI.length > 1 ? 's' : ''} for you! Swipe through the thumbnails below to see all options.`
+              };
+              setChatHistory(prev => [...prev, successMessage]);
+            }
+          }
+        } catch (searchError) {
+          console.error('Search error:', searchError);
           const errorMessage = { 
             type: 'ai', 
-            message: 'Sorry, I couldn\'t find any products matching your search. Try asking differently, like "show me red dresses" or paste a product URL.' 
+            message: `Sorry, I encountered an error: ${searchError.message || 'Please try again or paste a product URL directly.'}` 
           };
           setChatHistory(prev => [...prev, errorMessage]);
           setSearchResults([]);
-        } else {
-          const productsForUI = webProducts.map(normalized => ({
-            id: normalized.id,
-            name: normalized.title || normalized.name,
-            title: normalized.title || normalized.name,
-            price: normalized.price || 0,
-            rating: normalized.rating || 4.0,
-            brand: normalized.brand || normalized.sourceLabel || 'Online Store',
-            category: normalized.category || 'upper',
-            color: normalized.color || 'Mixed',
-            material: normalized.material || 'Unknown',
-            garment_des: normalized.garment_des || '',
-            image: normalized.imageUrl || normalized.image,
-            buyUrl: normalized.productUrl || normalized.buyUrl,
-            kind: normalized.kind,
-            sourceLabel: normalized.sourceLabel
-          }));
-          
-          setSearchResults(productsForUI);
-          
-          const successMessage = { 
-            type: 'ai', 
-            message: `Found ${productsForUI.length} product${productsForUI.length > 1 ? 's' : ''} for you!`,
-            products: productsForUI
-          };
-          setChatHistory(prev => [...prev, successMessage]);
         }
       }
     } catch (error) {
-      console.error('Search error:', error);
+      console.error('General error:', error);
       const errorMessage = { 
         type: 'ai', 
-        message: `Sorry, I encountered an error: ${error.message || 'Please try again or paste a product URL directly.'}` 
+        message: `Sorry, something went wrong: ${error.message || 'Please try again.'}` 
       };
       setChatHistory(prev => [...prev, errorMessage]);
       setSearchResults([]);
@@ -173,25 +217,39 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   };
 
   const handleProductPress = (product) => {
-    if (onProductSelect) {
-      onProductSelect(product);
+    if (!product || !product.id) {
+      console.error('Invalid product:', product);
+      return;
+    }
+    
+    try {
+      if (onProductSelect) {
+        onProductSelect(product);
+      }
+    } catch (error) {
+      console.error('Error selecting product:', error);
     }
   };
+
+  const currentProduct = searchResults[selectedProductIndex];
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={['top']}>
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         {/* Header */}
         <View style={{ 
           flexDirection: 'row', 
           alignItems: 'center', 
-          padding: Spacing.lg,
+          paddingTop: Spacing.md,
+          paddingHorizontal: Spacing.lg,
+          paddingBottom: Spacing.md,
           borderBottomWidth: 1,
-          borderBottomColor: Colors.border
+          borderBottomColor: Colors.border,
+          backgroundColor: Colors.background
         }}>
           <Pressable onPress={onBack} style={{ marginRight: Spacing.md }}>
             <Text style={{ ...TextStyles.body, color: Colors.primary, fontSize: Typography.base }}>← Back</Text>
@@ -199,151 +257,181 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           <Text style={{ ...TextStyles.h3, flex: 1 }}>AI Shopping Assistant</Text>
         </View>
 
-        {/* Chat Messages */}
-        <ScrollView 
-          ref={chatScrollRef}
-          style={{ flex: 1 }}
-          contentContainerStyle={{ padding: Spacing.lg }}
-          onContentSizeChange={() => {
-            if (chatScrollRef.current) {
-              chatScrollRef.current.scrollToEnd({ animated: true });
-            }
-          }}
-        >
-          {chatHistory.map((msg, idx) => (
-            <View key={idx} style={{ marginBottom: Spacing.lg }}>
-              {msg.type === 'user' ? (
-                <View style={{ alignItems: 'flex-end' }}>
-                  <View style={{
-                    backgroundColor: Colors.primaryLight,
-                    padding: Spacing.md,
-                    borderRadius: BorderRadius.lg,
-                    borderTopRightRadius: BorderRadius.sm,
-                    maxWidth: '80%'
-                  }}>
-                    <Text style={{ ...TextStyles.body, color: Colors.primary }}>
-                      {msg.message}
-                    </Text>
-                  </View>
-                </View>
-              ) : (
-                <View style={{ alignItems: 'flex-start' }}>
-                  <View style={{
-                    backgroundColor: Colors.backgroundSecondary,
-                    padding: Spacing.md,
-                    borderRadius: BorderRadius.lg,
-                    borderTopLeftRadius: BorderRadius.sm,
-                    maxWidth: '85%'
-                  }}>
-                    <Text style={{ ...TextStyles.body, color: Colors.textPrimary }}>
-                      {msg.message}
-                    </Text>
-                    
-                    {/* Show products if available */}
-                    {msg.products && msg.products.length > 0 && (
-                      <View style={{ marginTop: Spacing.md, gap: Spacing.md }}>
-                        {msg.products.slice(0, 3).map((product) => (
-                          <Pressable
-                            key={product.id}
-                            onPress={() => handleProductPress(product)}
-                            style={{
-                              ...CardStyles.container,
-                              padding: 0,
-                              overflow: 'hidden',
-                              marginTop: Spacing.sm
-                            }}
-                          >
-                            <Image 
-                              source={{ uri: product.image }} 
-                              style={{ 
-                                width: '100%', 
-                                height: 150,
-                                backgroundColor: Colors.backgroundSecondary
-                              }}
-                              resizeMode="cover"
-                            />
-                            <View style={{ padding: Spacing.md }}>
-                              <Text style={{ ...TextStyles.body, fontSize: Typography.sm, fontWeight: Typography.semibold, marginBottom: Spacing.xs }}>
-                                {product.name}
-                              </Text>
-                              <Text style={{ ...TextStyles.caption, marginBottom: Spacing.xs }}>
-                                {product.brand} • ${product.price}
-                              </Text>
-                              <Text style={{ ...TextStyles.small, color: Colors.primary }}>
-                                Tap to view details →
-                              </Text>
-                            </View>
-                          </Pressable>
-                        ))}
-                        {msg.products.length > 3 && (
-                          <Text style={{ ...TextStyles.caption, marginTop: Spacing.sm, textAlign: 'center' }}>
-                            + {msg.products.length - 3} more products
-                          </Text>
-                        )}
-                      </View>
-                    )}
-                    
-                    {/* Show single product if available */}
-                    {msg.product && (
-                      <Pressable
-                        onPress={() => handleProductPress(msg.product)}
-                        style={{
-                          ...CardStyles.container,
-                          padding: 0,
-                          overflow: 'hidden',
-                          marginTop: Spacing.md
-                        }}
-                      >
-                        <Image 
-                          source={{ uri: msg.product.image }} 
-                          style={{ 
-                            width: '100%', 
-                            height: 200,
-                            backgroundColor: Colors.backgroundSecondary
-                          }}
-                          resizeMode="cover"
-                        />
-                        <View style={{ padding: Spacing.md }}>
-                          <Text style={{ ...TextStyles.body, fontSize: Typography.base, fontWeight: Typography.semibold, marginBottom: Spacing.xs }}>
-                            {msg.product.name}
-                          </Text>
-                          <Text style={{ ...TextStyles.caption, marginBottom: Spacing.xs }}>
-                            {msg.product.brand} • ${msg.product.price}
-                          </Text>
-                          <Text style={{ ...TextStyles.small, color: Colors.primary }}>
-                            Tap to view details →
-                          </Text>
-                        </View>
-                      </Pressable>
-                    )}
-                  </View>
-                </View>
-              )}
-            </View>
-          ))}
-          
-          {isSearching && (
-            <View style={{ alignItems: 'flex-start', marginBottom: Spacing.lg }}>
+        {showResults && searchResults.length > 0 ? (
+          /* Explore-style Product View */
+          <View style={{ flex: 1 }}>
+            {/* Main Product Image */}
+            <Pressable 
+              onPress={() => handleProductPress(currentProduct)}
+              style={{ flex: 1, position: 'relative' }}
+            >
+              <Image 
+                source={{ uri: currentProduct.image }} 
+                style={{ 
+                  width: '100%', 
+                  height: '100%',
+                  backgroundColor: Colors.backgroundSecondary
+                }}
+                resizeMode="cover"
+              />
+              
+              {/* Product Info Overlay */}
               <View style={{
-                backgroundColor: Colors.backgroundSecondary,
-                padding: Spacing.md,
-                borderRadius: BorderRadius.lg,
-                borderTopLeftRadius: BorderRadius.sm,
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                backgroundColor: 'rgba(0,0,0,0.7)',
+                padding: Spacing.lg,
+                paddingBottom: 120 // Space for thumbnails
               }}>
-                <Text style={{ ...TextStyles.body, color: Colors.textSecondary }}>
-                  Searching...
+                <Text style={{ ...TextStyles.h3, color: Colors.textWhite, marginBottom: Spacing.xs }}>
+                  {currentProduct.name}
                 </Text>
+                <Text style={{ ...TextStyles.body, color: Colors.textWhite, marginBottom: Spacing.xs }}>
+                  {currentProduct.brand} • ${currentProduct.price}
+                </Text>
+                {currentProduct.rating && (
+                  <Text style={{ ...TextStyles.caption, color: Colors.textWhite }}>
+                    ⭐ {currentProduct.rating}
+                  </Text>
+                )}
+                <Pressable 
+                  onPress={() => handleProductPress(currentProduct)}
+                  style={{
+                    marginTop: Spacing.md,
+                    backgroundColor: Colors.primary,
+                    padding: Spacing.md,
+                    borderRadius: BorderRadius.md,
+                    alignItems: 'center'
+                  }}
+                >
+                  <Text style={{ ...TextStyles.body, color: Colors.textWhite, fontWeight: Typography.semibold }}>
+                    View Details →
+                  </Text>
+                </Pressable>
               </View>
+            </Pressable>
+
+            {/* Thumbnail Strip */}
+            <View style={{
+              position: 'absolute',
+              bottom: 80, // Above bottom bar
+              left: 0,
+              right: 0,
+              backgroundColor: 'rgba(0,0,0,0.8)',
+              paddingVertical: Spacing.md
+            }}>
+              <Text style={{ 
+                ...TextStyles.caption, 
+                color: Colors.textWhite, 
+                marginLeft: Spacing.md, 
+                marginBottom: Spacing.sm,
+                fontWeight: Typography.semibold
+              }}>
+                {searchResults.length} Result{searchResults.length > 1 ? 's' : ''} • Tap to view
+              </Text>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: Spacing.md }}
+              >
+                {searchResults.map((product, index) => (
+                  <Pressable
+                    key={product.id || index}
+                    onPress={() => {
+                      setSelectedProductIndex(index);
+                    }}
+                    style={{
+                      width: 80,
+                      height: 80,
+                      marginRight: Spacing.sm,
+                      borderRadius: BorderRadius.md,
+                      overflow: 'hidden',
+                      borderWidth: 2,
+                      borderColor: index === selectedProductIndex ? Colors.primary : 'transparent'
+                    }}
+                  >
+                    <Image 
+                      source={{ uri: product.image }} 
+                      style={{ width: '100%', height: '100%' }}
+                      resizeMode="cover"
+                    />
+                  </Pressable>
+                ))}
+              </ScrollView>
             </View>
-          )}
-        </ScrollView>
+          </View>
+        ) : (
+          /* Chat Messages */
+          <ScrollView 
+            ref={chatScrollRef}
+            style={{ flex: 1 }}
+            contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 100 }}
+            onContentSizeChange={() => {
+              if (chatScrollRef.current && !showResults) {
+                chatScrollRef.current.scrollToEnd({ animated: true });
+              }
+            }}
+          >
+            {chatHistory.map((msg, idx) => (
+              <View key={idx} style={{ marginBottom: Spacing.lg }}>
+                {msg.type === 'user' ? (
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <View style={{
+                      backgroundColor: Colors.primaryLight,
+                      padding: Spacing.md,
+                      borderRadius: BorderRadius.lg,
+                      borderTopRightRadius: BorderRadius.sm,
+                      maxWidth: '80%'
+                    }}>
+                      <Text style={{ ...TextStyles.body, color: Colors.primary }}>
+                        {msg.message}
+                      </Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={{ alignItems: 'flex-start' }}>
+                    <View style={{
+                      backgroundColor: Colors.backgroundSecondary,
+                      padding: Spacing.md,
+                      borderRadius: BorderRadius.lg,
+                      borderTopLeftRadius: BorderRadius.sm,
+                      maxWidth: '85%'
+                    }}>
+                      <Text style={{ ...TextStyles.body, color: Colors.textPrimary }}>
+                        {msg.message}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+              </View>
+            ))}
+            
+            {isSearching && (
+              <View style={{ alignItems: 'flex-start', marginBottom: Spacing.lg }}>
+                <View style={{
+                  backgroundColor: Colors.backgroundSecondary,
+                  padding: Spacing.md,
+                  borderRadius: BorderRadius.lg,
+                  borderTopLeftRadius: BorderRadius.sm,
+                }}>
+                  <Text style={{ ...TextStyles.body, color: Colors.textSecondary }}>
+                    Searching...
+                  </Text>
+                </View>
+              </View>
+            )}
+          </ScrollView>
+        )}
 
         {/* Input Bar */}
         <View style={{ 
           padding: Spacing.lg,
           borderTopWidth: 1,
           borderTopColor: Colors.border,
-          backgroundColor: Colors.background
+          backgroundColor: Colors.background,
+          paddingBottom: Platform.OS === 'ios' ? Spacing.lg : Spacing.md
         }}>
           <View style={{ flexDirection: 'row', gap: Spacing.md, alignItems: 'center' }}>
             <View style={{ ...InputStyles.container, flex: 1, flexDirection: 'row', alignItems: 'center' }}>
@@ -373,4 +461,3 @@ export default function ChatScreen({ onBack, onProductSelect }) {
     </SafeAreaView>
   );
 }
-

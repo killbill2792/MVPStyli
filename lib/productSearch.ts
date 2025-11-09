@@ -216,7 +216,8 @@ export async function searchWebProducts(query: string): Promise<NormalizedProduc
       return [];
     }
   
-    return (data.items || []).map((item: any) => normalizeProduct(item));
+    // Limit to 10 results
+    return (data.items || []).slice(0, 10).map((item: any) => normalizeProduct(item));
   } catch (error: any) {
     console.error('Error searching web products:', error);
     // Ensure we always throw a proper Error with a string message

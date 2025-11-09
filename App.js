@@ -445,6 +445,32 @@ function Shell() {
         </View>
       )}
       
+      {/* Floating AI Assistant Icon */}
+      {route !== "signin" && route !== "chat" && (
+        <Pressable
+          onPress={() => setRoute("chat")}
+          style={{
+            position: 'absolute',
+            left: Spacing.lg,
+            bottom: 100, // Above bottom bar
+            width: 56,
+            height: 56,
+            borderRadius: 28,
+            backgroundColor: Colors.primary,
+            justifyContent: 'center',
+            alignItems: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 8,
+            zIndex: 1000
+          }}
+        >
+          <Text style={{ fontSize: 24 }}>💬</Text>
+        </Pressable>
+      )}
+      
       {/* Bottom bar for all screens except signin */}
       {route !== "signin" && <BottomBar route={route} go={setRoute} />}
     </SafeAreaView>
