@@ -4,24 +4,6 @@
     "api/**/*.{js,ts}": {
       "memory": 1024,
       "maxDuration": 30
-    },
-    "api/*.ts": {
-      "memory": 1024,
-      "maxDuration": 30
-    },
-    "api/*.js": {
-      "memory": 1024,
-      "maxDuration": 30
     }
-  },
-  "rewrites": [
-    {
-      "source": "/api/product-from-url",
-      "destination": "/api/product-from-url.ts"
-    },
-    {
-      "source": "/api/search-web-products",
-      "destination": "/api/search-web-products.ts"
-    }
-  ]
+  }
 }
