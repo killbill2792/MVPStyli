@@ -18,7 +18,7 @@ import Inbox from './screens/Inbox';
 import { ProductDetector } from './components/ProductDetector';
 import { fetchRealClothingProducts } from './lib/productApi';
 import { isUrl, importProductFromUrl, searchWebProducts, normalizeProduct } from './lib/productSearch';
-import { Colors, Typography, Spacing, BorderRadius, ButtonStyles, InputStyles, TextStyles, createButtonStyle, getButtonTextStyle } from './lib/designSystem';
+import { Colors, Typography, Spacing, BorderRadius, ButtonStyles, CardStyles, InputStyles, TextStyles, createButtonStyle, getButtonTextStyle } from './lib/designSystem';
 
 // Enhanced product data with working model images - upper body and lower body items
 const enhancedProducts = [
