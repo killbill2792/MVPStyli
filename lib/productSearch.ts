@@ -63,7 +63,14 @@ export function isUrl(query: string): boolean {
  * Import product from URL
  */
 export async function importProductFromUrl(url: string): Promise<NormalizedProduct> {
-  const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://mvpstyli-fresh.vercel.app';
+  // Try to get API URL from environment, fallback to default
+  // In Expo, environment variables need EXPO_PUBLIC_ prefix
+  const apiUrl = process.env.EXPO_PUBLIC_API_URL || 
+                 process.env.API_URL || 
+                 'https://mvpstyli-fresh.vercel.app';
+  
+  console.log('API URL:', apiUrl);
+  console.log('Calling:', `${apiUrl}/api/productfromurl`);
   
   try {
     const response = await fetch(`${apiUrl}/api/productfromurl`, {
@@ -117,7 +124,13 @@ export async function importProductFromUrl(url: string): Promise<NormalizedProdu
  * Search web for products using natural language query
  */
 export async function searchWebProducts(query: string): Promise<NormalizedProduct[]> {
-  const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://mvpstyli-fresh.vercel.app';
+  // Try to get API URL from environment, fallback to default
+  const apiUrl = process.env.EXPO_PUBLIC_API_URL || 
+                 process.env.API_URL || 
+                 'https://mvpstyli-fresh.vercel.app';
+  
+  console.log('API URL:', apiUrl);
+  console.log('Calling:', `${apiUrl}/api/searchwebproducts`);
   
   try {
     const response = await fetch(`${apiUrl}/api/searchwebproducts`, {
