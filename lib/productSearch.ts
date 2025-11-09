@@ -66,7 +66,7 @@ export async function importProductFromUrl(url: string): Promise<NormalizedProdu
   const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://mvpstyli-fresh.vercel.app';
   
   try {
-    const response = await fetch(`${apiUrl}/api/product-from-url`, {
+    const response = await fetch(`${apiUrl}/api/productfromurl`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -120,7 +120,7 @@ export async function searchWebProducts(query: string): Promise<NormalizedProduc
   const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://mvpstyli-fresh.vercel.app';
   
   try {
-    const response = await fetch(`${apiUrl}/api/search-web-products`, {
+    const response = await fetch(`${apiUrl}/api/searchwebproducts`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
