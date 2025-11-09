@@ -201,12 +201,19 @@ export async function searchWebProducts(query: string): Promise<NormalizedProduc
     }
   
     // If API returns error message (e.g., API key not configured), return empty array
+    // Check if we have an error message even with 200 status
     if (data.error && (!data.items || data.items.length === 0)) {
       const errorMsg = typeof data.error === 'string' ? data.error : (data.error?.message || data.details || 'Unknown error');
-      if (typeof errorMsg === 'string' && errorMsg.includes('API key')) {
+      if (errorMsg && typeof errorMsg === 'string' && errorMsg.includes('API key')) {
         console.warn('Product search API not configured:', errorMsg);
         return [];
       }
+    }
+    
+    // If no items and no error, might be empty result
+    if (!data.items || data.items.length === 0) {
+      console.log('No products found for query');
+      return [];
     }
   
     return (data.items || []).map((item: any) => normalizeProduct(item));
