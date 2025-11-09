@@ -67,7 +67,7 @@ export async function importProductFromUrl(url: string): Promise<NormalizedProdu
   // In Expo, environment variables need EXPO_PUBLIC_ prefix
   const apiUrl = process.env.EXPO_PUBLIC_API_URL || 
                  process.env.API_URL || 
-                 'https://mvpstyli-fresh.vercel.app';
+                 'https://mvp-styli.vercel.app';
   
   // Ensure no trailing slash
   const baseUrl = apiUrl.replace(/\/$/, '');
@@ -94,7 +94,7 @@ export async function importProductFromUrl(url: string): Promise<NormalizedProdu
       console.error('Non-JSON response from API:', text.substring(0, 500));
       // Check for common Vercel errors
       if (text.includes('DEPLOYMENT_NOT_FOUND') || text.includes('Function not found') || text.includes('404')) {
-        throw new Error('API endpoint not found. Please ensure the API is deployed on Vercel. Check: https://mvpstyli-fresh.vercel.app/api/productfromurl');
+        throw new Error('API endpoint not found. Please ensure the API is deployed on Vercel. Check: https://mvp-styli.vercel.app/api/productfromurl');
       }
       if (text.includes('502') || text.includes('503') || text.includes('504')) {
         throw new Error('API server is temporarily unavailable. Please try again in a moment.');
@@ -171,7 +171,7 @@ export async function searchWebProducts(query: string): Promise<NormalizedProduc
       console.error('Non-JSON response from API:', text.substring(0, 500));
       // Check for common Vercel errors
       if (text.includes('DEPLOYMENT_NOT_FOUND') || text.includes('Function not found') || text.includes('404')) {
-        throw new Error('API endpoint not found. Please ensure the API is deployed on Vercel. Check: https://mvpstyli-fresh.vercel.app/api/searchwebproducts');
+        throw new Error('API endpoint not found. Please ensure the API is deployed on Vercel. Check: https://mvp-styli.vercel.app/api/searchwebproducts');
       }
       if (text.includes('502') || text.includes('503') || text.includes('504')) {
         throw new Error('API server is temporarily unavailable. Please try again in a moment.');
