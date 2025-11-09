@@ -80,7 +80,8 @@ async function searchWithSerpAPI(query: string, apiKey: string): Promise<Normali
   try {
     // Use Google Shopping search via SerpAPI
     // Documentation: https://serpapi.com/google-shopping-api
-    const url = `https://serpapi.com/search.json?engine=google_shopping&q=${encodeURIComponent(query)}&api_key=${apiKey}&num=20`;
+    // For Google Shopping, use engine=google with tbm=shop parameter
+    const url = `https://serpapi.com/search.json?engine=google&tbm=shop&q=${encodeURIComponent(query)}&api_key=${apiKey}&num=20&gl=us&hl=en`;
     
     console.log('SerpAPI request URL:', url.replace(apiKey, 'API_KEY_HIDDEN'));
     
@@ -101,11 +102,22 @@ async function searchWithSerpAPI(query: string, apiKey: string): Promise<Normali
       throw new Error(`SerpAPI error: ${data.error}`);
     }
     
+    // Check search status
+    if (data.search_metadata?.status === 'Error') {
+      console.error('SerpAPI search error:', data.error);
+      throw new Error(data.error || 'SerpAPI search failed');
+    }
+    
     // SerpAPI Google Shopping returns results in 'shopping_results' array
     const shoppingResults = data.shopping_results || [];
     
     if (shoppingResults.length === 0) {
       console.log('No shopping results found for query:', query);
+      // Try to return organic results if shopping results are empty
+      if (data.organic_results && data.organic_results.length > 0) {
+        console.log('Falling back to organic results');
+        return parseOrganicResults(data.organic_results);
+      }
       return [];
     }
     
@@ -251,6 +263,45 @@ async function searchWithGoogleCustomSearch(query: string, apiKey: string): Prom
     console.error('Error with Google Custom Search:', error);
     throw error;
   }
+}
+
+// Parse organic search results as fallback when shopping results aren't available
+function parseOrganicResults(organicResults: any[]): NormalizedProduct[] {
+  return organicResults.map((item: any, index: number) => {
+    const id = crypto.createHash('md5').update(item.link || `organic-${index}`).digest('hex');
+    const productUrl = item.link || '';
+    
+    // Try to extract price from snippet
+    let price: number | undefined;
+    const priceMatch = item.snippet?.match(/\$(\d+(?:\.\d{2})?)/) || item.title?.match(/\$(\d+(?:\.\d{2})?)/);
+    if (priceMatch) {
+      price = parseFloat(priceMatch[1]);
+    }
+    
+    // Extract source from URL
+    let sourceLabel = 'Online Store';
+    try {
+      const domain = new URL(productUrl).hostname;
+      sourceLabel = domain.replace('www.', '').split('.')[0];
+      sourceLabel = sourceLabel.charAt(0).toUpperCase() + sourceLabel.slice(1);
+    } catch (e) {
+      // Ignore
+    }
+    
+    const category = detectCategoryFromText(item.title || item.snippet || '');
+    
+    return {
+      id: `web-${id}`,
+      kind: 'web' as const,
+      title: item.title || 'Product',
+      price,
+      currency: 'USD',
+      imageUrl: item.thumbnail || '',
+      productUrl,
+      sourceLabel,
+      category
+    };
+  }).filter((p: NormalizedProduct) => p.imageUrl && p.title && p.productUrl);
 }
 
 function detectCategoryFromText(text: string): string {
