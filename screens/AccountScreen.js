@@ -10,6 +10,7 @@ import {
   FlatList,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../App';
 import { Colors, Typography, Spacing, BorderRadius, CardStyles, TextStyles, ThemeColors, getCurrentThemeName } from '../lib/designSystem';
 
@@ -177,18 +178,29 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
           ))}
         </View>
 
-        {/* Fixed Header - with SafeAreaView padding */}
-        <View style={[styles.header, { paddingTop: 44 }]}>
-          <Pressable style={styles.backButton} onPress={onBack}>
-            <Text style={styles.backButtonText}>← Back</Text>
-          </Pressable>
-          <Text style={styles.headerTitle}>Account</Text>
-          <View style={styles.headerSpacer} />
-        </View>
+        {/* Header - Fixed with SafeAreaView */}
+        <SafeAreaView style={{ backgroundColor: 'transparent' }} edges={['top']}>
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            height: 56,
+            paddingHorizontal: Spacing.lg,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            borderBottomWidth: 1,
+            borderBottomColor: Colors.border
+          }}>
+            <Pressable onPress={onBack} style={{ padding: Spacing.xs }}>
+              <Text style={{ ...TextStyles.body, color: Colors.primary, fontSize: Typography.base }}>← Back</Text>
+            </Pressable>
+            <Text style={{ ...TextStyles.h3, flex: 1, textAlign: 'center' }}>Account</Text>
+            <View style={{ width: 60 }} />
+          </View>
+        </SafeAreaView>
 
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={[styles.scrollContent, { paddingTop: 80 }]}
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
           {/* Hero Section */}
@@ -410,11 +422,10 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    paddingTop: 20,
   },
   scrollContent: {
-    paddingHorizontal: 16,
-    paddingTop: 20,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
     paddingBottom: 100,
   },
   heroSection: {

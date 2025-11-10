@@ -249,32 +249,33 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   const currentProduct = searchResults[selectedProductIndex];
   const bottomBarHeight = 70; // Approximate height of bottom nav bar
   const thumbnailHeight = 70; // Height of thumbnail strip
-  const headerHeight = 50; // Approximate header height
+  const headerHeight = 56; // Fixed header height
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={['top']}>
-      <KeyboardAvoidingView 
-        style={{ flex: 1 }} 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}
-      >
-        {/* Header - Minimal spacing */}
+    <View style={{ flex: 1, backgroundColor: Colors.background }}>
+      <SafeAreaView style={{ backgroundColor: Colors.background }} edges={['top']}>
+        {/* Header - Fixed height, no extra padding */}
         <View style={{ 
           flexDirection: 'row', 
           alignItems: 'center', 
-          paddingTop: Spacing.sm,
+          height: headerHeight,
           paddingHorizontal: Spacing.lg,
-          paddingBottom: Spacing.sm,
           borderBottomWidth: 1,
           borderBottomColor: Colors.border,
-          backgroundColor: Colors.background,
-          height: headerHeight
+          backgroundColor: Colors.background
         }}>
           <Pressable onPress={onBack} style={{ marginRight: Spacing.md }}>
             <Text style={{ ...TextStyles.body, color: Colors.primary, fontSize: Typography.base }}>← Back</Text>
           </Pressable>
           <Text style={{ ...TextStyles.h3, flex: 1 }}>AI Shopping Assistant</Text>
         </View>
+      </SafeAreaView>
+      
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
+      >
 
         {showResults && searchResults.length > 0 ? (
           /* Explore-style Product View */
@@ -494,6 +495,6 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           </View>
         )}
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
