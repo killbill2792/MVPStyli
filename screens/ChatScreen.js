@@ -459,7 +459,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             style={{ flex: 1 }}
             contentContainerStyle={{ 
               padding: Spacing.lg, 
-              paddingTop: 20, 
+              paddingTop: insets.top + 20, 
               paddingBottom: 110 + insets.bottom // Space for input bar (~60px) + bottom nav (~50px)
             }}
             onContentSizeChange={() => {
