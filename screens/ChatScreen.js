@@ -454,8 +454,8 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             style={{ flex: 1 }}
             contentContainerStyle={{ 
               padding: Spacing.lg, 
-              paddingTop: insets.top + 20, 
-              paddingBottom: 110 + insets.bottom // Space for input bar (~60px) + bottom nav (~50px)
+              paddingTop: Spacing.lg, // SafeAreaView already handles top safe area
+              paddingBottom: 80 + insets.bottom // Space for input bar (~50px) + bottom nav (~70px)
             }}
             onContentSizeChange={() => {
               if (chatScrollRef.current && !showResults) {
@@ -530,11 +530,11 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         {!showResults && (
           <View style={{ 
             position: 'absolute',
-            bottom: 50 + insets.bottom, // Bottom bar content height (~50px) + safe area
+            bottom: 70 + insets.bottom, // Bottom bar height (~70px) + safe area
             left: 0,
             right: 0,
-            paddingTop: 0,
-            paddingBottom: 0,
+            paddingTop: Spacing.xs,
+            paddingBottom: Spacing.xs,
             paddingHorizontal: Spacing.lg,
             borderTopWidth: 1,
             borderTopColor: Colors.border,
