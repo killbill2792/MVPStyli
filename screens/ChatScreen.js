@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, Image, KeyboardAvoidingView, Platform, Dimensions, Alert } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, Typography, Spacing, BorderRadius, InputStyles, TextStyles, createButtonStyle, getButtonTextStyle } from '../lib/designSystem';
 import { isUrl, importProductFromUrl, searchWebProducts, normalizeProduct } from '../lib/productSearch';
@@ -20,9 +20,11 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   const [uploadedImage, setUploadedImage] = useState(null);
   const insets = useSafeAreaInsets();
 
-  // Bottom bar height calculation
-  const BOTTOM_BAR_HEIGHT = 70; // Approximate height of bottom nav bar
-  const INPUT_BAR_HEIGHT = 60; // Height of input bar
+  // Bottom bar height calculation - BottomBar has SafeAreaView, so we only need content height
+  // BottomBar: paddingTop(5) + paddingBottom(2) + inner paddingVertical(5*2) + button paddingVertical(8*2) ≈ 33px
+  // Plus safe area is handled by BottomBar's SafeAreaView, so we don't add insets.bottom here
+  const BOTTOM_BAR_CONTENT_HEIGHT = 33; // Content height only (no safe area)
+  const INPUT_BAR_HEIGHT = 56; // Actual input bar height
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
@@ -286,11 +288,12 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   const thumbnailHeight = 70;
 
   return (
-    <KeyboardAvoidingView 
-      style={{ flex: 1, backgroundColor: Colors.background }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? BOTTOM_BAR_HEIGHT + insets.bottom : 0}
-    >
+    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={['top']}>
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
       {showResults && searchResults.length > 0 ? (
         /* Explore-style Product View */
         <View style={{ flex: 1, position: 'relative' }}>
@@ -357,7 +360,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
 
           <View style={{
             position: 'absolute',
-            bottom: BOTTOM_BAR_HEIGHT + insets.bottom,
+            bottom: BOTTOM_BAR_CONTENT_HEIGHT + insets.bottom,
             left: 0,
             right: 0,
             backgroundColor: 'rgba(0,0,0,0.95)',
@@ -414,7 +417,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             style={{ flex: 1 }}
             contentContainerStyle={{ 
               padding: Spacing.lg,
-              paddingBottom: INPUT_BAR_HEIGHT + BOTTOM_BAR_HEIGHT + insets.bottom
+              paddingBottom: INPUT_BAR_HEIGHT + BOTTOM_BAR_CONTENT_HEIGHT + insets.bottom
             }}
             onContentSizeChange={() => {
               if (chatScrollRef.current && !showResults) {
@@ -484,10 +487,10 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             )}
           </ScrollView>
 
-          {/* Input Bar - Fixed at bottom */}
+          {/* Input Bar - Fixed at bottom, flush above nav bar */}
           <View style={{ 
             position: 'absolute',
-            bottom: BOTTOM_BAR_HEIGHT + insets.bottom,
+            bottom: BOTTOM_BAR_CONTENT_HEIGHT + insets.bottom,
             left: 0,
             right: 0,
             paddingHorizontal: Spacing.lg,
@@ -576,6 +579,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           </View>
         </View>
       )}
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
