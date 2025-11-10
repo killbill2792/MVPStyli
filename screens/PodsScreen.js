@@ -30,8 +30,7 @@ const PodsScreen = ({ onBack, onCreatePod, userId = 'demo-user' }) => {
   const handleImageUpload = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [3, 4],
+      allowsEditing: false, // Allow full image selection
       quality: 0.8,
     });
 
@@ -81,7 +80,7 @@ const PodsScreen = ({ onBack, onCreatePod, userId = 'demo-user' }) => {
         duration_mins: selectedDuration,
         title: 'My Look',
         ends_at: new Date(Date.now() + selectedDuration * 60000).toISOString(),
-        invite_list: audienceList, // Add invite list
+        // Note: invite_list is not a column in pods table - invites are handled separately
       };
 
       const pod = await createPod(podData);

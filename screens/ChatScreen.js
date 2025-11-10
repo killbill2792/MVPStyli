@@ -269,16 +269,23 @@ export default function ChatScreen({ onBack, onProductSelect }) {
 
         {showResults && searchResults.length > 0 ? (
           /* Explore-style Product View */
-          <View style={{ flex: 1, position: 'relative', paddingTop: insets.top }}>
+          <View style={{ flex: 1, position: 'relative' }}>
             {/* Main Product Image - Full screen */}
             <Pressable 
-              onPress={() => handleProductPress(currentProduct)}
+              onPress={() => {
+                try {
+                  handleProductPress(currentProduct);
+                } catch (error) {
+                  console.error('Error in product press:', error);
+                  Alert.alert('Error', 'Unable to view product details. Please try again.');
+                }
+              }}
               style={{ 
                 position: 'absolute',
                 top: 0,
                 left: 0,
                 right: 0,
-                bottom: bottomBarHeight + insets.bottom + thumbnailHeight, // Leave space for thumbnails at bottom
+                bottom: 80 + thumbnailHeight, // Leave space for thumbnails at bottom
               }}
             >
               <Image 
@@ -336,7 +343,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             {/* Thumbnail Strip - At absolute bottom of screen, above nav bar */}
             <View style={{
               position: 'absolute',
-              bottom: bottomBarHeight + insets.bottom + 10, // Add some padding above nav bar
+              bottom: 80, // Fixed position above nav bar
               left: 0,
               right: 0,
               backgroundColor: 'rgba(0,0,0,0.95)',
@@ -392,7 +399,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           <ScrollView 
             ref={chatScrollRef}
             style={{ flex: 1 }}
-            contentContainerStyle={{ padding: Spacing.lg, paddingTop: insets.top + 20, paddingBottom: 120 }}
+            contentContainerStyle={{ padding: Spacing.lg, paddingTop: 20, paddingBottom: 100 }}
             onContentSizeChange={() => {
               if (chatScrollRef.current && !showResults) {
                 chatScrollRef.current.scrollToEnd({ animated: true });
@@ -457,7 +464,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             borderTopWidth: 1,
             borderTopColor: Colors.border,
             backgroundColor: Colors.background,
-            paddingBottom: bottomBarHeight + insets.bottom + Spacing.md // Space above nav bar
+            paddingBottom: 100 // Space above nav bar
           }}>
             <View style={{ flexDirection: 'row', gap: Spacing.md, alignItems: 'center' }}>
               <View style={{ ...InputStyles.container, flex: 1, flexDirection: 'row', alignItems: 'center' }}>

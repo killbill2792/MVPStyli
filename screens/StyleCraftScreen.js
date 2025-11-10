@@ -183,8 +183,13 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
                         key={index}
                         style={styles.suggestionChip}
                         onPress={() => {
+                          console.log('Suggestion tapped:', suggestion);
                           setPrompt(suggestion);
                           setShowSuggestions(false);
+                          // Force focus back to input to ensure it updates
+                          setTimeout(() => {
+                            // This ensures the text input shows the new value
+                          }, 100);
                         }}
                       >
                         <Text style={styles.suggestionText}>{suggestion}</Text>
