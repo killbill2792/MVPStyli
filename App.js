@@ -2280,7 +2280,7 @@ function Explore() {
             </Pressable>
           </View>
         ) : (
-          <View style={{ position: 'absolute', bottom: 90, left: 0, right: 0, alignItems: 'center' }}>
+          <View style={{ position: 'absolute', bottom: 90, left: 0, right: 80, alignItems: 'center' }}>
             <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600', textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: {width: 1, height: 1}, textShadowRadius: 3 }}>
               Voted! Moving to next...
             </Text>
@@ -2289,7 +2289,7 @@ function Explore() {
 
         {/* Next button */}
         {hasVoted && (
-          <View style={{ position: 'absolute', bottom: 90, right: 20 }}>
+          <View style={{ position: 'absolute', bottom: 90, right: 80 }}>
             <Pressable 
               onPress={nextItem}
               style={{ backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20 }}
@@ -2302,7 +2302,7 @@ function Explore() {
         {/* Progress indicator removed */}
 
         {/* Instagram-style Suggested Items */}
-        <View style={{ position: 'absolute', bottom: 80, left: 12, right: 12 }}>
+        <View style={{ position: 'absolute', bottom: 80, left: 12, right: 80 }}>
           <Text style={{ color: '#e4e4e7', fontSize: 14, fontWeight: '600', marginBottom: 8 }}>
             Suggested by Community
           </Text>
@@ -2378,7 +2378,7 @@ function Explore() {
         </View>
 
         {/* Bottom overlay with likes and comments */}
-        <View style={{ position: 'absolute', left: 12, right: 12, bottom: 12 }}>
+        <View style={{ position: 'absolute', left: 12, right: 80, bottom: 12 }}>
           <View style={{ flexDirection: 'row', gap: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>❤️</Text>
