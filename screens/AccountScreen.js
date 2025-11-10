@@ -9,8 +9,6 @@ import {
   Image,
   FlatList,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../App';
 import { Colors, Typography, Spacing, BorderRadius, CardStyles, TextStyles, ThemeColors, getCurrentThemeName } from '../lib/designSystem';
 
@@ -156,34 +154,11 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
 
   return (
     <View style={styles.fullScreenContainer}>
-      {/* Animated Background */}
-      <LinearGradient
-        colors={['#000000', '#0a0a0a', '#1a1a2e']}
-        style={styles.background}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}
+        showsVerticalScrollIndicator={false}
       >
-        {/* Floating Dashboard Elements */}
-        <View style={styles.dashboardElements}>
-          {[...Array(12)].map((_, i) => (
-            <View
-              key={i}
-              style={[
-                styles.dashboardElement,
-                {
-                  left: Math.random() * width,
-                  top: Math.random() * height,
-                  animationDelay: Math.random() * 3,
-                },
-              ]}
-            />
-          ))}
-        </View>
-
-        <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }} edges={['top']}>
-          <ScrollView
-            style={styles.scrollView}
-            contentContainerStyle={[styles.scrollContent, { paddingTop: 20, paddingBottom: 100 }]}
-            showsVerticalScrollIndicator={false}
-          >
           {/* Hero Section */}
           <View style={styles.heroSection}>
             <View style={styles.avatarContainer}>
@@ -350,8 +325,6 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
             </Pressable>
           </View>
         </ScrollView>
-        </SafeAreaView>
-      </LinearGradient>
     </View>
   );
 };
@@ -360,24 +333,6 @@ const styles = StyleSheet.create({
   fullScreenContainer: {
     flex: 1,
     backgroundColor: '#000',
-  },
-  background: {
-    flex: 1,
-  },
-  dashboardElements: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  dashboardElement: {
-    position: 'absolute',
-    width: 3,
-    height: 3,
-    backgroundColor: '#6366f1',
-    borderRadius: 1.5,
-    opacity: 0.3,
   },
   header: {
     position: 'absolute',

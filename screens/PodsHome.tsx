@@ -10,8 +10,7 @@ import {
   FlatList,
   TouchableWithoutFeedback,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing } from '../lib/designSystem';
 import { 
   getUserActivePods, 
@@ -223,55 +222,48 @@ const PodsHome: React.FC<PodsHomeProps> = ({
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={['#000000', '#0a0a0a', '#1a1a2e']}
-        style={styles.background}
-      >
-        <SafeAreaView style={{ backgroundColor: 'transparent' }} edges={['top']}>
-          {/* Action Buttons - Top Right */}
-          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: Spacing.xs, gap: 8 }}>
-            <Pressable style={styles.createPodButton} onPress={onCreatePod}>
-              <Text style={styles.createPodButtonText}>+</Text>
-            </Pressable>
-            <Pressable style={styles.inboxButton} onPress={onInbox}>
-              <Text style={styles.inboxButtonText}>🔔</Text>
-            </Pressable>
-          </View>
+      {/* Action Buttons - Top Right */}
+      <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: Spacing.xs, gap: 8 }}>
+        <Pressable style={styles.createPodButton} onPress={onCreatePod}>
+          <Text style={styles.createPodButtonText}>+</Text>
+        </Pressable>
+        <Pressable style={styles.inboxButton} onPress={onInbox}>
+          <Text style={styles.inboxButtonText}>🔔</Text>
+        </Pressable>
+      </View>
 
-          {/* Tab Navigation */}
-          <View style={styles.tabContainer}>
-          <Pressable 
-            style={[styles.tab, activeTab === 'active' && styles.activeTab]}
-            onPress={() => setActiveTab('active')}
-          >
-            <Text style={[styles.tabText, activeTab === 'active' && styles.activeTabText]}>
-              Active ({activePods.length})
-            </Text>
-          </Pressable>
-          <Pressable 
-            style={[styles.tab, activeTab === 'invites' && styles.activeTab]}
-            onPress={() => setActiveTab('invites')}
-          >
-            <Text style={[styles.tabText, activeTab === 'invites' && styles.activeTabText]}>
-              Invites ({invites.length})
-            </Text>
-          </Pressable>
-          <Pressable 
-            style={[styles.tab, activeTab === 'past' && styles.activeTab]}
-            onPress={() => setActiveTab('past')}
-          >
-            <Text style={[styles.tabText, activeTab === 'past' && styles.activeTabText]}>
-              Past ({pastPods.length})
-            </Text>
-          </Pressable>
-          </View>
-        </SafeAreaView>
+      {/* Tab Navigation */}
+      <View style={styles.tabContainer}>
+        <Pressable 
+          style={[styles.tab, activeTab === 'active' && styles.activeTab]}
+          onPress={() => setActiveTab('active')}
+        >
+          <Text style={[styles.tabText, activeTab === 'active' && styles.activeTabText]}>
+            Active ({activePods.length})
+          </Text>
+        </Pressable>
+        <Pressable 
+          style={[styles.tab, activeTab === 'invites' && styles.activeTab]}
+          onPress={() => setActiveTab('invites')}
+        >
+          <Text style={[styles.tabText, activeTab === 'invites' && styles.activeTabText]}>
+            Invites ({invites.length})
+          </Text>
+        </Pressable>
+        <Pressable 
+          style={[styles.tab, activeTab === 'past' && styles.activeTab]}
+          onPress={() => setActiveTab('past')}
+        >
+          <Text style={[styles.tabText, activeTab === 'past' && styles.activeTabText]}>
+            Past ({pastPods.length})
+          </Text>
+        </Pressable>
+      </View>
 
-        {/* Content */}
-        <View style={styles.content}>
-          {renderContent()}
-        </View>
-      </LinearGradient>
+      {/* Content */}
+      <View style={styles.content}>
+        {renderContent()}
+      </View>
     </View>
   );
 };
@@ -280,9 +272,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
-  },
-  background: {
-    flex: 1,
   },
   header: {
     position: 'absolute',

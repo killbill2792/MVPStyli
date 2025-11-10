@@ -10,8 +10,6 @@ import {
   Image,
   Animated,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 
 const { width, height } = Dimensions.get('window');
@@ -62,34 +60,11 @@ const StyleCraftScreen = ({ onBack }) => {
 
   return (
     <View style={styles.fullScreenContainer}>
-      {/* Animated Background */}
-      <LinearGradient
-        colors={['#000000', '#0a0a0a', '#1a1a2e']}
-        style={styles.background}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}
+        showsVerticalScrollIndicator={false}
       >
-        {/* Floating Design Elements */}
-        <View style={styles.designElements}>
-          {[...Array(15)].map((_, i) => (
-            <View
-              key={i}
-              style={[
-                styles.designElement,
-                {
-                  left: Math.random() * width,
-                  top: Math.random() * height,
-                  animationDelay: Math.random() * 4,
-                },
-              ]}
-            />
-          ))}
-        </View>
-
-        <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }} edges={['top']}>
-          <ScrollView
-            style={styles.scrollView}
-            contentContainerStyle={[styles.scrollContent, { paddingTop: 20, paddingBottom: 100 }]}
-            showsVerticalScrollIndicator={false}
-          >
           {/* Hero Section */}
           <View style={styles.heroSection}>
             <Text style={styles.heroSubtitle}>
@@ -230,8 +205,6 @@ const StyleCraftScreen = ({ onBack }) => {
             </View>
           )}
         </ScrollView>
-        </SafeAreaView>
-      </LinearGradient>
     </View>
   );
 };
