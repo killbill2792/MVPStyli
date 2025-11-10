@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
+import Header from '../components/Header';
 
 const { width, height } = Dimensions.get('window');
 
@@ -83,18 +84,16 @@ const StyleCraftScreen = ({ onBack }) => {
           ))}
         </View>
 
-        {/* Fixed Header */}
-        <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={onBack}>
-            <Text style={styles.backButtonText}>← Back</Text>
-          </Pressable>
-          <Text style={styles.headerTitle}>StyleCraft</Text>
-          <View style={styles.headerSpacer} />
-        </View>
+        {/* Unified Header */}
+        <Header 
+          title="StyleCraft" 
+          onBack={onBack}
+          backgroundColor="rgba(0, 0, 0, 0.8)"
+        />
 
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}
           showsVerticalScrollIndicator={false}
         >
           {/* Hero Section */}

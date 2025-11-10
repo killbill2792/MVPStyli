@@ -683,7 +683,7 @@ function Shop() {
       {/* Products Grid */}
       <ScrollView 
         style={{ flex: 1 }} 
-        contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 120 }}
+        contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
       >
         <View style={{ 

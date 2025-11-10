@@ -11,6 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import Header from '../components/Header';
 import { 
   getPod, 
   getPodVotes, 
@@ -157,18 +158,19 @@ const PodLive: React.FC<PodLiveProps> = ({ podId, onBack, onRecap, userId }) => 
         colors={['#000000', '#0a0a0a', '#1a1a2e']}
         style={styles.background}
       >
-        {/* Fixed Header */}
-        <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={onBack}>
-            <Text style={styles.backButtonText}>← Back</Text>
-          </Pressable>
-          <Text style={styles.headerTitle}>Pod Live</Text>
-          <Pressable style={styles.shareButton}>
-            <Text style={styles.shareButtonText}>Share</Text>
-          </Pressable>
-        </View>
+        {/* Unified Header */}
+        <Header 
+          title="Pod Live" 
+          onBack={onBack}
+          rightAction={
+            <Pressable onPress={() => {}}>
+              <Text style={{ color: '#6366f1', fontSize: 16, fontWeight: '600' }}>Share</Text>
+            </Pressable>
+          }
+          backgroundColor="rgba(0, 0, 0, 0.8)"
+        />
 
-        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        <ScrollView style={styles.scrollView} contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}>
           {/* Timer */}
           <View style={styles.timerContainer}>
             <Text style={[styles.timerText, isTimeRunningOut && styles.timerWarning]}>

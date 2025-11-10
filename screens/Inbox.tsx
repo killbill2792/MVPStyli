@@ -8,6 +8,7 @@ import {
   FlatList,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import Header from '../components/Header';
 
 interface Notification {
   id: string;
@@ -137,20 +138,29 @@ const Inbox: React.FC<InboxProps> = ({ onBack, onPodLive, onPodRecap, userId }) 
         colors={['#000000', '#0a0a0a', '#1a1a2e']}
         style={styles.background}
       >
-        {/* Fixed Header */}
-        <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={onBack}>
-            <Text style={styles.backButtonText}>← Back</Text>
-          </Pressable>
-          <Text style={styles.headerTitle}>Inbox</Text>
-          {unreadCount > 0 && (
-            <View style={styles.unreadBadge}>
-              <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
-            </View>
-          )}
-        </View>
+        {/* Unified Header */}
+        <Header 
+          title="Inbox" 
+          onBack={onBack}
+          rightAction={
+            unreadCount > 0 ? (
+              <View style={{
+                backgroundColor: '#ef4444',
+                borderRadius: 10,
+                minWidth: 20,
+                height: 20,
+                justifyContent: 'center',
+                alignItems: 'center',
+                paddingHorizontal: 6
+              }}>
+                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{unreadCount}</Text>
+              </View>
+            ) : undefined
+          }
+          backgroundColor="rgba(0, 0, 0, 0.8)"
+        />
 
-        <View style={styles.content}>
+        <View style={[styles.content, { paddingBottom: 100 }]}>
           {notifications.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateTitle}>No notifications</Text>
