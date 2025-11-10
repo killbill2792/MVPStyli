@@ -19,7 +19,8 @@ const { width, height } = Dimensions.get('window');
 const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
   const [uploadedImage, setUploadedImage] = useState(null);
   const [prompt, setPrompt] = useState('');
-  const [budget, setBudget] = useState(350);
+  const [minBudget, setMinBudget] = useState(100);
+  const [maxBudget, setMaxBudget] = useState(500);
   const [suggestTailors, setSuggestTailors] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -67,7 +68,7 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
           vendor: 'Elite Tailors',
           rating: 4.8,
           material: 'Premium Cotton',
-          price: Math.floor(budget * 0.8),
+          price: Math.floor((minBudget + maxBudget) / 2 * 0.8),
           shipping: 15,
           refImage: 'https://images.unsplash.com/photo-1586790170083-2f9ceadc732d?w=400',
           deliveryTime: '2-3 weeks'
@@ -77,7 +78,7 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
           vendor: 'Boutique Stitches',
           rating: 4.6,
           material: 'Silk Blend',
-          price: Math.floor(budget * 0.9),
+          price: Math.floor((minBudget + maxBudget) / 2 * 0.9),
           shipping: 20,
           refImage: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400',
           deliveryTime: '3-4 weeks'
@@ -87,7 +88,7 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
           vendor: 'Custom Couture',
           rating: 4.9,
           material: 'Luxury Fabric',
-          price: Math.floor(budget * 1.1),
+          price: Math.floor((minBudget + maxBudget) / 2 * 1.1),
           shipping: 25,
           refImage: 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=400',
           deliveryTime: '4-5 weeks'
@@ -177,17 +178,19 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
               {showSuggestions && (
                 <View style={styles.suggestionsContainer}>
                   <Text style={styles.suggestionsTitle}>AI Ideas</Text>
-                  <View style={styles.suggestionsGrid}>
-                    {aiSuggestions.map((suggestion, index) => (
-                      <Pressable
-                        key={index}
-                        style={styles.suggestionChip}
-                        onPress={() => handleSuggestionTap(suggestion)}
-                      >
-                        <Text style={styles.suggestionText}>{suggestion}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
+                  <ScrollView style={{ maxHeight: 150 }}>
+                    <View style={styles.suggestionsGrid}>
+                      {aiSuggestions.map((suggestion, index) => (
+                        <Pressable
+                          key={index}
+                          style={styles.suggestionChip}
+                          onPress={() => handleSuggestionTap(suggestion)}
+                        >
+                          <Text style={styles.suggestionText}>{suggestion}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </ScrollView>
                 </View>
               )}
             </View>
@@ -197,24 +200,89 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
           <View style={styles.budgetSection}>
             <Text style={styles.sectionTitle}>Budget Range</Text>
             <View style={styles.budgetContainer}>
-              <Text style={styles.budgetLabel}>${budget}</Text>
+              {/* Min/Max Budget Inputs */}
+              <View style={styles.budgetInputsContainer}>
+                <View style={styles.budgetInputWrapper}>
+                  <Text style={styles.budgetInputLabel}>Min</Text>
+                  <TextInput
+                    style={styles.budgetInput}
+                    value={minBudget.toString()}
+                    onChangeText={(text) => {
+                      const num = parseInt(text) || 0;
+                      if (num >= 0 && num <= maxBudget) {
+                        setMinBudget(num);
+                      }
+                    }}
+                    keyboardType="numeric"
+                    placeholder="100"
+                    placeholderTextColor="#6b7280"
+                  />
+                </View>
+                <View style={styles.budgetInputWrapper}>
+                  <Text style={styles.budgetInputLabel}>Max</Text>
+                  <TextInput
+                    style={styles.budgetInput}
+                    value={maxBudget.toString()}
+                    onChangeText={(text) => {
+                      const num = parseInt(text) || 0;
+                      if (num >= minBudget && num <= 2000) {
+                        setMaxBudget(num);
+                      }
+                    }}
+                    keyboardType="numeric"
+                    placeholder="500"
+                    placeholderTextColor="#6b7280"
+                  />
+                </View>
+              </View>
+
+              {/* Min Budget Slider */}
               <View style={styles.sliderContainer}>
-                <Pressable
-                  style={styles.sliderTrack}
-                  onPress={(e) => {
-                    const { locationX } = e.nativeEvent;
-                    const trackWidth = e.currentTarget?.offsetWidth || 300;
-                    const percentage = Math.max(0, Math.min(1, locationX / trackWidth));
-                    const newBudget = Math.round(100 + (percentage * 400));
-                    setBudget(newBudget);
-                  }}
-                >
-                  <View style={[styles.sliderFill, { width: `${((budget - 100) / 400) * 100}%` }]} />
-                  <View style={[styles.sliderHandle, { left: `${((budget - 100) / 400) * 100}%`, marginLeft: -11 }]} />
-                </Pressable>
+                <Text style={styles.sliderLabel}>Min: ${minBudget}</Text>
+                <View style={styles.sliderTrackWrapper}>
+                  <Pressable
+                    style={styles.sliderTrack}
+                    onPress={(e) => {
+                      const { locationX } = e.nativeEvent;
+                      const trackWidth = e.currentTarget?.offsetWidth || 300;
+                      const percentage = Math.max(0, Math.min(1, locationX / trackWidth));
+                      const maxRange = Math.min(maxBudget, 2000);
+                      const newMin = Math.round(percentage * maxRange);
+                      if (newMin < maxBudget) {
+                        setMinBudget(newMin);
+                      }
+                    }}
+                  >
+                    <View style={[styles.sliderFill, { width: `${(minBudget / Math.min(maxBudget, 2000)) * 100}%` }]} />
+                    <View style={[styles.sliderHandle, { left: `${(minBudget / Math.min(maxBudget, 2000)) * 100}%`, marginLeft: -11 }]} />
+                  </Pressable>
+                </View>
+              </View>
+
+              {/* Max Budget Slider */}
+              <View style={styles.sliderContainer}>
+                <Text style={styles.sliderLabel}>Max: ${maxBudget}</Text>
+                <View style={styles.sliderTrackWrapper}>
+                  <Pressable
+                    style={styles.sliderTrack}
+                    onPress={(e) => {
+                      const { locationX } = e.nativeEvent;
+                      const trackWidth = e.currentTarget?.offsetWidth || 300;
+                      const percentage = Math.max(0, Math.min(1, locationX / trackWidth));
+                      const range = 2000 - minBudget;
+                      const newMax = Math.round(minBudget + (percentage * range));
+                      if (newMax > minBudget && newMax <= 2000) {
+                        setMaxBudget(newMax);
+                      }
+                    }}
+                  >
+                    <View style={[styles.sliderFill, { width: `${((maxBudget - minBudget) / (2000 - minBudget)) * 100}%` }]} />
+                    <View style={[styles.sliderHandle, { left: `${((maxBudget - minBudget) / (2000 - minBudget)) * 100}%`, marginLeft: -11 }]} />
+                  </Pressable>
+                </View>
                 <View style={styles.budgetRange}>
-                  <Text style={styles.rangeText}>$100</Text>
-                  <Text style={styles.rangeText}>$500</Text>
+                  <Text style={styles.rangeText}>${minBudget}</Text>
+                  <Text style={styles.rangeText}>$2000</Text>
                 </View>
               </View>
             </View>
@@ -509,15 +577,40 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  budgetLabel: {
-    fontSize: 24,
-    fontWeight: '700',
+  budgetInputsContainer: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 24,
+  },
+  budgetInputWrapper: {
+    flex: 1,
+  },
+  budgetInputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#9ca3af',
+    marginBottom: 8,
+  },
+  budgetInput: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 8,
+    padding: 12,
     color: '#fff',
-    textAlign: 'center',
-    marginBottom: 16,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  sliderLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#e5e7eb',
+    marginBottom: 8,
   },
   sliderContainer: {
-    marginBottom: 16,
+    marginBottom: 20,
+  },
+  sliderTrackWrapper: {
+    width: '100%',
   },
   sliderTrack: {
     height: 6,

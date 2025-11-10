@@ -22,6 +22,8 @@ const PodsScreen = ({ onBack, onCreatePod, userId = 'demo-user' }) => {
   const [selectedDuration, setSelectedDuration] = useState(60);
   const [uploadedImage, setUploadedImage] = useState(null);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [showFriendsInvite, setShowFriendsInvite] = useState(false);
+  const [friendInputs, setFriendInputs] = useState(['']);
 
   const durations = [30, 60, 90, 120];
 
