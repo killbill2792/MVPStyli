@@ -136,14 +136,12 @@ const PodsScreen = ({ onBack, onCreatePod, userId = 'demo-user' }) => {
           ))}
         </View>
 
-        {/* Fixed Header */}
-        <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={onBack}>
-            <Text style={styles.backButtonText}>← Back</Text>
-          </Pressable>
-          <Text style={styles.headerTitle}>Start a Pod</Text>
-          <View style={styles.headerSpacer} />
-        </View>
+        {/* Unified Header */}
+        <Header 
+          title="Start a Pod" 
+          onBack={onBack}
+          backgroundColor="rgba(0, 0, 0, 0.8)"
+        />
 
         <ScrollView
           style={styles.scrollView}
