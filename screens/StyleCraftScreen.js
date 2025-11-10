@@ -167,10 +167,19 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
                 placeholder="e.g., A flowy summer dress with vintage vibes..."
                 placeholderTextColor="#6b7280"
                 value={prompt}
-                onChangeText={setPrompt}
+                onChangeText={(text) => {
+                  setPrompt(text);
+                  if (text.length > 0) {
+                    setShowSuggestions(false);
+                  }
+                }}
                 multiline
                 numberOfLines={4}
-                onFocus={() => setShowSuggestions(true)}
+                onFocus={() => {
+                  if (prompt.length === 0) {
+                    setShowSuggestions(true);
+                  }
+                }}
                 onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
               />
               
@@ -186,10 +195,9 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
                           console.log('Suggestion tapped:', suggestion);
                           setPrompt(suggestion);
                           setShowSuggestions(false);
-                          // Force focus back to input to ensure it updates
-                          setTimeout(() => {
-                            // This ensures the text input shows the new value
-                          }, 100);
+                        }}
+                        onPressIn={() => {
+                          // Prevent blur from firing
                         }}
                       >
                         <Text style={styles.suggestionText}>{suggestion}</Text>
