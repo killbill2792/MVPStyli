@@ -7,6 +7,7 @@ import {
   ScrollView,
   FlatList,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 interface Notification {
   id: string;
@@ -167,7 +168,6 @@ const Inbox: React.FC<InboxProps> = ({ onBack, onPodLive, onPodRecap, userId }) 
             />
           )}
         </View>
-      </LinearGradient>
     </View>
   );
 };

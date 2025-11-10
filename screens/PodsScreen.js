@@ -160,28 +160,6 @@ const PodsScreen = ({ onBack, onCreatePod, userId = 'demo-user' }) => {
 
   return (
     <View style={styles.fullScreenContainer}>
-      {/* Animated Background */}
-      <LinearGradient
-        colors={['#000000', '#0a0a0a', '#1a1a2e']}
-        style={styles.background}
-      >
-        {/* Floating Light Particles */}
-        <View style={styles.particlesContainer}>
-          {[...Array(20)].map((_, i) => (
-            <View
-              key={i}
-              style={[
-                styles.particle,
-                {
-                  left: Math.random() * width,
-                  top: Math.random() * height,
-                  animationDelay: Math.random() * 3,
-                },
-              ]}
-            />
-          ))}
-        </View>
-
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={[styles.scrollContent, { paddingTop: 20, paddingBottom: 100 }]}
@@ -402,7 +380,6 @@ const PodsScreen = ({ onBack, onCreatePod, userId = 'demo-user' }) => {
             </View>
           </View>
         )}
-      </LinearGradient>
     </View>
   );
 };
@@ -411,24 +388,6 @@ const styles = StyleSheet.create({
   fullScreenContainer: {
     flex: 1,
     backgroundColor: '#000',
-  },
-  background: {
-    flex: 1,
-  },
-  particlesContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  particle: {
-    position: 'absolute',
-    width: 2,
-    height: 2,
-    backgroundColor: '#6366f1',
-    borderRadius: 1,
-    opacity: 0.6,
   },
   header: {
     position: 'absolute',
