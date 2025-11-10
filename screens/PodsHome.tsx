@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Spacing, Colors } from '../lib/designSystem';
+import { Spacing, Colors, getColors } from '../lib/designSystem';
 import { 
   getUserActivePods, 
   getUserPastPods, 
@@ -307,7 +307,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   createPodButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: getColors().primary,
     width: 32,
     height: 32,
     borderRadius: 16,
