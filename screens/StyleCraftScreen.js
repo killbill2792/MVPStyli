@@ -171,6 +171,7 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
                 multiline
                 numberOfLines={4}
                 onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
               />
               
               {showSuggestions && (
@@ -198,16 +199,19 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
             <View style={styles.budgetContainer}>
               <Text style={styles.budgetLabel}>${budget}</Text>
               <View style={styles.sliderContainer}>
-                <View style={styles.sliderTrack}>
-                  <View style={[styles.sliderFill, { width: `${(budget - 100) / 4}%` }]} />
-                  <Pressable
-                    style={[styles.sliderHandle, { left: `${(budget - 100) / 4}%` }]}
-                    onPress={() => {
-                      const newBudget = budget === 500 ? 100 : budget + 50;
-                      setBudget(newBudget);
-                    }}
-                  />
-                </View>
+                <Pressable
+                  style={styles.sliderTrack}
+                  onPress={(e) => {
+                    const { locationX } = e.nativeEvent;
+                    const trackWidth = e.currentTarget?.offsetWidth || 300;
+                    const percentage = Math.max(0, Math.min(1, locationX / trackWidth));
+                    const newBudget = Math.round(100 + (percentage * 400));
+                    setBudget(newBudget);
+                  }}
+                >
+                  <View style={[styles.sliderFill, { width: `${((budget - 100) / 400) * 100}%` }]} />
+                  <View style={[styles.sliderHandle, { left: `${((budget - 100) / 400) * 100}%`, marginLeft: -11 }]} />
+                </Pressable>
                 <View style={styles.budgetRange}>
                   <Text style={styles.rangeText}>$100</Text>
                   <Text style={styles.rangeText}>$500</Text>
@@ -463,12 +467,14 @@ const styles = StyleSheet.create({
     top: '100%',
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
     borderRadius: 12,
     padding: 16,
     marginTop: 8,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
+    zIndex: 1000,
+    maxHeight: 200,
   },
   suggestionsTitle: {
     fontSize: 14,
@@ -518,6 +524,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 3,
     position: 'relative',
+    width: '100%',
   },
   sliderFill: {
     height: '100%',
@@ -533,6 +540,7 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     borderWidth: 2,
     borderColor: '#6366f1',
+    zIndex: 10,
   },
   budgetRange: {
     flexDirection: 'row',

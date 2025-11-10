@@ -438,10 +438,13 @@ function Shell() {
               return;
             }
             // Store web/imported products in state so Product screen can access them
+            // Always set detectedProduct for web/imported products to ensure they're accessible
             if (product.kind === 'web' || product.kind === 'imported') {
               setDetectedProduct(product);
+              setCurrentProduct(product.id);
+            } else {
+              setCurrentProduct(product.id);
             }
-            setCurrentProduct(product.id);
             setRoute('product');
           } catch (error) {
             console.error('Error in onProductSelect:', error);
@@ -1244,11 +1247,46 @@ function TryOn() {
     loadAllProducts();
   }, [currentProductId, garmentId, productFromParams]);
   
+  const handlePhotoUpload = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', 'Allow photo access.');
+        return;
+      }
+      
+      const res = await ImagePicker.launchImageLibraryAsync({ 
+        mediaTypes: ImagePicker.MediaTypeOptions.Images, 
+        quality: 0.9 
+      });
+      
+      if (!res.canceled && res.assets && res.assets[0] && res.assets[0].uri) {
+        try {
+          const uploadedUrl = await uploadImageAsync(res.assets[0].uri);
+          setTwinUrl(uploadedUrl);
+        } catch (error) {
+          console.error('Upload error:', error);
+          setTwinUrl(res.assets[0].uri);
+        }
+      }
+    } catch (error) {
+      console.error('Photo picker error:', error);
+      Alert.alert('Error', 'Failed to pick photo. Please try again.');
+    }
+  };
+
   if (!twinUrl) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
-        <Text style={{ color: '#e4e4e7', fontSize: 18, marginBottom: 16 }}>No photo uploaded</Text>
-        <Pressable onPress={() => setRoute('onboarding')} style={s.btn}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: '#000' }}>
+        <Text style={{ color: '#e4e4e7', fontSize: 18, marginBottom: 16, textAlign: 'center' }}>Upload your photo to try on</Text>
+        {/* If we have a product from params, show it so user knows what they're trying on */}
+        {productFromParams && (
+          <View style={{ marginBottom: 24, alignItems: 'center' }}>
+            <Text style={{ color: '#a1a1aa', fontSize: 14, marginBottom: 8 }}>Selected: {productFromParams.name}</Text>
+            <Image source={{ uri: productFromParams.image }} style={{ width: 100, height: 150, borderRadius: 12 }} resizeMode="cover" />
+          </View>
+        )}
+        <Pressable onPress={handlePhotoUpload} style={s.btn}>
           <Text style={s.btnText}>Upload Photo</Text>
         </Pressable>
       </View>
