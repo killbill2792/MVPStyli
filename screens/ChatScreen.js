@@ -411,7 +411,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         </View>
       ) : (
         /* Chat Messages */
-        <View style={{ flex: 1 }}>
+        <>
           <ScrollView 
             ref={chatScrollRef}
             style={{ flex: 1 }}
@@ -577,7 +577,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               </Pressable>
             </View>
           </View>
-        </View>
+        </>
       )}
       </KeyboardAvoidingView>
     </SafeAreaView>
