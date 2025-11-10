@@ -278,17 +278,21 @@ export default function ChatScreen({ onBack, onProductSelect }) {
                 resizeMode="cover"
               />
               
-              {/* Product Info Overlay - Above thumbnails */}
+              {/* Product Info Overlay - Above thumbnails, not overlapping */}
               <View style={{
                 position: 'absolute',
-                bottom: thumbnailHeight + Spacing.sm, // Above thumbnail strip with gap
+                bottom: thumbnailHeight + Spacing.md, // Well above thumbnail strip
                 left: 0,
                 right: 0,
-                backgroundColor: 'rgba(0,0,0,0.75)',
+                backgroundColor: 'rgba(0,0,0,0.8)',
                 padding: Spacing.md,
-                paddingBottom: Spacing.sm
+                paddingBottom: Spacing.sm,
+                maxHeight: 150 // Limit height to prevent overlap
               }}>
-                <Text style={{ ...TextStyles.h3, color: Colors.textWhite, marginBottom: Spacing.xs }}>
+                <Text 
+                  style={{ ...TextStyles.h3, color: Colors.textWhite, marginBottom: Spacing.xs }}
+                  numberOfLines={1}
+                >
                   {currentProduct.name}
                 </Text>
                 <Text style={{ ...TextStyles.body, color: Colors.textWhite, marginBottom: Spacing.xs }}>
@@ -302,32 +306,32 @@ export default function ChatScreen({ onBack, onProductSelect }) {
                 <Pressable 
                   onPress={() => handleProductPress(currentProduct)}
                   style={{
-                    marginTop: Spacing.md,
+                    marginTop: Spacing.sm,
                     backgroundColor: Colors.primary,
-                    padding: Spacing.md,
+                    padding: Spacing.sm,
                     borderRadius: BorderRadius.md,
                     alignItems: 'center'
                   }}
                 >
-                  <Text style={{ ...TextStyles.body, color: Colors.textWhite, fontWeight: Typography.semibold }}>
+                  <Text style={{ ...TextStyles.body, color: Colors.textWhite, fontWeight: Typography.semibold, fontSize: Typography.sm }}>
                     View Details →
                   </Text>
                 </Pressable>
               </View>
             </Pressable>
 
-            {/* Thumbnail Strip - At absolute bottom of image, above nav bar */}
+            {/* Thumbnail Strip - At absolute bottom of screen, above nav bar */}
             <View style={{
               position: 'absolute',
-              bottom: bottomBarHeight + insets.bottom + Spacing.xs, // At absolute bottom, just above nav bar
+              bottom: bottomBarHeight + insets.bottom, // At absolute bottom, just above nav bar
               left: 0,
               right: 0,
               backgroundColor: 'rgba(0,0,0,0.95)',
-              paddingVertical: Spacing.xs,
+              paddingTop: Spacing.xs,
               paddingBottom: Spacing.xs,
               borderTopWidth: 1,
               borderTopColor: Colors.border,
-              height: thumbnailHeight
+              minHeight: 70 // Minimum height for thumbnails
             }}>
               <Text style={{ 
                 ...TextStyles.small, 
