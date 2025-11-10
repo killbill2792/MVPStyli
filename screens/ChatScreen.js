@@ -217,37 +217,17 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   };
 
   const handleProductPress = (product) => {
-    if (!product) {
-      console.error('Product is null or undefined');
+    if (!product || !product.id) {
+      console.error('Invalid product:', product);
       return;
     }
     
-    // Ensure product has required fields
-    if (!product.id) {
-      console.error('Product missing id:', product);
-      // Try to generate an ID if missing
-      product.id = product.id || `product-${Date.now()}-${Math.random()}`;
-    }
-    
-    // Ensure product has kind
-    if (!product.kind) {
-      product.kind = 'web'; // Default to web
-    }
-    
     try {
-      if (onProductSelect && typeof onProductSelect === 'function') {
+      if (onProductSelect) {
         onProductSelect(product);
-      } else {
-        console.error('onProductSelect is not a function:', onProductSelect);
       }
     } catch (error) {
       console.error('Error selecting product:', error);
-      // Show user-friendly error
-      const errorMessage = { 
-        type: 'ai', 
-        message: `Sorry, I couldn't open that product. Please try again.` 
-      };
-      setChatHistory(prev => [...prev, errorMessage]);
     }
   };
 
@@ -264,7 +244,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         <View style={{ 
           flexDirection: 'row', 
           alignItems: 'center', 
-          paddingTop: Spacing.md,
+          paddingTop: Spacing.xl,
           paddingHorizontal: Spacing.lg,
           paddingBottom: Spacing.md,
           borderBottomWidth: 1,
@@ -277,16 +257,12 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           <Text style={{ ...TextStyles.h3, flex: 1 }}>AI Shopping Assistant</Text>
         </View>
 
-        {showResults && searchResults.length > 0 && currentProduct ? (
+        {showResults && searchResults.length > 0 ? (
           /* Explore-style Product View */
           <View style={{ flex: 1 }}>
             {/* Main Product Image */}
             <Pressable 
-              onPress={() => {
-                if (currentProduct) {
-                  handleProductPress(currentProduct);
-                }
-              }}
+              onPress={() => handleProductPress(currentProduct)}
               style={{ flex: 1, position: 'relative' }}
             >
               <Image 
@@ -302,12 +278,12 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               {/* Product Info Overlay */}
               <View style={{
                 position: 'absolute',
-                bottom: 0,
+                bottom: 90, // Above thumbnail strip
                 left: 0,
                 right: 0,
                 backgroundColor: 'rgba(0,0,0,0.7)',
                 padding: Spacing.lg,
-                paddingBottom: 120 // Space for thumbnails
+                paddingBottom: Spacing.md
               }}>
                 <Text style={{ ...TextStyles.h3, color: Colors.textWhite, marginBottom: Spacing.xs }}>
                   {currentProduct.name}
@@ -337,23 +313,25 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               </View>
             </Pressable>
 
-            {/* Thumbnail Strip */}
+            {/* Thumbnail Strip - Bottom */}
             <View style={{
               position: 'absolute',
               bottom: 90, // Above bottom bar (BottomBar is ~70px + safe area)
               left: 0,
               right: 0,
-              backgroundColor: 'rgba(0,0,0,0.8)',
-              paddingVertical: Spacing.md
+              backgroundColor: 'rgba(0,0,0,0.9)',
+              paddingVertical: Spacing.sm,
+              paddingBottom: Spacing.md
             }}>
               <Text style={{ 
-                ...TextStyles.caption, 
+                ...TextStyles.small, 
                 color: Colors.textWhite, 
                 marginLeft: Spacing.md, 
-                marginBottom: Spacing.sm,
-                fontWeight: Typography.semibold
+                marginBottom: Spacing.xs,
+                fontWeight: Typography.semibold,
+                fontSize: Typography.xs
               }}>
-                {searchResults.length} Result{searchResults.length > 1 ? 's' : ''} • Tap to view
+                {searchResults.length} Result{searchResults.length > 1 ? 's' : ''}
               </Text>
               <ScrollView 
                 horizontal 
@@ -367,13 +345,13 @@ export default function ChatScreen({ onBack, onProductSelect }) {
                       setSelectedProductIndex(index);
                     }}
                     style={{
-                      width: 80,
-                      height: 80,
-                      marginRight: Spacing.sm,
-                      borderRadius: BorderRadius.md,
+                      width: 60,
+                      height: 60,
+                      marginRight: Spacing.xs,
+                      borderRadius: BorderRadius.sm,
                       overflow: 'hidden',
                       borderWidth: 2,
-                      borderColor: index === selectedProductIndex ? Colors.primary : 'transparent'
+                      borderColor: index === selectedProductIndex ? Colors.primary : 'rgba(255,255,255,0.3)'
                     }}
                   >
                     <Image 
@@ -455,7 +433,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           borderTopWidth: 1,
           borderTopColor: Colors.border,
           backgroundColor: Colors.background,
-          paddingBottom: Platform.OS === 'ios' ? Spacing.lg : Spacing.md
+          paddingBottom: Platform.OS === 'ios' ? Spacing.xl : Spacing.lg
         }}>
           <View style={{ flexDirection: 'row', gap: Spacing.md, alignItems: 'center' }}>
             <View style={{ ...InputStyles.container, flex: 1, flexDirection: 'row', alignItems: 'center' }}>

@@ -415,23 +415,11 @@ function Shell() {
       {route === "chat" && <ChatScreen 
         onBack={() => setRoute("shop")} 
         onProductSelect={(product) => {
-          try {
-            if (!product || !product.id) {
-              console.error('Invalid product in onProductSelect:', product);
-              return;
-            }
-            
-            // Store detected product for web/imported products
-            if (product.kind === 'web' || product.kind === 'imported') {
-              setDetectedProduct(product);
-            }
-            
-            // Set current product and navigate
-            setCurrentProduct(product.id);
-            setRoute('product');
-          } catch (error) {
-            console.error('Error in onProductSelect:', error);
+          if (product.kind === 'web' || product.kind === 'imported') {
+            setDetectedProduct(product);
           }
+          setCurrentProduct(product.id);
+          setRoute('product');
         }}
       />}
       
@@ -457,13 +445,13 @@ function Shell() {
         </View>
       )}
       
-      {/* Floating AI Assistant Icon */}
+      {/* Floating AI Assistant Icon - Right Side */}
       {route !== "signin" && route !== "chat" && (
         <Pressable
           onPress={() => setRoute("chat")}
           style={{
             position: 'absolute',
-            left: Spacing.lg,
+            right: Spacing.lg,
             bottom: 90, // Above bottom bar (BottomBar is ~70px + safe area)
             width: 56,
             height: 56,
