@@ -2175,7 +2175,7 @@ function Explore() {
             </View>
           </View>
         </View>
-      </View>
+      </Pressable>
     </View>
   );
 }
