@@ -9,6 +9,7 @@ import {
   Image,
   FlatList,
   TextInput,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useApp } from '../App';
@@ -17,7 +18,7 @@ import { Colors, Typography, Spacing, BorderRadius, CardStyles, TextStyles, Them
 const { width, height } = Dimensions.get('window');
 
 const AccountScreen = ({ onBack, tryOnResults = [] }) => {
-  const { state, setTheme, setCustomColor: setAppCustomColor } = useApp();
+  const { state, setTheme, setCustomColor: setAppCustomColor, setRoute } = useApp();
   const [username] = useState('Fashionista');
   const [showCustomColorPicker, setShowCustomColorPicker] = useState(false);
   const [customColorInput, setCustomColorInput] = useState('');
@@ -131,32 +132,58 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
     </View>
   );
 
-  const SectionCard = ({ section }) => (
-    <Pressable style={{
-      ...CardStyles.container,
-      width: '48%',
-      marginBottom: Spacing.md,
-      padding: Spacing.md,
-      borderWidth: 1,
-      borderColor: Colors.border
-    }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.sm }}>
-        <Text style={{ fontSize: 24, marginRight: Spacing.sm }}>{section.icon}</Text>
-        <View style={{ flex: 1 }}>
-          <Text style={{ ...TextStyles.body, fontSize: Typography.sm, fontWeight: Typography.semibold }}>
-            {section.title}
-          </Text>
-          {section.count !== null && (
-            <Text style={{ ...TextStyles.h3, color: Colors.primary, marginTop: Spacing.xs }}>
-              {section.count}
+  const SectionCard = ({ section }) => {
+    const handlePress = () => {
+      if (section.id === 'tryons') {
+        // Show try-on results - could navigate to a try-on results screen
+        Alert.alert('Try-On Results', `You have ${tryOnResults.length} try-on results.`);
+      } else if (section.id === 'pods') {
+        // Navigate to pods home
+        setRoute('podshome');
+      } else if (section.id === 'designs') {
+        // Navigate to StyleCraft
+        setRoute('stylecraft');
+      } else if (section.id === 'favorites') {
+        // Navigate to favorites
+        Alert.alert('Favorites', 'Favorites feature coming soon!');
+      } else if (section.id === 'settings') {
+        // Navigate to settings
+        Alert.alert('Settings', 'Settings feature coming soon!');
+      } else if (section.id === 'help') {
+        // Navigate to help
+        Alert.alert('Help & Support', 'Help feature coming soon!');
+      }
+    };
+
+    return (
+      <Pressable 
+        onPress={handlePress}
+        style={{
+          ...CardStyles.container,
+          width: '48%',
+          marginBottom: Spacing.md,
+          padding: Spacing.md,
+          borderWidth: 1,
+          borderColor: Colors.border
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.sm }}>
+          <Text style={{ fontSize: 24, marginRight: Spacing.sm }}>{section.icon}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ ...TextStyles.body, fontSize: Typography.sm, fontWeight: Typography.semibold }}>
+              {section.title}
             </Text>
-          )}
+            {section.count !== null && (
+              <Text style={{ ...TextStyles.h3, color: Colors.primary, marginTop: Spacing.xs }}>
+                {section.count}
+              </Text>
+            )}
+          </View>
         </View>
-      </View>
-      <View style={{ 
-        height: 2, 
-        backgroundColor: section.color, 
-        borderRadius: BorderRadius.full,
+        <View style={{ 
+          height: 2, 
+          backgroundColor: section.color, 
+          borderRadius: BorderRadius.full,
         marginTop: Spacing.xs
       }} />
     </Pressable>

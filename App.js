@@ -614,10 +614,17 @@ function Onboarding() {
 function Shop() {
   const { state: { products }, setRoute, setCurrentProduct, setDetectedProduct } = useApp();
   const [filteredProducts, setFilteredProducts] = useState([]);
-  const [showProductDetector, setShowProductDetector] = useState(false);
   const [allProducts, setAllProducts] = useState(enhancedProducts);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
   
-  // Use the global enhancedProducts array
+  const categories = [
+    { id: 'all', label: 'All' },
+    { id: 'upper', label: 'Tops' },
+    { id: 'lower', label: 'Bottoms' },
+    { id: 'dress', label: 'Dresses' },
+    { id: 'shoes', label: 'Shoes' },
+  ];
   
   // Load additional products from real clothing brands
   useEffect(() => {
@@ -634,18 +641,28 @@ function Shop() {
     loadAdditionalProducts();
   }, []);
 
-  // Initialize with all products
+  // Filter products based on search and category
   useEffect(() => {
-    setFilteredProducts(allProducts);
-  }, [allProducts]);
-
-  const handleProductDetected = (newProduct) => {
-    // Store the detected product and navigate to product details
-    setDetectedProduct(newProduct);
-    setCurrentProduct(newProduct.id);
-    setRoute('product');
-    setShowProductDetector(false);
-  };
+    let filtered = allProducts;
+    
+    // Filter by category
+    if (selectedCategory !== 'all') {
+      filtered = filtered.filter(p => p.category === selectedCategory);
+    }
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(p => 
+        p.name.toLowerCase().includes(query) ||
+        p.brand?.toLowerCase().includes(query) ||
+        p.color?.toLowerCase().includes(query) ||
+        p.material?.toLowerCase().includes(query)
+      );
+    }
+    
+    setFilteredProducts(filtered);
+  }, [allProducts, searchQuery, selectedCategory]);
   
   const handleProductSelect = (product) => {
     // Store web/imported products in state so Product screen can access them
@@ -658,40 +675,63 @@ function Shop() {
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.background }}>
-      {/* Header with Chat Button */}
+      {/* Search Bar */}
       <View style={{ 
-        paddingTop: Spacing.lg,
+        paddingTop: 20,
         paddingHorizontal: Spacing.lg, 
         paddingBottom: Spacing.md 
       }}>
-        <View style={{ flexDirection: 'row', gap: Spacing.md, alignItems: 'center' }}>
-          <Pressable 
-            onPress={() => setRoute('chat')}
+        <View style={{
+          ...InputStyles.container,
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingHorizontal: Spacing.md,
+        }}>
+          <Text style={{ fontSize: 18, marginRight: Spacing.sm }}>🔍</Text>
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search dresses, brands, colors..."
+            placeholderTextColor={Colors.textSecondary}
             style={{ 
-              ...createButtonStyle('primary'),
-              flex: 1,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: Spacing.sm
+              flex: 1, 
+              ...InputStyles.text,
+              paddingVertical: Spacing.sm
             }}
-          >
-            <Text style={{ fontSize: Typography.lg }}>💬</Text>
-            <Text style={getButtonTextStyle('primary')}>
-              AI Shopping Assistant
-            </Text>
-          </Pressable>
-          
-          <Pressable 
-            onPress={() => setShowProductDetector(true)}
-            style={createButtonStyle('secondary')}
-          >
-            <Text style={getButtonTextStyle('secondary')}>
-              + Detect
-            </Text>
-          </Pressable>
+          />
         </View>
       </View>
+      
+      {/* Category Filters */}
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        style={{ marginBottom: Spacing.md }}
+        contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.sm }}
+      >
+        {categories.map((cat) => (
+          <Pressable
+            key={cat.id}
+            onPress={() => setSelectedCategory(cat.id)}
+            style={{
+              paddingHorizontal: Spacing.lg,
+              paddingVertical: Spacing.sm,
+              borderRadius: BorderRadius.full,
+              backgroundColor: selectedCategory === cat.id ? Colors.primary : Colors.backgroundSecondary,
+              borderWidth: 1,
+              borderColor: selectedCategory === cat.id ? Colors.primary : Colors.border,
+            }}
+          >
+            <Text style={{
+              ...TextStyles.body,
+              color: selectedCategory === cat.id ? Colors.textWhite : Colors.textPrimary,
+              fontWeight: selectedCategory === cat.id ? Typography.semibold : Typography.medium,
+            }}>
+              {cat.label}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
       
       {/* Products Grid */}
       <ScrollView 
@@ -811,23 +851,6 @@ function Shop() {
       </ScrollView>
 
       {/* Product Detector Overlay */}
-      {showProductDetector && (
-        <View style={{ 
-          position: 'absolute', 
-          top: 0, 
-          left: 0, 
-          right: 0, 
-          bottom: 0, 
-          backgroundColor: Colors.backgroundOverlay, 
-          justifyContent: 'center', 
-          alignItems: 'center' 
-        }}>
-          <ProductDetector 
-            onProductDetected={handleProductDetected}
-            onClose={() => setShowProductDetector(false)}
-          />
-        </View>
-      )}
     </View>
   );
 }

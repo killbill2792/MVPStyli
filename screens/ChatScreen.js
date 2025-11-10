@@ -221,6 +221,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   const handleProductPress = (product) => {
     if (!product) {
       console.error('Product is null or undefined');
+      Alert.alert('Error', 'Product information is missing. Please try again.');
       return;
     }
     
@@ -243,14 +244,18 @@ export default function ChatScreen({ onBack, onProductSelect }) {
       sourceLabel: product.sourceLabel || product.brand || 'Online Store'
     };
     
+    console.log('Navigating to product:', productWithDefaults.id);
+    
     try {
       if (onProductSelect && typeof onProductSelect === 'function') {
         onProductSelect(productWithDefaults);
       } else {
-        console.error('onProductSelect is not a function:', onProductSelect);
+        console.error('onProductSelect is not a function:', typeof onProductSelect, onProductSelect);
+        Alert.alert('Error', 'Navigation function not available. Please try again.');
       }
     } catch (error) {
       console.error('Error selecting product:', error);
+      Alert.alert('Error', `Unable to view product: ${error.message || 'Unknown error'}`);
     }
   };
 
@@ -460,11 +465,14 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         {/* Input Bar - Only show when not showing results */}
         {!showResults && (
           <View style={{ 
+            position: 'absolute',
+            bottom: 80, // Fixed position above nav bar
+            left: 0,
+            right: 0,
             padding: Spacing.lg,
             borderTopWidth: 1,
             borderTopColor: Colors.border,
             backgroundColor: Colors.background,
-            paddingBottom: 100 // Space above nav bar
           }}>
             <View style={{ flexDirection: 'row', gap: Spacing.md, alignItems: 'center' }}>
               <View style={{ ...InputStyles.container, flex: 1, flexDirection: 'row', alignItems: 'center' }}>
