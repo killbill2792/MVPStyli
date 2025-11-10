@@ -1,21 +1,22 @@
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors } from '../lib/designSystem';
+import { getColors } from '../lib/designSystem';
 
 export default function BottomBar({ route, go }: { route: string; go: (r: string) => void }) {
   const insets = useSafeAreaInsets();
+  const colors = getColors();
   const items: [string, string][] = [['shop', 'Shop'], ['feed', 'Explore'], ['tryon', 'Try-On'], ['podshome', 'Pods'], ['stylecraft', 'StyleCraft']];
   
   return (
-    <SafeAreaView style={{ backgroundColor: Colors.background }} edges={['bottom']}>
+    <SafeAreaView style={{ backgroundColor: colors.background }} edges={['bottom']}>
       <View style={{ 
         alignItems: 'center',
         paddingTop: 5, // Reduced by 3 points (was 8)
         paddingBottom: 2, // Reduced by 3 points
-        backgroundColor: Colors.background,
+        backgroundColor: colors.background,
         borderTopWidth: 1,
-        borderTopColor: Colors.border
+        borderTopColor: colors.border
       }}>
         <View style={{
           flexDirection: 'row',

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors, Typography, Spacing, TextStyles } from '../lib/designSystem';
+import { getColors, Typography, Spacing } from '../lib/designSystem';
 
 interface HeaderProps {
   title: string;
@@ -14,10 +14,13 @@ export default function Header({
   title, 
   onBack, 
   rightAction,
-  backgroundColor = Colors.background 
+  backgroundColor 
 }: HeaderProps) {
+  const colors = getColors();
+  const bgColor = backgroundColor || colors.background;
+  
   return (
-    <SafeAreaView style={{ backgroundColor }} edges={['top']}>
+    <SafeAreaView style={{ backgroundColor: bgColor }} edges={['top']}>
       <View style={{
         flexDirection: 'row',
         alignItems: 'center',
@@ -25,12 +28,12 @@ export default function Header({
         height: 56,
         paddingHorizontal: Spacing.lg,
         borderBottomWidth: 1,
-        borderBottomColor: Colors.border,
-        backgroundColor
+        borderBottomColor: colors.border,
+        backgroundColor: bgColor
       }}>
         {onBack ? (
           <Pressable onPress={onBack} style={{ marginRight: Spacing.md }}>
-            <Text style={{ color: Colors.primary, fontSize: Typography.base }}>
+            <Text style={{ color: colors.primary, fontSize: Typography.base }}>
               ← Back
             </Text>
           </Pressable>
@@ -38,7 +41,7 @@ export default function Header({
           <View style={{ width: 60 }} />
         )}
         
-        <Text style={{ color: Colors.textPrimary, fontSize: Typography.xl, fontWeight: Typography.bold, flex: 1, textAlign: 'center' }}>
+        <Text style={{ color: colors.textPrimary, fontSize: Typography.xl, fontWeight: Typography.bold as any, flex: 1, textAlign: 'center' }}>
           {title}
         </Text>
         

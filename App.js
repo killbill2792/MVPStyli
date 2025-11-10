@@ -2047,7 +2047,7 @@ function Explore() {
             </Pressable>
           </View>
         ) : (
-          <View style={{ position: 'absolute', bottom: 20, left: 0, right: 0, alignItems: 'center' }}>
+          <View style={{ position: 'absolute', bottom: 90, left: 0, right: 0, alignItems: 'center' }}>
             <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600', textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: {width: 1, height: 1}, textShadowRadius: 3 }}>
               Voted! Moving to next...
             </Text>
