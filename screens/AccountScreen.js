@@ -285,9 +285,9 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
                       setShowCustomColorPicker(false);
                     }}
                     style={{
-                      width: 70,
-                      height: 70,
-                      borderRadius: BorderRadius.lg,
+                      width: 60,
+                      height: 60,
+                      borderRadius: BorderRadius.md,
                       backgroundColor: theme.primary,
                       borderWidth: isSelected ? 3 : 1,
                       borderColor: isSelected ? Colors.textWhite : Colors.border,
@@ -301,16 +301,8 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
                     }}
                   >
                     {isSelected && (
-                      <Text style={{ color: Colors.textWhite, fontSize: 20, marginBottom: Spacing.xs }}>✓</Text>
+                      <Text style={{ color: Colors.textWhite, fontSize: 18 }}>✓</Text>
                     )}
-                    <Text style={{ 
-                      color: Colors.textWhite, 
-                      fontSize: Typography.xs, 
-                      fontWeight: Typography.semibold,
-                      textTransform: 'capitalize'
-                    }}>
-                      {themeName}
-                    </Text>
                   </Pressable>
                 );
               })}
@@ -324,9 +316,9 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
                   }
                 }}
                 style={{
-                  width: 70,
-                  height: 70,
-                  borderRadius: BorderRadius.lg,
+                  width: 60,
+                  height: 60,
+                  borderRadius: BorderRadius.md,
                   backgroundColor: currentTheme === 'custom' && getCustomColor() ? getCustomColor() : Colors.backgroundSecondary,
                   borderWidth: currentTheme === 'custom' ? 3 : 1,
                   borderColor: currentTheme === 'custom' ? Colors.textWhite : Colors.border,
@@ -336,15 +328,11 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
                 }}
               >
                 {currentTheme === 'custom' && (
-                  <Text style={{ color: Colors.textWhite, fontSize: 20, marginBottom: Spacing.xs }}>✓</Text>
+                  <Text style={{ color: Colors.textWhite, fontSize: 18 }}>✓</Text>
                 )}
-                <Text style={{ 
-                  color: Colors.textSecondary, 
-                  fontSize: Typography.xs, 
-                  fontWeight: Typography.semibold
-                }}>
-                  Custom
-                </Text>
+                {currentTheme !== 'custom' && (
+                  <Text style={{ color: Colors.textSecondary, fontSize: 24 }}>+</Text>
+                )}
               </Pressable>
             </View>
             
