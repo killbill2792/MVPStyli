@@ -364,8 +364,8 @@ function FloatingAIIcon() {
   const { route } = state;
   const insets = useSafeAreaInsets();
   
-  // Don't show on signin or chat screens
-  if (route === "signin" || route === "chat") {
+  // Don't show on signin, chat, or product screens
+  if (route === "signin" || route === "chat" || route === "product") {
     return null;
   }
   
@@ -382,42 +382,32 @@ function FloatingAIIcon() {
   const primaryColor = getColors().primary;
   const rgb = hexToRgb(primaryColor);
   
+  // Render only the Pressable directly - no container View
   return (
-    <View
-      pointerEvents="box-none"
+    <Pressable
+      onPress={() => setRoute("chat")}
       style={{
         position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
+        right: Spacing.lg,
+        bottom: 70 + insets.bottom, // Above bottom bar (~70px) + safe area
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.2)`, // Glass-like transparent with theme color
+        borderWidth: 1,
+        borderColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.4)`,
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: primaryColor,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 8,
         zIndex: 99999, // Highest z-index to float above everything
       }}
     >
-      <Pressable
-        onPress={() => setRoute("chat")}
-        style={{
-          position: 'absolute',
-          right: Spacing.lg,
-          bottom: 70 + insets.bottom, // Above bottom bar (~70px) + safe area
-          width: 56,
-          height: 56,
-          borderRadius: 28,
-          backgroundColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.2)`, // Glass-like transparent with theme color
-          borderWidth: 1,
-          borderColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.4)`,
-          justifyContent: 'center',
-          alignItems: 'center',
-          shadowColor: primaryColor,
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.3,
-          shadowRadius: 8,
-          elevation: 8,
-        }}
-      >
-        <Text style={{ fontSize: 24 }}>💬</Text>
-      </Pressable>
-    </View>
+      <Text style={{ fontSize: 24 }}>💬</Text>
+    </Pressable>
   );
 }
 
