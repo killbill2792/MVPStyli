@@ -184,10 +184,11 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
           height: 2, 
           backgroundColor: section.color, 
           borderRadius: BorderRadius.full,
-        marginTop: Spacing.xs
-      }} />
-    </Pressable>
-  );
+          marginTop: Spacing.xs
+        }} />
+      </Pressable>
+    );
+  };
 
   return (
     <View style={styles.fullScreenContainer}>
