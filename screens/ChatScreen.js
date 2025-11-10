@@ -471,11 +471,11 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         {!showResults && (
           <View style={{ 
             position: 'absolute',
-            bottom: 60 + insets.bottom, // Bottom bar height (60px) + safe area
+            bottom: 50 + insets.bottom, // Bottom bar content height (~50px) + safe area
             left: 0,
             right: 0,
             paddingTop: Spacing.md,
-            paddingBottom: Spacing.sm,
+            paddingBottom: Spacing.xs,
             paddingHorizontal: Spacing.lg,
             borderTopWidth: 1,
             borderTopColor: Colors.border,
