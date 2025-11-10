@@ -8,6 +8,7 @@ import {
   Dimensions,
   Image,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { 
   getPod, 
   getPodVotes, 
@@ -186,7 +187,6 @@ const PodRecap: React.FC<PodRecapProps> = ({ podId, onBack, onStyleCraft, onShop
             </Pressable>
           </View>
         </ScrollView>
-      </LinearGradient>
     </View>
   );
 };
