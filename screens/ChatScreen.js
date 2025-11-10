@@ -2,8 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, Image, KeyboardAvoidingView, Platform, Dimensions, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import Header from '../components/Header';
-import { Colors, Typography, Spacing, BorderRadius, ButtonStyles, CardStyles, InputStyles, TextStyles, createButtonStyle, getButtonTextStyle } from '../lib/designSystem';
+import { Colors, Typography, Spacing, BorderRadius, InputStyles, TextStyles, createButtonStyle, getButtonTextStyle } from '../lib/designSystem';
 import { isUrl, importProductFromUrl, searchWebProducts, normalizeProduct } from '../lib/productSearch';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -20,6 +19,10 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   const [showResults, setShowResults] = useState(false);
   const [uploadedImage, setUploadedImage] = useState(null);
   const insets = useSafeAreaInsets();
+
+  // Bottom bar height calculation
+  const BOTTOM_BAR_HEIGHT = 70; // Approximate height of bottom nav bar
+  const INPUT_BAR_HEIGHT = 60; // Height of input bar
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
@@ -75,12 +78,13 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   const handleSearchSubmit = async () => {
     const query = searchQuery.trim();
     
-    if (!query) return;
+    if (!query && !uploadedImage) return;
     
     // Add user message to chat
-    const userMessage = { type: 'user', message: query };
+    const userMessage = { type: 'user', message: query || 'Analyze this image', image: uploadedImage };
     setChatHistory(prev => [...prev, userMessage]);
     setSearchQuery('');
+    setUploadedImage(null);
     setIsSearching(true);
     setShowResults(false);
     
@@ -111,7 +115,6 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             sourceLabel: normalized.sourceLabel
           };
           
-          // Ensure required fields
           if (!productForUI.image || productForUI.image === 'https://via.placeholder.com/400') {
             throw new Error('Product image could not be extracted from URL. Please try a different product page.');
           }
@@ -158,7 +161,6 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             setChatHistory(prev => [...prev, errorMessage]);
             setSearchResults([]);
           } else {
-            // Limit to 10 results
             const limitedProducts = webProducts.slice(0, 10);
             
             const productsForUI = limitedProducts.map(normalized => ({
@@ -176,7 +178,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               buyUrl: normalized.productUrl || normalized.buyUrl,
               kind: normalized.kind || 'web',
               sourceLabel: normalized.sourceLabel
-            })).filter(p => p.image && p.image !== 'https://via.placeholder.com/400'); // Filter out products without images
+            })).filter(p => p.image && p.image !== 'https://via.placeholder.com/400');
             
             if (productsForUI.length === 0) {
               const errorMessage = { 
@@ -232,25 +234,6 @@ export default function ChatScreen({ onBack, onProductSelect }) {
       if (!result.canceled && result.assets && result.assets[0]) {
         const imageUri = result.assets[0].uri;
         setUploadedImage(imageUri);
-        
-        // Add user message with image
-        const userMessage = { 
-          type: 'user', 
-          message: 'Analyze this image',
-          image: imageUri 
-        };
-        setChatHistory(prev => [...prev, userMessage]);
-        
-        // Add AI response
-        setIsSearching(true);
-        setTimeout(() => {
-          const aiMessage = { 
-            type: 'ai', 
-            message: 'I can see you\'ve uploaded an image! I can help you:\n• Find similar dresses/items\n• Suggest what goes well with this\n• Identify the style and color\n\nWhat would you like to know about this item?' 
-          };
-          setChatHistory(prev => [...prev, aiMessage]);
-          setIsSearching(false);
-        }, 1000);
       }
     } catch (error) {
       console.error('Image picker error:', error);
@@ -265,7 +248,6 @@ export default function ChatScreen({ onBack, onProductSelect }) {
       return;
     }
     
-    // Ensure product has all required fields
     const productWithDefaults = {
       ...product,
       id: product.id || `product-${Date.now()}-${Math.random()}`,
@@ -284,18 +266,14 @@ export default function ChatScreen({ onBack, onProductSelect }) {
       sourceLabel: product.sourceLabel || product.brand || 'Online Store'
     };
     
-    // Ensure id is a string
     if (!productWithDefaults.id || typeof productWithDefaults.id !== 'string') {
       productWithDefaults.id = String(productWithDefaults.id || `product-${Date.now()}-${Math.random()}`);
     }
-    
-    console.log('Navigating to product:', productWithDefaults.id, productWithDefaults);
     
     try {
       if (onProductSelect && typeof onProductSelect === 'function') {
         onProductSelect(productWithDefaults);
       } else {
-        console.error('onProductSelect is not a function:', typeof onProductSelect, onProductSelect);
         Alert.alert('Error', 'Navigation function not available. Please try again.');
       }
     } catch (error) {
@@ -305,157 +283,138 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   };
 
   const currentProduct = searchResults[selectedProductIndex];
-  const bottomBarHeight = 70; // Approximate height of bottom nav bar
-  const thumbnailHeight = 70; // Height of thumbnail strip
-  const headerHeight = 56; // Fixed header height
+  const thumbnailHeight = 70;
 
   return (
-    <View style={{ 
-      flex: 1, 
-      backgroundColor: Colors.background,
-    }}>
-      <KeyboardAvoidingView 
-        style={{ flex: 1 }} 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 + insets.bottom : 0}
-      >
-
-        {showResults && searchResults.length > 0 ? (
-          /* Explore-style Product View */
-          <View style={{ flex: 1, position: 'relative' }}>
-            {/* Main Product Image - Full screen */}
-            <Pressable 
-              onPress={() => {
-                try {
-                  handleProductPress(currentProduct);
-                } catch (error) {
-                  console.error('Error in product press:', error);
-                  Alert.alert('Error', 'Unable to view product details. Please try again.');
-                }
-              }}
-              style={{ 
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 80 + thumbnailHeight, // Leave space for thumbnails at bottom
-              }}
-            >
-              <Image 
-                source={{ uri: currentProduct.image }} 
-                style={{ 
-                  width: '100%', 
-                  height: '100%',
-                  backgroundColor: Colors.backgroundSecondary
-                }}
-                resizeMode="contain" // Changed from cover to contain to show full image
-              />
-              
-              {/* Product Info Overlay - Above thumbnails, not overlapping */}
-              <View style={{
-                position: 'absolute',
-                bottom: 0, // At bottom of image area
-                left: 0,
-                right: 0,
-                backgroundColor: 'rgba(0,0,0,0.85)',
-                padding: Spacing.md,
-                paddingBottom: Spacing.sm,
-                maxHeight: 130 // Limit height to prevent overlap
-              }}>
-                <Text 
-                  style={{ ...TextStyles.h3, color: Colors.textWhite, marginBottom: Spacing.xs }}
-                  numberOfLines={1}
-                >
-                  {currentProduct.name}
-                </Text>
-                <Text style={{ ...TextStyles.body, color: Colors.textWhite, marginBottom: Spacing.xs }}>
-                  {currentProduct.brand} • ${currentProduct.price}
-                </Text>
-                {currentProduct.rating && (
-                  <Text style={{ ...TextStyles.caption, color: Colors.textWhite }}>
-                    ⭐ {currentProduct.rating}
-                  </Text>
-                )}
-                <Pressable 
-                  onPress={() => handleProductPress(currentProduct)}
-                  style={{
-                    marginTop: Spacing.sm,
-                    backgroundColor: Colors.primary,
-                    padding: Spacing.sm,
-                    borderRadius: BorderRadius.md,
-                    alignItems: 'center'
-                  }}
-                >
-                  <Text style={{ ...TextStyles.body, color: Colors.textWhite, fontWeight: Typography.semibold, fontSize: Typography.sm }}>
-                    View Details →
-                  </Text>
-                </Pressable>
-              </View>
-            </Pressable>
-
-            {/* Thumbnail Strip - At absolute bottom of screen, above nav bar */}
-            <View style={{
+    <KeyboardAvoidingView 
+      style={{ flex: 1, backgroundColor: Colors.background }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? BOTTOM_BAR_HEIGHT + insets.bottom : 0}
+    >
+      {showResults && searchResults.length > 0 ? (
+        /* Explore-style Product View */
+        <View style={{ flex: 1, position: 'relative' }}>
+          <Pressable 
+            onPress={() => handleProductPress(currentProduct)}
+            style={{ 
               position: 'absolute',
-              bottom: 80, // Fixed position above nav bar
+              top: 0,
               left: 0,
               right: 0,
-              backgroundColor: 'rgba(0,0,0,0.95)',
-              paddingTop: Spacing.xs,
-              paddingBottom: Spacing.xs,
-              borderTopWidth: 1,
-              borderTopColor: Colors.border,
-              height: thumbnailHeight
+              bottom: 80 + thumbnailHeight,
+            }}
+          >
+            <Image 
+              source={{ uri: currentProduct.image }} 
+              style={{ 
+                width: '100%', 
+                height: '100%',
+                backgroundColor: Colors.backgroundSecondary
+              }}
+              resizeMode="contain"
+            />
+            
+            <View style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              backgroundColor: 'rgba(0,0,0,0.85)',
+              padding: Spacing.md,
+              paddingBottom: Spacing.sm,
+              maxHeight: 130
             }}>
-              <Text style={{ 
-                ...TextStyles.small, 
-                color: Colors.textWhite, 
-                marginLeft: Spacing.md, 
-                marginBottom: Spacing.xs,
-                fontWeight: Typography.semibold,
-                fontSize: Typography.xs
-              }}>
-                {searchResults.length} Result{searchResults.length > 1 ? 's' : ''}
-              </Text>
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingHorizontal: Spacing.md }}
+              <Text 
+                style={{ ...TextStyles.h3, color: Colors.textWhite, marginBottom: Spacing.xs }}
+                numberOfLines={1}
               >
-                {searchResults.map((product, index) => (
-                  <Pressable
-                    key={product.id || index}
-                    onPress={() => {
-                      setSelectedProductIndex(index);
-                    }}
-                    style={{
-                      width: 50,
-                      height: 50,
-                      marginRight: Spacing.xs,
-                      borderRadius: BorderRadius.sm,
-                      overflow: 'hidden',
-                      borderWidth: 2,
-                      borderColor: index === selectedProductIndex ? Colors.primary : 'rgba(255,255,255,0.3)'
-                    }}
-                  >
-                    <Image 
-                      source={{ uri: product.image }} 
-                      style={{ width: '100%', height: '100%' }}
-                      resizeMode="cover"
-                    />
-                  </Pressable>
-                ))}
-              </ScrollView>
+                {currentProduct.name}
+              </Text>
+              <Text style={{ ...TextStyles.body, color: Colors.textWhite, marginBottom: Spacing.xs }}>
+                {currentProduct.brand} • ${currentProduct.price}
+              </Text>
+              {currentProduct.rating && (
+                <Text style={{ ...TextStyles.caption, color: Colors.textWhite }}>
+                  ⭐ {currentProduct.rating}
+                </Text>
+              )}
+              <Pressable 
+                onPress={() => handleProductPress(currentProduct)}
+                style={{
+                  marginTop: Spacing.sm,
+                  backgroundColor: Colors.primary,
+                  padding: Spacing.sm,
+                  borderRadius: BorderRadius.md,
+                  alignItems: 'center'
+                }}
+              >
+                <Text style={{ ...TextStyles.body, color: Colors.textWhite, fontWeight: Typography.semibold, fontSize: Typography.sm }}>
+                  View Details →
+                </Text>
+              </Pressable>
             </View>
+          </Pressable>
+
+          <View style={{
+            position: 'absolute',
+            bottom: BOTTOM_BAR_HEIGHT + insets.bottom,
+            left: 0,
+            right: 0,
+            backgroundColor: 'rgba(0,0,0,0.95)',
+            paddingTop: Spacing.xs,
+            paddingBottom: Spacing.xs,
+            borderTopWidth: 1,
+            borderTopColor: Colors.border,
+            height: thumbnailHeight
+          }}>
+            <Text style={{ 
+              ...TextStyles.small, 
+              color: Colors.textWhite, 
+              marginLeft: Spacing.md, 
+              marginBottom: Spacing.xs,
+              fontWeight: Typography.semibold,
+              fontSize: Typography.xs
+            }}>
+              {searchResults.length} Result{searchResults.length > 1 ? 's' : ''}
+            </Text>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: Spacing.md }}
+            >
+              {searchResults.map((product, index) => (
+                <Pressable
+                  key={product.id || index}
+                  onPress={() => setSelectedProductIndex(index)}
+                  style={{
+                    width: 50,
+                    height: 50,
+                    marginRight: Spacing.xs,
+                    borderRadius: BorderRadius.sm,
+                    overflow: 'hidden',
+                    borderWidth: 2,
+                    borderColor: index === selectedProductIndex ? Colors.primary : 'rgba(255,255,255,0.3)'
+                  }}
+                >
+                  <Image 
+                    source={{ uri: product.image }} 
+                    style={{ width: '100%', height: '100%' }}
+                    resizeMode="cover"
+                  />
+                </Pressable>
+              ))}
+            </ScrollView>
           </View>
-        ) : (
-          /* Chat Messages */
+        </View>
+      ) : (
+        /* Chat Messages */
+        <View style={{ flex: 1 }}>
           <ScrollView 
             ref={chatScrollRef}
             style={{ flex: 1 }}
             contentContainerStyle={{ 
-              padding: Spacing.lg, 
-              paddingTop: Spacing.lg, // SafeAreaView already handles top safe area
-              paddingBottom: 80 + insets.bottom // Space for input bar (~50px) + bottom nav (~70px)
+              padding: Spacing.lg,
+              paddingBottom: INPUT_BAR_HEIGHT + BOTTOM_BAR_HEIGHT + insets.bottom
             }}
             onContentSizeChange={() => {
               if (chatScrollRef.current && !showResults) {
@@ -524,29 +483,23 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               </View>
             )}
           </ScrollView>
-        )}
 
-        {/* Input Bar - Only show when not showing results */}
-        {!showResults && (
+          {/* Input Bar - Fixed at bottom */}
           <View style={{ 
             position: 'absolute',
-            bottom: 70 + insets.bottom, // Bottom bar height (~70px) + safe area
+            bottom: BOTTOM_BAR_HEIGHT + insets.bottom,
             left: 0,
             right: 0,
-            paddingTop: Spacing.xs,
-            paddingBottom: Spacing.xs,
             paddingHorizontal: Spacing.lg,
+            paddingVertical: Spacing.sm,
             borderTopWidth: 1,
             borderTopColor: Colors.border,
             backgroundColor: Colors.background,
-            width: '100%',
           }}>
             <View style={{ 
               flexDirection: 'row', 
               gap: Spacing.xs, 
               alignItems: 'center',
-              width: '100%',
-              paddingVertical: Spacing.xs,
             }}>
               {uploadedImage ? (
                 <Pressable
@@ -621,8 +574,8 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               </Pressable>
             </View>
           </View>
-        )}
-      </KeyboardAvoidingView>
-    </View>
+        </View>
+      )}
+    </KeyboardAvoidingView>
   );
 }
