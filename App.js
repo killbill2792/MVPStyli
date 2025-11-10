@@ -2056,7 +2056,7 @@ function Explore() {
 
         {/* Next button */}
         {hasVoted && (
-          <View style={{ position: 'absolute', bottom: 20, right: 20 }}>
+          <View style={{ position: 'absolute', bottom: 90, right: 20 }}>
             <Pressable 
               onPress={nextItem}
               style={{ backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20 }}

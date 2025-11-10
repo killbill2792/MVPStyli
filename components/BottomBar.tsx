@@ -62,7 +62,8 @@ export default function BottomBar({ route, go }: { route: string; go: (r: string
             fontSize: 14
           }}>⚙</Text>
         </Pressable>
+        </View>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
