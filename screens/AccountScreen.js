@@ -17,13 +17,19 @@ import { Colors, Typography, Spacing, BorderRadius, CardStyles, TextStyles, Them
 const { width, height } = Dimensions.get('window');
 
 const AccountScreen = ({ onBack, tryOnResults = [] }) => {
-  const { state, setTheme } = useApp();
+  const { state, setTheme, setCustomColor: setAppCustomColor } = useApp();
   const [username] = useState('Fashionista');
   const [showCustomColorPicker, setShowCustomColorPicker] = useState(false);
   const [customColorInput, setCustomColorInput] = useState('');
   const [isSigningOut, setIsSigningOut] = useState(false);
-  const [showThemePicker, setShowThemePicker] = useState(false);
-  const currentTheme = state.theme || 'teal';
+  const currentTheme = getCurrentThemeName();
+  
+  // Initialize custom color input if custom theme is active
+  useEffect(() => {
+    if (currentTheme === 'custom' && getCustomColor()) {
+      setCustomColorInput(getCustomColor());
+    }
+  }, [currentTheme]);
 
   const aiInsights = [
     {
@@ -390,7 +396,7 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
                     onPress={() => {
                       if (customColorInput && /^#[0-9A-Fa-f]{6}$/.test(customColorInput)) {
                         setCustomColor(customColorInput);
-                        setTheme('custom');
+                        setAppCustomColor(customColorInput);
                         setShowCustomColorPicker(false);
                       }
                     }}

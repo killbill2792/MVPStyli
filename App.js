@@ -301,8 +301,18 @@ export function AppProvider({ children }) {
     setTheme: (themeName) => {
       setState(s => ({ ...s, theme: themeName }));
       // Also update the design system
-      const { setTheme } = require('./lib/designSystem');
-      setTheme(themeName);
+      const { setTheme, setCustomColor } = require('./lib/designSystem');
+      if (themeName === 'custom') {
+        // Custom color is handled separately via setCustomColor
+        // This is just for state tracking
+      } else {
+        setTheme(themeName);
+      }
+    },
+    setCustomColor: (hexColor) => {
+      setState(s => ({ ...s, theme: 'custom' }));
+      const { setCustomColor } = require('./lib/designSystem');
+      setCustomColor(hexColor);
     },
     nextFeedItem: () => setState(s => ({ ...s, currentFeedIndex: (s.currentFeedIndex + 1) % s.feedItems.length })),
     createRoom: ({ lookId, mode, durationMins = 60, title }) => {
