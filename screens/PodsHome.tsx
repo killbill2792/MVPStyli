@@ -11,8 +11,7 @@ import {
   TouchableWithoutFeedback,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Header from '../components/Header';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing } from '../lib/designSystem';
 import { 
   getUserActivePods, 
@@ -228,24 +227,19 @@ const PodsHome: React.FC<PodsHomeProps> = ({
         colors={['#000000', '#0a0a0a', '#1a1a2e']}
         style={styles.background}
       >
-        {/* Unified Header */}
-        <Header
-          title="Pods"
-          rightAction={
-            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-              <Pressable style={styles.createPodButton} onPress={onCreatePod}>
-                <Text style={styles.createPodButtonText}>+</Text>
-              </Pressable>
-              <Pressable style={styles.inboxButton} onPress={onInbox}>
-                <Text style={styles.inboxButtonText}>🔔</Text>
-              </Pressable>
-            </View>
-          }
-          backgroundColor="rgba(0, 0, 0, 0.8)"
-        />
+        <SafeAreaView style={{ backgroundColor: 'transparent' }} edges={['top']}>
+          {/* Action Buttons - Top Right */}
+          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: Spacing.xs, gap: 8 }}>
+            <Pressable style={styles.createPodButton} onPress={onCreatePod}>
+              <Text style={styles.createPodButtonText}>+</Text>
+            </Pressable>
+            <Pressable style={styles.inboxButton} onPress={onInbox}>
+              <Text style={styles.inboxButtonText}>🔔</Text>
+            </Pressable>
+          </View>
 
-        {/* Tab Navigation */}
-        <View style={styles.tabContainer}>
+          {/* Tab Navigation */}
+          <View style={styles.tabContainer}>
           <Pressable 
             style={[styles.tab, activeTab === 'active' && styles.activeTab]}
             onPress={() => setActiveTab('active')}
@@ -270,7 +264,8 @@ const PodsHome: React.FC<PodsHomeProps> = ({
               Past ({pastPods.length})
             </Text>
           </Pressable>
-        </View>
+          </View>
+        </SafeAreaView>
 
         {/* Content */}
         <View style={styles.content}>

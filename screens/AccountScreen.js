@@ -10,8 +10,8 @@ import {
   FlatList,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../App';
-import Header from '../components/Header';
 import { Colors, Typography, Spacing, BorderRadius, CardStyles, TextStyles, ThemeColors, getCurrentThemeName } from '../lib/designSystem';
 
 const { width, height } = Dimensions.get('window');
@@ -178,18 +178,12 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
           ))}
         </View>
 
-        {/* Unified Header */}
-        <Header 
-          title="Account" 
-          onBack={onBack}
-          backgroundColor="rgba(0, 0, 0, 0.8)"
-        />
-
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}
-          showsVerticalScrollIndicator={false}
-        >
+        <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }} edges={['top']}>
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={[styles.scrollContent, { paddingTop: 20, paddingBottom: 100 }]}
+            showsVerticalScrollIndicator={false}
+          >
           {/* Hero Section */}
           <View style={styles.heroSection}>
             <View style={styles.avatarContainer}>
@@ -356,6 +350,7 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
             </Pressable>
           </View>
         </ScrollView>
+        </SafeAreaView>
       </LinearGradient>
     </View>
   );

@@ -11,8 +11,8 @@ import {
   Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import Header from '../components/Header';
 
 const { width, height } = Dimensions.get('window');
 
@@ -84,18 +84,12 @@ const StyleCraftScreen = ({ onBack }) => {
           ))}
         </View>
 
-        {/* Unified Header */}
-        <Header 
-          title="StyleCraft" 
-          onBack={onBack}
-          backgroundColor="rgba(0, 0, 0, 0.8)"
-        />
-
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}
-          showsVerticalScrollIndicator={false}
-        >
+        <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }} edges={['top']}>
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={[styles.scrollContent, { paddingTop: 20, paddingBottom: 100 }]}
+            showsVerticalScrollIndicator={false}
+          >
           {/* Hero Section */}
           <View style={styles.heroSection}>
             <Text style={styles.heroSubtitle}>
