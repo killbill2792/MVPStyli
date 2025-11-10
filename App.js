@@ -1107,7 +1107,7 @@ function Product() {
             padding: 16, 
             marginTop: 12,
             borderWidth: 1,
-            borderColor: 'rgba(16, 185, 129, 0.2)'
+            borderColor: Colors.primaryBorder
           }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: '600' }}>
@@ -2603,10 +2603,10 @@ function RoomGuest() {
             padding: 16,
             alignItems: 'center',
             borderWidth: 1,
-            borderColor: 'rgba(16, 185, 129, 0.3)'
+            borderColor: Colors.primaryBorder
           }}
         >
-          <Text style={{ color: '#10b981', fontSize: 16, fontWeight: '600' }}>
+          <Text style={{ color: Colors.primary, fontSize: 16, fontWeight: '600' }}>
             👗 Suggest Alternative
           </Text>
         </Pressable>
@@ -3036,7 +3036,7 @@ function StyleCraft() {
                 </View>
               )}
               <Text style={{ fontSize: 32, marginBottom: 12 }}>📷</Text>
-              <Text style={{ color: designType === 'upload' ? '#10b981' : '#e4e4e7', fontSize: 16, fontWeight: '700', textAlign: 'center', marginBottom: 6 }}>
+              <Text style={{ color: designType === 'upload' ? Colors.primary : '#e4e4e7', fontSize: 16, fontWeight: '700', textAlign: 'center', marginBottom: 6 }}>
                 Visual Inspiration
               </Text>
               <Text style={{ color: '#a1a1aa', fontSize: 12, textAlign: 'center', lineHeight: 16 }}>
@@ -3074,7 +3074,7 @@ function StyleCraft() {
                 </View>
               )}
               <Text style={{ fontSize: 32, marginBottom: 12 }}>✍️</Text>
-              <Text style={{ color: designType === 'describe' ? '#10b981' : '#e4e4e7', fontSize: 16, fontWeight: '700', textAlign: 'center', marginBottom: 6 }}>
+              <Text style={{ color: designType === 'describe' ? Colors.primary : '#e4e4e7', fontSize: 16, fontWeight: '700', textAlign: 'center', marginBottom: 6 }}>
                 Describe Your Vision
               </Text>
               <Text style={{ color: '#a1a1aa', fontSize: 12, textAlign: 'center', lineHeight: 16 }}>
@@ -3292,7 +3292,7 @@ function OldAccountScreen({ onBack }) {
               borderWidth: 1,
               borderColor: Colors.primaryBorder
             }}>
-              <Text style={{ color: '#10b981', fontSize: 24, fontWeight: '700' }}>8</Text>
+              <Text style={{ color: Colors.primary, fontSize: 24, fontWeight: '700' }}>8</Text>
             </View>
             <Text style={{ color: '#a1a1aa', fontSize: 12, textAlign: 'center' }}>Pods Joined</Text>
           </View>
@@ -3328,7 +3328,7 @@ function OldAccountScreen({ onBack }) {
           </View>
           
           <Pressable onPress={pickBodyPhoto} style={{ padding: 12, alignItems: 'center' }}>
-            <Text style={{ color: '#10b981', fontSize: 14, fontWeight: '600' }}>
+            <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: '600' }}>
               {profileData.bodyPhoto ? 'Change Photo' : 'Upload Body Photo'}
             </Text>
           </Pressable>
@@ -3339,7 +3339,7 @@ function OldAccountScreen({ onBack }) {
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '600' }}>Profile Information</Text>
             <Pressable onPress={() => setIsEditing(!isEditing)} style={{ paddingHorizontal: 12, paddingVertical: 6 }}>
-              <Text style={{ color: '#10b981', fontSize: 12, fontWeight: '600' }}>
+              <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: '600' }}>
                 {isEditing ? 'Cancel' : 'Edit'}
               </Text>
             </Pressable>
@@ -3604,7 +3604,7 @@ function SuggestScreen() {
                   <Text style={{ color: '#e4e4e7', fontSize: 14, fontWeight: '600', marginBottom: 4 }}>
                     {product.name}
                   </Text>
-                  <Text style={{ color: '#10b981', fontSize: 16, fontWeight: '700' }}>
+                  <Text style={{ color: Colors.primary, fontSize: 16, fontWeight: '700' }}>
                     ${product.price}
                   </Text>
                 </View>
