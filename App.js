@@ -359,8 +359,10 @@ export default function App() {
 
 // Floating AI Icon Component - Rendered at App level to avoid layout impact
 function FloatingAIIcon() {
-  const { state } = useApp();
+  // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
+  const { state, setRoute } = useApp();
   const { route } = state;
+  const insets = useSafeAreaInsets();
   
   // Don't show on signin or chat screens
   if (route === "signin" || route === "chat") {
@@ -379,8 +381,6 @@ function FloatingAIIcon() {
   
   const primaryColor = getColors().primary;
   const rgb = hexToRgb(primaryColor);
-  const { setRoute } = useApp();
-  const insets = useSafeAreaInsets();
   
   return (
     <View

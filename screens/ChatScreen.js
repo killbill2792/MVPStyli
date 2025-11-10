@@ -310,7 +310,15 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   const headerHeight = 56; // Fixed header height
 
   return (
-    <View style={{ flex: 1, backgroundColor: Colors.background }}>
+    <View style={{ 
+      flex: 1, 
+      backgroundColor: Colors.background,
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+    }}>
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
