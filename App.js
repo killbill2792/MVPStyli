@@ -1958,7 +1958,15 @@ function Explore() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      <View style={{ width: '100%', height: '100%', position: 'relative', marginTop: 20 }}>
+      <Pressable 
+        style={{ width: '100%', height: '100%', position: 'relative', marginTop: 20 }}
+        onPress={() => {
+          // Swipe left/right on tap (for testing, can add proper swipe later)
+          if (currentIndex < exploreItems.length - 1) {
+            nextItem();
+          }
+        }}
+      >
         <Image source={{ uri: currentItem.uri }} resizeMode="cover" style={{ width: '100%', height: '100%', borderRadius: 24 }} />
         
         {/* Top overlay with user info and type indicator */}
