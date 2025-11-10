@@ -214,24 +214,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
-  background: {
-    flex: 1,
-  },
-  designElements: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  designElement: {
-    position: 'absolute',
-    width: 4,
-    height: 4,
-    backgroundColor: '#8b5cf6',
-    borderRadius: 2,
-    opacity: 0.4,
-  },
   header: {
     position: 'absolute',
     top: 0,
