@@ -48,6 +48,18 @@ const PodsHome: React.FC<PodsHomeProps> = ({
 }) => {
   const insets = useSafeAreaInsets();
   const [activePods, setActivePods] = useState<Pod[]>([]);
+  const [primaryColor, setPrimaryColor] = useState(getColors().primary);
+  
+  // Update color when theme changes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const currentColor = getColors().primary;
+      if (currentColor !== primaryColor) {
+        setPrimaryColor(currentColor);
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  }, [primaryColor]);
   const [pastPods, setPastPods] = useState<Pod[]>([]);
   const [invites, setInvites] = useState<PodInvite[]>([]);
   const [activeTab, setActiveTab] = useState<'active' | 'invites' | 'past'>('active');
@@ -225,7 +237,7 @@ const PodsHome: React.FC<PodsHomeProps> = ({
     <View style={styles.container}>
       {/* Action Buttons - Top Right */}
       <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: Spacing.xs, gap: 8 }}>
-        <Pressable style={styles.createPodButton} onPress={onCreatePod}>
+        <Pressable style={[styles.createPodButton, { backgroundColor: primaryColor }]} onPress={onCreatePod}>
           <Text style={styles.createPodButtonText}>+</Text>
         </Pressable>
         <Pressable style={styles.inboxButton} onPress={onInbox}>
@@ -307,7 +319,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   createPodButton: {
-    backgroundColor: getColors().primary,
     width: 32,
     height: 32,
     borderRadius: 16,

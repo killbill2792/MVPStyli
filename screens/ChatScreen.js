@@ -530,7 +530,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             bottom: 50 + insets.bottom, // Bottom bar content height (~50px) + safe area
             left: 0,
             right: 0,
-            paddingTop: uploadedImage ? Spacing.xs : 0,
+            paddingTop: 0,
             paddingBottom: 0,
             paddingHorizontal: Spacing.lg,
             borderTopWidth: 1,
@@ -538,29 +538,6 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             backgroundColor: Colors.background,
             width: '100%',
           }}>
-            {uploadedImage && (
-              <View style={{ marginBottom: Spacing.xs, alignItems: 'flex-start' }}>
-                <View style={{ position: 'relative' }}>
-                  <Image source={{ uri: uploadedImage }} style={{ width: 50, height: 50, borderRadius: BorderRadius.sm }} />
-                  <Pressable
-                    onPress={() => setUploadedImage(null)}
-                    style={{
-                      position: 'absolute',
-                      top: -4,
-                      right: -4,
-                      backgroundColor: Colors.error,
-                      borderRadius: 10,
-                      width: 18,
-                      height: 18,
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Text style={{ color: Colors.textWhite, fontSize: 10 }}>×</Text>
-                  </Pressable>
-                </View>
-              </View>
-            )}
             <View style={{ 
               flexDirection: 'row', 
               gap: Spacing.xs, 
@@ -568,20 +545,52 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               width: '100%',
               paddingVertical: Spacing.xs,
             }}>
-              <Pressable
-                onPress={handleImageUpload}
-                style={{
-                  padding: Spacing.xs,
-                  borderRadius: BorderRadius.sm,
-                  backgroundColor: Colors.backgroundSecondary,
-                  minWidth: 36,
-                  minHeight: 36,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}
-              >
-                <Text style={{ fontSize: 18 }}>📷</Text>
-              </Pressable>
+              {uploadedImage ? (
+                <Pressable
+                  onPress={() => setUploadedImage(null)}
+                  style={{
+                    position: 'relative',
+                    width: 36,
+                    height: 36,
+                    borderRadius: BorderRadius.sm,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <Image 
+                    source={{ uri: uploadedImage }} 
+                    style={{ width: 36, height: 36 }} 
+                    resizeMode="cover"
+                  />
+                  <View style={{
+                    position: 'absolute',
+                    top: 0,
+                    right: 0,
+                    backgroundColor: Colors.error,
+                    borderRadius: 8,
+                    width: 14,
+                    height: 14,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  }}>
+                    <Text style={{ color: Colors.textWhite, fontSize: 8 }}>×</Text>
+                  </View>
+                </Pressable>
+              ) : (
+                <Pressable
+                  onPress={handleImageUpload}
+                  style={{
+                    padding: Spacing.xs,
+                    borderRadius: BorderRadius.sm,
+                    backgroundColor: Colors.backgroundSecondary,
+                    minWidth: 36,
+                    minHeight: 36,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{ fontSize: 18 }}>📷</Text>
+                </Pressable>
+              )}
               <View style={{ ...InputStyles.container, flex: 1, flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.xs, minHeight: 36 }}>
                 <TextInput
                   value={searchQuery}
