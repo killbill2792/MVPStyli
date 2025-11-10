@@ -530,8 +530,8 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             bottom: 50 + insets.bottom, // Bottom bar content height (~50px) + safe area
             left: 0,
             right: 0,
-            paddingTop: Spacing.sm,
-            paddingBottom: Spacing.xs,
+            paddingTop: uploadedImage ? Spacing.xs : 0,
+            paddingBottom: 0,
             paddingHorizontal: Spacing.lg,
             borderTopWidth: 1,
             borderTopColor: Colors.border,
@@ -541,7 +541,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             {uploadedImage && (
               <View style={{ marginBottom: Spacing.xs, alignItems: 'flex-start' }}>
                 <View style={{ position: 'relative' }}>
-                  <Image source={{ uri: uploadedImage }} style={{ width: 60, height: 60, borderRadius: BorderRadius.md }} />
+                  <Image source={{ uri: uploadedImage }} style={{ width: 50, height: 50, borderRadius: BorderRadius.sm }} />
                   <Pressable
                     onPress={() => setUploadedImage(null)}
                     style={{
@@ -550,41 +550,46 @@ export default function ChatScreen({ onBack, onProductSelect }) {
                       right: -4,
                       backgroundColor: Colors.error,
                       borderRadius: 10,
-                      width: 20,
-                      height: 20,
+                      width: 18,
+                      height: 18,
                       justifyContent: 'center',
                       alignItems: 'center',
                     }}
                   >
-                    <Text style={{ color: Colors.textWhite, fontSize: 12 }}>×</Text>
+                    <Text style={{ color: Colors.textWhite, fontSize: 10 }}>×</Text>
                   </Pressable>
                 </View>
               </View>
             )}
             <View style={{ 
               flexDirection: 'row', 
-              gap: Spacing.sm, 
+              gap: Spacing.xs, 
               alignItems: 'center',
               width: '100%',
+              paddingVertical: Spacing.xs,
             }}>
               <Pressable
                 onPress={handleImageUpload}
                 style={{
-                  padding: Spacing.sm,
-                  borderRadius: BorderRadius.md,
+                  padding: Spacing.xs,
+                  borderRadius: BorderRadius.sm,
                   backgroundColor: Colors.backgroundSecondary,
+                  minWidth: 36,
+                  minHeight: 36,
+                  justifyContent: 'center',
+                  alignItems: 'center',
                 }}
               >
-                <Text style={{ fontSize: 20 }}>📷</Text>
+                <Text style={{ fontSize: 18 }}>📷</Text>
               </Pressable>
-              <View style={{ ...InputStyles.container, flex: 1, flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.xs }}>
+              <View style={{ ...InputStyles.container, flex: 1, flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.xs, minHeight: 36 }}>
                 <TextInput
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                   onSubmitEditing={handleSearchSubmit}
                   placeholder="Ask me anything or paste a URL..."
                   placeholderTextColor={Colors.textSecondary}
-                  style={{ flex: 1, ...InputStyles.text, paddingVertical: Spacing.xs }}
+                  style={{ flex: 1, ...InputStyles.text, paddingVertical: 0, fontSize: Typography.sm }}
                   returnKeyType="send"
                   multiline={false}
                 />
@@ -592,9 +597,13 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               <Pressable 
                 onPress={handleSearchSubmit}
                 disabled={isSearching || (!searchQuery.trim() && !uploadedImage)}
-                style={[createButtonStyle('primary', isSearching || (!searchQuery.trim() && !uploadedImage)), { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm }]}
+                style={[createButtonStyle('primary', isSearching || (!searchQuery.trim() && !uploadedImage)), { 
+                  paddingHorizontal: Spacing.md, 
+                  paddingVertical: Spacing.xs,
+                  minHeight: 36,
+                }]}
               >
-                <Text style={getButtonTextStyle('primary')}>
+                <Text style={[getButtonTextStyle('primary'), { fontSize: Typography.sm }]}>
                   {isSearching ? '...' : 'Send'}
                 </Text>
               </Pressable>
