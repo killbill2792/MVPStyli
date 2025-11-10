@@ -380,6 +380,7 @@ function FloatingAIIcon() {
   const primaryColor = getColors().primary;
   const rgb = hexToRgb(primaryColor);
   const { setRoute } = useApp();
+  const insets = useSafeAreaInsets();
   
   return (
     <View
@@ -398,7 +399,7 @@ function FloatingAIIcon() {
         style={{
           position: 'absolute',
           right: Spacing.lg,
-          bottom: 90, // Above bottom bar (BottomBar is ~70px + safe area)
+          bottom: 70 + insets.bottom, // Above bottom bar (~70px) + safe area
           width: 56,
           height: 56,
           borderRadius: 28,
