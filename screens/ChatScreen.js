@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, Image, KeyboardAvoidingView, Platform, Dimensions } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Header from '../components/Header';
 import { Colors, Typography, Spacing, BorderRadius, ButtonStyles, CardStyles, InputStyles, TextStyles, createButtonStyle, getButtonTextStyle } from '../lib/designSystem';
 import { isUrl, importProductFromUrl, searchWebProducts, normalizeProduct } from '../lib/productSearch';
 
@@ -253,23 +254,10 @@ export default function ChatScreen({ onBack, onProductSelect }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.background }}>
-      <SafeAreaView style={{ backgroundColor: Colors.background }} edges={['top']}>
-        {/* Header - Fixed height, no extra padding */}
-        <View style={{ 
-          flexDirection: 'row', 
-          alignItems: 'center', 
-          height: headerHeight,
-          paddingHorizontal: Spacing.lg,
-          borderBottomWidth: 1,
-          borderBottomColor: Colors.border,
-          backgroundColor: Colors.background
-        }}>
-          <Pressable onPress={onBack} style={{ marginRight: Spacing.md }}>
-            <Text style={{ ...TextStyles.body, color: Colors.primary, fontSize: Typography.base }}>← Back</Text>
-          </Pressable>
-          <Text style={{ ...TextStyles.h3, flex: 1 }}>AI Shopping Assistant</Text>
-        </View>
-      </SafeAreaView>
+      <Header 
+        title="AI Shopping Assistant" 
+        onBack={onBack}
+      />
       
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 

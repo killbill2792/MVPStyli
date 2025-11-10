@@ -10,8 +10,8 @@ import {
   FlatList,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../App';
+import Header from '../components/Header';
 import { Colors, Typography, Spacing, BorderRadius, CardStyles, TextStyles, ThemeColors, getCurrentThemeName } from '../lib/designSystem';
 
 const { width, height } = Dimensions.get('window');
@@ -178,29 +178,16 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
           ))}
         </View>
 
-        {/* Header - Fixed with SafeAreaView */}
-        <SafeAreaView style={{ backgroundColor: 'transparent' }} edges={['top']}>
-          <View style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            height: 56,
-            paddingHorizontal: Spacing.lg,
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            borderBottomWidth: 1,
-            borderBottomColor: Colors.border
-          }}>
-            <Pressable onPress={onBack} style={{ padding: Spacing.xs }}>
-              <Text style={{ ...TextStyles.body, color: Colors.primary, fontSize: Typography.base }}>← Back</Text>
-            </Pressable>
-            <Text style={{ ...TextStyles.h3, flex: 1, textAlign: 'center' }}>Account</Text>
-            <View style={{ width: 60 }} />
-          </View>
-        </SafeAreaView>
+        {/* Unified Header */}
+        <Header 
+          title="Account" 
+          onBack={onBack}
+          backgroundColor="rgba(0, 0, 0, 0.8)"
+        />
 
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}
           showsVerticalScrollIndicator={false}
         >
           {/* Hero Section */}

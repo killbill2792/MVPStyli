@@ -221,25 +221,26 @@ const PodsHome: React.FC<PodsHomeProps> = ({
   };
 
   return (
-    <TouchableWithoutFeedback onLongPress={onBack}>
-      <View style={styles.container}>
+    <View style={styles.container}>
       <LinearGradient
         colors={['#000000', '#0a0a0a', '#1a1a2e']}
         style={styles.background}
       >
-        {/* Fixed Header */}
-        <View style={styles.header}>
-          <View style={{ width: 60 }} />
-          <Text style={styles.headerTitle}>Pods</Text>
-          <View style={styles.headerActions}>
-            <Pressable style={styles.createPodButton} onPress={onCreatePod}>
-              <Text style={styles.createPodButtonText}>+</Text>
-            </Pressable>
-            <Pressable style={styles.inboxButton} onPress={onInbox}>
-              <Text style={styles.inboxButtonText}>🔔</Text>
-            </Pressable>
-          </View>
-        </View>
+        {/* Unified Header */}
+        <Header
+          title="Pods"
+          rightAction={
+            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+              <Pressable style={styles.createPodButton} onPress={onCreatePod}>
+                <Text style={styles.createPodButtonText}>+</Text>
+              </Pressable>
+              <Pressable style={styles.inboxButton} onPress={onInbox}>
+                <Text style={styles.inboxButtonText}>🔔</Text>
+              </Pressable>
+            </View>
+          }
+          backgroundColor="rgba(0, 0, 0, 0.8)"
+        />
 
         {/* Tab Navigation */}
         <View style={styles.tabContainer}>
@@ -275,7 +276,6 @@ const PodsHome: React.FC<PodsHomeProps> = ({
         </View>
       </LinearGradient>
     </View>
-    </TouchableWithoutFeedback>
   );
 };
 
@@ -340,9 +340,9 @@ const styles = StyleSheet.create({
   },
   tabContainer: {
     flexDirection: 'row',
-    paddingTop: 20,
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingTop: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
   },
   tab: {
     flex: 1,
@@ -364,7 +364,8 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 16,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: 80, // Space for nav bar
   },
   podCard: {
     marginBottom: 16,

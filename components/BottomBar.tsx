@@ -1,33 +1,32 @@
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Colors } from '../lib/designSystem';
 
 export default function BottomBar({ route, go }: { route: string; go: (r: string) => void }) {
   const insets = useSafeAreaInsets();
   const items: [string, string][] = [['shop', 'Shop'], ['feed', 'Explore'], ['tryon', 'Try-On'], ['podshome', 'Pods'], ['stylecraft', 'StyleCraft']];
   
   return (
-    <View style={{ 
-      position: 'absolute', 
-      left: 0, 
-      right: 0, 
-      bottom: 0, 
-      alignItems: 'center',
-      paddingBottom: insets.bottom + 5,
-      backgroundColor: 'transparent',
-      paddingTop: 8,
-      zIndex: 1000 // Ensure nav bar is above other content
-    }}>
-      <View style={{
-        flexDirection: 'row',
-        gap: 6, // Reduced from 8 to 6 (2 points less)
-        backgroundColor: 'rgba(128,128,128,0.15)',
-        borderColor: 'rgba(255,255,255,0.12)',
-        borderWidth: 1,
-        borderRadius: 9999,
-        paddingHorizontal: 3, // Reduced from 5 to 3 (2 points less)
-        paddingVertical: 8
+    <SafeAreaView style={{ backgroundColor: Colors.background }} edges={['bottom']}>
+      <View style={{ 
+        alignItems: 'center',
+        paddingTop: 5, // Reduced by 3 points (was 8)
+        paddingBottom: 2, // Reduced by 3 points
+        backgroundColor: Colors.background,
+        borderTopWidth: 1,
+        borderTopColor: Colors.border
       }}>
+        <View style={{
+          flexDirection: 'row',
+          gap: 6,
+          backgroundColor: 'rgba(128,128,128,0.15)',
+          borderColor: 'rgba(255,255,255,0.12)',
+          borderWidth: 1,
+          borderRadius: 9999,
+          paddingHorizontal: 3,
+          paddingVertical: 5 // Reduced by 3 points (was 8)
+        }}>
         {items.map(([k, label]) => (
           <Pressable
             key={k}
