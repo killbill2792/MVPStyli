@@ -375,7 +375,7 @@ function Shell() {
   
   return (
     <SafeAreaView style={s.safeArea} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="light-content" translucent={true} />
+      <StatusBar barStyle="light-content" translucent={false} />
       
       {/* New screens that need full screen control */}
       {route === "createpod" && <PodsScreen 

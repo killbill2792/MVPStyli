@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, Image, KeyboardAvoidingView, Platform, Dimensions } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, BorderRadius, ButtonStyles, CardStyles, InputStyles, TextStyles, createButtonStyle, getButtonTextStyle } from '../lib/designSystem';
 import { isUrl, importProductFromUrl, searchWebProducts, normalizeProduct } from '../lib/productSearch';
 
@@ -16,6 +16,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   const [selectedProductIndex, setSelectedProductIndex] = useState(0);
   const chatScrollRef = useRef(null);
   const [showResults, setShowResults] = useState(false);
+  const insets = useSafeAreaInsets();
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
@@ -232,19 +233,21 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   };
 
   const currentProduct = searchResults[selectedProductIndex];
+  const bottomBarHeight = 70; // Approximate height of bottom nav bar
+  const thumbnailHeight = 90; // Height of thumbnail strip
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={['top']}>
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        keyboardVerticalOffset={0}
       >
-        {/* Header */}
+        {/* Header - Consistent spacing */}
         <View style={{ 
           flexDirection: 'row', 
           alignItems: 'center', 
-          paddingTop: Spacing.xl,
+          paddingTop: Spacing.lg,
           paddingHorizontal: Spacing.lg,
           paddingBottom: Spacing.md,
           borderBottomWidth: 1,
@@ -275,10 +278,10 @@ export default function ChatScreen({ onBack, onProductSelect }) {
                 resizeMode="cover"
               />
               
-              {/* Product Info Overlay */}
+              {/* Product Info Overlay - Above thumbnails */}
               <View style={{
                 position: 'absolute',
-                bottom: 90, // Above thumbnail strip
+                bottom: thumbnailHeight, // Above thumbnail strip
                 left: 0,
                 right: 0,
                 backgroundColor: 'rgba(0,0,0,0.7)',
@@ -313,15 +316,17 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               </View>
             </Pressable>
 
-            {/* Thumbnail Strip - Bottom */}
+            {/* Thumbnail Strip - At absolute bottom, above nav bar */}
             <View style={{
               position: 'absolute',
-              bottom: 90, // Above bottom bar (BottomBar is ~70px + safe area)
+              bottom: bottomBarHeight + insets.bottom, // Above bottom nav bar
               left: 0,
               right: 0,
-              backgroundColor: 'rgba(0,0,0,0.9)',
+              backgroundColor: 'rgba(0,0,0,0.95)',
               paddingVertical: Spacing.sm,
-              paddingBottom: Spacing.md
+              paddingBottom: Spacing.sm,
+              borderTopWidth: 1,
+              borderTopColor: Colors.border
             }}>
               <Text style={{ 
                 ...TextStyles.small, 
@@ -345,8 +350,8 @@ export default function ChatScreen({ onBack, onProductSelect }) {
                       setSelectedProductIndex(index);
                     }}
                     style={{
-                      width: 60,
-                      height: 60,
+                      width: 50,
+                      height: 50,
                       marginRight: Spacing.xs,
                       borderRadius: BorderRadius.sm,
                       overflow: 'hidden',
@@ -369,7 +374,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           <ScrollView 
             ref={chatScrollRef}
             style={{ flex: 1 }}
-            contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 100 }}
+            contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 120 }}
             onContentSizeChange={() => {
               if (chatScrollRef.current && !showResults) {
                 chatScrollRef.current.scrollToEnd({ animated: true });
@@ -427,13 +432,13 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           </ScrollView>
         )}
 
-        {/* Input Bar */}
+        {/* Input Bar - Above nav bar */}
         <View style={{ 
           padding: Spacing.lg,
           borderTopWidth: 1,
           borderTopColor: Colors.border,
           backgroundColor: Colors.background,
-          paddingBottom: Platform.OS === 'ios' ? Spacing.xl : Spacing.lg
+          paddingBottom: bottomBarHeight + insets.bottom + Spacing.md // Space above nav bar
         }}>
           <View style={{ flexDirection: 'row', gap: Spacing.md, alignItems: 'center' }}>
             <View style={{ ...InputStyles.container, flex: 1, flexDirection: 'row', alignItems: 'center' }}>
