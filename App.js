@@ -1199,12 +1199,15 @@ function Product() {
 }
 
 function TryOn() {
-  const { state: { twinUrl, currentProductId, tryOnResults }, setRoute, setTwinUrl, setTryOnResults } = useApp();
+  const { state: { twinUrl, currentProductId, tryOnResults, params }, setRoute, setTwinUrl, setTryOnResults } = useApp();
   const [allProducts, setAllProducts] = useState([...enhancedProducts]);
   const [product, setProduct] = useState(null);
-  const garmentCleanUrl = useApp().state.params?.garmentCleanUrl;
-  const garmentId = useApp().state.params?.garmentId;
-  const category = useApp().state.params?.category;
+  const garmentCleanUrl = params?.garmentCleanUrl;
+  const garmentId = params?.garmentId;
+  const category = params?.category;
+  
+  // If we have params from Shop, use that product directly
+  const productFromParams = params?.product;
   
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
