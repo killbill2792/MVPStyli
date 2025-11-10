@@ -1102,7 +1102,7 @@ function Product() {
         {/* Price Tracking Details - Expandable */}
         {showPriceInput && (
           <View style={{ 
-            backgroundColor: 'rgba(16, 185, 129, 0.1)', 
+            backgroundColor: Colors.primaryLight, 
             borderRadius: 12, 
             padding: 16, 
             marginTop: 12,
@@ -1939,7 +1939,7 @@ function Explore() {
             )}
             
             {currentItem.aiLabel && (
-              <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.9)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
+              <View style={{ backgroundColor: Colors.primary, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
                 <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>{currentItem.aiLabel}</Text>
               </View>
             )}
@@ -2222,7 +2222,7 @@ function CreatePod() {
           width: 200, 
           height: 200, 
           borderRadius: 100, 
-          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+          backgroundColor: Colors.primaryLight,
           opacity: 0.6
         }} />
         <View style={{ 
@@ -2598,7 +2598,7 @@ function RoomGuest() {
         <Pressable 
           onPress={() => setRoute('suggest', { itemId: 'pod-item', itemType: 'pod' })}
           style={{
-            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            backgroundColor: Colors.primaryLight,
             borderRadius: 12,
             padding: 16,
             alignItems: 'center',
@@ -2686,7 +2686,7 @@ function AIAnalytics() {
             maxWidth: '80%'
           }}>
             <View style={{
-              backgroundColor: msg.type === 'user' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255,255,255,0.1)',
+              backgroundColor: msg.type === 'user' ? Colors.primaryLight : 'rgba(255,255,255,0.1)',
               padding: 12,
               borderRadius: 16,
               borderTopLeftRadius: msg.type === 'ai' ? 4 : 16,
@@ -2916,7 +2916,7 @@ function StyleCraft() {
           width: 200, 
           height: 200, 
           borderRadius: 100, 
-          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+          backgroundColor: Colors.primaryLight,
           opacity: 0.6
         }} />
         <View style={{ 
@@ -3048,7 +3048,7 @@ function StyleCraft() {
               onPress={() => setDesignType('describe')}
           style={{
                 flex: 1,
-                backgroundColor: designType === 'describe' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.05)',
+                backgroundColor: designType === 'describe' ? Colors.primaryLight : 'rgba(255,255,255,0.05)',
                 borderRadius: 20,
                 padding: 20,
                 alignItems: 'center',
@@ -3240,7 +3240,7 @@ function OldAccountScreen({ onBack }) {
           width: 100, 
           height: 100, 
           borderRadius: 50, 
-          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+          backgroundColor: Colors.primaryLight,
           opacity: 0.4
         }} />
         
