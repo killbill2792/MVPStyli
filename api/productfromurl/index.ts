@@ -71,6 +71,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!normalized.imageUrl || normalized.imageUrl === '') {
       // Try to get a placeholder or default image
       normalized.imageUrl = 'https://via.placeholder.com/400x600/000000/FFFFFF?text=Product+Image';
+    } else {
+      // If image URL is relative, make it absolute
+      if (!normalized.imageUrl.startsWith('http')) {
+        try {
+          const urlObj = new URL(url);
+          normalized.imageUrl = normalized.imageUrl.startsWith('/') 
+            ? `${urlObj.protocol}//${urlObj.host}${normalized.imageUrl}`
+            : `${urlObj.protocol}//${urlObj.host}/${normalized.imageUrl}`;
+        } catch (e) {
+          // Keep original if URL parsing fails
+        }
+      }
     }
     
     if (!normalized.title || normalized.title === 'Imported Product' || normalized.title.length < 3) {

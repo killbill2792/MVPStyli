@@ -108,7 +108,7 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
     <View style={styles.fullScreenContainer}>
         <ScrollView
           style={styles.scrollView}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}
+          contentContainerStyle={[styles.scrollContent, { paddingTop: 20, paddingBottom: 100 }]}
           showsVerticalScrollIndicator={false}
         >
           {/* Hero Section */}
