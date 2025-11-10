@@ -7,8 +7,6 @@ import {
   ScrollView,
   FlatList,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import Header from '../components/Header';
 
 interface Notification {
   id: string;
@@ -134,33 +132,24 @@ const Inbox: React.FC<InboxProps> = ({ onBack, onPodLive, onPodRecap, userId }) 
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={['#000000', '#0a0a0a', '#1a1a2e']}
-        style={styles.background}
-      >
-        {/* Unified Header */}
-        <Header 
-          title="Inbox" 
-          onBack={onBack}
-          rightAction={
-            unreadCount > 0 ? (
-              <View style={{
-                backgroundColor: '#ef4444',
-                borderRadius: 10,
-                minWidth: 20,
-                height: 20,
-                justifyContent: 'center',
-                alignItems: 'center',
-                paddingHorizontal: 6
-              }}>
-                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{unreadCount}</Text>
-              </View>
-            ) : undefined
-          }
-          backgroundColor="rgba(0, 0, 0, 0.8)"
-        />
+      {/* Unread Badge - Floating Top Right */}
+      {unreadCount > 0 && (
+        <View style={{ position: 'absolute', top: 50, right: 16, zIndex: 1000 }}>
+          <View style={{
+            backgroundColor: '#ef4444',
+            borderRadius: 10,
+            minWidth: 20,
+            height: 20,
+            justifyContent: 'center',
+            alignItems: 'center',
+            paddingHorizontal: 6
+          }}>
+            <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{unreadCount}</Text>
+          </View>
+        </View>
+      )}
 
-        <View style={[styles.content, { paddingBottom: 100 }]}>
+      <View style={[styles.content, { paddingTop: 20, paddingBottom: 100 }]}>
           {notifications.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateTitle}>No notifications</Text>
@@ -187,9 +176,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
-  },
-  background: {
-    flex: 1,
   },
   header: {
     position: 'absolute',

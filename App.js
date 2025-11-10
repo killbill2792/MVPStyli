@@ -945,7 +945,7 @@ function Product() {
           
           {/* Floating Try On Button */}
           <Pressable 
-            onPress={() => setRoute('tryon', { garmentId: product.id, category: product.category, garmentCleanUrl: cleanUrl || product.image })}
+            onPress={() => setRoute('tryon', { garmentId: product.id, category: product.category, garmentCleanUrl: cleanUrl || product.image, product: product })}
             style={{
               position: 'absolute',
               top: 12,
@@ -989,7 +989,7 @@ function Product() {
           <View style={{ flexDirection: 'row', gap: 12 }}>
             {/* Try On Button */}
             <Pressable 
-              onPress={() => setRoute('tryon', { garmentId: product.id, category: product.category, garmentCleanUrl: cleanUrl || product.image })}
+              onPress={() => setRoute('tryon', { garmentId: product.id, category: product.category, garmentCleanUrl: cleanUrl || product.image, product: product })}
               style={{ 
                 flex: 1, 
                 backgroundColor: '#fff',
@@ -1214,24 +1214,32 @@ function TryOn() {
 
   // Load all products including detected ones
   useEffect(() => {
+    // If we have product from params (coming from Shop), use it directly
+    if (productFromParams) {
+      setProduct(productFromParams);
+      return;
+    }
+    
     const loadAllProducts = async () => {
       try {
         const realProducts = await fetchRealClothingProducts();
         const allProductsList = [...enhancedProducts, ...realProducts];
         setAllProducts(allProductsList);
         
-        // Find the current product
-        const currentProduct = allProductsList.find(p => p.id === currentProductId);
+        // Find the current product - prefer garmentId from params, then currentProductId
+        const productId = garmentId || currentProductId;
+        const currentProduct = allProductsList.find(p => p.id === productId);
         setProduct(currentProduct);
       } catch (error) {
         console.error('Error loading products:', error);
-        const currentProduct = enhancedProducts.find(p => p.id === currentProductId);
+        const productId = garmentId || currentProductId;
+        const currentProduct = enhancedProducts.find(p => p.id === productId);
         setProduct(currentProduct);
       }
     };
     
     loadAllProducts();
-  }, [currentProductId]);
+  }, [currentProductId, garmentId, productFromParams]);
   
   if (!twinUrl) {
     return (
@@ -2107,7 +2115,14 @@ function Explore() {
               { id: 's4', name: 'Red Dress', price: 79, image: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?q=80&auto=format&fit=crop&w=200', suggestedBy: '@emma' },
               { id: 's5', name: 'Green Jacket', price: 95, image: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?q=80&auto=format&fit=crop&w=200', suggestedBy: '@david' }
             ].map((suggestion, index) => (
-              <View key={suggestion.id} style={{ width: 80, marginRight: 8, position: 'relative' }}>
+              <Pressable 
+                key={suggestion.id} 
+                onPress={() => {
+                  // Navigate to product or item
+                  console.log('Thumbnail clicked:', suggestion);
+                }}
+                style={{ width: 80, marginRight: 8, position: 'relative' }}
+              >
                 <Image 
                   source={{ uri: suggestion.image }} 
                   style={{ width: '100%', height: '100%', borderRadius: 8 }}
@@ -2127,7 +2142,7 @@ function Explore() {
                     {suggestion.suggestedBy}
                   </Text>
                 </View>
-              </View>
+              </Pressable>
             ))}
           </ScrollView>
           

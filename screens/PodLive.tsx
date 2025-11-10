@@ -10,8 +10,6 @@ import {
   Image,
   Alert,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import Header from '../components/Header';
 import { 
   getPod, 
   getPodVotes, 
@@ -154,23 +152,14 @@ const PodLive: React.FC<PodLiveProps> = ({ podId, onBack, onRecap, userId }) => 
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={['#000000', '#0a0a0a', '#1a1a2e']}
-        style={styles.background}
-      >
-        {/* Unified Header */}
-        <Header 
-          title="Pod Live" 
-          onBack={onBack}
-          rightAction={
-            <Pressable onPress={() => {}}>
-              <Text style={{ color: '#6366f1', fontSize: 16, fontWeight: '600' }}>Share</Text>
-            </Pressable>
-          }
-          backgroundColor="rgba(0, 0, 0, 0.8)"
-        />
+      {/* Share Button - Floating Top Right */}
+      <View style={{ position: 'absolute', top: 50, right: 16, zIndex: 1000 }}>
+        <Pressable onPress={() => {}}>
+          <Text style={{ color: '#6366f1', fontSize: 16, fontWeight: '600' }}>Share</Text>
+        </Pressable>
+      </View>
 
-        <ScrollView style={styles.scrollView} contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={[styles.scrollContent, { paddingTop: 20, paddingBottom: 100 }]}>
           {/* Timer */}
           <View style={styles.timerContainer}>
             <Text style={[styles.timerText, isTimeRunningOut && styles.timerWarning]}>
@@ -286,9 +275,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
-  },
-  background: {
-    flex: 1,
   },
   header: {
     position: 'absolute',

@@ -8,8 +8,6 @@ import {
   Dimensions,
   Image,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import Header from '../components/Header';
 import { 
   getPod, 
   getPodVotes, 
@@ -98,18 +96,7 @@ const PodRecap: React.FC<PodRecapProps> = ({ podId, onBack, onStyleCraft, onShop
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={['#000000', '#0a0a0a', '#1a1a2e']}
-        style={styles.background}
-      >
-        {/* Unified Header */}
-        <Header 
-          title="Pod Recap" 
-          onBack={onBack}
-          backgroundColor="rgba(0, 0, 0, 0.8)"
-        />
-
-        <ScrollView style={styles.scrollView} contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={[styles.scrollContent, { paddingTop: 20, paddingBottom: 100 }]}>
           {/* Final Results */}
           <View style={styles.resultsContainer}>
             <Text style={styles.resultsTitle}>Final Results</Text>
@@ -208,9 +195,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
-  },
-  background: {
-    flex: 1,
   },
   header: {
     position: 'absolute',

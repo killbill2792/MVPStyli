@@ -9,10 +9,10 @@ import {
   Image,
   Animated,
   Alert,
+  TextInput,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
-import Header from '../components/Header';
 import { createPod } from '../lib/pods';
 
 const { width, height } = Dimensions.get('window');
@@ -49,9 +49,28 @@ const PodsScreen = ({ onBack, onCreatePod, userId = 'demo-user' }) => {
       return;
     }
 
+    // For friends mode, show invite screen first
+    if (selectedMode === 'friends') {
+      setShowFriendsInvite(true);
+      return;
+    }
+
+    // For global and style_twins, auto-select random users
+    await createPodWithAudience();
+  };
+
+  const createPodWithAudience = async (inviteList = []) => {
     setIsAnimating(true);
 
     try {
+      // For global and style_twins, generate random user IDs
+      let audienceList = inviteList;
+      if (selectedMode === 'global_mix' || selectedMode === 'style_twins') {
+        // Generate 5-10 random user IDs (simulated)
+        const randomCount = Math.floor(Math.random() * 6) + 5;
+        audienceList = Array.from({ length: randomCount }, (_, i) => `user_${Math.random().toString(36).substr(2, 9)}`);
+      }
+
       // Create the pod
       const podData = {
         owner_id: userId,
@@ -60,6 +79,7 @@ const PodsScreen = ({ onBack, onCreatePod, userId = 'demo-user' }) => {
         duration_mins: selectedDuration,
         title: 'My Look',
         ends_at: new Date(Date.now() + selectedDuration * 60000).toISOString(),
+        invite_list: audienceList, // Add invite list
       };
 
       const pod = await createPod(podData);
@@ -69,6 +89,7 @@ const PodsScreen = ({ onBack, onCreatePod, userId = 'demo-user' }) => {
         setTimeout(() => {
           onCreatePod(pod.id);
           setIsAnimating(false);
+          setShowFriendsInvite(false);
         }, 2000);
       } else {
         Alert.alert('Error', 'Failed to create pod. Please try again.');
@@ -79,6 +100,31 @@ const PodsScreen = ({ onBack, onCreatePod, userId = 'demo-user' }) => {
       Alert.alert('Error', 'Failed to create pod. Please try again.');
       setIsAnimating(false);
     }
+  };
+
+  const handleAddFriendInput = () => {
+    setFriendInputs([...friendInputs, '']);
+  };
+
+  const handleRemoveFriendInput = (index) => {
+    if (friendInputs.length > 1) {
+      setFriendInputs(friendInputs.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleFriendInputChange = (index, value) => {
+    const newInputs = [...friendInputs];
+    newInputs[index] = value;
+    setFriendInputs(newInputs);
+  };
+
+  const handleSendInvites = () => {
+    const validInputs = friendInputs.filter(input => input.trim().length > 0);
+    if (validInputs.length === 0) {
+      Alert.alert('Invites Required', 'Please add at least one phone number or user ID.');
+      return;
+    }
+    createPodWithAudience(validInputs);
   };
 
   const ModeCard = ({ mode, title, tagline, copy, tags, gradient, icon }) => (
@@ -136,16 +182,9 @@ const PodsScreen = ({ onBack, onCreatePod, userId = 'demo-user' }) => {
           ))}
         </View>
 
-        {/* Unified Header */}
-        <Header 
-          title="Start a Pod" 
-          onBack={onBack}
-          backgroundColor="rgba(0, 0, 0, 0.8)"
-        />
-
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingTop: 20, paddingBottom: 100 }]}
           showsVerticalScrollIndicator={false}
         >
           {/* Hero Section */}
@@ -251,6 +290,118 @@ const PodsScreen = ({ onBack, onCreatePod, userId = 'demo-user' }) => {
             </LinearGradient>
           </Pressable>
         </ScrollView>
+
+        {/* Friends Invite Modal */}
+        {showFriendsInvite && (
+          <View style={StyleSheet.absoluteFillObject}>
+            <View style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.9)',
+              justifyContent: 'center',
+              alignItems: 'center',
+              padding: 20
+            }}>
+              <View style={{
+                backgroundColor: '#1a1a1a',
+                borderRadius: 20,
+                padding: 24,
+                width: '100%',
+                maxWidth: 400,
+                borderWidth: 1,
+                borderColor: 'rgba(255,255,255,0.1)'
+              }}>
+                <Text style={{ color: '#fff', fontSize: 20, fontWeight: '700', marginBottom: 8 }}>
+                  Invite Friends
+                </Text>
+                <Text style={{ color: '#a1a1aa', fontSize: 14, marginBottom: 20 }}>
+                  Add phone numbers or user IDs to send invites
+                </Text>
+
+                <ScrollView style={{ maxHeight: 300, marginBottom: 20 }}>
+                  {friendInputs.map((input, index) => (
+                    <View key={index} style={{ flexDirection: 'row', marginBottom: 12, gap: 8 }}>
+                      <TextInput
+                        value={input}
+                        onChangeText={(value) => handleFriendInputChange(index, value)}
+                        placeholder="Phone or User ID"
+                        placeholderTextColor="#6b7280"
+                        style={{
+                          flex: 1,
+                          backgroundColor: '#0a0a0a',
+                          padding: 12,
+                          borderRadius: 12,
+                          color: '#fff',
+                          fontSize: 14,
+                          borderWidth: 1,
+                          borderColor: 'rgba(255,255,255,0.1)'
+                        }}
+                      />
+                      {friendInputs.length > 1 && (
+                        <Pressable
+                          onPress={() => handleRemoveFriendInput(index)}
+                          style={{
+                            width: 40,
+                            height: 40,
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            backgroundColor: '#ef4444',
+                            borderRadius: 12
+                          }}
+                        >
+                          <Text style={{ color: '#fff', fontSize: 18 }}>−</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  ))}
+                </ScrollView>
+
+                <Pressable
+                  onPress={handleAddFriendInput}
+                  style={{
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                    padding: 12,
+                    borderRadius: 12,
+                    alignItems: 'center',
+                    marginBottom: 20
+                  }}
+                >
+                  <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>+ Add Another</Text>
+                </Pressable>
+
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  <Pressable
+                    onPress={() => setShowFriendsInvite(false)}
+                    style={{
+                      flex: 1,
+                      backgroundColor: 'rgba(255,255,255,0.1)',
+                      padding: 14,
+                      borderRadius: 12,
+                      alignItems: 'center'
+                    }}
+                  >
+                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={handleSendInvites}
+                    style={{
+                      flex: 1,
+                      backgroundColor: '#ef4444',
+                      padding: 14,
+                      borderRadius: 12,
+                      alignItems: 'center'
+                    }}
+                  >
+                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>Send Invites</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
       </LinearGradient>
     </View>
   );
