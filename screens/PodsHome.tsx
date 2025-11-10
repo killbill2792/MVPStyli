@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Header from '../components/Header';
+import { Spacing } from '../lib/designSystem';
 import { 
   getUserActivePods, 
   getUserPastPods, 
