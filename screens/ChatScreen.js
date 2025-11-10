@@ -409,7 +409,11 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           <ScrollView 
             ref={chatScrollRef}
             style={{ flex: 1 }}
-            contentContainerStyle={{ padding: Spacing.lg, paddingTop: 20, paddingBottom: 100 }}
+            contentContainerStyle={{ 
+              padding: Spacing.lg, 
+              paddingTop: 20, 
+              paddingBottom: 110 + insets.bottom // Space for input bar (~60px) + bottom nav (~50px)
+            }}
             onContentSizeChange={() => {
               if (chatScrollRef.current && !showResults) {
                 chatScrollRef.current.scrollToEnd({ animated: true });
