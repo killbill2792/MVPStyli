@@ -631,7 +631,7 @@ function Shop() {
     <View style={{ flex: 1, backgroundColor: Colors.background }}>
       {/* Header with Chat Button */}
       <View style={{ 
-        paddingTop: Spacing.xl,
+        paddingTop: Spacing.lg,
         paddingHorizontal: Spacing.lg, 
         paddingBottom: Spacing.md 
       }}>
@@ -2274,7 +2274,7 @@ function CreatePod() {
                 key={mode.id}
                 onPress={() => setSelectedMode(mode.id)}
                 style={{
-                  backgroundColor: selectedMode === mode.id ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.05)',
+                  backgroundColor: selectedMode === mode.id ? Colors.primaryLight : 'rgba(255,255,255,0.05)',
                   borderRadius: 20,
                   padding: 20,
                   borderWidth: selectedMode === mode.id ? 2 : 1,
@@ -2491,7 +2491,7 @@ function RoomOwner() {
         </View>
         
         {room.mode === 'taste-twins' && (
-          <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 12, borderRadius: 12, marginBottom: 12 }}>
+          <View style={{ backgroundColor: Colors.primaryLight, padding: 12, borderRadius: 12, marginBottom: 12 }}>
             <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: '600', marginBottom: 4 }}>Taste Twin Match</Text>
             <Text style={{ color: '#a1a1aa', fontSize: 12 }}>AI found people with 87% style similarity to you</Text>
           </View>
@@ -2510,7 +2510,7 @@ function RoomOwner() {
               width: 80, 
               height: 80, 
               borderRadius: 40, 
-              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              backgroundColor: Colors.primaryLight,
               justifyContent: 'center',
               alignItems: 'center',
               marginBottom: 8
@@ -2543,13 +2543,13 @@ function RoomOwner() {
         </Text>
         
         {room.mode === 'friends' && (
-          <Pressable style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
+          <Pressable style={{ backgroundColor: Colors.primaryLight, padding: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: Colors.primaryBorder }}>
             <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: '600' }}>Copy Link</Text>
         </Pressable>
         )}
       </View>
 
-        <Pressable onPress={() => setRoute('recap')} style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 16, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
+        <Pressable onPress={() => setRoute('recap')} style={{ backgroundColor: Colors.primaryLight, padding: 16, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: Colors.primaryBorder }}>
           <Text style={{ color: Colors.primary, fontSize: 16, fontWeight: '600' }}>See AI Recap</Text>
         </Pressable>
     </View>
@@ -2716,7 +2716,7 @@ function AIAnalytics() {
         />
         <Pressable 
           onPress={sendMessage}
-          style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 12, borderRadius: 16, justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}
+          style={{ backgroundColor: Colors.primaryLight, padding: 12, borderRadius: 16, justifyContent: 'center', borderWidth: 1, borderColor: Colors.primaryBorder }}
         >
           <Text style={{ color: Colors.primary, fontWeight: '600' }}>Send</Text>
         </Pressable>
@@ -2958,7 +2958,7 @@ function StyleCraft() {
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 32 }}>
           <View style={{ alignItems: 'center', flex: 1 }}>
             <View style={{ 
-              backgroundColor: 'rgba(16, 185, 129, 0.1)', 
+              backgroundColor: Colors.primaryLight, 
               borderRadius: 16, 
               padding: 12, 
               marginBottom: 8,
@@ -3010,7 +3010,7 @@ function StyleCraft() {
               onPress={() => setDesignType('upload')}
             style={{
                 flex: 1,
-                backgroundColor: designType === 'upload' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.05)',
+                backgroundColor: designType === 'upload' ? Colors.primaryLight : 'rgba(255,255,255,0.05)',
                 borderRadius: 20,
                 padding: 20,
                 alignItems: 'center',
@@ -3285,7 +3285,7 @@ function OldAccountScreen({ onBack }) {
           </View>
           <View style={{ alignItems: 'center', flex: 1 }}>
             <View style={{ 
-              backgroundColor: 'rgba(16, 185, 129, 0.1)', 
+              backgroundColor: Colors.primaryLight, 
               borderRadius: 16, 
               padding: 12, 
               marginBottom: 8,
