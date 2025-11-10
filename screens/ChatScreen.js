@@ -217,17 +217,37 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   };
 
   const handleProductPress = (product) => {
-    if (!product || !product.id) {
-      console.error('Invalid product:', product);
+    if (!product) {
+      console.error('Product is null or undefined');
       return;
     }
     
+    // Ensure product has required fields
+    if (!product.id) {
+      console.error('Product missing id:', product);
+      // Try to generate an ID if missing
+      product.id = product.id || `product-${Date.now()}-${Math.random()}`;
+    }
+    
+    // Ensure product has kind
+    if (!product.kind) {
+      product.kind = 'web'; // Default to web
+    }
+    
     try {
-      if (onProductSelect) {
+      if (onProductSelect && typeof onProductSelect === 'function') {
         onProductSelect(product);
+      } else {
+        console.error('onProductSelect is not a function:', onProductSelect);
       }
     } catch (error) {
       console.error('Error selecting product:', error);
+      // Show user-friendly error
+      const errorMessage = { 
+        type: 'ai', 
+        message: `Sorry, I couldn't open that product. Please try again.` 
+      };
+      setChatHistory(prev => [...prev, errorMessage]);
     }
   };
 
@@ -257,12 +277,16 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           <Text style={{ ...TextStyles.h3, flex: 1 }}>AI Shopping Assistant</Text>
         </View>
 
-        {showResults && searchResults.length > 0 ? (
+        {showResults && searchResults.length > 0 && currentProduct ? (
           /* Explore-style Product View */
           <View style={{ flex: 1 }}>
             {/* Main Product Image */}
             <Pressable 
-              onPress={() => handleProductPress(currentProduct)}
+              onPress={() => {
+                if (currentProduct) {
+                  handleProductPress(currentProduct);
+                }
+              }}
               style={{ flex: 1, position: 'relative' }}
             >
               <Image 
