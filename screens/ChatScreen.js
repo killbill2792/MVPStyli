@@ -225,20 +225,27 @@ export default function ChatScreen({ onBack, onProductSelect }) {
     }
     
     // Ensure product has all required fields
-    if (!product.id) {
-      console.error('Product missing id:', product);
-      // Generate ID if missing
-      product.id = product.id || `product-${Date.now()}-${Math.random()}`;
-    }
-    
-    // Ensure product has kind
-    if (!product.kind) {
-      product.kind = 'web'; // Default to web
-    }
+    const productWithDefaults = {
+      ...product,
+      id: product.id || `product-${Date.now()}-${Math.random()}`,
+      kind: product.kind || 'web',
+      name: product.name || product.title || 'Product',
+      title: product.title || product.name || 'Product',
+      price: product.price || 0,
+      rating: product.rating || 4.0,
+      brand: product.brand || product.sourceLabel || 'Online Store',
+      category: product.category || 'upper',
+      color: product.color || 'Mixed',
+      material: product.material || 'Unknown',
+      garment_des: product.garment_des || product.description || '',
+      image: product.image || product.imageUrl || 'https://via.placeholder.com/400',
+      buyUrl: product.buyUrl || product.productUrl || '',
+      sourceLabel: product.sourceLabel || product.brand || 'Online Store'
+    };
     
     try {
       if (onProductSelect && typeof onProductSelect === 'function') {
-        onProductSelect(product);
+        onProductSelect(productWithDefaults);
       } else {
         console.error('onProductSelect is not a function:', onProductSelect);
       }
@@ -254,11 +261,6 @@ export default function ChatScreen({ onBack, onProductSelect }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.background }}>
-      <Header 
-        title="AI Shopping Assistant" 
-        onBack={onBack}
-      />
-      
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -267,8 +269,8 @@ export default function ChatScreen({ onBack, onProductSelect }) {
 
         {showResults && searchResults.length > 0 ? (
           /* Explore-style Product View */
-          <View style={{ flex: 1, position: 'relative' }}>
-            {/* Main Product Image - Full screen below header */}
+          <View style={{ flex: 1, position: 'relative', paddingTop: insets.top }}>
+            {/* Main Product Image - Full screen */}
             <Pressable 
               onPress={() => handleProductPress(currentProduct)}
               style={{ 
@@ -334,7 +336,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             {/* Thumbnail Strip - At absolute bottom of screen, above nav bar */}
             <View style={{
               position: 'absolute',
-              bottom: bottomBarHeight + insets.bottom, // At absolute bottom, just above nav bar
+              bottom: bottomBarHeight + insets.bottom + 10, // Add some padding above nav bar
               left: 0,
               right: 0,
               backgroundColor: 'rgba(0,0,0,0.95)',
@@ -390,7 +392,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           <ScrollView 
             ref={chatScrollRef}
             style={{ flex: 1 }}
-            contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 120 }}
+            contentContainerStyle={{ padding: Spacing.lg, paddingTop: insets.top + 20, paddingBottom: 120 }}
             onContentSizeChange={() => {
               if (chatScrollRef.current && !showResults) {
                 chatScrollRef.current.scrollToEnd({ animated: true });
