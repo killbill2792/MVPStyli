@@ -266,7 +266,6 @@ const PodLive: React.FC<PodLiveProps> = ({ podId, onBack, onRecap, userId }) => 
             <Text style={styles.voteButtonText}>❌ No</Text>
           </Pressable>
         </View>
-      </View>
     </View>
   );
 };
