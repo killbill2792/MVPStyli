@@ -8,16 +8,19 @@ import {
   Dimensions,
   Image,
   FlatList,
+  TextInput,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useApp } from '../App';
-import { Colors, Typography, Spacing, BorderRadius, CardStyles, TextStyles, ThemeColors, getCurrentThemeName } from '../lib/designSystem';
+import { Colors, Typography, Spacing, BorderRadius, CardStyles, TextStyles, ThemeColors, getCurrentThemeName, setCustomColor, getCustomColor } from '../lib/designSystem';
 
 const { width, height } = Dimensions.get('window');
 
 const AccountScreen = ({ onBack, tryOnResults = [] }) => {
   const { state, setTheme } = useApp();
   const [username] = useState('Fashionista');
+  const [showCustomColorPicker, setShowCustomColorPicker] = useState(false);
+  const [customColorInput, setCustomColorInput] = useState('');
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [showThemePicker, setShowThemePicker] = useState(false);
   const currentTheme = state.theme || 'teal';
@@ -262,15 +265,18 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
             <Text style={{ ...TextStyles.caption, marginBottom: Spacing.md, color: Colors.textSecondary }}>
               Choose your preferred accent color
             </Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md }}>
+            
+            {/* Preset Colors Grid */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md, marginBottom: Spacing.md }}>
               {Object.keys(ThemeColors).map((themeName) => {
                 const theme = ThemeColors[themeName];
-                const isSelected = currentTheme === themeName;
+                const isSelected = currentTheme === themeName && currentTheme !== 'custom';
                 return (
                   <Pressable
                     key={themeName}
                     onPress={() => {
                       setTheme(themeName);
+                      setShowCustomColorPicker(false);
                     }}
                     style={{
                       width: 70,
@@ -302,7 +308,121 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
                   </Pressable>
                 );
               })}
+              
+              {/* Custom Color Button */}
+              <Pressable
+                onPress={() => {
+                  setShowCustomColorPicker(!showCustomColorPicker);
+                  if (currentTheme === 'custom' && getCustomColor()) {
+                    setCustomColorInput(getCustomColor());
+                  }
+                }}
+                style={{
+                  width: 70,
+                  height: 70,
+                  borderRadius: BorderRadius.lg,
+                  backgroundColor: currentTheme === 'custom' && getCustomColor() ? getCustomColor() : Colors.backgroundSecondary,
+                  borderWidth: currentTheme === 'custom' ? 3 : 1,
+                  borderColor: currentTheme === 'custom' ? Colors.textWhite : Colors.border,
+                  borderStyle: 'dashed',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+              >
+                {currentTheme === 'custom' && (
+                  <Text style={{ color: Colors.textWhite, fontSize: 20, marginBottom: Spacing.xs }}>✓</Text>
+                )}
+                <Text style={{ 
+                  color: Colors.textSecondary, 
+                  fontSize: Typography.xs, 
+                  fontWeight: Typography.semibold
+                }}>
+                  Custom
+                </Text>
+              </Pressable>
             </View>
+            
+            {/* Custom Color Input */}
+            {showCustomColorPicker && (
+              <View style={{
+                backgroundColor: Colors.backgroundSecondary,
+                padding: Spacing.md,
+                borderRadius: BorderRadius.lg,
+                borderWidth: 1,
+                borderColor: Colors.border,
+                marginTop: Spacing.sm
+              }}>
+                <Text style={{ ...TextStyles.body, marginBottom: Spacing.sm, color: Colors.textPrimary }}>
+                  Enter hex color (e.g., #14b8a6)
+                </Text>
+                <View style={{ flexDirection: 'row', gap: Spacing.sm, alignItems: 'center' }}>
+                  <View style={{ 
+                    width: 50, 
+                    height: 50, 
+                    borderRadius: BorderRadius.md,
+                    backgroundColor: customColorInput || '#000',
+                    borderWidth: 1,
+                    borderColor: Colors.border
+                  }} />
+                  <TextInput
+                    value={customColorInput}
+                    onChangeText={(text) => {
+                      // Allow # and hex characters
+                      const cleaned = text.replace(/[^#0-9A-Fa-f]/g, '').substring(0, 7);
+                      setCustomColorInput(cleaned);
+                    }}
+                    placeholder="#14b8a6"
+                    placeholderTextColor={Colors.textSecondary}
+                    style={{
+                      flex: 1,
+                      backgroundColor: Colors.backgroundTertiary,
+                      padding: Spacing.md,
+                      borderRadius: BorderRadius.md,
+                      color: Colors.textPrimary,
+                      fontSize: Typography.base,
+                      borderWidth: 1,
+                      borderColor: Colors.border
+                    }}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <Pressable
+                    onPress={() => {
+                      if (customColorInput && /^#[0-9A-Fa-f]{6}$/.test(customColorInput)) {
+                        setCustomColor(customColorInput);
+                        setTheme('custom');
+                        setShowCustomColorPicker(false);
+                      }
+                    }}
+                    disabled={!customColorInput || !/^#[0-9A-Fa-f]{6}$/.test(customColorInput)}
+                    style={{
+                      backgroundColor: (customColorInput && /^#[0-9A-Fa-f]{6}$/.test(customColorInput)) ? Colors.primary : Colors.backgroundTertiary,
+                      paddingHorizontal: Spacing.lg,
+                      paddingVertical: Spacing.md,
+                      borderRadius: BorderRadius.md,
+                      opacity: (customColorInput && /^#[0-9A-Fa-f]{6}$/.test(customColorInput)) ? 1 : 0.5
+                    }}
+                  >
+                    <Text style={{ 
+                      color: Colors.textWhite, 
+                      fontWeight: Typography.semibold,
+                      fontSize: Typography.sm
+                    }}>
+                      Apply
+                    </Text>
+                  </Pressable>
+                </View>
+                {customColorInput && !/^#[0-9A-Fa-f]{6}$/.test(customColorInput) && (
+                  <Text style={{ 
+                    ...TextStyles.caption, 
+                    color: Colors.error, 
+                    marginTop: Spacing.xs 
+                  }}>
+                    Invalid hex color format
+                  </Text>
+                )}
+              </View>
+            )}
           </View>
 
           {/* Sign Out Section */}
