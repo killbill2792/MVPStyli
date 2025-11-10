@@ -262,11 +262,17 @@ export default function ChatScreen({ onBack, onProductSelect }) {
 
         {showResults && searchResults.length > 0 ? (
           /* Explore-style Product View */
-          <View style={{ flex: 1 }}>
-            {/* Main Product Image */}
+          <View style={{ flex: 1, position: 'relative' }}>
+            {/* Main Product Image - Takes full space */}
             <Pressable 
               onPress={() => handleProductPress(currentProduct)}
-              style={{ flex: 1, position: 'relative' }}
+              style={{ 
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: bottomBarHeight + insets.bottom + 70, // Leave space for thumbnails at bottom
+              }}
             >
               <Image 
                 source={{ uri: currentProduct.image }} 
@@ -281,13 +287,13 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               {/* Product Info Overlay - Above thumbnails, not overlapping */}
               <View style={{
                 position: 'absolute',
-                bottom: thumbnailHeight + Spacing.md, // Well above thumbnail strip
+                bottom: 0, // At bottom of image area
                 left: 0,
                 right: 0,
                 backgroundColor: 'rgba(0,0,0,0.8)',
                 padding: Spacing.md,
                 paddingBottom: Spacing.sm,
-                maxHeight: 150 // Limit height to prevent overlap
+                maxHeight: 140 // Limit height to prevent overlap
               }}>
                 <Text 
                   style={{ ...TextStyles.h3, color: Colors.textWhite, marginBottom: Spacing.xs }}
@@ -331,7 +337,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               paddingBottom: Spacing.xs,
               borderTopWidth: 1,
               borderTopColor: Colors.border,
-              minHeight: 70 // Minimum height for thumbnails
+              height: 70 // Fixed height for thumbnails
             }}>
               <Text style={{ 
                 ...TextStyles.small, 

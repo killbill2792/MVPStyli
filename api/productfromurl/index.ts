@@ -67,9 +67,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       garment_des: productData.description || productData.garment_des
     };
 
-    // Ensure we have at least imageUrl and title
-    if (!normalized.imageUrl || !normalized.title) {
-      return res.status(404).json({ error: 'Product missing required fields (image or title)' });
+    // Ensure we have at least imageUrl and title - with better fallbacks
+    if (!normalized.imageUrl || normalized.imageUrl === '') {
+      // Try to get a placeholder or default image
+      normalized.imageUrl = 'https://via.placeholder.com/400x600/000000/FFFFFF?text=Product+Image';
+    }
+    
+    if (!normalized.title || normalized.title === 'Imported Product' || normalized.title.length < 3) {
+      // Try to extract from URL path
+      const urlParts = url.split('/').filter(p => p && !p.includes('?') && !p.includes('#'));
+      const lastPart = urlParts[urlParts.length - 1] || '';
+      if (lastPart) {
+        normalized.title = lastPart.replace(/[-_]/g, ' ').replace(/\.[^.]+$/, '') || 'Imported Product';
+      }
+      if (!normalized.title || normalized.title === 'Imported Product') {
+        normalized.title = (normalized.brand || extractBrandFromUrl(url) || 'Online') + ' Product';
+      }
+    }
+    
+    // Final check - if still missing critical fields, return error
+    if (!normalized.imageUrl || !normalized.title || normalized.title.length < 3) {
+      return res.status(404).json({ 
+        error: 'Product missing required fields (image or title). Please try a different product page with clear product information.' 
+      });
     }
 
     return res.status(200).json({ item: normalized });
