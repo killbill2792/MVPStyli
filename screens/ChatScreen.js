@@ -484,8 +484,14 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             borderTopWidth: 1,
             borderTopColor: Colors.border,
             backgroundColor: Colors.background,
+            width: '100%', // Ensure it doesn't extend beyond screen
           }}>
-            <View style={{ flexDirection: 'row', gap: Spacing.md, alignItems: 'center' }}>
+            <View style={{ 
+              flexDirection: 'row', 
+              gap: Spacing.md, 
+              alignItems: 'center',
+              width: '100%', // Ensure container takes full width
+            }}>
               <View style={{ ...InputStyles.container, flex: 1, flexDirection: 'row', alignItems: 'center' }}>
                 <TextInput
                   value={searchQuery}

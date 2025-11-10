@@ -139,7 +139,7 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
     <View style={styles.fullScreenContainer}>
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={[styles.scrollContent, { paddingTop: 20, paddingBottom: 100 }]}
+          contentContainerStyle={[styles.scrollContent, { paddingTop: Spacing.lg, paddingBottom: 100 }]}
           showsVerticalScrollIndicator={false}
         >
           {/* Previous Enquiries Toggle */}
@@ -496,11 +496,9 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    paddingTop: 60,
   },
   scrollContent: {
     paddingHorizontal: 16,
-    paddingTop: 20,
     paddingBottom: 100,
   },
   heroSection: {
