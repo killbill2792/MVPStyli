@@ -14,6 +14,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { createPod } from '../lib/pods';
+import { Colors, getColors } from '../lib/designSystem';
 
 const { width, height } = Dimensions.get('window');
 
@@ -260,7 +261,7 @@ const PodsScreen = ({ onBack, onCreatePod, userId = 'demo-user' }) => {
             disabled={!selectedMode || !uploadedImage}
           >
             <LinearGradient
-              colors={selectedMode && uploadedImage ? ['#ef4444', '#dc2626'] : ['#374151', '#1f2937']}
+              colors={selectedMode && uploadedImage ? [Colors.primary, getColors().primaryDark || Colors.primary] : ['#374151', '#1f2937']}
               style={styles.launchGradient}
             >
               <Text style={styles.launchButtonText}>
@@ -327,7 +328,7 @@ const PodsScreen = ({ onBack, onCreatePod, userId = 'demo-user' }) => {
                             height: 40,
                             justifyContent: 'center',
                             alignItems: 'center',
-                            backgroundColor: '#ef4444',
+                            backgroundColor: Colors.primary,
                             borderRadius: 12
                           }}
                         >
@@ -368,7 +369,7 @@ const PodsScreen = ({ onBack, onCreatePod, userId = 'demo-user' }) => {
                     onPress={handleSendInvites}
                     style={{
                       flex: 1,
-                      backgroundColor: '#ef4444',
+                      backgroundColor: Colors.primary,
                       padding: 14,
                       borderRadius: 12,
                       alignItems: 'center'

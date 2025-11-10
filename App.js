@@ -357,7 +357,7 @@ export default function App() {
 }
 
 function Shell() {
-  const { state, setRoute, setUser } = useApp();
+  const { state, setRoute, setUser, setDetectedProduct, setCurrentProduct } = useApp();
   const { route, user, params } = state;
   
   // Initialize user on first load - create local user without Supabase
@@ -440,10 +440,16 @@ function Shell() {
             // Store web/imported products in state so Product screen can access them
             // Always set detectedProduct for web/imported products to ensure they're accessible
             if (product.kind === 'web' || product.kind === 'imported') {
-              setDetectedProduct(product);
-              setCurrentProduct(product.id);
+              if (setDetectedProduct) {
+                setDetectedProduct(product);
+              }
+              if (setCurrentProduct) {
+                setCurrentProduct(product.id);
+              }
             } else {
-              setCurrentProduct(product.id);
+              if (setCurrentProduct) {
+                setCurrentProduct(product.id);
+              }
             }
             setRoute('product');
           } catch (error) {
@@ -617,13 +623,14 @@ function Shop() {
   const [allProducts, setAllProducts] = useState(enhancedProducts);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [showFilters, setShowFilters] = useState(false);
   
   const categories = [
-    { id: 'all', label: 'All' },
-    { id: 'upper', label: 'Tops' },
-    { id: 'lower', label: 'Bottoms' },
-    { id: 'dress', label: 'Dresses' },
-    { id: 'shoes', label: 'Shoes' },
+    { id: 'all', label: 'All', icon: '🛍️' },
+    { id: 'upper', label: 'Tops', icon: '👕' },
+    { id: 'lower', label: 'Bottoms', icon: '👖' },
+    { id: 'dress', label: 'Dresses', icon: '👗' },
+    { id: 'shoes', label: 'Shoes', icon: '👠' },
   ];
   
   // Load additional products from real clothing brands
@@ -675,55 +682,85 @@ function Shop() {
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.background }}>
-      {/* Search Bar */}
+      {/* Compact Search & Filter Bar */}
       <View style={{ 
         paddingTop: 20,
         paddingHorizontal: Spacing.lg, 
-        paddingBottom: Spacing.md 
+        paddingBottom: Spacing.sm 
       }}>
         <View style={{
-          ...InputStyles.container,
           flexDirection: 'row',
+          gap: Spacing.sm,
           alignItems: 'center',
-          paddingHorizontal: Spacing.md,
         }}>
-          <Text style={{ fontSize: 18, marginRight: Spacing.sm }}>🔍</Text>
-          <TextInput
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Search dresses, brands, colors..."
-            placeholderTextColor={Colors.textSecondary}
-            style={{ 
-              flex: 1, 
-              ...InputStyles.text,
-              paddingVertical: Spacing.sm
+          {/* Search Input */}
+          <View style={{
+            ...InputStyles.container,
+            flex: 1,
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: Spacing.md,
+          }}>
+            <Text style={{ fontSize: 18, marginRight: Spacing.sm }}>🔍</Text>
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search..."
+              placeholderTextColor={Colors.textSecondary}
+              style={{ 
+                flex: 1, 
+                ...InputStyles.text,
+                paddingVertical: Spacing.sm
+              }}
+            />
+          </View>
+          
+          {/* Filter Button */}
+          <Pressable
+            onPress={() => setShowFilters(!showFilters)}
+            style={{
+              paddingHorizontal: Spacing.md,
+              paddingVertical: Spacing.sm,
+              borderRadius: BorderRadius.md,
+              backgroundColor: showFilters ? Colors.primary : Colors.backgroundSecondary,
+              borderWidth: 1,
+              borderColor: showFilters ? Colors.primary : Colors.border,
+              minWidth: 50,
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
-          />
+          >
+            <Text style={{ fontSize: 18 }}>⚙️</Text>
+          </Pressable>
         </View>
       </View>
       
-      {/* Category Filters */}
+      {/* Compact Category Pills - Horizontal Scroll */}
       <ScrollView 
         horizontal 
         showsHorizontalScrollIndicator={false}
-        style={{ marginBottom: Spacing.md }}
-        contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.sm }}
+        style={{ marginBottom: Spacing.sm, maxHeight: 50 }}
+        contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.xs, alignItems: 'center' }}
       >
         {categories.map((cat) => (
           <Pressable
             key={cat.id}
             onPress={() => setSelectedCategory(cat.id)}
             style={{
-              paddingHorizontal: Spacing.lg,
-              paddingVertical: Spacing.sm,
+              paddingHorizontal: Spacing.md,
+              paddingVertical: Spacing.xs,
               borderRadius: BorderRadius.full,
               backgroundColor: selectedCategory === cat.id ? Colors.primary : Colors.backgroundSecondary,
               borderWidth: 1,
               borderColor: selectedCategory === cat.id ? Colors.primary : Colors.border,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: Spacing.xs,
             }}
           >
+            <Text style={{ fontSize: 14 }}>{cat.icon}</Text>
             <Text style={{
-              ...TextStyles.body,
+              ...TextStyles.small,
               color: selectedCategory === cat.id ? Colors.textWhite : Colors.textPrimary,
               fontWeight: selectedCategory === cat.id ? Typography.semibold : Typography.medium,
             }}>
@@ -732,6 +769,74 @@ function Shop() {
           </Pressable>
         ))}
       </ScrollView>
+      
+      {/* Filter Modal/Drawer */}
+      {showFilters && (
+        <Pressable
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            zIndex: 1000,
+          }}
+          onPress={() => setShowFilters(false)}
+        >
+          <Pressable
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              backgroundColor: Colors.background,
+              borderTopLeftRadius: BorderRadius.xl,
+              borderTopRightRadius: BorderRadius.xl,
+              padding: Spacing.lg,
+              maxHeight: '60%',
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={{ alignItems: 'center', marginBottom: Spacing.lg }}>
+              <View style={{ width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2 }} />
+              <Text style={{ ...TextStyles.heading, marginTop: Spacing.md }}>Filters</Text>
+            </View>
+            
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={{ marginBottom: Spacing.lg }}>
+                <Text style={{ ...TextStyles.body, fontWeight: Typography.semibold, marginBottom: Spacing.md }}>Category</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm }}>
+                  {categories.map((cat) => (
+                    <Pressable
+                      key={cat.id}
+                      onPress={() => {
+                        setSelectedCategory(cat.id);
+                        setShowFilters(false);
+                      }}
+                      style={{
+                        paddingHorizontal: Spacing.md,
+                        paddingVertical: Spacing.sm,
+                        borderRadius: BorderRadius.md,
+                        backgroundColor: selectedCategory === cat.id ? Colors.primary : Colors.backgroundSecondary,
+                        borderWidth: 1,
+                        borderColor: selectedCategory === cat.id ? Colors.primary : Colors.border,
+                      }}
+                    >
+                      <Text style={{
+                        ...TextStyles.body,
+                        color: selectedCategory === cat.id ? Colors.textWhite : Colors.textPrimary,
+                      }}>
+                        {cat.icon} {cat.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      )}
       
       {/* Products Grid */}
       <ScrollView 

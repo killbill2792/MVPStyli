@@ -244,7 +244,12 @@ export default function ChatScreen({ onBack, onProductSelect }) {
       sourceLabel: product.sourceLabel || product.brand || 'Online Store'
     };
     
-    console.log('Navigating to product:', productWithDefaults.id);
+    // Ensure id is a string
+    if (!productWithDefaults.id || typeof productWithDefaults.id !== 'string') {
+      productWithDefaults.id = String(productWithDefaults.id || `product-${Date.now()}-${Math.random()}`);
+    }
+    
+    console.log('Navigating to product:', productWithDefaults.id, productWithDefaults);
     
     try {
       if (onProductSelect && typeof onProductSelect === 'function') {
@@ -466,10 +471,11 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         {!showResults && (
           <View style={{ 
             position: 'absolute',
-            bottom: 80, // Fixed position above nav bar
+            bottom: insets.bottom + 70, // Safe area + bottom bar height
             left: 0,
             right: 0,
             padding: Spacing.lg,
+            paddingBottom: Spacing.md,
             borderTopWidth: 1,
             borderTopColor: Colors.border,
             backgroundColor: Colors.background,

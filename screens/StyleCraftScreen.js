@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
+import { Colors } from '../lib/designSystem';
 
 const { width, height } = Dimensions.get('window');
 
@@ -26,6 +27,25 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showQuotes, setShowQuotes] = useState(false);
   const [quotes, setQuotes] = useState([]);
+  const [previousEnquiries, setPreviousEnquiries] = useState([
+    {
+      id: '1',
+      prompt: 'A flowy summer dress with vintage vibes',
+      image: 'https://images.unsplash.com/photo-1515378791036-0648a3ef77b2?w=400',
+      date: '2024-01-15',
+      status: 'completed',
+      vendor: 'Elite Tailors'
+    },
+    {
+      id: '2',
+      prompt: 'Streetwear + Summer',
+      image: 'https://images.unsplash.com/photo-1586790170083-2f9ceadc732d?w=400',
+      date: '2024-01-10',
+      status: 'in-progress',
+      vendor: null
+    }
+  ]);
+  const [showPreviousEnquiries, setShowPreviousEnquiries] = useState(false);
 
   const aiSuggestions = [
     "Streetwear + Summer",
@@ -96,6 +116,17 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
       
       setQuotes(mockQuotes);
       setShowQuotes(true);
+      
+      // Save to previous enquiries
+      const newEnquiry = {
+        id: Date.now().toString(),
+        prompt: prompt,
+        image: uploadedImage,
+        date: new Date().toISOString().split('T')[0],
+        status: 'pending',
+        vendor: null
+      };
+      setPreviousEnquiries([newEnquiry, ...previousEnquiries]);
     }, 3000);
   };
 
@@ -111,6 +142,74 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
           contentContainerStyle={[styles.scrollContent, { paddingTop: 20, paddingBottom: 100 }]}
           showsVerticalScrollIndicator={false}
         >
+          {/* Previous Enquiries Toggle */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <Text style={styles.sectionTitle}>StyleCraft</Text>
+            <Pressable
+              onPress={() => setShowPreviousEnquiries(!showPreviousEnquiries)}
+              style={{
+                paddingHorizontal: 16,
+                paddingVertical: 8,
+                borderRadius: 12,
+                backgroundColor: showPreviousEnquiries ? Colors.primary : 'rgba(255,255,255,0.1)',
+                borderWidth: 1,
+                borderColor: showPreviousEnquiries ? Colors.primary : 'rgba(255,255,255,0.2)',
+              }}
+            >
+              <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
+                {showPreviousEnquiries ? 'Hide' : 'Show'} Previous ({previousEnquiries.length})
+              </Text>
+            </Pressable>
+          </View>
+
+          {/* Previous Enquiries Section */}
+          {showPreviousEnquiries && previousEnquiries.length > 0 && (
+            <View style={{ marginBottom: 32 }}>
+              <Text style={{ ...styles.sectionTitle, marginBottom: 16 }}>Previous Enquiries</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
+                {previousEnquiries.map((enquiry) => (
+                  <Pressable
+                    key={enquiry.id}
+                    style={{
+                      width: 200,
+                      marginRight: 16,
+                      borderRadius: 16,
+                      backgroundColor: 'rgba(255,255,255,0.05)',
+                      overflow: 'hidden',
+                      borderWidth: 1,
+                      borderColor: 'rgba(255,255,255,0.1)',
+                    }}
+                  >
+                    {enquiry.image && (
+                      <Image source={{ uri: enquiry.image }} style={{ width: '100%', height: 150 }} resizeMode="cover" />
+                    )}
+                    <View style={{ padding: 12 }}>
+                      <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600', marginBottom: 4 }} numberOfLines={2}>
+                        {enquiry.prompt}
+                      </Text>
+                      <Text style={{ color: '#9ca3af', fontSize: 10, marginBottom: 4 }}>{enquiry.date}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <View style={{
+                          paddingHorizontal: 6,
+                          paddingVertical: 2,
+                          borderRadius: 4,
+                          backgroundColor: enquiry.status === 'completed' ? '#10b981' : enquiry.status === 'in-progress' ? '#f59e0b' : '#6b7280',
+                        }}>
+                          <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>
+                            {enquiry.status === 'completed' ? '✓ Done' : enquiry.status === 'in-progress' ? '⏳ Processing' : '⏸ Pending'}
+                          </Text>
+                        </View>
+                        {enquiry.vendor && (
+                          <Text style={{ color: '#9ca3af', fontSize: 10 }}>• {enquiry.vendor}</Text>
+                        )}
+                      </View>
+                    </View>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
           {/* Hero Section */}
           <View style={styles.heroSection}>
             <Text style={styles.heroSubtitle}>
@@ -352,7 +451,7 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
 
                     <Image source={{ uri: quote.refImage }} style={{ width: '100%', height: 150, borderRadius: 12, marginBottom: 12 }} resizeMode="cover" />
 
-                    <Pressable style={{ backgroundColor: '#3b82f6', padding: 12, borderRadius: 12, alignItems: 'center' }}>
+                    <Pressable style={{ backgroundColor: Colors.primary, padding: 12, borderRadius: 12, alignItems: 'center' }}>
                       <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Select Vendor</Text>
                     </Pressable>
                   </View>
