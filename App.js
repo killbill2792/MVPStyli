@@ -570,7 +570,7 @@ function Onboarding() {
         {twinUrl && (
           <View style={{ marginTop: 12 }}>
             <Image source={{ uri: twinUrl }} style={{ width: 100, height: 100, borderRadius: 12 }} />
-            <Text style={{ color: '#10b981', fontSize: 14, marginTop: 4 }}>✓ Photo uploaded</Text>
+            <Text style={{ color: Colors.primary, fontSize: 14, marginTop: 4 }}>✓ Photo uploaded</Text>
           </View>
         )}
         <View style={{ height: 12 }} />
@@ -950,7 +950,7 @@ function Product() {
               )}
             </View>
             {isOnSale && (
-              <Text style={{ color: '#10b981', fontSize: 12 }}>Lowest: ${lowestPrice} • Save ${priceHistory[0].price - product.price}</Text>
+              <Text style={{ color: Colors.primary, fontSize: 12 }}>Lowest: ${lowestPrice} • Save ${priceHistory[0].price - product.price}</Text>
             )}
           </View>
           <Text style={{ color: '#a1a1aa' }}>Free returns</Text>
@@ -1075,7 +1075,7 @@ function Product() {
             onPress={togglePriceTracking}
             style={{
               flex: 1,
-              backgroundColor: isTracking ? '#10b981' : 'rgba(255,255,255,0.1)',
+              backgroundColor: isTracking ? Colors.primary : 'rgba(255,255,255,0.1)',
               padding: 16,
               borderRadius: 12,
               alignItems: 'center',
@@ -1110,11 +1110,11 @@ function Product() {
             borderColor: 'rgba(16, 185, 129, 0.2)'
           }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <Text style={{ color: '#10b981', fontSize: 14, fontWeight: '600' }}>
+              <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: '600' }}>
                 {isTracking ? 'Price Tracking Active' : 'Set Your Price Alert'}
               </Text>
               <View style={{ flexDirection: 'row', gap: 8 }}>
-                <Text style={{ color: '#10b981', fontSize: 12 }}>30d Low: ${lowestPrice}</Text>
+                <Text style={{ color: Colors.primary, fontSize: 12 }}>30d Low: ${lowestPrice}</Text>
                 <Text style={{ color: '#ef4444', fontSize: 12 }}>30d High: ${Math.max(...priceHistory.map(p => p.price))}</Text>
               </View>
             </View>
@@ -1148,7 +1148,7 @@ function Product() {
             <Pressable
                 onPress={togglePriceTracking}
                 style={{
-                  backgroundColor: '#10b981',
+                  backgroundColor: Colors.primary,
                   paddingHorizontal: 16,
                   paddingVertical: 10,
                   borderRadius: 8,
@@ -1498,7 +1498,7 @@ function TryOn() {
           {result && (
             <Pressable 
               onPress={() => Linking.openURL(product?.buyUrl || 'https://example.com')} 
-              style={{ backgroundColor: '#10b981', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14 }}
+              style={{ backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14 }}
             >
               <Text style={{ color: '#fff', fontWeight: '600' }}>◉ Buy</Text>
             </Pressable>
@@ -1555,7 +1555,7 @@ function TryOn() {
                   }}
                 />
                 <Pressable style={{ 
-                  backgroundColor: '#10b981', 
+                  backgroundColor: Colors.primary, 
                   paddingHorizontal: 12, 
                   paddingVertical: 6, 
                   borderRadius: 8 
@@ -2114,7 +2114,7 @@ function Explore() {
                   width: 6, 
                   height: 6, 
                   borderRadius: 3, 
-                  backgroundColor: index === 0 ? '#10b981' : 'rgba(255,255,255,0.3)' 
+                  backgroundColor: index === 0 ? Colors.primary : 'rgba(255,255,255,0.3)' 
                 }} 
               />
             ))}
@@ -2242,7 +2242,7 @@ function CreatePod() {
             borderRadius: 24, 
             padding: 16, 
             marginRight: 20,
-            shadowColor: '#10b981',
+            shadowColor: Colors.primary,
             shadowOffset: { width: 0, height: 4 },
             shadowOpacity: 0.3,
             shadowRadius: 8,
@@ -2252,7 +2252,7 @@ function CreatePod() {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={{ color: '#e4e4e7', fontSize: 32, fontWeight: '800', marginBottom: 6 }}>Create Pod</Text>
-            <Text style={{ color: '#10b981', fontSize: 18, fontWeight: '600' }}>Get Style Feedback</Text>
+            <Text style={{ color: Colors.primary, fontSize: 18, fontWeight: '600' }}>Get Style Feedback</Text>
           </View>
         </View>
         
@@ -2278,7 +2278,7 @@ function CreatePod() {
                   borderRadius: 20,
                   padding: 20,
                   borderWidth: selectedMode === mode.id ? 2 : 1,
-                  borderColor: selectedMode === mode.id ? '#10b981' : 'rgba(255,255,255,0.2)',
+                  borderColor: selectedMode === mode.id ? Colors.primary : 'rgba(255,255,255,0.2)',
                   position: 'relative',
                   overflow: 'hidden'
                 }}
@@ -2290,7 +2290,7 @@ function CreatePod() {
                     right: 12, 
                     width: 24, 
                     height: 24, 
-                    backgroundColor: '#10b981', 
+                    backgroundColor: Colors.primary, 
                     borderRadius: 12,
                     justifyContent: 'center',
                     alignItems: 'center'
@@ -2303,7 +2303,7 @@ function CreatePod() {
                   <Text style={{ fontSize: 32, marginRight: 16 }}>{mode.icon}</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={{ 
-                      color: selectedMode === mode.id ? '#10b981' : '#e4e4e7', 
+                      color: selectedMode === mode.id ? Colors.primary : '#e4e4e7', 
                       fontSize: 18, 
                       fontWeight: '700', 
                       marginBottom: 4 
@@ -2429,7 +2429,7 @@ function RoomsInbox() {
                       {room.votes.yes + room.votes.maybe + room.votes.no} votes • Expires in {Math.ceil((room.expiresAt - Date.now()) / 60000)}m
                     </Text>
                   </View>
-                  <Text style={{ color: '#10b981', fontSize: 12 }}>→</Text>
+                  <Text style={{ color: Colors.primary, fontSize: 12 }}>→</Text>
             </Pressable>
               );
             })}
@@ -2452,7 +2452,7 @@ function RoomOwner() {
       case 'friends':
         return { icon: '👥', color: '#3b82f6', description: 'Friends Pod' };
       case 'taste-twins':
-        return { icon: '🎯', color: '#10b981', description: 'Style Twins' };
+        return { icon: '🎯', color: Colors.primary, description: 'Style Twins' };
       case 'global-mix':
         return { icon: '🌍', color: '#f59e0b', description: 'Global Mix' };
       default:
@@ -2492,7 +2492,7 @@ function RoomOwner() {
         
         {room.mode === 'taste-twins' && (
           <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 12, borderRadius: 12, marginBottom: 12 }}>
-            <Text style={{ color: '#10b981', fontSize: 14, fontWeight: '600', marginBottom: 4 }}>Taste Twin Match</Text>
+            <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: '600', marginBottom: 4 }}>Taste Twin Match</Text>
             <Text style={{ color: '#a1a1aa', fontSize: 12 }}>AI found people with 87% style similarity to you</Text>
           </View>
         )}
@@ -2515,7 +2515,7 @@ function RoomOwner() {
               alignItems: 'center',
               marginBottom: 8
             }}>
-              <Text style={{ color: '#10b981', fontSize: 24, fontWeight: '700' }}>{yesPercentage}%</Text>
+              <Text style={{ color: Colors.primary, fontSize: 24, fontWeight: '700' }}>{yesPercentage}%</Text>
             </View>
             <Text style={{ color: '#e4e4e7', fontSize: 14, fontWeight: '600' }}>🔥 Yes</Text>
           </View>
@@ -2544,13 +2544,13 @@ function RoomOwner() {
         
         {room.mode === 'friends' && (
           <Pressable style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
-            <Text style={{ color: '#10b981', fontSize: 14, fontWeight: '600' }}>Copy Link</Text>
+            <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: '600' }}>Copy Link</Text>
         </Pressable>
         )}
       </View>
 
         <Pressable onPress={() => setRoute('recap')} style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 16, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
-          <Text style={{ color: '#10b981', fontSize: 16, fontWeight: '600' }}>See AI Recap</Text>
+          <Text style={{ color: Colors.primary, fontSize: 16, fontWeight: '600' }}>See AI Recap</Text>
         </Pressable>
     </View>
   );
@@ -2718,7 +2718,7 @@ function AIAnalytics() {
           onPress={sendMessage}
           style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 12, borderRadius: 16, justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}
         >
-          <Text style={{ color: '#10b981', fontWeight: '600' }}>Send</Text>
+          <Text style={{ color: Colors.primary, fontWeight: '600' }}>Send</Text>
         </Pressable>
       </View>
     </View>
@@ -2862,7 +2862,7 @@ function StyleCraft() {
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '600', marginBottom: 4 }}>{quote.vendor}</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Text style={{ color: '#10b981', fontSize: 14 }}>⭐ {quote.rating}</Text>
+                    <Text style={{ color: Colors.primary, fontSize: 14 }}>⭐ {quote.rating}</Text>
                     <Text style={{ color: '#a1a1aa', fontSize: 14 }}>•</Text>
                     <Text style={{ color: '#a1a1aa', fontSize: 14 }}>{quote.material}</Text>
                   </View>
@@ -2889,7 +2889,7 @@ function StyleCraft() {
       </View>
 
               <Pressable style={{ padding: 12, borderRadius: 12, alignItems: 'center' }}>
-                <Text style={{ color: '#10b981', fontSize: 16, fontWeight: '600' }}>Proceed with this vendor</Text>
+                <Text style={{ color: Colors.primary, fontSize: 16, fontWeight: '600' }}>Proceed with this vendor</Text>
       </Pressable>
             </View>
           ))}
@@ -2936,7 +2936,7 @@ function StyleCraft() {
             borderRadius: 24, 
             padding: 16, 
             marginRight: 20,
-            shadowColor: '#10b981',
+            shadowColor: Colors.primary,
             shadowOffset: { width: 0, height: 4 },
             shadowOpacity: 0.3,
             shadowRadius: 8,
@@ -2946,7 +2946,7 @@ function StyleCraft() {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={{ color: '#e4e4e7', fontSize: 32, fontWeight: '800', marginBottom: 6 }}>StyleCraft</Text>
-            <Text style={{ color: '#10b981', fontSize: 18, fontWeight: '600' }}>AI-Powered Custom Fashion</Text>
+            <Text style={{ color: Colors.primary, fontSize: 18, fontWeight: '600' }}>AI-Powered Custom Fashion</Text>
           </View>
         </View>
         
@@ -2965,7 +2965,7 @@ function StyleCraft() {
               borderWidth: 1,
               borderColor: 'rgba(16, 185, 129, 0.2)'
             }}>
-              <Text style={{ color: '#10b981', fontSize: 24, fontWeight: '700' }}>500+</Text>
+              <Text style={{ color: Colors.primary, fontSize: 24, fontWeight: '700' }}>500+</Text>
             </View>
             <Text style={{ color: '#a1a1aa', fontSize: 12, textAlign: 'center' }}>Designs Created</Text>
           </View>
@@ -3015,7 +3015,7 @@ function StyleCraft() {
                 padding: 20,
                 alignItems: 'center',
                 borderWidth: designType === 'upload' ? 2 : 1,
-                borderColor: designType === 'upload' ? '#10b981' : 'rgba(255,255,255,0.2)',
+                borderColor: designType === 'upload' ? Colors.primary : 'rgba(255,255,255,0.2)',
                 position: 'relative',
                 overflow: 'hidden'
               }}
@@ -3027,7 +3027,7 @@ function StyleCraft() {
                   right: 0, 
                   width: 30, 
                   height: 30, 
-                  backgroundColor: '#10b981', 
+                  backgroundColor: Colors.primary, 
                   borderRadius: 15,
                   justifyContent: 'center',
                   alignItems: 'center'
@@ -3065,7 +3065,7 @@ function StyleCraft() {
                   right: 0, 
                   width: 30, 
                   height: 30, 
-                  backgroundColor: '#10b981', 
+                  backgroundColor: Colors.primary, 
                   borderRadius: 15,
                   justifyContent: 'center',
                   alignItems: 'center'
@@ -3421,7 +3421,7 @@ function OldAccountScreen({ onBack }) {
 
             {isEditing && (
               <Pressable onPress={saveProfile} style={{ padding: 12, borderRadius: 12, alignItems: 'center' }}>
-                <Text style={{ color: '#10b981', fontSize: 14, fontWeight: '600' }}>Save Changes</Text>
+                <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: '600' }}>Save Changes</Text>
               </Pressable>
             )}
         </View>
