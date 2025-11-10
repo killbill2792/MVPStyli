@@ -234,22 +234,22 @@ export default function ChatScreen({ onBack, onProductSelect }) {
 
   const currentProduct = searchResults[selectedProductIndex];
   const bottomBarHeight = 70; // Approximate height of bottom nav bar
-  const thumbnailHeight = 90; // Height of thumbnail strip
+  const thumbnailHeight = 80; // Height of thumbnail strip (reduced)
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={[]}>
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={0}
       >
-        {/* Header - Consistent spacing */}
+        {/* Header - Minimal spacing */}
         <View style={{ 
           flexDirection: 'row', 
           alignItems: 'center', 
-          paddingTop: Spacing.lg,
+          paddingTop: Spacing.md,
           paddingHorizontal: Spacing.lg,
-          paddingBottom: Spacing.md,
+          paddingBottom: Spacing.sm,
           borderBottomWidth: 1,
           borderBottomColor: Colors.border,
           backgroundColor: Colors.background
@@ -281,12 +281,12 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               {/* Product Info Overlay - Above thumbnails */}
               <View style={{
                 position: 'absolute',
-                bottom: thumbnailHeight, // Above thumbnail strip
+                bottom: thumbnailHeight + Spacing.sm, // Above thumbnail strip with gap
                 left: 0,
                 right: 0,
-                backgroundColor: 'rgba(0,0,0,0.7)',
-                padding: Spacing.lg,
-                paddingBottom: Spacing.md
+                backgroundColor: 'rgba(0,0,0,0.75)',
+                padding: Spacing.md,
+                paddingBottom: Spacing.sm
               }}>
                 <Text style={{ ...TextStyles.h3, color: Colors.textWhite, marginBottom: Spacing.xs }}>
                   {currentProduct.name}
@@ -316,17 +316,18 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               </View>
             </Pressable>
 
-            {/* Thumbnail Strip - At absolute bottom, above nav bar */}
+            {/* Thumbnail Strip - At absolute bottom of image, above nav bar */}
             <View style={{
               position: 'absolute',
-              bottom: bottomBarHeight + insets.bottom, // Above bottom nav bar
+              bottom: bottomBarHeight + insets.bottom + Spacing.xs, // At absolute bottom, just above nav bar
               left: 0,
               right: 0,
               backgroundColor: 'rgba(0,0,0,0.95)',
-              paddingVertical: Spacing.sm,
-              paddingBottom: Spacing.sm,
+              paddingVertical: Spacing.xs,
+              paddingBottom: Spacing.xs,
               borderTopWidth: 1,
-              borderTopColor: Colors.border
+              borderTopColor: Colors.border,
+              height: thumbnailHeight
             }}>
               <Text style={{ 
                 ...TextStyles.small, 

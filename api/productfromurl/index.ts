@@ -436,16 +436,64 @@ async function scrapeGenericProduct(url: string) {
     const description = productData?.description || descMatch?.[1] || '';
     
     // Ensure we have at least a name (use URL as fallback)
-    const finalName = name || extractBrandFromUrl(url) + ' Product' || 'Online Product';
+    const finalName = name || (extractBrandFromUrl(url) ? extractBrandFromUrl(url) + ' Product' : 'Online Product');
+    
+    // If we don't have image or title, try harder to extract them
+    let finalImage = image;
+    let finalTitle = finalName;
+    
+    // If no image found, try to extract from img tags
+    if (!finalImage || finalImage === '') {
+      const imgMatches = html.match(/<img[^>]*src=["']([^"']+)["'][^>]*>/gi);
+      if (imgMatches && imgMatches.length > 0) {
+        for (const imgTag of imgMatches.slice(0, 5)) {
+          const srcMatch = imgTag.match(/src=["']([^"']+)["']/i);
+          if (srcMatch && srcMatch[1]) {
+            const imgUrl = srcMatch[1];
+            // Prefer larger images (likely product images)
+            if (imgUrl.includes('product') || imgUrl.includes('item') || imgUrl.match(/\d{3,}/)) {
+              finalImage = imgUrl;
+              break;
+            } else if (!finalImage) {
+              finalImage = imgUrl; // Fallback to first image
+            }
+          }
+        }
+      }
+    }
+    
+    // Make image URL absolute if relative
+    if (finalImage && !finalImage.startsWith('http')) {
+      try {
+        const urlObj = new URL(url);
+        finalImage = finalImage.startsWith('/') 
+          ? `${urlObj.protocol}//${urlObj.host}${finalImage}`
+          : `${urlObj.protocol}//${urlObj.host}/${finalImage}`;
+      } catch (e) {
+        // Keep original if URL parsing fails
+      }
+    }
+    
+    // If still no title, use a more descriptive fallback
+    if (!finalTitle || finalTitle === 'Online Product' || finalTitle.length < 3) {
+      const pathParts = url.split('/').filter(p => p && !p.includes('?') && !p.includes('#'));
+      const lastPart = pathParts[pathParts.length - 1] || '';
+      if (lastPart) {
+        finalTitle = lastPart.replace(/[-_]/g, ' ').replace(/\.[^.]+$/, '') || 'Imported Product';
+      } else {
+        finalTitle = extractBrandFromUrl(url) ? `${extractBrandFromUrl(url)} Product` : 'Imported Product';
+      }
+    }
     
     return {
-      name: finalName,
+      name: finalTitle,
+      title: finalTitle,
       price,
       currency,
-      image,
+      image: finalImage,
       description,
       brand: extractBrandFromUrl(url),
-      category: detectCategoryFromUrl(url, finalName)
+      category: detectCategoryFromUrl(url, finalTitle)
     };
   } catch (error) {
     console.error('Error scraping generic product:', error);

@@ -415,11 +415,20 @@ function Shell() {
       {route === "chat" && <ChatScreen 
         onBack={() => setRoute("shop")} 
         onProductSelect={(product) => {
-          if (product.kind === 'web' || product.kind === 'imported') {
-            setDetectedProduct(product);
+          try {
+            if (!product || !product.id) {
+              console.error('Invalid product in onProductSelect:', product);
+              return;
+            }
+            // Store web/imported products in state so Product screen can access them
+            if (product.kind === 'web' || product.kind === 'imported') {
+              setDetectedProduct(product);
+            }
+            setCurrentProduct(product.id);
+            setRoute('product');
+          } catch (error) {
+            console.error('Error in onProductSelect:', error);
           }
-          setCurrentProduct(product.id);
-          setRoute('product');
         }}
       />}
       
