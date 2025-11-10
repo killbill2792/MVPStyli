@@ -2238,7 +2238,7 @@ function CreatePod() {
         
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
           <View style={{ 
-            backgroundColor: 'rgba(16, 185, 129, 0.2)', 
+            backgroundColor: Colors.primaryBorder, 
             borderRadius: 24, 
             padding: 16, 
             marginRight: 20,
@@ -2932,7 +2932,7 @@ function StyleCraft() {
         
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
           <View style={{ 
-            backgroundColor: 'rgba(16, 185, 129, 0.2)', 
+            backgroundColor: Colors.primaryBorder, 
             borderRadius: 24, 
             padding: 16, 
             marginRight: 20,
@@ -2963,7 +2963,7 @@ function StyleCraft() {
               padding: 12, 
               marginBottom: 8,
               borderWidth: 1,
-              borderColor: 'rgba(16, 185, 129, 0.2)'
+              borderColor: Colors.primaryBorder
             }}>
               <Text style={{ color: Colors.primary, fontSize: 24, fontWeight: '700' }}>500+</Text>
             </View>
@@ -3053,7 +3053,7 @@ function StyleCraft() {
                 padding: 20,
                 alignItems: 'center',
                 borderWidth: designType === 'describe' ? 2 : 1,
-                borderColor: designType === 'describe' ? '#10b981' : 'rgba(255,255,255,0.2)',
+                borderColor: designType === 'describe' ? Colors.primary : 'rgba(255,255,255,0.2)',
                 position: 'relative',
                 overflow: 'hidden'
               }}
@@ -3290,7 +3290,7 @@ function OldAccountScreen({ onBack }) {
               padding: 12, 
               marginBottom: 8,
               borderWidth: 1,
-              borderColor: 'rgba(16, 185, 129, 0.2)'
+              borderColor: Colors.primaryBorder
             }}>
               <Text style={{ color: '#10b981', fontSize: 24, fontWeight: '700' }}>8</Text>
             </View>
