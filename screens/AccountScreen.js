@@ -10,12 +10,17 @@ import {
   FlatList,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useApp } from '../App';
+import { Colors, Typography, Spacing, BorderRadius, CardStyles, TextStyles, ThemeColors, getCurrentThemeName } from '../lib/designSystem';
 
 const { width, height } = Dimensions.get('window');
 
 const AccountScreen = ({ onBack, tryOnResults = [] }) => {
+  const { state, setTheme } = useApp();
   const [username] = useState('Fashionista');
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [showThemePicker, setShowThemePicker] = useState(false);
+  const currentTheme = state.theme || 'teal';
 
   const aiInsights = [
     {
@@ -156,8 +161,8 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
           ))}
         </View>
 
-        {/* Fixed Header */}
-        <View style={styles.header}>
+        {/* Fixed Header - with SafeAreaView padding */}
+        <View style={[styles.header, { paddingTop: 44 }]}>
           <Pressable style={styles.backButton} onPress={onBack}>
             <Text style={styles.backButtonText}>← Back</Text>
           </Pressable>
@@ -167,7 +172,7 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
 
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingTop: 80 }]}
           showsVerticalScrollIndicator={false}
         >
           {/* Hero Section */}
@@ -242,9 +247,9 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
           )}
 
           {/* Core Sections Grid */}
-          <View style={styles.sectionsSection}>
-            <Text style={styles.sectionTitle}>My Stylit Hub</Text>
-            <View style={styles.sectionsGrid}>
+          <View style={{ marginBottom: Spacing['2xl'] }}>
+            <Text style={{ ...TextStyles.h3, marginBottom: Spacing.md }}>My Stylit Hub</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
               {coreSections.map((section) => (
                 <SectionCard key={section.id} section={section} />
               ))}
@@ -252,20 +257,23 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
           </View>
 
           {/* Sign Out Section */}
-          <View style={styles.signOutSection}>
+          <View style={{ marginBottom: Spacing['2xl'] }}>
             <Pressable
-              style={styles.signOutButton}
               onPress={handleSignOut}
               disabled={isSigningOut}
+              style={{
+                backgroundColor: Colors.backgroundSecondary,
+                padding: Spacing.lg,
+                borderRadius: BorderRadius.lg,
+                alignItems: 'center',
+                borderWidth: 1,
+                borderColor: Colors.border,
+                opacity: isSigningOut ? 0.5 : 1
+              }}
             >
-              <LinearGradient
-                colors={isSigningOut ? ['#10b981', '#059669'] : ['#374151', '#1f2937']}
-                style={styles.signOutGradient}
-              >
-                <Text style={styles.signOutText}>
-                  {isSigningOut ? 'See you soon 💫' : 'Sign out'}
-                </Text>
-              </LinearGradient>
+              <Text style={{ ...TextStyles.body, color: Colors.error, fontWeight: Typography.semibold }}>
+                {isSigningOut ? 'See you soon 💫' : 'Sign out'}
+              </Text>
             </Pressable>
           </View>
         </ScrollView>

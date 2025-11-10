@@ -218,14 +218,28 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   };
 
   const handleProductPress = (product) => {
-    if (!product || !product.id) {
-      console.error('Invalid product:', product);
+    if (!product) {
+      console.error('Product is null or undefined');
       return;
     }
     
+    // Ensure product has all required fields
+    if (!product.id) {
+      console.error('Product missing id:', product);
+      // Generate ID if missing
+      product.id = product.id || `product-${Date.now()}-${Math.random()}`;
+    }
+    
+    // Ensure product has kind
+    if (!product.kind) {
+      product.kind = 'web'; // Default to web
+    }
+    
     try {
-      if (onProductSelect) {
+      if (onProductSelect && typeof onProductSelect === 'function') {
         onProductSelect(product);
+      } else {
+        console.error('onProductSelect is not a function:', onProductSelect);
       }
     } catch (error) {
       console.error('Error selecting product:', error);
@@ -234,10 +248,11 @@ export default function ChatScreen({ onBack, onProductSelect }) {
 
   const currentProduct = searchResults[selectedProductIndex];
   const bottomBarHeight = 70; // Approximate height of bottom nav bar
-  const thumbnailHeight = 80; // Height of thumbnail strip (reduced)
+  const thumbnailHeight = 70; // Height of thumbnail strip
+  const headerHeight = 50; // Approximate header height
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={[]}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={['top']}>
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -247,12 +262,13 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         <View style={{ 
           flexDirection: 'row', 
           alignItems: 'center', 
-          paddingTop: Spacing.md,
+          paddingTop: Spacing.sm,
           paddingHorizontal: Spacing.lg,
           paddingBottom: Spacing.sm,
           borderBottomWidth: 1,
           borderBottomColor: Colors.border,
-          backgroundColor: Colors.background
+          backgroundColor: Colors.background,
+          height: headerHeight
         }}>
           <Pressable onPress={onBack} style={{ marginRight: Spacing.md }}>
             <Text style={{ ...TextStyles.body, color: Colors.primary, fontSize: Typography.base }}>← Back</Text>
@@ -263,7 +279,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         {showResults && searchResults.length > 0 ? (
           /* Explore-style Product View */
           <View style={{ flex: 1, position: 'relative' }}>
-            {/* Main Product Image - Takes full space */}
+            {/* Main Product Image - Full screen below header */}
             <Pressable 
               onPress={() => handleProductPress(currentProduct)}
               style={{ 
@@ -271,7 +287,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
                 top: 0,
                 left: 0,
                 right: 0,
-                bottom: bottomBarHeight + insets.bottom + 70, // Leave space for thumbnails at bottom
+                bottom: bottomBarHeight + insets.bottom + thumbnailHeight, // Leave space for thumbnails at bottom
               }}
             >
               <Image 
@@ -281,7 +297,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
                   height: '100%',
                   backgroundColor: Colors.backgroundSecondary
                 }}
-                resizeMode="cover"
+                resizeMode="contain" // Changed from cover to contain to show full image
               />
               
               {/* Product Info Overlay - Above thumbnails, not overlapping */}
@@ -290,10 +306,10 @@ export default function ChatScreen({ onBack, onProductSelect }) {
                 bottom: 0, // At bottom of image area
                 left: 0,
                 right: 0,
-                backgroundColor: 'rgba(0,0,0,0.8)',
+                backgroundColor: 'rgba(0,0,0,0.85)',
                 padding: Spacing.md,
                 paddingBottom: Spacing.sm,
-                maxHeight: 140 // Limit height to prevent overlap
+                maxHeight: 130 // Limit height to prevent overlap
               }}>
                 <Text 
                   style={{ ...TextStyles.h3, color: Colors.textWhite, marginBottom: Spacing.xs }}
@@ -337,7 +353,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               paddingBottom: Spacing.xs,
               borderTopWidth: 1,
               borderTopColor: Colors.border,
-              height: 70 // Fixed height for thumbnails
+              height: thumbnailHeight
             }}>
               <Text style={{ 
                 ...TextStyles.small, 
@@ -443,38 +459,40 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           </ScrollView>
         )}
 
-        {/* Input Bar - Above nav bar */}
-        <View style={{ 
-          padding: Spacing.lg,
-          borderTopWidth: 1,
-          borderTopColor: Colors.border,
-          backgroundColor: Colors.background,
-          paddingBottom: bottomBarHeight + insets.bottom + Spacing.md // Space above nav bar
-        }}>
-          <View style={{ flexDirection: 'row', gap: Spacing.md, alignItems: 'center' }}>
-            <View style={{ ...InputStyles.container, flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-              <TextInput
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                onSubmitEditing={handleSearchSubmit}
-                placeholder="Ask me anything or paste a URL..."
-                placeholderTextColor={Colors.textSecondary}
-                style={{ flex: 1, ...InputStyles.text }}
-                returnKeyType="send"
-                multiline={false}
-              />
+        {/* Input Bar - Only show when not showing results */}
+        {!showResults && (
+          <View style={{ 
+            padding: Spacing.lg,
+            borderTopWidth: 1,
+            borderTopColor: Colors.border,
+            backgroundColor: Colors.background,
+            paddingBottom: bottomBarHeight + insets.bottom + Spacing.md // Space above nav bar
+          }}>
+            <View style={{ flexDirection: 'row', gap: Spacing.md, alignItems: 'center' }}>
+              <View style={{ ...InputStyles.container, flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                <TextInput
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  onSubmitEditing={handleSearchSubmit}
+                  placeholder="Ask me anything or paste a URL..."
+                  placeholderTextColor={Colors.textSecondary}
+                  style={{ flex: 1, ...InputStyles.text }}
+                  returnKeyType="send"
+                  multiline={false}
+                />
+              </View>
+              <Pressable 
+                onPress={handleSearchSubmit}
+                disabled={isSearching || !searchQuery.trim()}
+                style={createButtonStyle('primary', isSearching || !searchQuery.trim())}
+              >
+                <Text style={getButtonTextStyle('primary')}>
+                  {isSearching ? '...' : 'Send'}
+                </Text>
+              </Pressable>
             </View>
-            <Pressable 
-              onPress={handleSearchSubmit}
-              disabled={isSearching || !searchQuery.trim()}
-              style={createButtonStyle('primary', isSearching || !searchQuery.trim())}
-            >
-              <Text style={getButtonTextStyle('primary')}>
-                {isSearching ? '...' : 'Send'}
-              </Text>
-            </Pressable>
           </View>
-        </View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

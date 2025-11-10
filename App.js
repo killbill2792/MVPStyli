@@ -18,7 +18,7 @@ import Inbox from './screens/Inbox';
 import ChatScreen from './screens/ChatScreen';
 import { ProductDetector } from './components/ProductDetector';
 import { fetchRealClothingProducts } from './lib/productApi';
-import { Colors, Typography, Spacing, BorderRadius, ButtonStyles, CardStyles, InputStyles, TextStyles, createButtonStyle, getButtonTextStyle } from './lib/designSystem';
+import { Colors, Typography, Spacing, BorderRadius, ButtonStyles, CardStyles, InputStyles, TextStyles, createButtonStyle, getButtonTextStyle, setTheme as setDesignTheme, getCurrentThemeName } from './lib/designSystem';
 
 // Enhanced product data with working model images - upper body and lower body items
 const enhancedProducts = [
@@ -283,7 +283,8 @@ const initial = {
   currentFeedIndex: 0,
   rooms: [],
   tryOnResults: [],
-  detectedProduct: null
+  detectedProduct: null,
+  theme: 'teal' // Default theme
 };
 
 export function AppProvider({ children }) {
@@ -297,6 +298,12 @@ export function AppProvider({ children }) {
     setTryOnResults: (results) => setState(s => ({ ...s, tryOnResults: results })),
     setCurrentProduct: (id) => setState(s => ({ ...s, currentProductId: id })),
     setDetectedProduct: (product) => setState(s => ({ ...s, detectedProduct: product })),
+    setTheme: (themeName) => {
+      setState(s => ({ ...s, theme: themeName }));
+      // Also update the design system
+      const { setTheme } = require('./lib/designSystem');
+      setTheme(themeName);
+    },
     nextFeedItem: () => setState(s => ({ ...s, currentFeedIndex: (s.currentFeedIndex + 1) % s.feedItems.length })),
     createRoom: ({ lookId, mode, durationMins = 60, title }) => {
       const room = {
