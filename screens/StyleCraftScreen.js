@@ -9,19 +9,22 @@ import {
   Dimensions,
   Image,
   Animated,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 
 const { width, height } = Dimensions.get('window');
 
-const StyleCraftScreen = ({ onBack }) => {
+const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
   const [uploadedImage, setUploadedImage] = useState(null);
   const [prompt, setPrompt] = useState('');
   const [budget, setBudget] = useState(350);
   const [suggestTailors, setSuggestTailors] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showQuotes, setShowQuotes] = useState(false);
+  const [quotes, setQuotes] = useState([]);
 
   const aiSuggestions = [
     "Streetwear + Summer",
@@ -46,11 +49,53 @@ const StyleCraftScreen = ({ onBack }) => {
   };
 
   const handleGetQuotes = () => {
+    if (!uploadedImage || !prompt) {
+      Alert.alert('Required Fields', 'Please upload an image and describe your design.');
+      return;
+    }
+
     setIsProcessing(true);
-    // Simulate AI processing
+    
+    // Simulate AI processing and generate mock quotes
     setTimeout(() => {
       setIsProcessing(false);
-      // Show design preview + send to tailor
+      
+      // Generate mock vendor quotes
+      const mockQuotes = [
+        {
+          id: '1',
+          vendor: 'Elite Tailors',
+          rating: 4.8,
+          material: 'Premium Cotton',
+          price: Math.floor(budget * 0.8),
+          shipping: 15,
+          refImage: 'https://images.unsplash.com/photo-1586790170083-2f9ceadc732d?w=400',
+          deliveryTime: '2-3 weeks'
+        },
+        {
+          id: '2',
+          vendor: 'Boutique Stitches',
+          rating: 4.6,
+          material: 'Silk Blend',
+          price: Math.floor(budget * 0.9),
+          shipping: 20,
+          refImage: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400',
+          deliveryTime: '3-4 weeks'
+        },
+        {
+          id: '3',
+          vendor: 'Custom Couture',
+          rating: 4.9,
+          material: 'Luxury Fabric',
+          price: Math.floor(budget * 1.1),
+          shipping: 25,
+          refImage: 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=400',
+          deliveryTime: '4-5 weeks'
+        }
+      ];
+      
+      setQuotes(mockQuotes);
+      setShowQuotes(true);
     }, 3000);
   };
 

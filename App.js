@@ -284,7 +284,7 @@ const initial = {
   rooms: [],
   tryOnResults: [],
   detectedProduct: null,
-  theme: 'teal' // Default theme
+  theme: 'blue' // Default theme (goes well with black)
 };
 
 export function AppProvider({ children }) {
@@ -482,10 +482,10 @@ function Shell() {
             width: 56,
             height: 56,
             borderRadius: 28,
-            backgroundColor: Colors.primary,
+            backgroundColor: Colors.primary, // Uses dynamic theme color
             justifyContent: 'center',
             alignItems: 'center',
-            shadowColor: '#000',
+            shadowColor: Colors.primary,
             shadowOffset: { width: 0, height: 4 },
             shadowOpacity: 0.3,
             shadowRadius: 8,
