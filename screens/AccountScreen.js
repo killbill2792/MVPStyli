@@ -9,6 +9,7 @@ import {
   Image,
   FlatList,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useApp } from '../App';
 import { Colors, Typography, Spacing, BorderRadius, CardStyles, TextStyles, ThemeColors, getCurrentThemeName } from '../lib/designSystem';
 
