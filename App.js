@@ -18,7 +18,7 @@ import Inbox from './screens/Inbox';
 import ChatScreen from './screens/ChatScreen';
 import { ProductDetector } from './components/ProductDetector';
 import { fetchRealClothingProducts } from './lib/productApi';
-import { Colors, Typography, Spacing, BorderRadius, ButtonStyles, CardStyles, InputStyles, TextStyles, createButtonStyle, getButtonTextStyle, setTheme as setDesignTheme, getCurrentThemeName } from './lib/designSystem';
+import { Colors, Typography, Spacing, BorderRadius, ButtonStyles, CardStyles, InputStyles, TextStyles, createButtonStyle, getButtonTextStyle, setTheme as setDesignTheme, getCurrentThemeName, getColors } from './lib/designSystem';
 
 // Enhanced product data with working model images - upper body and lower body items
 const enhancedProducts = [
@@ -480,31 +480,57 @@ function Shell() {
         </View>
       )}
       
-      {/* Floating AI Assistant Icon - Right Side */}
-      {route !== "signin" && route !== "chat" && (
-        <Pressable
-          onPress={() => setRoute("chat")}
-          style={{
-            position: 'absolute',
-            right: Spacing.lg,
-            bottom: 90, // Above bottom bar (BottomBar is ~70px + safe area)
-            width: 56,
-            height: 56,
-            borderRadius: 28,
-            backgroundColor: Colors.primary, // Uses dynamic theme color
-            justifyContent: 'center',
-            alignItems: 'center',
-            shadowColor: Colors.primary,
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.3,
-            shadowRadius: 8,
-            elevation: 8,
-            zIndex: 1000
-          }}
-        >
-          <Text style={{ fontSize: 24 }}>💬</Text>
-        </Pressable>
-      )}
+      {/* Floating AI Assistant Icon - Right Side - Truly Floating (No Layout Impact) */}
+      {route !== "signin" && route !== "chat" && (() => {
+        // Helper to convert hex to RGB for glass effect
+        const hexToRgb = (hex) => {
+          const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+          return result ? {
+            r: parseInt(result[1], 16),
+            g: parseInt(result[2], 16),
+            b: parseInt(result[3], 16)
+          } : { r: 59, g: 130, b: 246 }; // Default blue
+        };
+        const primaryColor = getColors().primary;
+        const rgb = hexToRgb(primaryColor);
+        return (
+          <View
+            pointerEvents="box-none"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 9999,
+            }}
+          >
+            <Pressable
+              onPress={() => setRoute("chat")}
+              style={{
+                position: 'absolute',
+                right: Spacing.lg,
+                bottom: 90, // Above bottom bar (BottomBar is ~70px + safe area)
+                width: 56,
+                height: 56,
+                borderRadius: 28,
+                backgroundColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.2)`, // Glass-like transparent with theme color
+                borderWidth: 1,
+                borderColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.4)`,
+                justifyContent: 'center',
+                alignItems: 'center',
+                shadowColor: primaryColor,
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+                elevation: 8,
+              }}
+            >
+              <Text style={{ fontSize: 24 }}>💬</Text>
+            </Pressable>
+          </View>
+        );
+      })()}
       
       {/* Bottom bar for all screens except signin */}
       {route !== "signin" && <BottomBar route={route} go={setRoute} />}
