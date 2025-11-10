@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, Image, KeyboardAvoidingView, Platform, Dimensions, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 import Header from '../components/Header';
 import { Colors, Typography, Spacing, BorderRadius, ButtonStyles, CardStyles, InputStyles, TextStyles, createButtonStyle, getButtonTextStyle } from '../lib/designSystem';
 import { isUrl, importProductFromUrl, searchWebProducts, normalizeProduct } from '../lib/productSearch';
@@ -10,13 +11,14 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 export default function ChatScreen({ onBack, onProductSelect }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [chatHistory, setChatHistory] = useState([
-    { type: 'ai', message: 'Hi! I\'m your AI shopping assistant. Ask me anything like "show me red polka dot dresses" or "what dress would suit me?" You can also paste a product URL to get details!' }
+    { type: 'ai', message: 'Hi! I\'m your AI shopping assistant. Ask me anything like "show me red polka dot dresses" or "what dress would suit me?" You can also paste a product URL to get details! You can also upload images of clothing items for me to analyze.' }
   ]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [selectedProductIndex, setSelectedProductIndex] = useState(0);
   const chatScrollRef = useRef(null);
   const [showResults, setShowResults] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState(null);
   const insets = useSafeAreaInsets();
 
   // Auto-scroll to bottom when new messages are added
@@ -218,6 +220,44 @@ export default function ChatScreen({ onBack, onProductSelect }) {
     }
   };
 
+  const handleImageUpload = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        const imageUri = result.assets[0].uri;
+        setUploadedImage(imageUri);
+        
+        // Add user message with image
+        const userMessage = { 
+          type: 'user', 
+          message: 'Analyze this image',
+          image: imageUri 
+        };
+        setChatHistory(prev => [...prev, userMessage]);
+        
+        // Add AI response
+        setIsSearching(true);
+        setTimeout(() => {
+          const aiMessage = { 
+            type: 'ai', 
+            message: 'I can see you\'ve uploaded an image! I can help you:\n• Find similar dresses/items\n• Suggest what goes well with this\n• Identify the style and color\n\nWhat would you like to know about this item?' 
+          };
+          setChatHistory(prev => [...prev, aiMessage]);
+          setIsSearching(false);
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('Image picker error:', error);
+      Alert.alert('Error', 'Failed to pick image. Please try again.');
+    }
+  };
+
   const handleProductPress = (product) => {
     if (!product) {
       console.error('Product is null or undefined');
@@ -274,7 +314,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 + insets.bottom : 0}
       >
 
         {showResults && searchResults.length > 0 ? (
@@ -431,6 +471,18 @@ export default function ChatScreen({ onBack, onProductSelect }) {
                       borderTopRightRadius: BorderRadius.sm,
                       maxWidth: '80%'
                     }}>
+                      {msg.image && (
+                        <Image 
+                          source={{ uri: msg.image }} 
+                          style={{ 
+                            width: 200, 
+                            height: 200, 
+                            borderRadius: BorderRadius.md, 
+                            marginBottom: Spacing.sm 
+                          }} 
+                          resizeMode="cover"
+                        />
+                      )}
                       <Text style={{ ...TextStyles.body, color: Colors.primary }}>
                         {msg.message}
                       </Text>
@@ -478,36 +530,69 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             bottom: 50 + insets.bottom, // Bottom bar content height (~50px) + safe area
             left: 0,
             right: 0,
-            paddingTop: Spacing.md,
+            paddingTop: Spacing.sm,
             paddingBottom: Spacing.xs,
             paddingHorizontal: Spacing.lg,
             borderTopWidth: 1,
             borderTopColor: Colors.border,
             backgroundColor: Colors.background,
-            width: '100%', // Ensure it doesn't extend beyond screen
+            width: '100%',
           }}>
+            {uploadedImage && (
+              <View style={{ marginBottom: Spacing.xs, alignItems: 'flex-start' }}>
+                <View style={{ position: 'relative' }}>
+                  <Image source={{ uri: uploadedImage }} style={{ width: 60, height: 60, borderRadius: BorderRadius.md }} />
+                  <Pressable
+                    onPress={() => setUploadedImage(null)}
+                    style={{
+                      position: 'absolute',
+                      top: -4,
+                      right: -4,
+                      backgroundColor: Colors.error,
+                      borderRadius: 10,
+                      width: 20,
+                      height: 20,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Text style={{ color: Colors.textWhite, fontSize: 12 }}>×</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
             <View style={{ 
               flexDirection: 'row', 
-              gap: Spacing.md, 
+              gap: Spacing.sm, 
               alignItems: 'center',
-              width: '100%', // Ensure container takes full width
+              width: '100%',
             }}>
-              <View style={{ ...InputStyles.container, flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+              <Pressable
+                onPress={handleImageUpload}
+                style={{
+                  padding: Spacing.sm,
+                  borderRadius: BorderRadius.md,
+                  backgroundColor: Colors.backgroundSecondary,
+                }}
+              >
+                <Text style={{ fontSize: 20 }}>📷</Text>
+              </Pressable>
+              <View style={{ ...InputStyles.container, flex: 1, flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.xs }}>
                 <TextInput
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                   onSubmitEditing={handleSearchSubmit}
                   placeholder="Ask me anything or paste a URL..."
                   placeholderTextColor={Colors.textSecondary}
-                  style={{ flex: 1, ...InputStyles.text }}
+                  style={{ flex: 1, ...InputStyles.text, paddingVertical: Spacing.xs }}
                   returnKeyType="send"
                   multiline={false}
                 />
               </View>
               <Pressable 
                 onPress={handleSearchSubmit}
-                disabled={isSearching || !searchQuery.trim()}
-                style={createButtonStyle('primary', isSearching || !searchQuery.trim())}
+                disabled={isSearching || (!searchQuery.trim() && !uploadedImage)}
+                style={[createButtonStyle('primary', isSearching || (!searchQuery.trim() && !uploadedImage)), { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm }]}
               >
                 <Text style={getButtonTextStyle('primary')}>
                   {isSearching ? '...' : 'Send'}
