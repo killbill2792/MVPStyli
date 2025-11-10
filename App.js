@@ -351,8 +351,72 @@ export default function App() {
     <SafeAreaProvider>
     <AppProvider>
       <Shell />
+      <FloatingAIIcon />
     </AppProvider>
     </SafeAreaProvider>
+  );
+}
+
+// Floating AI Icon Component - Rendered at App level to avoid layout impact
+function FloatingAIIcon() {
+  const { state } = useApp();
+  const { route } = state;
+  
+  // Don't show on signin or chat screens
+  if (route === "signin" || route === "chat") {
+    return null;
+  }
+  
+  // Helper to convert hex to RGB for glass effect
+  const hexToRgb = (hex) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : { r: 59, g: 130, b: 246 }; // Default blue
+  };
+  
+  const primaryColor = getColors().primary;
+  const rgb = hexToRgb(primaryColor);
+  const { setRoute } = useApp();
+  
+  return (
+    <View
+      pointerEvents="box-none"
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 99999, // Highest z-index to float above everything
+      }}
+    >
+      <Pressable
+        onPress={() => setRoute("chat")}
+        style={{
+          position: 'absolute',
+          right: Spacing.lg,
+          bottom: 90, // Above bottom bar (BottomBar is ~70px + safe area)
+          width: 56,
+          height: 56,
+          borderRadius: 28,
+          backgroundColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.2)`, // Glass-like transparent with theme color
+          borderWidth: 1,
+          borderColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.4)`,
+          justifyContent: 'center',
+          alignItems: 'center',
+          shadowColor: primaryColor,
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 8,
+          elevation: 8,
+        }}
+      >
+        <Text style={{ fontSize: 24 }}>💬</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -479,58 +543,6 @@ function Shell() {
       {route === "suggest" && <SuggestScreen />}
         </View>
       )}
-      
-      {/* Floating AI Assistant Icon - Right Side - Truly Floating (No Layout Impact) */}
-      {route !== "signin" && route !== "chat" && (() => {
-        // Helper to convert hex to RGB for glass effect
-        const hexToRgb = (hex) => {
-          const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-          return result ? {
-            r: parseInt(result[1], 16),
-            g: parseInt(result[2], 16),
-            b: parseInt(result[3], 16)
-          } : { r: 59, g: 130, b: 246 }; // Default blue
-        };
-        const primaryColor = getColors().primary;
-        const rgb = hexToRgb(primaryColor);
-        return (
-          <View
-            pointerEvents="box-none"
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              zIndex: 9999,
-            }}
-          >
-            <Pressable
-              onPress={() => setRoute("chat")}
-              style={{
-                position: 'absolute',
-                right: Spacing.lg,
-                bottom: 90, // Above bottom bar (BottomBar is ~70px + safe area)
-                width: 56,
-                height: 56,
-                borderRadius: 28,
-                backgroundColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.2)`, // Glass-like transparent with theme color
-                borderWidth: 1,
-                borderColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.4)`,
-                justifyContent: 'center',
-                alignItems: 'center',
-                shadowColor: primaryColor,
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 8,
-                elevation: 8,
-              }}
-            >
-              <Text style={{ fontSize: 24 }}>💬</Text>
-            </Pressable>
-          </View>
-        );
-      })()}
       
       {/* Bottom bar for all screens except signin */}
       {route !== "signin" && <BottomBar route={route} go={setRoute} />}
