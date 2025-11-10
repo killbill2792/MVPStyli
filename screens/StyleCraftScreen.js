@@ -230,6 +230,7 @@ const StyleCraftScreen = ({ onBack }) => {
             </View>
           )}
         </ScrollView>
+        </SafeAreaView>
       </LinearGradient>
     </View>
   );
