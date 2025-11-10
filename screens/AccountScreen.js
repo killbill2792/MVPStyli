@@ -103,37 +103,53 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
   };
 
   const InsightCard = ({ insight }) => (
-    <View style={styles.insightCard}>
-      <LinearGradient
-        colors={[insight.color + '20', insight.color + '10']}
-        style={styles.insightGradient}
-      >
-        <View style={styles.insightContent}>
-          <Text style={styles.insightTitle}>{insight.title}</Text>
-          <Text style={styles.insightDescription}>{insight.description}</Text>
-        </View>
-        <View style={[styles.insightAccent, { backgroundColor: insight.color }]} />
-      </LinearGradient>
+    <View style={{
+      ...CardStyles.container,
+      width: 280,
+      marginRight: Spacing.md,
+      padding: Spacing.lg,
+      borderWidth: 1,
+      borderColor: Colors.border,
+      borderLeftWidth: 4,
+      borderLeftColor: insight.color
+    }}>
+      <Text style={{ ...TextStyles.body, fontWeight: Typography.semibold, marginBottom: Spacing.xs }}>
+        {insight.title}
+      </Text>
+      <Text style={{ ...TextStyles.caption, color: Colors.textSecondary }}>
+        {insight.description}
+      </Text>
     </View>
   );
 
   const SectionCard = ({ section }) => (
-    <Pressable style={styles.sectionCard}>
-      <LinearGradient
-        colors={['rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0.02)']}
-        style={styles.sectionGradient}
-      >
-        <View style={styles.sectionContent}>
-          <Text style={styles.sectionIcon}>{section.icon}</Text>
-          <View style={styles.sectionTextContainer}>
-            <Text style={styles.sectionTitle}>{section.title}</Text>
-            {section.count !== null && (
-              <Text style={styles.sectionCount}>{section.count}</Text>
-            )}
-          </View>
-          <View style={[styles.sectionAccent, { backgroundColor: section.color }]} />
+    <Pressable style={{
+      ...CardStyles.container,
+      width: '48%',
+      marginBottom: Spacing.md,
+      padding: Spacing.md,
+      borderWidth: 1,
+      borderColor: Colors.border
+    }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.sm }}>
+        <Text style={{ fontSize: 24, marginRight: Spacing.sm }}>{section.icon}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={{ ...TextStyles.body, fontSize: Typography.sm, fontWeight: Typography.semibold }}>
+            {section.title}
+          </Text>
+          {section.count !== null && (
+            <Text style={{ ...TextStyles.h3, color: Colors.primary, marginTop: Spacing.xs }}>
+              {section.count}
+            </Text>
+          )}
         </View>
-      </LinearGradient>
+      </View>
+      <View style={{ 
+        height: 2, 
+        backgroundColor: section.color, 
+        borderRadius: BorderRadius.full,
+        marginTop: Spacing.xs
+      }} />
     </Pressable>
   );
 
@@ -179,7 +195,7 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
           <View style={styles.heroSection}>
             <View style={styles.avatarContainer}>
               <LinearGradient
-                colors={['#6366f1', '#8b5cf6', '#ec4899']}
+                colors={[Colors.primary, Colors.primaryDark, Colors.primary]}
                 style={styles.avatarGradient}
               >
                 <View style={styles.avatar}>
@@ -188,51 +204,66 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
               </LinearGradient>
             </View>
             
-            <Text style={styles.greeting}>
-              Hey, {username} 👋 — You're trending this week!
+            <Text style={{ ...TextStyles.h2, textAlign: 'center', marginBottom: Spacing.md }}>
+              Hey, {username} 👋
+            </Text>
+            <Text style={{ ...TextStyles.bodySecondary, textAlign: 'center', marginBottom: Spacing.lg }}>
+              You're trending this week!
             </Text>
             
-            <View style={styles.statsRow}>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{tryOnResults.length}</Text>
-                <Text style={styles.statLabel}>◉ Try-Ons</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-around', width: '100%' }}>
+              <View style={{ alignItems: 'center' }}>
+                <Text style={{ ...TextStyles.h2, color: Colors.primary }}>{tryOnResults.length}</Text>
+                <Text style={{ ...TextStyles.caption }}>Try-Ons</Text>
               </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>2</Text>
-                <Text style={styles.statLabel}>◈ Pods Running</Text>
+              <View style={{ alignItems: 'center' }}>
+                <Text style={{ ...TextStyles.h2, color: Colors.primary }}>2</Text>
+                <Text style={{ ...TextStyles.caption }}>Pods</Text>
               </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>1</Text>
-                <Text style={styles.statLabel}>✦ StyleCraft Design</Text>
+              <View style={{ alignItems: 'center' }}>
+                <Text style={{ ...TextStyles.h2, color: Colors.primary }}>1</Text>
+                <Text style={{ ...TextStyles.caption }}>Designs</Text>
               </View>
             </View>
           </View>
 
           {/* AI Insights Section */}
-          <View style={styles.insightsSection}>
-            <Text style={styles.sectionTitle}>▣ AI Insights</Text>
+          <View style={{ marginBottom: Spacing['2xl'] }}>
+            <Text style={{ ...TextStyles.h3, marginBottom: Spacing.md }}>AI Insights</Text>
             <FlatList
               data={aiInsights}
               renderItem={({ item }) => <InsightCard insight={item} />}
               keyExtractor={(item) => item.id}
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.insightsList}
+              contentContainerStyle={{ paddingRight: Spacing.lg }}
             />
           </View>
 
           {/* Try-On Results Section */}
           {tryOnResults.length > 0 && (
-            <View style={styles.tryOnSection}>
-              <Text style={styles.sectionTitle}>◉ My Try-Ons</Text>
+            <View style={{ marginBottom: Spacing['2xl'] }}>
+              <Text style={{ ...TextStyles.h3, marginBottom: Spacing.md }}>My Try-Ons</Text>
               <FlatList
                 data={tryOnResults}
                 renderItem={({ item }) => (
-                  <View style={styles.tryOnCard}>
-                    <Image source={{ uri: item.resultUrl }} style={styles.tryOnImage} />
-                    <View style={styles.tryOnInfo}>
-                      <Text style={styles.tryOnProductName}>{item.productName}</Text>
-                      <Text style={styles.tryOnDate}>
+                  <View style={{
+                    ...CardStyles.container,
+                    width: 200,
+                    marginRight: Spacing.md,
+                    padding: 0,
+                    overflow: 'hidden'
+                  }}>
+                    <Image 
+                      source={{ uri: item.resultUrl }} 
+                      style={{ width: '100%', height: 250, backgroundColor: Colors.backgroundSecondary }}
+                      resizeMode="cover"
+                    />
+                    <View style={{ padding: Spacing.md }}>
+                      <Text style={{ ...TextStyles.body, fontWeight: Typography.semibold, marginBottom: Spacing.xs }}>
+                        {item.productName}
+                      </Text>
+                      <Text style={{ ...TextStyles.caption, color: Colors.textSecondary }}>
                         {new Date(item.createdAt).toLocaleDateString()}
                       </Text>
                     </View>
@@ -241,7 +272,7 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
                 keyExtractor={(item) => item.id}
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.tryOnList}
+                contentContainerStyle={{ paddingRight: Spacing.lg }}
               />
             </View>
           )}
@@ -253,6 +284,55 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
               {coreSections.map((section) => (
                 <SectionCard key={section.id} section={section} />
               ))}
+            </View>
+          </View>
+
+          {/* Theme Color Picker */}
+          <View style={{ marginBottom: Spacing['2xl'], paddingHorizontal: Spacing.lg }}>
+            <Text style={{ ...TextStyles.h3, marginBottom: Spacing.sm }}>App Theme</Text>
+            <Text style={{ ...TextStyles.caption, marginBottom: Spacing.md, color: Colors.textSecondary }}>
+              Choose your preferred accent color
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md }}>
+              {Object.keys(ThemeColors).map((themeName) => {
+                const theme = ThemeColors[themeName];
+                const isSelected = currentTheme === themeName;
+                return (
+                  <Pressable
+                    key={themeName}
+                    onPress={() => {
+                      setTheme(themeName);
+                    }}
+                    style={{
+                      width: 70,
+                      height: 70,
+                      borderRadius: BorderRadius.lg,
+                      backgroundColor: theme.primary,
+                      borderWidth: isSelected ? 3 : 1,
+                      borderColor: isSelected ? Colors.textWhite : Colors.border,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      shadowColor: theme.primary,
+                      shadowOffset: { width: 0, height: 4 },
+                      shadowOpacity: isSelected ? 0.5 : 0.2,
+                      shadowRadius: 8,
+                      elevation: isSelected ? 8 : 4
+                    }}
+                  >
+                    {isSelected && (
+                      <Text style={{ color: Colors.textWhite, fontSize: 20, marginBottom: Spacing.xs }}>✓</Text>
+                    )}
+                    <Text style={{ 
+                      color: Colors.textWhite, 
+                      fontSize: Typography.xs, 
+                      fontWeight: Typography.semibold,
+                      textTransform: 'capitalize'
+                    }}>
+                      {themeName}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
           </View>
 
