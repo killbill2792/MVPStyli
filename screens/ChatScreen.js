@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, Image, KeyboardAvoidingView, Platform, Dimensions, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, Image, KeyboardAvoidingView, Platform, Dimensions, Alert, Keyboard } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, Typography, Spacing, BorderRadius, InputStyles, TextStyles, createButtonStyle, getButtonTextStyle, getColors } from '../lib/designSystem';
@@ -18,6 +18,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   const chatScrollRef = useRef(null);
   const [showResults, setShowResults] = useState(false);
   const [uploadedImage, setUploadedImage] = useState(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const insets = useSafeAreaInsets();
 
   // Bottom bar height calculation - BottomBar has SafeAreaView, so we only need content height
@@ -35,6 +36,27 @@ export default function ChatScreen({ onBack, onProductSelect }) {
       }, 100);
     }
   }, [chatHistory, showResults]);
+
+  // Handle keyboard show/hide for absolutely positioned input
+  useEffect(() => {
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+      }
+    );
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+
+    return () => {
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
+    };
+  }, []);
 
   // Enhanced natural language query processing
   const processQuery = (query) => {
@@ -492,7 +514,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           {/* Input Bar - Fixed at bottom, flush above nav bar */}
           <View style={{ 
             position: 'absolute',
-            bottom: BOTTOM_BAR_CONTENT_HEIGHT,
+            bottom: keyboardHeight > 0 ? keyboardHeight : BOTTOM_BAR_CONTENT_HEIGHT,
             left: 0,
             right: 0,
             paddingHorizontal: Spacing.lg,
