@@ -516,8 +516,11 @@ function Shell() {
       {/* Shop screen - full screen like other new screens */}
       {route === "shop" && <Shop />}
       
+      {/* Explore screen - full screen like Shop and Chat */}
+      {route === "feed" && <Explore />}
+      
       {/* Original screens that use the container */}
-      {!["createpod", "podlive", "podrecap", "podshome", "inbox", "stylecraft", "account", "shop", "chat"].includes(route) && (
+      {!["createpod", "podlive", "podrecap", "podshome", "inbox", "stylecraft", "account", "shop", "chat", "feed"].includes(route) && (
         <View style={s.container}>
           {route === "signin" && <SignInScreen onDone={() => setRoute("onboarding")} />}
           {route === "onboarding" && <Onboarding />}
@@ -528,7 +531,6 @@ function Shell() {
       {route === "room_owner" && <RoomOwner />}
       {route === "room_guest" && <RoomGuest />}
       {route === "recap" && <Recap />}
-      {route === "feed" && <Explore />}
       {route === "ai-analytics" && <AIAnalytics />}
       {route === "suggested-outfits" && <SuggestedOutfits />}
       {route === "suggest" && <SuggestScreen />}
