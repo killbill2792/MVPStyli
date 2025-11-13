@@ -1102,7 +1102,7 @@ function Product() {
   
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 14, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 14, paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
         <View style={{ width: '100%', aspectRatio: 9 / 16, borderRadius: 24, overflow: 'hidden', position: 'relative' }}>
         <Image source={{ uri: product.image }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
           
