@@ -2302,7 +2302,7 @@ function Explore() {
         {/* Progress indicator removed */}
 
         {/* Instagram-style Suggested Items */}
-        <View style={{ position: 'absolute', bottom: BOTTOM_BAR_HEIGHT + 80, left: 12, right: 80 }}>
+        <View style={{ position: 'absolute', bottom: 80, left: 12, right: 80 }}>
           <Text style={{ color: '#e4e4e7', fontSize: 14, fontWeight: '600', marginBottom: 8 }}>
             Suggested by Community
           </Text>
