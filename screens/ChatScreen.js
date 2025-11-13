@@ -361,13 +361,13 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               
               <View style={{
                 position: 'absolute',
-              bottom: 0,
+                bottom: 0,
                 left: 0,
                 right: 0,
                 backgroundColor: 'rgba(0,0,0,0.85)',
                 padding: Spacing.md,
                 paddingBottom: Spacing.sm,
-              maxHeight: 130
+                maxHeight: 130
               }}>
                 <Text 
                   style={{ ...TextStyles.h3, color: Colors.textWhite, marginBottom: Spacing.xs }}
@@ -538,7 +538,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             // So container bottom = keyboardHeight
             // When keyboard is down: position so input row bottom sits flush with BottomBar top
             // Input row bottom is at container bottom, so container bottom = BOTTOM_BAR_CONTENT_HEIGHT
-            bottom: keyboardHeight > 0 ? keyboardHeight : BOTTOM_BAR_CONTENT_HEIGHT,
+            bottom: keyboardHeight > 0 ? (keyboardHeight - INPUT_BAR_ROW_HEIGHT) : BOTTOM_BAR_CONTENT_HEIGHT,
             left: 0,
             right: 0,
             paddingHorizontal: Spacing.lg,
@@ -617,7 +617,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
                   placeholderTextColor={Colors.textSecondary}
                   style={{ 
                     flex: 1, 
-                    color: Colors.text,
+                    color: Colors.textPrimary,
                     fontSize: Typography.sm,
                     paddingVertical: 0,
                     height: 36,
