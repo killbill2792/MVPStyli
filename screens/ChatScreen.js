@@ -30,11 +30,14 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   // The input bar should be positioned at BOTTOM_BAR_CONTENT_HEIGHT (not + insets.bottom) because:
   // - Shell's SafeAreaView doesn't add bottom safe area
   // - BottomBar's SafeAreaView adds bottom safe area BELOW its content (not above)
-  const BOTTOM_BAR_CONTENT_HEIGHT = 33; // Content height only - this is where BottomBar content starts
-  const BOTTOM_BAR_TOTAL_HEIGHT = BOTTOM_BAR_CONTENT_HEIGHT; // Position input at content height (safe area is below, not above)
+  // BottomBar structure analysis:
+  // SafeAreaView (edges=['bottom']) > View (paddingTop:5, paddingBottom:2, borderTopWidth:1) > inner View (paddingVertical:5) > buttons (paddingVertical:8)
+  // Total content height: 5 + 2 + 5*2 + 8*2 = 33px
+  // BottomBar's top edge (including border) is at 33px from Shell's bottom
+  const BOTTOM_BAR_CONTENT_HEIGHT = 33; // BottomBar content height - this is where BottomBar top edge is
   const INPUT_BAR_ROW_HEIGHT = 36; // Height of the inner row (input elements)
-  const INPUT_BAR_PADDING_TOP = 8; // Top padding for border
-  const INPUT_BAR_TOTAL_HEIGHT = INPUT_BAR_PADDING_TOP + INPUT_BAR_ROW_HEIGHT; // Total: 8 + 36 = 44px (no bottom padding - flush with bottom)
+  const INPUT_BAR_PADDING_TOP = 8; // Top padding for border spacing
+  const INPUT_BAR_TOTAL_HEIGHT = INPUT_BAR_PADDING_TOP + INPUT_BAR_ROW_HEIGHT; // Total: 8 + 36 = 44px
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
@@ -530,16 +533,17 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           {/* Input Bar - Fixed at bottom, flush above nav bar or keyboard */}
           <View style={{ 
             position: 'absolute',
-            // When keyboard is up: position so input row sits flush with keyboard top
-            // Input row is INPUT_BAR_ROW_HEIGHT (36px) up from container bottom
-            // So container bottom = keyboardHeight - INPUT_BAR_ROW_HEIGHT
-            // When keyboard is down: position flush with BottomBar (no gap)
-            bottom: keyboardHeight > 0 ? (keyboardHeight - INPUT_BAR_ROW_HEIGHT) : (BOTTOM_BAR_CONTENT_HEIGHT - 1), // -1 to account for borderTopWidth overlap
+            // When keyboard is up: position so input row bottom sits flush with keyboard top
+            // Input row bottom is at container bottom (paddingBottom: 0)
+            // So container bottom = keyboardHeight
+            // When keyboard is down: position so input row bottom sits flush with BottomBar top
+            // Input row bottom is at container bottom, so container bottom = BOTTOM_BAR_CONTENT_HEIGHT
+            bottom: keyboardHeight > 0 ? keyboardHeight : BOTTOM_BAR_CONTENT_HEIGHT,
             left: 0,
             right: 0,
             paddingHorizontal: Spacing.lg,
             paddingTop: INPUT_BAR_PADDING_TOP,
-            paddingBottom: 0, // No paddingBottom - input row sits flush with bottom edge
+            paddingBottom: 0, // No paddingBottom - input row bottom is flush with container bottom
             borderTopWidth: 1,
             borderTopColor: Colors.border,
             backgroundColor: Colors.background,
