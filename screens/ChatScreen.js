@@ -309,10 +309,21 @@ export default function ChatScreen({ onBack, onProductSelect }) {
 
   const currentProduct = searchResults[selectedProductIndex];
   const thumbnailHeight = 70;
-  const dynamicColors = getColors(); // Get dynamic colors for send button
+  const [primaryColor, setPrimaryColor] = useState(getColors().primary); // State for dynamic color
+
+  // Update color when theme changes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const currentColor = getColors().primary;
+      if (currentColor !== primaryColor) {
+        setPrimaryColor(currentColor);
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  }, [primaryColor]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: Colors.background, paddingTop: insets.top }}>
+    <View style={{ flex: 1, backgroundColor: Colors.background }}>
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -440,7 +451,8 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             ref={chatScrollRef}
             style={{ flex: 1 }}
             contentContainerStyle={{ 
-              padding: Spacing.lg,
+              paddingHorizontal: Spacing.lg,
+              paddingTop: insets.top + Spacing.md,
               paddingBottom: INPUT_BAR_HEIGHT + BOTTOM_BAR_CONTENT_HEIGHT
             }}
             onContentSizeChange={() => {
@@ -518,7 +530,8 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             left: 0,
             right: 0,
             paddingHorizontal: Spacing.lg,
-            paddingVertical: Spacing.sm,
+            paddingTop: Spacing.xs,
+            paddingBottom: Spacing.xs,
             borderTopWidth: 1,
             borderTopColor: Colors.border,
             backgroundColor: Colors.background,
@@ -527,6 +540,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               flexDirection: 'row', 
               gap: Spacing.xs, 
               alignItems: 'center',
+              height: 40, // Fixed height to match content
             }}>
               {uploadedImage ? (
                 <Pressable
@@ -590,10 +604,10 @@ export default function ChatScreen({ onBack, onProductSelect }) {
                 onPress={handleSearchSubmit}
                 disabled={isSearching || (!searchQuery.trim() && !uploadedImage)}
                 style={{ 
-                  backgroundColor: (isSearching || (!searchQuery.trim() && !uploadedImage)) ? Colors.backgroundSecondary : dynamicColors.primary,
+                  backgroundColor: (isSearching || (!searchQuery.trim() && !uploadedImage)) ? Colors.backgroundSecondary : primaryColor,
                   paddingHorizontal: Spacing.md, 
                   paddingVertical: Spacing.xs,
-                  minHeight: 36,
+                  height: 36,
                   borderRadius: BorderRadius.md,
                   justifyContent: 'center',
                   alignItems: 'center',
