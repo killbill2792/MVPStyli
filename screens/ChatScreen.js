@@ -532,8 +532,8 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             left: 0,
             right: 0,
             paddingHorizontal: Spacing.lg,
-            paddingTop: 8,
-            paddingBottom: 8,
+            paddingTop: keyboardHeight > 0 ? 8 : 8, // Top padding for border spacing
+            paddingBottom: keyboardHeight > 0 ? 0 : 8, // No bottom padding when keyboard is up (flush with keyboard)
             borderTopWidth: 1,
             borderTopColor: Colors.border,
             backgroundColor: Colors.background,
