@@ -2152,9 +2152,6 @@ function Explore() {
     }
   };
 
-  const insets = useSafeAreaInsets();
-  const BOTTOM_BAR_HEIGHT = 33 + insets.bottom; // Bottom bar content + safe area
-
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       <Pressable 
@@ -2173,11 +2170,6 @@ function Explore() {
             width: '100%', 
             height: '100%', 
             borderRadius: 24,
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: BOTTOM_BAR_HEIGHT, // Extend to just above bottom nav bar (AI button floats above)
           }} 
         />
         

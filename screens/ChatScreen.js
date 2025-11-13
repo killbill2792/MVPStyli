@@ -326,7 +326,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   return (
     <View style={{ flex: 1, backgroundColor: Colors.background }}>
       <KeyboardAvoidingView 
-        style={{ flex: 1, paddingTop: insets.top }} 
+        style={{ flex: 1 }} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
@@ -454,7 +454,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             contentContainerStyle={{ 
               paddingHorizontal: Spacing.lg,
               paddingTop: Spacing.md,
-              paddingBottom: 60 + BOTTOM_BAR_CONTENT_HEIGHT + insets.bottom // Input bar height (~50px) + spacing
+              paddingBottom: 60 + BOTTOM_BAR_CONTENT_HEIGHT // Input bar height (~50px) + bottom bar content (33px)
             }}
             onContentSizeChange={() => {
               if (chatScrollRef.current && !showResults) {
@@ -527,7 +527,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           {/* Input Bar - Fixed at bottom, flush above nav bar */}
           <View style={{ 
             position: 'absolute',
-            bottom: keyboardHeight > 0 ? keyboardHeight : (BOTTOM_BAR_CONTENT_HEIGHT + insets.bottom),
+            bottom: keyboardHeight > 0 ? keyboardHeight : BOTTOM_BAR_CONTENT_HEIGHT,
             left: 0,
             right: 0,
             paddingHorizontal: Spacing.lg,
