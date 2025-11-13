@@ -1105,7 +1105,7 @@ function Product() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      {/* Full screen image like Explore page */}
+      {/* Full screen image like Explore page - no containers blocking it */}
       <View style={{ flex: 1, position: 'relative' }}>
         <Image 
           source={{ uri: product.image }} 
@@ -1141,14 +1141,19 @@ function Product() {
         >
           <Text style={{ color: '#000', fontWeight: '700' }}>✦ Try On</Text>
         </Pressable>
-      </View>
-      
-      {/* Product details - scrollable below image */}
-      <ScrollView 
-        style={{ maxHeight: '40%' }} 
-        contentContainerStyle={{ gap: 14, padding: 16 }} 
-        showsVerticalScrollIndicator={false}
-      >
+        
+        {/* Product details overlay at bottom - like Explore page style */}
+        <ScrollView 
+          style={{ 
+            position: 'absolute',
+            bottom: BOTTOM_BAR_TOTAL_HEIGHT,
+            left: 0,
+            right: 0,
+            maxHeight: '50%',
+          }} 
+          contentContainerStyle={{ padding: 16, gap: 14 }} 
+          showsVerticalScrollIndicator={false}
+        >
       <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderRadius: 24, padding: 16 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
           <View style={{ flex: 1 }}>
