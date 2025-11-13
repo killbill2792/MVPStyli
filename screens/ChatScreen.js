@@ -538,7 +538,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             // So container bottom = keyboardHeight
             // When keyboard is down: position so input row bottom sits flush with BottomBar top
             // Input row bottom is at container bottom, so container bottom = BOTTOM_BAR_CONTENT_HEIGHT
-            bottom: keyboardHeight > 0 ? (keyboardHeight - INPUT_BAR_ROW_HEIGHT) : BOTTOM_BAR_CONTENT_HEIGHT,
+            bottom: keyboardHeight > 0 ? (keyboardHeight - INPUT_BAR_PADDING_TOP) : BOTTOM_BAR_CONTENT_HEIGHT,
             left: 0,
             right: 0,
             paddingHorizontal: Spacing.lg,
