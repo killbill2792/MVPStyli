@@ -43,6 +43,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
     const keyboardWillShow = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
       (e) => {
+        // Position input bar directly above keyboard with no gap
         setKeyboardHeight(e.endCoordinates.height);
       }
     );
@@ -327,8 +328,8 @@ export default function ChatScreen({ onBack, onProductSelect }) {
     <View style={{ flex: 1, backgroundColor: Colors.background }}>
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        behavior={undefined}
+        enabled={false}
       >
         {showResults && searchResults.length > 0 ? (
           /* Explore-style Product View */
@@ -524,14 +525,15 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             )}
           </ScrollView>
 
-          {/* Input Bar - Fixed at bottom, flush above nav bar */}
+          {/* Input Bar - Fixed at bottom, flush above nav bar or keyboard */}
           <View style={{ 
             position: 'absolute',
             bottom: keyboardHeight > 0 ? keyboardHeight : BOTTOM_BAR_CONTENT_HEIGHT,
             left: 0,
             right: 0,
             paddingHorizontal: Spacing.lg,
-            paddingVertical: Spacing.xs,
+            paddingTop: Spacing.xs,
+            paddingBottom: Spacing.xs,
             borderTopWidth: 1,
             borderTopColor: Colors.border,
             backgroundColor: Colors.background,
