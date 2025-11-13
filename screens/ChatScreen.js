@@ -34,8 +34,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   const BOTTOM_BAR_TOTAL_HEIGHT = BOTTOM_BAR_CONTENT_HEIGHT; // Position input at content height (safe area is below, not above)
   const INPUT_BAR_ROW_HEIGHT = 36; // Height of the inner row (input elements)
   const INPUT_BAR_PADDING_TOP = 8; // Top padding for border
-  const INPUT_BAR_PADDING_BOTTOM = 8; // Bottom padding when keyboard is down
-  const INPUT_BAR_TOTAL_HEIGHT = INPUT_BAR_PADDING_TOP + INPUT_BAR_ROW_HEIGHT + INPUT_BAR_PADDING_BOTTOM; // Total: 8 + 36 + 8 = 52px
+  const INPUT_BAR_TOTAL_HEIGHT = INPUT_BAR_PADDING_TOP + INPUT_BAR_ROW_HEIGHT; // Total: 8 + 36 = 44px (no bottom padding - flush with bottom)
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
@@ -532,13 +531,13 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           <View style={{ 
             position: 'absolute',
             // When keyboard is up: position so input row sits flush with keyboard (account for paddingTop)
-            // When keyboard is down: position above BottomBar (account for safe area)
+            // When keyboard is down: position flush with BottomBar (no gap)
             bottom: keyboardHeight > 0 ? (keyboardHeight - INPUT_BAR_PADDING_TOP) : BOTTOM_BAR_CONTENT_HEIGHT,
             left: 0,
             right: 0,
             paddingHorizontal: Spacing.lg,
             paddingTop: INPUT_BAR_PADDING_TOP,
-            paddingBottom: keyboardHeight > 0 ? 0 : INPUT_BAR_PADDING_BOTTOM, // No bottom padding when keyboard is up (flush with keyboard)
+            paddingBottom: 0, // No paddingBottom - input row sits flush with bottom edge
             borderTopWidth: 1,
             borderTopColor: Colors.border,
             backgroundColor: Colors.background,
