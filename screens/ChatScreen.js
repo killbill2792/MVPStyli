@@ -395,11 +395,11 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               </View>
             </Pressable>
 
-          <View style={{
-            position: 'absolute',
+            <View style={{
+              position: 'absolute',
             bottom: BOTTOM_BAR_CONTENT_HEIGHT,
-            left: 0,
-            right: 0,
+              left: 0,
+              right: 0,
               backgroundColor: 'rgba(0,0,0,0.95)',
               paddingTop: Spacing.xs,
               paddingBottom: Spacing.xs,
@@ -532,8 +532,8 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             left: 0,
             right: 0,
             paddingHorizontal: Spacing.lg,
-            paddingTop: Spacing.xs,
-            paddingBottom: Spacing.xs,
+            paddingTop: 8,
+            paddingBottom: 8,
             borderTopWidth: 1,
             borderTopColor: Colors.border,
             backgroundColor: Colors.background,
@@ -542,6 +542,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               flexDirection: 'row', 
               gap: Spacing.xs, 
               alignItems: 'center',
+              height: 36, // Fixed height to match input elements
             }}>
               {uploadedImage ? (
                 <Pressable
@@ -589,14 +590,28 @@ export default function ChatScreen({ onBack, onProductSelect }) {
                   <Text style={{ fontSize: 18 }}>📷</Text>
                 </Pressable>
               )}
-              <View style={{ ...InputStyles.container, flex: 1, flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.xs, minHeight: 36 }}>
+              <View style={{ 
+                flex: 1, 
+                flexDirection: 'row', 
+                alignItems: 'center',
+                height: 36,
+                backgroundColor: Colors.backgroundSecondary,
+                borderRadius: BorderRadius.md,
+                paddingHorizontal: Spacing.md,
+              }}>
                 <TextInput
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                   onSubmitEditing={handleSearchSubmit}
                   placeholder="Ask me anything or paste a URL..."
                   placeholderTextColor={Colors.textSecondary}
-                  style={{ flex: 1, ...InputStyles.text, paddingVertical: 0, fontSize: Typography.sm }}
+                  style={{ 
+                    flex: 1, 
+                    color: Colors.text,
+                    fontSize: Typography.sm,
+                    paddingVertical: 0,
+                    height: 36,
+                  }}
                   returnKeyType="send"
                   multiline={false}
                 />
