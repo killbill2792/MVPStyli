@@ -23,7 +23,8 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   // Bottom bar height calculation - BottomBar has SafeAreaView, so we only need content height
   // BottomBar: paddingTop(5) + paddingBottom(2) + inner paddingVertical(5*2) + button paddingVertical(8*2) ≈ 33px
   // Plus safe area is handled by BottomBar's SafeAreaView, so we don't add insets.bottom here
-  const BOTTOM_BAR_CONTENT_HEIGHT = 33; // Content height only (no safe area)
+  // But we need to account for the actual rendered height including safe area padding
+  const BOTTOM_BAR_CONTENT_HEIGHT = 33; // Content height only
   const INPUT_BAR_HEIGHT = 56; // Actual input bar height
 
   // Auto-scroll to bottom when new messages are added
@@ -359,11 +360,11 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               </View>
             </Pressable>
 
-            <View style={{
-              position: 'absolute',
-            bottom: BOTTOM_BAR_CONTENT_HEIGHT + insets.bottom,
-              left: 0,
-              right: 0,
+          <View style={{
+            position: 'absolute',
+            bottom: BOTTOM_BAR_CONTENT_HEIGHT,
+            left: 0,
+            right: 0,
               backgroundColor: 'rgba(0,0,0,0.95)',
               paddingTop: Spacing.xs,
               paddingBottom: Spacing.xs,
@@ -418,7 +419,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             style={{ flex: 1 }}
             contentContainerStyle={{ 
               padding: Spacing.lg,
-              paddingBottom: INPUT_BAR_HEIGHT + BOTTOM_BAR_CONTENT_HEIGHT + insets.bottom
+              paddingBottom: INPUT_BAR_HEIGHT + BOTTOM_BAR_CONTENT_HEIGHT
             }}
             onContentSizeChange={() => {
               if (chatScrollRef.current && !showResults) {
@@ -491,7 +492,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           {/* Input Bar - Fixed at bottom, flush above nav bar */}
           <View style={{ 
             position: 'absolute',
-            bottom: BOTTOM_BAR_CONTENT_HEIGHT + insets.bottom,
+            bottom: BOTTOM_BAR_CONTENT_HEIGHT,
             left: 0,
             right: 0,
             paddingHorizontal: Spacing.lg,
