@@ -1100,33 +1100,55 @@ function Product() {
   const lowestPrice = Math.min(...priceHistory.map(p => p.price));
   const isOnSale = product.price < priceHistory[0].price;
   
+  const insets = useSafeAreaInsets();
+  const BOTTOM_BAR_TOTAL_HEIGHT = 33 + insets.bottom; // Bottom bar content + safe area
+
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 14, paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
-        <View style={{ width: '100%', aspectRatio: 9 / 16, borderRadius: 24, overflow: 'hidden', position: 'relative' }}>
-        <Image source={{ uri: product.image }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
-          
-          {/* Floating Try On Button */}
-          <Pressable 
-            onPress={() => setRoute('tryon', { garmentId: product.id, category: product.category, garmentCleanUrl: cleanUrl || product.image, product: product })}
-            style={{
-              position: 'absolute',
-              top: 12,
-              right: 12,
-              backgroundColor: '#fff',
-              paddingHorizontal: 14,
-              paddingVertical: 10,
-              borderRadius: 14,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.3,
-              shadowRadius: 4,
-              elevation: 5
-            }}
-          >
-            <Text style={{ color: '#000', fontWeight: '700' }}>✦ Try On</Text>
-          </Pressable>
+      {/* Full screen image like Explore page */}
+      <View style={{ flex: 1, position: 'relative' }}>
+        <Image 
+          source={{ uri: product.image }} 
+          resizeMode="cover" 
+          style={{ 
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: BOTTOM_BAR_TOTAL_HEIGHT, // Extend to bottom nav bar like Explore
+            borderRadius: 24,
+          }} 
+        />
+        
+        {/* Floating Try On Button */}
+        <Pressable 
+          onPress={() => setRoute('tryon', { garmentId: product.id, category: product.category, garmentCleanUrl: cleanUrl || product.image, product: product })}
+          style={{
+            position: 'absolute',
+            top: 12,
+            right: 12,
+            backgroundColor: '#fff',
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+            borderRadius: 14,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.3,
+            shadowRadius: 4,
+            elevation: 5,
+            zIndex: 1000
+          }}
+        >
+          <Text style={{ color: '#000', fontWeight: '700' }}>✦ Try On</Text>
+        </Pressable>
       </View>
+      
+      {/* Product details - scrollable below image */}
+      <ScrollView 
+        style={{ maxHeight: '40%' }} 
+        contentContainerStyle={{ gap: 14, padding: 16 }} 
+        showsVerticalScrollIndicator={false}
+      >
       <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderRadius: 24, padding: 16 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
           <View style={{ flex: 1 }}>
