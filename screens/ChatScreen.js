@@ -344,7 +344,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
                 top: 0,
                 left: 0,
                 right: 0,
-                bottom: BOTTOM_BAR_TOTAL_HEIGHT + thumbnailHeight, // Account for bottom bar + thumbnail bar
+                bottom: BOTTOM_BAR_CONTENT_HEIGHT + thumbnailHeight, // Account for bottom bar content + thumbnail bar
               }}
             >
               <Image 
@@ -400,7 +400,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
 
             <View style={{
               position: 'absolute',
-              bottom: BOTTOM_BAR_TOTAL_HEIGHT, // Use total height (content + safe area)
+              bottom: BOTTOM_BAR_CONTENT_HEIGHT, // BottomBar content height (safe area is below, not above)
               left: 0,
               right: 0,
               backgroundColor: 'rgba(0,0,0,0.95)',
@@ -533,7 +533,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             position: 'absolute',
             // When keyboard is up: position so input row sits flush with keyboard (account for paddingTop)
             // When keyboard is down: position above BottomBar (account for safe area)
-            bottom: keyboardHeight > 0 ? (keyboardHeight - INPUT_BAR_PADDING_TOP) : BOTTOM_BAR_TOTAL_HEIGHT,
+            bottom: keyboardHeight > 0 ? (keyboardHeight - INPUT_BAR_PADDING_TOP) : BOTTOM_BAR_CONTENT_HEIGHT,
             left: 0,
             right: 0,
             paddingHorizontal: Spacing.lg,
