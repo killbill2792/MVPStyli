@@ -28,7 +28,10 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   // Since BottomBar uses SafeAreaView with edges={['bottom']}, we need to position input at: content height + safe area
   const BOTTOM_BAR_CONTENT_HEIGHT = 33; // Content height only
   const BOTTOM_BAR_TOTAL_HEIGHT = BOTTOM_BAR_CONTENT_HEIGHT + insets.bottom; // Content + safe area
-  const INPUT_BAR_HEIGHT = 52; // paddingTop(8) + row height(36) + paddingBottom(8) = 52px // Actual input bar height (reduced from 56)
+  const INPUT_BAR_ROW_HEIGHT = 36; // Height of the inner row (input elements)
+  const INPUT_BAR_PADDING_TOP = 8; // Top padding for border
+  const INPUT_BAR_PADDING_BOTTOM = 8; // Bottom padding when keyboard is down
+  const INPUT_BAR_TOTAL_HEIGHT = INPUT_BAR_PADDING_TOP + INPUT_BAR_ROW_HEIGHT + INPUT_BAR_PADDING_BOTTOM; // Total: 8 + 36 + 8 = 52px
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
@@ -327,11 +330,6 @@ export default function ChatScreen({ onBack, onProductSelect }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.background }}>
-      <KeyboardAvoidingView 
-        style={{ flex: 1 }} 
-        behavior={undefined}
-        enabled={false}
-      >
         {showResults && searchResults.length > 0 ? (
           /* Explore-style Product View */
           <View style={{ flex: 1, position: 'relative' }}>
@@ -456,7 +454,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             contentContainerStyle={{ 
               paddingHorizontal: Spacing.lg,
               paddingTop: Spacing.md,
-              paddingBottom: INPUT_BAR_HEIGHT + BOTTOM_BAR_TOTAL_HEIGHT // Input bar height + bottom bar total (content + safe area)
+              paddingBottom: INPUT_BAR_TOTAL_HEIGHT + BOTTOM_BAR_TOTAL_HEIGHT // Input bar total height + bottom bar total (content + safe area)
             }}
             onContentSizeChange={() => {
               if (chatScrollRef.current && !showResults) {
@@ -533,8 +531,8 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             left: 0,
             right: 0,
             paddingHorizontal: Spacing.lg,
-            paddingTop: 8, // Top padding for border spacing
-            paddingBottom: keyboardHeight > 0 ? 0 : 8, // No bottom padding when keyboard is up (flush with keyboard)
+            paddingTop: INPUT_BAR_PADDING_TOP,
+            paddingBottom: keyboardHeight > 0 ? 0 : INPUT_BAR_PADDING_BOTTOM, // No bottom padding when keyboard is up (flush with keyboard)
             borderTopWidth: 1,
             borderTopColor: Colors.border,
             backgroundColor: Colors.background,
@@ -642,7 +640,6 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           </View>
         </>
         )}
-      </KeyboardAvoidingView>
     </View>
   );
 }
