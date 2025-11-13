@@ -21,12 +21,13 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const insets = useSafeAreaInsets();
 
-  // Bottom bar height calculation - BottomBar has SafeAreaView, so we only need content height
-  // BottomBar: paddingTop(5) + paddingBottom(2) + inner paddingVertical(5*2) + button paddingVertical(8*2) ≈ 33px
-  // Plus safe area is handled by BottomBar's SafeAreaView, so we don't add insets.bottom here
-  // But we need to account for the actual rendered height including safe area padding
+  // Bottom bar height calculation
+  // BottomBar structure: SafeAreaView (adds insets.bottom) > View (paddingTop:5, paddingBottom:2) > inner View (paddingVertical:5) > buttons (paddingVertical:8)
+  // Total content height: 5 + 2 + 5*2 + 8*2 = 33px
+  // Total rendered height: 33px + insets.bottom (from SafeAreaView)
+  // Since BottomBar uses SafeAreaView with edges={['bottom']}, we need to position input at: content height + safe area
   const BOTTOM_BAR_CONTENT_HEIGHT = 33; // Content height only
-  const INPUT_BAR_HEIGHT = 56; // Actual input bar height
+  const INPUT_BAR_HEIGHT = 50; // Actual input bar height (reduced from 56)
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
@@ -323,7 +324,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   }, [primaryColor]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: Colors.background }}>
+    <View style={{ flex: 1, backgroundColor: Colors.background, paddingTop: insets.top }}>
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -452,8 +453,8 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             style={{ flex: 1 }}
             contentContainerStyle={{ 
               paddingHorizontal: Spacing.lg,
-              paddingTop: insets.top + Spacing.md,
-              paddingBottom: INPUT_BAR_HEIGHT + BOTTOM_BAR_CONTENT_HEIGHT
+              paddingTop: Spacing.md,
+              paddingBottom: INPUT_BAR_HEIGHT + BOTTOM_BAR_CONTENT_HEIGHT + insets.bottom
             }}
             onContentSizeChange={() => {
               if (chatScrollRef.current && !showResults) {
@@ -526,12 +527,12 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           {/* Input Bar - Fixed at bottom, flush above nav bar */}
           <View style={{ 
             position: 'absolute',
-            bottom: keyboardHeight > 0 ? keyboardHeight : BOTTOM_BAR_CONTENT_HEIGHT,
+            bottom: keyboardHeight > 0 ? keyboardHeight : (BOTTOM_BAR_CONTENT_HEIGHT + insets.bottom),
             left: 0,
             right: 0,
             paddingHorizontal: Spacing.lg,
-            paddingTop: Spacing.xs,
-            paddingBottom: Spacing.xs,
+            paddingTop: 0,
+            paddingBottom: 0,
             borderTopWidth: 1,
             borderTopColor: Colors.border,
             backgroundColor: Colors.background,
@@ -540,7 +541,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               flexDirection: 'row', 
               gap: Spacing.xs, 
               alignItems: 'center',
-              height: 40, // Fixed height to match content
+              paddingVertical: Spacing.xs,
             }}>
               {uploadedImage ? (
                 <Pressable

@@ -2152,10 +2152,13 @@ function Explore() {
     }
   };
 
+  const insets = useSafeAreaInsets();
+  const BOTTOM_BAR_HEIGHT = 33 + insets.bottom; // Bottom bar content + safe area
+
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       <Pressable 
-        style={{ width: '100%', height: '100%', position: 'relative', marginTop: 20 }}
+        style={{ width: '100%', height: '100%', position: 'relative' }}
         onPress={() => {
           // Swipe left/right on tap (for testing, can add proper swipe later)
           if (currentIndex < exploreItems.length - 1) {
@@ -2294,7 +2297,7 @@ function Explore() {
         {/* Progress indicator removed */}
 
         {/* Instagram-style Suggested Items */}
-        <View style={{ position: 'absolute', bottom: 80, left: 12, right: 80 }}>
+        <View style={{ position: 'absolute', bottom: BOTTOM_BAR_HEIGHT + 80, left: 12, right: 80 }}>
           <Text style={{ color: '#e4e4e7', fontSize: 14, fontWeight: '600', marginBottom: 8 }}>
             Suggested by Community
           </Text>
@@ -2316,43 +2319,52 @@ function Explore() {
             pagingEnabled={false}
           >
             {[
-              { id: 's1', name: 'White Shirt', price: 29, image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&auto=format&fit=crop&w=200', suggestedBy: '@sarah' },
-              { id: 's2', name: 'Blue Jeans', price: 49, image: 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&auto=format&fit=crop&w=200', suggestedBy: '@mike' },
-              { id: 's3', name: 'Black Blazer', price: 89, image: 'https://images.unsplash.com/photo-1503342217505-b0a15cf70489?q=80&auto=format&fit=crop&w=200', suggestedBy: '@alex' },
-              { id: 's4', name: 'Red Dress', price: 79, image: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?q=80&auto=format&fit=crop&w=200', suggestedBy: '@emma' },
-              { id: 's5', name: 'Green Jacket', price: 95, image: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?q=80&auto=format&fit=crop&w=200', suggestedBy: '@david' }
-            ].map((suggestion, index) => (
-              <Pressable 
-                key={suggestion.id} 
-                onPress={() => {
-                  // Navigate to product or item
-                  console.log('Thumbnail clicked:', suggestion);
-                  // TODO: Navigate to product detail or search for similar items
-                  Alert.alert('Product', `Viewing ${suggestion.name}`);
-                }}
-                style={{ width: 80, height: 80, marginRight: 8, position: 'relative' }}
-              >
-                <Image 
-                  source={{ uri: suggestion.image }} 
-                  style={{ width: 80, height: 80, borderRadius: 8 }}
-                  resizeMode="cover"
-                />
-                {/* Suggested by overlay */}
-                <View style={{ 
-                  position: 'absolute', 
-                  top: 4, 
-                  left: 4, 
-                  backgroundColor: 'rgba(0,0,0,0.7)', 
-                  paddingHorizontal: 6, 
-                  paddingVertical: 2, 
-                  borderRadius: 4 
-                }}>
-                  <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>
-                    {suggestion.suggestedBy}
-                  </Text>
-                </View>
-              </Pressable>
-            ))}
+              { id: 's1', name: 'White Shirt', price: 29, image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&auto=format&fit=crop&w=200', suggestedBy: '@sarah', matchUri: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&auto=format&fit=crop&w=1200' },
+              { id: 's2', name: 'Blue Jeans', price: 49, image: 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&auto=format&fit=crop&w=200', suggestedBy: '@mike', matchUri: 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&auto=format&fit=crop&w=1200' },
+              { id: 's3', name: 'Black Blazer', price: 89, image: 'https://images.unsplash.com/photo-1503342217505-b0a15cf70489?q=80&auto=format&fit=crop&w=200', suggestedBy: '@alex', matchUri: 'https://images.unsplash.com/photo-1503342217505-b0a15cf70489?q=80&auto=format&fit=crop&w=1200' },
+              { id: 's4', name: 'Red Dress', price: 79, image: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?q=80&auto=format&fit=crop&w=200', suggestedBy: '@emma', matchUri: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?q=80&auto=format&fit=crop&w=1200' },
+              { id: 's5', name: 'Green Jacket', price: 95, image: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?q=80&auto=format&fit=crop&w=200', suggestedBy: '@david', matchUri: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?q=80&auto=format&fit=crop&w=1200' }
+            ].map((suggestion, index) => {
+              // Find matching item in exploreItems by image URI
+              const matchingIndex = exploreItems.findIndex(item => {
+                // Try to match by URI similarity or use index as fallback
+                return item.uri.includes(suggestion.matchUri.split('/').pop()?.split('?')[0]) || 
+                       item.uri === suggestion.matchUri ||
+                       (index < exploreItems.length && exploreItems[index].uri === suggestion.matchUri);
+              });
+              const targetIndex = matchingIndex >= 0 ? matchingIndex : index;
+              
+              return (
+                <Pressable 
+                  key={suggestion.id} 
+                  onPress={() => {
+                    // Set currentIndex to show the matching explore item
+                    setCurrentIndex(targetIndex);
+                  }}
+                  style={{ width: 80, height: 80, marginRight: 8, position: 'relative' }}
+                >
+                  <Image 
+                    source={{ uri: suggestion.image }} 
+                    style={{ width: 80, height: 80, borderRadius: 8 }}
+                    resizeMode="cover"
+                  />
+                  {/* Suggested by overlay */}
+                  <View style={{ 
+                    position: 'absolute', 
+                    top: 4, 
+                    left: 4, 
+                    backgroundColor: 'rgba(0,0,0,0.7)', 
+                    paddingHorizontal: 6, 
+                    paddingVertical: 2, 
+                    borderRadius: 4 
+                  }}>
+                    <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>
+                      {suggestion.suggestedBy}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
           </ScrollView>
           
           {/* Dots indicator */}
