@@ -24,10 +24,14 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   // Bottom bar height calculation
   // BottomBar structure: SafeAreaView (adds insets.bottom) > View (paddingTop:5, paddingBottom:2) > inner View (paddingVertical:5) > buttons (paddingVertical:8)
   // Total content height: 5 + 2 + 5*2 + 8*2 = 33px
-  // Total rendered height: 33px + insets.bottom (from SafeAreaView)
-  // Since BottomBar uses SafeAreaView with edges={['bottom']}, we need to position input at: content height + safe area
-  const BOTTOM_BAR_CONTENT_HEIGHT = 33; // Content height only
-  const BOTTOM_BAR_TOTAL_HEIGHT = BOTTOM_BAR_CONTENT_HEIGHT + insets.bottom; // Content + safe area
+  // BottomBar is rendered inside Shell's SafeAreaView (edges=['top', 'left', 'right'] only)
+  // BottomBar's SafeAreaView (edges=['bottom']) adds insets.bottom padding BELOW the content
+  // So the BottomBar content starts at BOTTOM_BAR_CONTENT_HEIGHT from Shell's bottom
+  // The input bar should be positioned at BOTTOM_BAR_CONTENT_HEIGHT (not + insets.bottom) because:
+  // - Shell's SafeAreaView doesn't add bottom safe area
+  // - BottomBar's SafeAreaView adds bottom safe area BELOW its content (not above)
+  const BOTTOM_BAR_CONTENT_HEIGHT = 33; // Content height only - this is where BottomBar content starts
+  const BOTTOM_BAR_TOTAL_HEIGHT = BOTTOM_BAR_CONTENT_HEIGHT; // Position input at content height (safe area is below, not above)
   const INPUT_BAR_ROW_HEIGHT = 36; // Height of the inner row (input elements)
   const INPUT_BAR_PADDING_TOP = 8; // Top padding for border
   const INPUT_BAR_PADDING_BOTTOM = 8; // Bottom padding when keyboard is down
@@ -454,7 +458,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             contentContainerStyle={{ 
               paddingHorizontal: Spacing.lg,
               paddingTop: Spacing.md,
-              paddingBottom: INPUT_BAR_TOTAL_HEIGHT + BOTTOM_BAR_TOTAL_HEIGHT // Input bar total height + bottom bar total (content + safe area)
+              paddingBottom: INPUT_BAR_TOTAL_HEIGHT + BOTTOM_BAR_CONTENT_HEIGHT // Input bar total height + bottom bar content height
             }}
             onContentSizeChange={() => {
               if (chatScrollRef.current && !showResults) {
