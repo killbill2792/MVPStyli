@@ -729,6 +729,7 @@ function Shop() {
             flexDirection: 'row',
             alignItems: 'center',
             paddingHorizontal: Spacing.md,
+            height: 44, // Match filter button height
           }}>
             <Text style={{ fontSize: 18, marginRight: Spacing.sm }}>🔍</Text>
             <TextInput
@@ -739,7 +740,8 @@ function Shop() {
               style={{ 
                 flex: 1, 
                 ...InputStyles.text,
-                paddingVertical: Spacing.sm
+                paddingVertical: 0,
+                height: '100%',
               }}
             />
           </View>
@@ -748,13 +750,12 @@ function Shop() {
           <Pressable
             onPress={() => setShowFilters(!showFilters)}
             style={{
-              paddingHorizontal: Spacing.md,
-              paddingVertical: Spacing.sm,
+              width: 44,
+              height: 44,
               borderRadius: BorderRadius.md,
               backgroundColor: showFilters ? Colors.primary : Colors.backgroundSecondary,
               borderWidth: 1,
               borderColor: showFilters ? Colors.primary : Colors.border,
-              minWidth: 50,
               alignItems: 'center',
               justifyContent: 'center',
             }}
@@ -2326,12 +2327,14 @@ function Explore() {
                 onPress={() => {
                   // Navigate to product or item
                   console.log('Thumbnail clicked:', suggestion);
+                  // TODO: Navigate to product detail or search for similar items
+                  Alert.alert('Product', `Viewing ${suggestion.name}`);
                 }}
-                style={{ width: 80, marginRight: 8, position: 'relative' }}
+                style={{ width: 80, height: 80, marginRight: 8, position: 'relative' }}
               >
                 <Image 
                   source={{ uri: suggestion.image }} 
-                  style={{ width: '100%', height: '100%', borderRadius: 8 }}
+                  style={{ width: 80, height: 80, borderRadius: 8 }}
                   resizeMode="cover"
                 />
                 {/* Suggested by overlay */}

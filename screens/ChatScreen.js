@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, Image, KeyboardAvoidingView, Platform, Dimensions, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { Colors, Typography, Spacing, BorderRadius, InputStyles, TextStyles, createButtonStyle, getButtonTextStyle } from '../lib/designSystem';
+import { Colors, Typography, Spacing, BorderRadius, InputStyles, TextStyles, createButtonStyle, getButtonTextStyle, getColors } from '../lib/designSystem';
 import { isUrl, importProductFromUrl, searchWebProducts, normalizeProduct } from '../lib/productSearch';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -286,131 +286,132 @@ export default function ChatScreen({ onBack, onProductSelect }) {
 
   const currentProduct = searchResults[selectedProductIndex];
   const thumbnailHeight = 70;
+  const dynamicColors = getColors(); // Get dynamic colors for send button
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={['top']}>
+    <View style={{ flex: 1, backgroundColor: Colors.background, paddingTop: insets.top }}>
       <KeyboardAvoidingView 
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-      {showResults && searchResults.length > 0 ? (
-        /* Explore-style Product View */
-        <View style={{ flex: 1, position: 'relative' }}>
-          <Pressable 
+        {showResults && searchResults.length > 0 ? (
+          /* Explore-style Product View */
+          <View style={{ flex: 1, position: 'relative' }}>
+            <Pressable 
             onPress={() => handleProductPress(currentProduct)}
-            style={{ 
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 80 + thumbnailHeight,
-            }}
-          >
-            <Image 
-              source={{ uri: currentProduct.image }} 
               style={{ 
-                width: '100%', 
-                height: '100%',
-                backgroundColor: Colors.backgroundSecondary
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+              bottom: 80 + thumbnailHeight,
               }}
-              resizeMode="contain"
-            />
-            
-            <View style={{
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              right: 0,
-              backgroundColor: 'rgba(0,0,0,0.85)',
-              padding: Spacing.md,
-              paddingBottom: Spacing.sm,
-              maxHeight: 130
-            }}>
-              <Text 
-                style={{ ...TextStyles.h3, color: Colors.textWhite, marginBottom: Spacing.xs }}
-                numberOfLines={1}
-              >
-                {currentProduct.name}
-              </Text>
-              <Text style={{ ...TextStyles.body, color: Colors.textWhite, marginBottom: Spacing.xs }}>
-                {currentProduct.brand} • ${currentProduct.price}
-              </Text>
-              {currentProduct.rating && (
-                <Text style={{ ...TextStyles.caption, color: Colors.textWhite }}>
-                  ⭐ {currentProduct.rating}
-                </Text>
-              )}
-              <Pressable 
-                onPress={() => handleProductPress(currentProduct)}
-                style={{
-                  marginTop: Spacing.sm,
-                  backgroundColor: Colors.primary,
-                  padding: Spacing.sm,
-                  borderRadius: BorderRadius.md,
-                  alignItems: 'center'
-                }}
-              >
-                <Text style={{ ...TextStyles.body, color: Colors.textWhite, fontWeight: Typography.semibold, fontSize: Typography.sm }}>
-                  View Details →
-                </Text>
-              </Pressable>
-            </View>
-          </Pressable>
-
-          <View style={{
-            position: 'absolute',
-            bottom: BOTTOM_BAR_CONTENT_HEIGHT + insets.bottom,
-            left: 0,
-            right: 0,
-            backgroundColor: 'rgba(0,0,0,0.95)',
-            paddingTop: Spacing.xs,
-            paddingBottom: Spacing.xs,
-            borderTopWidth: 1,
-            borderTopColor: Colors.border,
-            height: thumbnailHeight
-          }}>
-            <Text style={{ 
-              ...TextStyles.small, 
-              color: Colors.textWhite, 
-              marginLeft: Spacing.md, 
-              marginBottom: Spacing.xs,
-              fontWeight: Typography.semibold,
-              fontSize: Typography.xs
-            }}>
-              {searchResults.length} Result{searchResults.length > 1 ? 's' : ''}
-            </Text>
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: Spacing.md }}
             >
-              {searchResults.map((product, index) => (
-                <Pressable
-                  key={product.id || index}
-                  onPress={() => setSelectedProductIndex(index)}
+              <Image 
+                source={{ uri: currentProduct.image }} 
+                style={{ 
+                  width: '100%', 
+                  height: '100%',
+                  backgroundColor: Colors.backgroundSecondary
+                }}
+              resizeMode="contain"
+              />
+              
+              <View style={{
+                position: 'absolute',
+              bottom: 0,
+                left: 0,
+                right: 0,
+                backgroundColor: 'rgba(0,0,0,0.85)',
+                padding: Spacing.md,
+                paddingBottom: Spacing.sm,
+              maxHeight: 130
+              }}>
+                <Text 
+                  style={{ ...TextStyles.h3, color: Colors.textWhite, marginBottom: Spacing.xs }}
+                  numberOfLines={1}
+                >
+                  {currentProduct.name}
+                </Text>
+                <Text style={{ ...TextStyles.body, color: Colors.textWhite, marginBottom: Spacing.xs }}>
+                  {currentProduct.brand} • ${currentProduct.price}
+                </Text>
+                {currentProduct.rating && (
+                  <Text style={{ ...TextStyles.caption, color: Colors.textWhite }}>
+                    ⭐ {currentProduct.rating}
+                  </Text>
+                )}
+                <Pressable 
+                  onPress={() => handleProductPress(currentProduct)}
                   style={{
-                    width: 50,
-                    height: 50,
-                    marginRight: Spacing.xs,
-                    borderRadius: BorderRadius.sm,
-                    overflow: 'hidden',
-                    borderWidth: 2,
-                    borderColor: index === selectedProductIndex ? Colors.primary : 'rgba(255,255,255,0.3)'
+                    marginTop: Spacing.sm,
+                    backgroundColor: Colors.primary,
+                    padding: Spacing.sm,
+                    borderRadius: BorderRadius.md,
+                    alignItems: 'center'
                   }}
                 >
-                  <Image 
-                    source={{ uri: product.image }} 
-                    style={{ width: '100%', height: '100%' }}
-                    resizeMode="cover"
-                  />
+                  <Text style={{ ...TextStyles.body, color: Colors.textWhite, fontWeight: Typography.semibold, fontSize: Typography.sm }}>
+                    View Details →
+                  </Text>
                 </Pressable>
-              ))}
-            </ScrollView>
+              </View>
+            </Pressable>
+
+            <View style={{
+              position: 'absolute',
+            bottom: BOTTOM_BAR_CONTENT_HEIGHT + insets.bottom,
+              left: 0,
+              right: 0,
+              backgroundColor: 'rgba(0,0,0,0.95)',
+              paddingTop: Spacing.xs,
+              paddingBottom: Spacing.xs,
+              borderTopWidth: 1,
+              borderTopColor: Colors.border,
+              height: thumbnailHeight
+            }}>
+              <Text style={{ 
+                ...TextStyles.small, 
+                color: Colors.textWhite, 
+                marginLeft: Spacing.md, 
+                marginBottom: Spacing.xs,
+                fontWeight: Typography.semibold,
+                fontSize: Typography.xs
+              }}>
+                {searchResults.length} Result{searchResults.length > 1 ? 's' : ''}
+              </Text>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: Spacing.md }}
+              >
+                {searchResults.map((product, index) => (
+                  <Pressable
+                    key={product.id || index}
+                  onPress={() => setSelectedProductIndex(index)}
+                    style={{
+                      width: 50,
+                      height: 50,
+                      marginRight: Spacing.xs,
+                      borderRadius: BorderRadius.sm,
+                      overflow: 'hidden',
+                      borderWidth: 2,
+                      borderColor: index === selectedProductIndex ? Colors.primary : 'rgba(255,255,255,0.3)'
+                    }}
+                  >
+                    <Image 
+                      source={{ uri: product.image }} 
+                      style={{ width: '100%', height: '100%' }}
+                      resizeMode="cover"
+                    />
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
           </View>
-        </View>
-      ) : (
-        /* Chat Messages */
+        ) : (
+          /* Chat Messages */
         <>
           <ScrollView 
             ref={chatScrollRef}
@@ -565,21 +566,29 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               <Pressable 
                 onPress={handleSearchSubmit}
                 disabled={isSearching || (!searchQuery.trim() && !uploadedImage)}
-                style={[createButtonStyle('primary', isSearching || (!searchQuery.trim() && !uploadedImage)), { 
+                style={{ 
+                  backgroundColor: (isSearching || (!searchQuery.trim() && !uploadedImage)) ? Colors.backgroundSecondary : dynamicColors.primary,
                   paddingHorizontal: Spacing.md, 
                   paddingVertical: Spacing.xs,
                   minHeight: 36,
-                }]}
+                  borderRadius: BorderRadius.md,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
               >
-                <Text style={[getButtonTextStyle('primary'), { fontSize: Typography.sm }]}>
+                <Text style={{ 
+                  color: (isSearching || (!searchQuery.trim() && !uploadedImage)) ? Colors.textSecondary : Colors.textWhite,
+                  fontSize: Typography.sm,
+                  fontWeight: Typography.semibold,
+                }}>
                   {isSearching ? '...' : 'Send'}
                 </Text>
               </Pressable>
             </View>
           </View>
         </>
-      )}
+        )}
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
