@@ -530,9 +530,11 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           {/* Input Bar - Fixed at bottom, flush above nav bar or keyboard */}
           <View style={{ 
             position: 'absolute',
-            // When keyboard is up: position so input row sits flush with keyboard (account for paddingTop)
+            // When keyboard is up: position so input row sits flush with keyboard top
+            // Input row is INPUT_BAR_ROW_HEIGHT (36px) up from container bottom
+            // So container bottom = keyboardHeight - INPUT_BAR_ROW_HEIGHT
             // When keyboard is down: position flush with BottomBar (no gap)
-            bottom: keyboardHeight > 0 ? (keyboardHeight - INPUT_BAR_PADDING_TOP) : (BOTTOM_BAR_CONTENT_HEIGHT - 1), // -1 to account for borderTopWidth overlap
+            bottom: keyboardHeight > 0 ? (keyboardHeight - INPUT_BAR_ROW_HEIGHT) : (BOTTOM_BAR_CONTENT_HEIGHT - 1), // -1 to account for borderTopWidth overlap
             left: 0,
             right: 0,
             paddingHorizontal: Spacing.lg,
