@@ -27,7 +27,8 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   // Total rendered height: 33px + insets.bottom (from SafeAreaView)
   // Since BottomBar uses SafeAreaView with edges={['bottom']}, we need to position input at: content height + safe area
   const BOTTOM_BAR_CONTENT_HEIGHT = 33; // Content height only
-  const INPUT_BAR_HEIGHT = 50; // Actual input bar height (reduced from 56)
+  const BOTTOM_BAR_TOTAL_HEIGHT = BOTTOM_BAR_CONTENT_HEIGHT + insets.bottom; // Content + safe area
+  const INPUT_BAR_HEIGHT = 52; // paddingTop(8) + row height(36) + paddingBottom(8) = 52px // Actual input bar height (reduced from 56)
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
@@ -455,7 +456,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             contentContainerStyle={{ 
               paddingHorizontal: Spacing.lg,
               paddingTop: Spacing.md,
-              paddingBottom: 60 + BOTTOM_BAR_CONTENT_HEIGHT // Input bar height (~50px) + bottom bar content (33px)
+              paddingBottom: INPUT_BAR_HEIGHT + BOTTOM_BAR_TOTAL_HEIGHT // Input bar height + bottom bar total (content + safe area)
             }}
             onContentSizeChange={() => {
               if (chatScrollRef.current && !showResults) {
@@ -528,11 +529,11 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           {/* Input Bar - Fixed at bottom, flush above nav bar or keyboard */}
           <View style={{ 
             position: 'absolute',
-            bottom: keyboardHeight > 0 ? keyboardHeight : BOTTOM_BAR_CONTENT_HEIGHT,
+            bottom: keyboardHeight > 0 ? keyboardHeight : BOTTOM_BAR_TOTAL_HEIGHT, // Use total height (content + safe area) when keyboard is down
             left: 0,
             right: 0,
             paddingHorizontal: Spacing.lg,
-            paddingTop: keyboardHeight > 0 ? 8 : 8, // Top padding for border spacing
+            paddingTop: 8, // Top padding for border spacing
             paddingBottom: keyboardHeight > 0 ? 0 : 8, // No bottom padding when keyboard is up (flush with keyboard)
             borderTopWidth: 1,
             borderTopColor: Colors.border,
