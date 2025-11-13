@@ -1383,7 +1383,8 @@ function Product() {
         <Pressable onPress={() => setRoute('shop')} style={{ marginTop: 16, alignItems: 'center' }}>
           <Text style={{ color: '#a1a1aa', fontSize: 14 }}>← Back to shop</Text>
         </Pressable>
-      </ScrollView>
+        </ScrollView>
+      </View>
     </View>
   );
 }
