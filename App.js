@@ -2166,7 +2166,20 @@ function Explore() {
           }
         }}
       >
-        <Image source={{ uri: currentItem.uri }} resizeMode="cover" style={{ width: '100%', height: '100%', borderRadius: 24 }} />
+        <Image 
+          source={{ uri: currentItem.uri }} 
+          resizeMode="cover" 
+          style={{ 
+            width: '100%', 
+            height: '100%', 
+            borderRadius: 24,
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: BOTTOM_BAR_HEIGHT + 80, // Extend to just above bottom nav bar + thumbnails
+          }} 
+        />
         
         {/* Top overlay with user info and type indicator */}
         <View style={{ position: 'absolute', left: 12, top: 12, right: 12 }}>
@@ -2325,20 +2338,15 @@ function Explore() {
               { id: 's4', name: 'Red Dress', price: 79, image: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?q=80&auto=format&fit=crop&w=200', suggestedBy: '@emma', matchUri: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?q=80&auto=format&fit=crop&w=1200' },
               { id: 's5', name: 'Green Jacket', price: 95, image: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?q=80&auto=format&fit=crop&w=200', suggestedBy: '@david', matchUri: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?q=80&auto=format&fit=crop&w=1200' }
             ].map((suggestion, index) => {
-              // Find matching item in exploreItems by image URI
-              const matchingIndex = exploreItems.findIndex(item => {
-                // Try to match by URI similarity or use index as fallback
-                return item.uri.includes(suggestion.matchUri.split('/').pop()?.split('?')[0]) || 
-                       item.uri === suggestion.matchUri ||
-                       (index < exploreItems.length && exploreItems[index].uri === suggestion.matchUri);
-              });
-              const targetIndex = matchingIndex >= 0 ? matchingIndex : index;
+              // Map thumbnail to exploreItems - use first 5 items from exploreItems
+              // Since we have 5 thumbnails and 30 exploreItems, map to first 5
+              const targetIndex = index < exploreItems.length ? index : 0;
               
               return (
                 <Pressable 
                   key={suggestion.id} 
                   onPress={() => {
-                    // Set currentIndex to show the matching explore item
+                    // Set currentIndex to show the corresponding explore item
                     setCurrentIndex(targetIndex);
                   }}
                   style={{ width: 80, height: 80, marginRight: 8, position: 'relative' }}
