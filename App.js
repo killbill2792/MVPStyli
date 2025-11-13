@@ -2177,7 +2177,7 @@ function Explore() {
             top: 0,
             left: 0,
             right: 0,
-            bottom: BOTTOM_BAR_HEIGHT + 80, // Extend to just above bottom nav bar + thumbnails
+            bottom: BOTTOM_BAR_HEIGHT, // Extend to just above bottom nav bar (AI button floats above)
           }} 
         />
         

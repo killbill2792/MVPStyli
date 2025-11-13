@@ -324,9 +324,9 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   }, [primaryColor]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: Colors.background, paddingTop: insets.top }}>
+    <View style={{ flex: 1, backgroundColor: Colors.background }}>
       <KeyboardAvoidingView 
-        style={{ flex: 1 }} 
+        style={{ flex: 1, paddingTop: insets.top }} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
@@ -454,7 +454,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             contentContainerStyle={{ 
               paddingHorizontal: Spacing.lg,
               paddingTop: Spacing.md,
-              paddingBottom: INPUT_BAR_HEIGHT + BOTTOM_BAR_CONTENT_HEIGHT + insets.bottom
+              paddingBottom: 60 + BOTTOM_BAR_CONTENT_HEIGHT + insets.bottom // Input bar height (~50px) + spacing
             }}
             onContentSizeChange={() => {
               if (chatScrollRef.current && !showResults) {
@@ -531,8 +531,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             left: 0,
             right: 0,
             paddingHorizontal: Spacing.lg,
-            paddingTop: 0,
-            paddingBottom: 0,
+            paddingVertical: Spacing.xs,
             borderTopWidth: 1,
             borderTopColor: Colors.border,
             backgroundColor: Colors.background,
@@ -541,7 +540,6 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               flexDirection: 'row', 
               gap: Spacing.xs, 
               alignItems: 'center',
-              paddingVertical: Spacing.xs,
             }}>
               {uploadedImage ? (
                 <Pressable
