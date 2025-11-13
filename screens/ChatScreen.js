@@ -406,26 +406,32 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               left: 0,
               right: 0,
               backgroundColor: 'rgba(0,0,0,0.95)',
-              paddingTop: Spacing.xs,
-              paddingBottom: Spacing.xs,
+              paddingTop: 0, // No padding - thumbnails need full space
+              paddingBottom: 0, // No padding - thumbnails need full space
               borderTopWidth: 1,
               borderTopColor: Colors.border,
               height: thumbnailHeight
             }}>
-              <Text style={{ 
-                ...TextStyles.small, 
-                color: Colors.textWhite, 
-                marginLeft: Spacing.md, 
-                marginBottom: Spacing.xs,
-                fontWeight: Typography.semibold,
-                fontSize: Typography.xs
+              <View style={{ 
+                paddingHorizontal: Spacing.md,
+                paddingTop: Spacing.xs,
+                paddingBottom: Spacing.xs,
               }}>
-                {searchResults.length} Result{searchResults.length > 1 ? 's' : ''}
-              </Text>
+                <Text style={{ 
+                  ...TextStyles.small, 
+                  color: Colors.textWhite, 
+                  marginBottom: Spacing.xs,
+                  fontWeight: Typography.semibold,
+                  fontSize: Typography.xs
+                }}>
+                  {searchResults.length} Result{searchResults.length > 1 ? 's' : ''}
+                </Text>
+              </View>
               <ScrollView 
                 horizontal 
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingHorizontal: Spacing.md }}
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingHorizontal: Spacing.md, paddingBottom: Spacing.xs }}
               >
                 {searchResults.map((product, index) => (
                   <Pressable
@@ -534,11 +540,11 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           <View style={{ 
             position: 'absolute',
             // When keyboard is up: input row bottom should be at keyboard top
+            // Container has paddingTop: 8px, so input row is 8px below container top
             // Input row bottom = container bottom (paddingBottom: 0)
-            // So container bottom = keyboardHeight
-            // When keyboard is down: input row bottom should be at BottomBar top
-            // So container bottom = BOTTOM_BAR_CONTENT_HEIGHT
-            bottom: keyboardHeight > 0 ? keyboardHeight : BOTTOM_BAR_CONTENT_HEIGHT,
+            // To align row bottom with keyboard top: container bottom = keyboardHeight + INPUT_BAR_PADDING_TOP
+            // When keyboard is down: container bottom = BOTTOM_BAR_CONTENT_HEIGHT + INPUT_BAR_PADDING_TOP
+            bottom: keyboardHeight > 0 ? (keyboardHeight + INPUT_BAR_PADDING_TOP) : (BOTTOM_BAR_CONTENT_HEIGHT + INPUT_BAR_PADDING_TOP),
             left: 0,
             right: 0,
             paddingHorizontal: Spacing.lg,
