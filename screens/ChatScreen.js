@@ -541,7 +541,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               flexDirection: 'row', 
               gap: Spacing.xs, 
               alignItems: 'center',
-              height: 36, // Fixed height to match input elements
+              height: INPUT_BAR_ROW_HEIGHT, // Use constant for consistency
             }}>
               {uploadedImage ? (
                 <Pressable
