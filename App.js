@@ -879,42 +879,84 @@ function Shop() {
           contentContainerStyle={{ gap: Spacing.sm }}
         >
           {[
-            { city: 'NY', label: 'Trends in NYC', emoji: '🗽', color: '#3b82f6' },
-            { city: 'Tokyo', label: 'Trends in Tokyo', emoji: '🌸', color: '#ec4899' },
-            { city: 'LA', label: 'Trends in LA', emoji: '🌴', color: '#f59e0b' },
-            { city: 'Paris', label: 'Trends in Paris', emoji: '🗼', color: '#8b5cf6' },
-            { city: 'London', label: 'Trends in London', emoji: '🇬🇧', color: '#06b6d4' },
-            { city: 'Seoul', label: 'Trends in Seoul', emoji: '🇰🇷', color: '#ef4444' },
+            { city: 'NY', label: 'NYC', fullLabel: 'Trends in NYC', emoji: '🗽', gradient: ['#1e3a8a', '#3b82f6', '#60a5fa'] },
+            { city: 'Tokyo', label: 'Tokyo', fullLabel: 'Trends in Tokyo', emoji: '🌸', gradient: ['#be185d', '#ec4899', '#f472b6'] },
+            { city: 'LA', label: 'LA', fullLabel: 'Trends in LA', emoji: '🌴', gradient: ['#92400e', '#f59e0b', '#fbbf24'] },
+            { city: 'Paris', label: 'Paris', fullLabel: 'Trends in Paris', emoji: '🗼', gradient: ['#6b21a8', '#8b5cf6', '#a78bfa'] },
+            { city: 'London', label: 'London', fullLabel: 'Trends in London', emoji: '🇬🇧', gradient: ['#0e7490', '#06b6d4', '#22d3ee'] },
+            { city: 'Seoul', label: 'Seoul', fullLabel: 'Trends in Seoul', emoji: '🇰🇷', gradient: ['#991b1b', '#ef4444', '#f87171'] },
           ].map((trend, index) => (
             <Pressable
               key={index}
-              onPress={() => {
-                // Filter products by trend (mock implementation)
-                setSearchQuery(trend.city);
+              onPress={async () => {
+                // Search for trend products using AI
+                setIsSearching(true);
+                try {
+                  const { searchWebProducts } = await import('./lib/productSearch');
+                  const results = await searchWebProducts(`fashion trends ${trend.city} ${trend.fullLabel}`);
+                  // Show results in shop layout (limit to 10)
+                  const limitedResults = results.slice(0, 10).map(p => ({
+                    ...p,
+                    id: p.id || `trend-${trend.city}-${Date.now()}-${Math.random()}`,
+                    name: p.title || p.name || 'Trend Product',
+                    image: p.imageUrl || p.image || 'https://via.placeholder.com/400',
+                    kind: 'web',
+                  }));
+                  // Store in state and show in shop grid
+                  setAllProducts([...limitedResults, ...allProducts]);
+                  setSearchQuery(trend.fullLabel);
+                  setSelectedCategory('all');
+                } catch (error) {
+                  console.error('Trend search error:', error);
+                  // Fallback: just filter by city name
+                  setSearchQuery(trend.city);
+                } finally {
+                  setIsSearching(false);
+                }
               }}
               style={{
                 width: 140, // 50% of shop card width (280px)
                 height: 100, // 50% of shop card height (200px)
                 borderRadius: BorderRadius.lg,
-                backgroundColor: trend.color,
-                padding: Spacing.md,
-                justifyContent: 'space-between',
-                shadowColor: trend.color,
+                overflow: 'hidden',
                 shadowOffset: { width: 0, height: 4 },
                 shadowOpacity: 0.3,
                 shadowRadius: 8,
                 elevation: 5,
               }}
             >
-              <Text style={{ fontSize: 24 }}>{trend.emoji}</Text>
-              <Text style={{ 
-                color: '#fff', 
-                fontSize: 13, 
-                fontWeight: Typography.semibold,
-                marginTop: 'auto'
+              <View style={{
+                flex: 1,
+                padding: Spacing.md,
+                justifyContent: 'space-between',
+                backgroundColor: trend.gradient[1], // Fallback color
               }}>
-                {trend.label}
-              </Text>
+                <Text style={{ fontSize: 32, marginBottom: 4 }}>{trend.emoji}</Text>
+                <View>
+                  <Text style={{ 
+                    color: '#fff', 
+                    fontSize: 18, 
+                    fontWeight: '800',
+                    letterSpacing: 0.5,
+                    textShadowColor: 'rgba(0,0,0,0.3)',
+                    textShadowOffset: { width: 0, height: 1 },
+                    textShadowRadius: 2,
+                  }}>
+                    {trend.label}
+                  </Text>
+                  <Text style={{ 
+                    color: 'rgba(255,255,255,0.9)', 
+                    fontSize: 11, 
+                    fontWeight: '600',
+                    marginTop: 2,
+                    textShadowColor: 'rgba(0,0,0,0.2)',
+                    textShadowOffset: { width: 0, height: 1 },
+                    textShadowRadius: 1,
+                  }}>
+                    TRENDING
+                  </Text>
+                </View>
+              </View>
             </Pressable>
           ))}
         </ScrollView>

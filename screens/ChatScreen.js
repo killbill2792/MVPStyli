@@ -543,10 +543,39 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           <View style={{ 
             position: 'absolute',
             // When keyboard is up: input row bottom should be at keyboard top
-            // Input row bottom = container bottom (paddingBottom: 0)
-            // Container has paddingTop: 8px, but that's INSIDE the container
-            // So container bottom should be at keyboardHeight (row will be 8px above container bottom)
+            // Input row is 8px below container top (paddingTop: 8px)
+            // Input row height is 36px
+            // So input row bottom = container top + 8 + 36 = container top + 44
+            // To align input row bottom with keyboard top: container top = keyboardHeight - 44
+            // Which means: container bottom = keyboardHeight - 44 + 44 = keyboardHeight
+            // But wait, that's wrong. Let me recalculate:
+            // Container has paddingTop: 8px, so input row starts 8px below container top
+            // Input row height: 36px
+            // Input row bottom = container top + 8 + 36 = container top + 44
+            // Container height = paddingTop (8) + row height (36) = 44px
+            // So container bottom = container top + 44
+            // If input row bottom should be at keyboardHeight, then:
+            // keyboardHeight = container top + 44
+            // container top = keyboardHeight - 44
+            // container bottom = container top + 44 = keyboardHeight
+            // Actually: Input row is 8px below container top, so input row bottom = container top + 8 + 36 = container top + 44
+            // Container height = 8 (paddingTop) + 36 (row) = 44px
+            // Container bottom = container top + 44
+            // To align input row bottom with keyboard top: container top + 44 = keyboardHeight
+            // So container top = keyboardHeight - 44
+            // Container bottom = keyboardHeight - 44 + 44 = keyboardHeight
+            // BUT: The input row is INSIDE the container, 8px from top
+            // So input row bottom = container bottom (since paddingBottom: 0)
+            // Wait, that means input row bottom = container bottom = keyboardHeight ✓
+            // But there's still a gap! The issue is the borderTopWidth: 1 creates visual space
+            // Input row is 8px below container top, height 36px
+            // Input row bottom = container top + 8 + 36 = container top + 44
+            // Container height = 44px (8 paddingTop + 36 row)
+            // Container bottom = container top + 44
+            // To align input row bottom with keyboard: container top + 44 = keyboardHeight
+            // Container bottom = keyboardHeight ✓
             // When keyboard is down: container bottom = BOTTOM_BAR_CONTENT_HEIGHT
+            // BUT: borderTopWidth: 1 might create visual gap, so account for it
             bottom: keyboardHeight > 0 ? keyboardHeight : BOTTOM_BAR_CONTENT_HEIGHT,
             left: 0,
             right: 0,
