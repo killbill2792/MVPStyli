@@ -82,7 +82,7 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
     setTimeout(() => {
       setIsProcessing(false);
       
-      // Generate mock vendor quotes
+      // Generate mock vendor quotes with comments
       const mockQuotes = [
         {
           id: '1',
@@ -92,7 +92,8 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
           price: Math.floor((minBudget + maxBudget) / 2 * 0.8),
           shipping: 15,
           refImage: 'https://images.unsplash.com/photo-1586790170083-2f9ceadc732d?w=400',
-          deliveryTime: '2-3 weeks'
+          deliveryTime: '2-3 weeks',
+          comments: 'We specialize in custom designs with premium cotton. Our team has 15+ years of experience and we offer free revisions. The design will be tailored to your exact measurements.'
         },
         {
           id: '2',
@@ -102,7 +103,8 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
           price: Math.floor((minBudget + maxBudget) / 2 * 0.9),
           shipping: 20,
           refImage: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400',
-          deliveryTime: '3-4 weeks'
+          deliveryTime: '3-4 weeks',
+          comments: 'Our silk blend fabric is perfect for elegant designs. We provide detailed progress updates and can accommodate material changes. Quality guaranteed with 30-day return policy.'
         },
         {
           id: '3',
@@ -112,7 +114,8 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
           price: Math.floor((minBudget + maxBudget) / 2 * 1.1),
           shipping: 25,
           refImage: 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=400',
-          deliveryTime: '4-5 weeks'
+          deliveryTime: '4-5 weeks',
+          comments: 'Premium luxury fabrics with handcrafted details. We work with top designers and offer unlimited revisions. Perfect for special occasions. Express delivery available.'
         }
       ];
       
@@ -190,7 +193,8 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
                             price: Math.floor((minBudget + maxBudget) / 2 * 0.8),
                             shipping: 15,
                             refImage: enquiry.image || 'https://images.unsplash.com/photo-1586790170083-2f9ceadc732d?w=400',
-                            deliveryTime: '2-3 weeks'
+                            deliveryTime: '2-3 weeks',
+                            comments: 'We specialize in custom designs with premium cotton. Our team has 15+ years of experience and we offer free revisions. The design will be tailored to your exact measurements.'
                           },
                           {
                             id: '2',
@@ -200,7 +204,8 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
                             price: Math.floor((minBudget + maxBudget) / 2 * 0.9),
                             shipping: 20,
                             refImage: enquiry.image || 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400',
-                            deliveryTime: '3-4 weeks'
+                            deliveryTime: '3-4 weeks',
+                            comments: 'Our silk blend fabric is perfect for elegant designs. We provide detailed progress updates and can accommodate material changes. Quality guaranteed with 30-day return policy.'
                           },
                           {
                             id: '3',
@@ -210,7 +215,8 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
                             price: Math.floor((minBudget + maxBudget) / 2 * 1.1),
                             shipping: 25,
                             refImage: enquiry.image || 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=400',
-                            deliveryTime: '4-5 weeks'
+                            deliveryTime: '4-5 weeks',
+                            comments: 'Premium luxury fabrics with handcrafted details. We work with top designers and offer unlimited revisions. Perfect for special occasions. Express delivery available.'
                           }
                         ];
                         setQuotes(mockQuotes);
