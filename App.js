@@ -880,12 +880,12 @@ function Shop() {
           contentContainerStyle={{ gap: Spacing.sm }}
         >
           {[
-            { city: 'NY', label: 'NYC', fullLabel: 'Trends in NYC', emoji: '🗽', gradient: ['#1e3a8a', '#3b82f6', '#60a5fa'] },
-            { city: 'Tokyo', label: 'Tokyo', fullLabel: 'Trends in Tokyo', emoji: '🌸', gradient: ['#be185d', '#ec4899', '#f472b6'] },
-            { city: 'LA', label: 'LA', fullLabel: 'Trends in LA', emoji: '🌴', gradient: ['#92400e', '#f59e0b', '#fbbf24'] },
-            { city: 'Paris', label: 'Paris', fullLabel: 'Trends in Paris', emoji: '🗼', gradient: ['#6b21a8', '#8b5cf6', '#a78bfa'] },
-            { city: 'London', label: 'London', fullLabel: 'Trends in London', emoji: '🇬🇧', gradient: ['#0e7490', '#06b6d4', '#22d3ee'] },
-            { city: 'Seoul', label: 'Seoul', fullLabel: 'Trends in Seoul', emoji: '🇰🇷', gradient: ['#991b1b', '#ef4444', '#f87171'] },
+            { city: 'NY', label: 'NYC', fullLabel: 'Trends in NYC', emoji: '🗽', image: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=400' },
+            { city: 'Tokyo', label: 'Tokyo', fullLabel: 'Trends in Tokyo', emoji: '🌸', image: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=400' },
+            { city: 'LA', label: 'LA', fullLabel: 'Trends in LA', emoji: '🌴', image: 'https://images.unsplash.com/photo-1515895306158-439f1e15b68a?w=400' },
+            { city: 'Paris', label: 'Paris', fullLabel: 'Trends in Paris', emoji: '🗼', image: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=400' },
+            { city: 'London', label: 'London', fullLabel: 'Trends in London', emoji: '🇬🇧', image: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=400' },
+            { city: 'Seoul', label: 'Seoul', fullLabel: 'Trends in Seoul', emoji: '🇰🇷', image: 'https://images.unsplash.com/photo-1570197788417-0e82375c9371?w=400' },
           ].map((trend, index) => (
             <Pressable
               key={index}
@@ -926,16 +926,34 @@ function Shop() {
                 elevation: 5,
               }}
             >
-              <LinearGradient
-                colors={trend.gradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={{
-                  flex: 1,
-                  padding: Spacing.md,
-                  justifyContent: 'space-between',
+              <Image 
+                source={{ uri: trend.image }} 
+                style={{ 
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  width: '100%',
+                  height: '100%',
                 }}
-              >
+                resizeMode="cover"
+              />
+              <View style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0,0,0,0.4)', // Dark overlay for text readability
+              }} />
+              <View style={{
+                flex: 1,
+                padding: Spacing.md,
+                justifyContent: 'space-between',
+                position: 'relative',
+                zIndex: 1,
+              }}>
                 <Text style={{ fontSize: 32, marginBottom: 4 }}>{trend.emoji}</Text>
                 <View>
                   <Text style={{ 
@@ -943,25 +961,25 @@ function Shop() {
                     fontSize: 18, 
                     fontWeight: '800',
                     letterSpacing: 0.5,
-                    textShadowColor: 'rgba(0,0,0,0.3)',
-                    textShadowOffset: { width: 0, height: 1 },
-                    textShadowRadius: 2,
+                    textShadowColor: 'rgba(0,0,0,0.5)',
+                    textShadowOffset: { width: 0, height: 2 },
+                    textShadowRadius: 3,
                   }}>
                     {trend.label}
                   </Text>
                   <Text style={{ 
-                    color: 'rgba(255,255,255,0.9)', 
+                    color: 'rgba(255,255,255,0.95)', 
                     fontSize: 11, 
-                    fontWeight: '600',
+                    fontWeight: '700',
                     marginTop: 2,
-                    textShadowColor: 'rgba(0,0,0,0.2)',
+                    textShadowColor: 'rgba(0,0,0,0.5)',
                     textShadowOffset: { width: 0, height: 1 },
-                    textShadowRadius: 1,
+                    textShadowRadius: 2,
                   }}>
                     TRENDING
                   </Text>
                 </View>
-              </LinearGradient>
+              </View>
             </Pressable>
           ))}
         </ScrollView>

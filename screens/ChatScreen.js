@@ -34,10 +34,22 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   // SafeAreaView (edges=['bottom']) > View (paddingTop:5, paddingBottom:2, borderTopWidth:1) > inner View (paddingVertical:5) > buttons (paddingVertical:8)
   // Total content height: 5 + 2 + 5*2 + 8*2 = 33px
   // BottomBar's top edge (including border) is at 33px from Shell's bottom
+  // CORE FIX: BottomBar is in SafeAreaView with edges=['bottom'], which adds insets.bottom BELOW the content
+  // So the BottomBar's visual top edge is at: content height (33px) from Shell's bottom
+  // But Shell's SafeAreaView has edges=['top', 'left', 'right'] - NO bottom edge
+  // So Shell's bottom = screen bottom (no safe area padding)
+  // BottomBar content top = 33px from screen bottom
+  // Input bar should be positioned at 33px from screen bottom (no + insets.bottom)
   const BOTTOM_BAR_CONTENT_HEIGHT = 33; // BottomBar content height - this is where BottomBar top edge is
   const INPUT_BAR_ROW_HEIGHT = 36; // Height of the inner row (input elements)
   const INPUT_BAR_PADDING_TOP = 8; // Top padding for border spacing
   const INPUT_BAR_TOTAL_HEIGHT = INPUT_BAR_PADDING_TOP + INPUT_BAR_ROW_HEIGHT; // Total: 8 + 36 = 44px
+  
+  // The real issue: Input row is INSIDE container with paddingTop: 8px
+  // Input row bottom = container bottom (paddingBottom: 0)
+  // To align input row bottom with target: container bottom = target
+  // When keyboard up: container bottom = keyboardHeight (input row bottom aligns with keyboard top) ✓
+  // When keyboard down: container bottom = BOTTOM_BAR_CONTENT_HEIGHT (input row bottom aligns with BottomBar top) ✓
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
@@ -337,6 +349,13 @@ export default function ChatScreen({ onBack, onProductSelect }) {
     return () => clearInterval(interval);
   }, [primaryColor]);
 
+  // CORE FIX: The root View has flex: 1, which means it takes all available space in Shell's SafeAreaView
+  // Shell's SafeAreaView has edges=['top', 'left', 'right'] - NO bottom edge
+  // So Shell's bottom = screen bottom (no safe area padding)
+  // BottomBar is rendered AFTER ChatScreen, so ChatScreen's flex: 1 makes it extend to screen bottom
+  // But BottomBar has SafeAreaView with edges=['bottom'], which adds insets.bottom BELOW its content
+  // So BottomBar's visual top edge is at 33px from screen bottom
+  // The input bar should be positioned at 33px from screen bottom to align with BottomBar top
   return (
     <View style={{ flex: 1, backgroundColor: Colors.background }}>
         {showResults && searchResults.length > 0 ? (
@@ -469,7 +488,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             contentContainerStyle={{ 
               paddingHorizontal: Spacing.lg,
               paddingTop: Spacing.md,
-              paddingBottom: INPUT_BAR_TOTAL_HEIGHT + BOTTOM_BAR_CONTENT_HEIGHT // Input bar total height + bottom bar content height
+              paddingBottom: INPUT_BAR_TOTAL_HEIGHT + BOTTOM_BAR_CONTENT_HEIGHT + 10 // Input bar total height + bottom bar content height + extra padding
             }}
             onContentSizeChange={() => {
               if (chatScrollRef.current && !showResults) {
@@ -575,7 +594,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             // To align input row bottom with keyboard: container top + 44 = keyboardHeight
             // Container bottom = keyboardHeight ✓
             // When keyboard is down: container bottom = BOTTOM_BAR_CONTENT_HEIGHT
-            // BUT: borderTopWidth: 1 might create visual gap, so account for it
+            // The input row is at container bottom (paddingBottom: 0), so it aligns perfectly
             bottom: keyboardHeight > 0 ? keyboardHeight : BOTTOM_BAR_CONTENT_HEIGHT,
             left: 0,
             right: 0,

@@ -451,36 +451,63 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
           )}
         </ScrollView>
 
-        {/* Vendor Quotes Modal */}
+        {/* Vendor Quotes Screen - Photo at top, list below */}
         {showQuotes && (
           <View style={StyleSheet.absoluteFillObject}>
             <View style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(0,0,0,0.95)',
-              padding: 20
+              flex: 1,
+              backgroundColor: '#000',
             }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+              {/* Photo at top */}
+              {uploadedImage && (
+                <View style={{ width: '100%', height: 300, backgroundColor: '#1a1a1a' }}>
+                  <Image 
+                    source={{ uri: uploadedImage }} 
+                    style={{ width: '100%', height: '100%' }}
+                    resizeMode="cover"
+                  />
+                </View>
+              )}
+              
+              {/* Header */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', padding: 20, paddingBottom: 12 }}>
                 <Pressable onPress={() => setShowQuotes(false)} style={{ marginRight: 16 }}>
                   <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
                 </Pressable>
                 <Text style={{ color: '#e4e4e7', fontSize: 24, fontWeight: '700' }}>Vendor Quotes</Text>
               </View>
 
-              <Text style={{ color: '#a1a1aa', fontSize: 16, marginBottom: 20 }}>
-                Choose your preferred vendor for your custom design
-              </Text>
+              {/* Vendor Quotes List */}
+              <ScrollView 
+                style={{ flex: 1 }}
+                contentContainerStyle={{ padding: 20, paddingTop: 0 }}
+                showsVerticalScrollIndicator={false}
+              >
+                <Text style={{ color: '#a1a1aa', fontSize: 16, marginBottom: 20 }}>
+                  Choose your preferred vendor for your custom design
+                </Text>
 
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {quotes.map(quote => (
-                  <View key={quote.id} style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 16, marginBottom: 16 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                {quotes.map((quote, index) => (
+                  <Pressable
+                    key={quote.id}
+                    onPress={() => {
+                      // Show detailed quote view
+                      setSelectedQuote(quote);
+                      setShowQuoteDetails(true);
+                    }}
+                    style={{ 
+                      backgroundColor: 'rgba(255,255,255,0.05)', 
+                      borderRadius: 16, 
+                      padding: 16, 
+                      marginBottom: 12,
+                      borderWidth: 1,
+                      borderColor: 'rgba(255,255,255,0.1)',
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                       <View style={{ flex: 1 }}>
                         <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '600', marginBottom: 4 }}>{quote.vendor}</Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
                           <Text style={{ color: '#3b82f6', fontSize: 14 }}>⭐ {quote.rating}</Text>
                           <Text style={{ color: '#a1a1aa', fontSize: 14 }}>•</Text>
                           <Text style={{ color: '#a1a1aa', fontSize: 14 }}>{quote.material}</Text>
@@ -493,14 +520,109 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
                         <Text style={{ color: '#a1a1aa', fontSize: 12 }}>+ ${quote.shipping} shipping</Text>
                       </View>
                     </View>
-
-                    <Image source={{ uri: quote.refImage }} style={{ width: '100%', height: 150, borderRadius: 12, marginBottom: 12 }} resizeMode="cover" />
-
-                    <Pressable style={{ backgroundColor: Colors.primary, padding: 12, borderRadius: 12, alignItems: 'center' }}>
-                      <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Select Vendor</Text>
-                    </Pressable>
-                  </View>
+                    <Text style={{ color: '#9ca3af', fontSize: 12, marginTop: 8 }}>Tap to view details →</Text>
+                  </Pressable>
                 ))}
+              </ScrollView>
+            </View>
+          </View>
+        )}
+        
+        {/* Detailed Quote View */}
+        {showQuoteDetails && selectedQuote && (
+          <View style={StyleSheet.absoluteFillObject}>
+            <View style={{
+              flex: 1,
+              backgroundColor: 'rgba(0,0,0,0.98)',
+              padding: 20,
+            }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+                <Pressable onPress={() => {
+                  setShowQuoteDetails(false);
+                  setSelectedQuote(null);
+                }} style={{ marginRight: 16 }}>
+                  <Text style={{ color: '#e4e4e7', fontSize: 16 }}>← Back</Text>
+                </Pressable>
+                <Text style={{ color: '#e4e4e7', fontSize: 24, fontWeight: '700' }}>Quote Details</Text>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 20, marginBottom: 20 }}>
+                  <Text style={{ color: '#e4e4e7', fontSize: 24, fontWeight: '700', marginBottom: 12 }}>{selectedQuote.vendor}</Text>
+                  
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                    <Text style={{ color: '#3b82f6', fontSize: 16 }}>⭐ {selectedQuote.rating}</Text>
+                    <Text style={{ color: '#a1a1aa', fontSize: 14 }}>•</Text>
+                    <Text style={{ color: '#a1a1aa', fontSize: 14 }}>{selectedQuote.material}</Text>
+                    <Text style={{ color: '#a1a1aa', fontSize: 14 }}>•</Text>
+                    <Text style={{ color: '#a1a1aa', fontSize: 14 }}>{selectedQuote.deliveryTime}</Text>
+                  </View>
+
+                  <View style={{ marginBottom: 20 }}>
+                    <Text style={{ color: '#e4e4e7', fontSize: 32, fontWeight: '700', marginBottom: 4 }}>${selectedQuote.price}</Text>
+                    <Text style={{ color: '#a1a1aa', fontSize: 14 }}>+ ${selectedQuote.shipping} shipping</Text>
+                    <Text style={{ color: '#a1a1aa', fontSize: 14, marginTop: 4 }}>Total: ${selectedQuote.price + selectedQuote.shipping}</Text>
+                  </View>
+
+                  <View style={{ marginBottom: 20 }}>
+                    <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '600', marginBottom: 12 }}>Vendor Comments</Text>
+                    <Text style={{ color: '#a1a1aa', fontSize: 14, lineHeight: 20 }}>
+                      {selectedQuote.comments || `We can create this design using ${selectedQuote.material}. The estimated delivery time is ${selectedQuote.deliveryTime}. We offer free revisions and ensure high-quality craftsmanship.`}
+                    </Text>
+                  </View>
+
+                  <View style={{ marginBottom: 20 }}>
+                    <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '600', marginBottom: 12 }}>Material Options</Text>
+                    <View style={{ gap: 8 }}>
+                      {[
+                        { name: selectedQuote.material, price: 0, selected: true },
+                        { name: 'Premium Silk', price: 50, selected: false },
+                        { name: 'Luxury Cotton', price: 30, selected: false },
+                        { name: 'Designer Blend', price: 75, selected: false },
+                      ].map((option, idx) => (
+                        <Pressable
+                          key={idx}
+                          style={{
+                            flexDirection: 'row',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: 12,
+                            backgroundColor: option.selected ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.05)',
+                            borderRadius: 8,
+                            borderWidth: 1,
+                            borderColor: option.selected ? Colors.primary : 'rgba(255,255,255,0.1)',
+                          }}
+                        >
+                          <Text style={{ color: '#e4e4e7', fontSize: 14 }}>{option.name}</Text>
+                          {option.price > 0 && (
+                            <Text style={{ color: '#a1a1aa', fontSize: 14 }}>+${option.price}</Text>
+                          )}
+                          {option.price === 0 && (
+                            <Text style={{ color: Colors.primary, fontSize: 12 }}>Included</Text>
+                          )}
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+
+                  <View style={{ marginBottom: 20 }}>
+                    <Text style={{ color: '#e4e4e7', fontSize: 18, fontWeight: '600', marginBottom: 12 }}>Additional Options</Text>
+                    <View style={{ gap: 8 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 12, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 8 }}>
+                        <Text style={{ color: '#e4e4e7', fontSize: 14 }}>Rush Delivery (1 week)</Text>
+                        <Text style={{ color: '#a1a1aa', fontSize: 14 }}>+$100</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 12, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 8 }}>
+                        <Text style={{ color: '#e4e4e7', fontSize: 14 }}>Extra Fittings</Text>
+                        <Text style={{ color: '#a1a1aa', fontSize: 14 }}>+$50</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  <Pressable style={{ backgroundColor: Colors.primary, padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 }}>
+                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>Confirm & Proceed</Text>
+                  </Pressable>
+                </View>
               </ScrollView>
             </View>
           </View>
