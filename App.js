@@ -870,6 +870,56 @@ function Shop() {
         </Pressable>
       )}
       
+      {/* Trend Cards Section */}
+      <View style={{ paddingHorizontal: Spacing.lg, marginBottom: Spacing.md }}>
+        <Text style={{ ...TextStyles.heading, marginBottom: Spacing.sm, fontSize: 18 }}>Trending Now</Text>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: Spacing.sm }}
+        >
+          {[
+            { city: 'NY', label: 'Trends in NYC', emoji: '🗽', color: '#3b82f6' },
+            { city: 'Tokyo', label: 'Trends in Tokyo', emoji: '🌸', color: '#ec4899' },
+            { city: 'LA', label: 'Trends in LA', emoji: '🌴', color: '#f59e0b' },
+            { city: 'Paris', label: 'Trends in Paris', emoji: '🗼', color: '#8b5cf6' },
+            { city: 'London', label: 'Trends in London', emoji: '🇬🇧', color: '#06b6d4' },
+            { city: 'Seoul', label: 'Trends in Seoul', emoji: '🇰🇷', color: '#ef4444' },
+          ].map((trend, index) => (
+            <Pressable
+              key={index}
+              onPress={() => {
+                // Filter products by trend (mock implementation)
+                setSearchQuery(trend.city);
+              }}
+              style={{
+                width: 140, // 50% of shop card width (280px)
+                height: 100, // 50% of shop card height (200px)
+                borderRadius: BorderRadius.lg,
+                backgroundColor: trend.color,
+                padding: Spacing.md,
+                justifyContent: 'space-between',
+                shadowColor: trend.color,
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+                elevation: 5,
+              }}
+            >
+              <Text style={{ fontSize: 24 }}>{trend.emoji}</Text>
+              <Text style={{ 
+                color: '#fff', 
+                fontSize: 13, 
+                fontWeight: Typography.semibold,
+                marginTop: 'auto'
+              }}>
+                {trend.label}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </View>
+      
       {/* Products Grid */}
       <ScrollView 
         style={{ flex: 1 }} 
@@ -1120,27 +1170,41 @@ function Product() {
           }} 
         />
         
-        {/* Floating Try On Button */}
-        <Pressable 
-          onPress={() => setRoute('tryon', { garmentId: product.id, category: product.category, garmentCleanUrl: cleanUrl || product.image, product: product })}
-          style={{
-            position: 'absolute',
-            top: 12,
-            right: 12,
-            backgroundColor: '#fff',
-            paddingHorizontal: 14,
-            paddingVertical: 10,
-            borderRadius: 14,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.3,
-            shadowRadius: 4,
-            elevation: 5,
-            zIndex: 1000
-          }}
-        >
-          <Text style={{ color: '#000', fontWeight: '700' }}>✦ Try On</Text>
-        </Pressable>
+        {/* Floating Action Buttons on Image */}
+        <View style={{ position: 'absolute', top: 12, right: 12, gap: 8, zIndex: 1000 }}>
+          <Pressable 
+            onPress={() => setRoute('tryon', { garmentId: product.id, category: product.category, garmentCleanUrl: cleanUrl || product.image, product: product })}
+            style={{
+              backgroundColor: '#fff',
+              paddingHorizontal: 14,
+              paddingVertical: 10,
+              borderRadius: 14,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.3,
+              shadowRadius: 4,
+              elevation: 5,
+            }}
+          >
+            <Text style={{ color: '#000', fontWeight: '700' }}>✦ Try On</Text>
+          </Pressable>
+          <Pressable 
+            onPress={() => setRoute('createpod')}
+            style={{
+              backgroundColor: 'rgba(255,255,255,0.9)',
+              paddingHorizontal: 14,
+              paddingVertical: 10,
+              borderRadius: 14,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.3,
+              shadowRadius: 4,
+              elevation: 5,
+            }}
+          >
+            <Text style={{ color: '#000', fontWeight: '700' }}>💬 Ask Pod</Text>
+          </Pressable>
+        </View>
       </View>
       
       {/* Product details - starts below image, not overlaying */}
@@ -1171,54 +1235,53 @@ function Product() {
         </View>
         <Text style={{ color: '#a1a1aa' }}>Fabric: Cotton blend • Shipping: 2–4 days • Returns: 30 days</Text>
         
-        {/* Action Buttons */}
-        <View style={{ gap: 12, marginTop: 16 }}>
-          {/* Primary Actions Row */}
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            {/* Try On Button */}
-            <Pressable 
-              onPress={() => setRoute('tryon', { garmentId: product.id, category: product.category, garmentCleanUrl: cleanUrl || product.image, product: product })}
-              style={{ 
-                flex: 1, 
-                backgroundColor: '#fff',
-                padding: 16,
-                borderRadius: 12,
-                alignItems: 'center',
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.1,
-                shadowRadius: 4,
-                elevation: 3
-              }}
-            >
-              <Text style={{ color: '#000', fontSize: 16, fontWeight: '700' }}>✦ Try On</Text>
-            </Pressable>
-            
-            {/* Ask a Pod Button */}
-            <Pressable 
-              onPress={() => setRoute('createpod')}
-              style={{
-                flex: 1,
-                backgroundColor: 'rgba(255,255,255,0.1)',
-                padding: 16,
-                borderRadius: 12,
-                alignItems: 'center',
-                borderWidth: 1,
-                borderColor: 'rgba(255,255,255,0.2)'
-              }}
-            >
-              <Text style={{ 
-                color: '#e4e4e7', 
-                fontSize: 16, 
-                fontWeight: '600',
-                textAlign: 'center'
-              }}>
-                Ask a Pod
-              </Text>
-            </Pressable>
-          </View>
+        {/* Action Buttons - Simplified Design */}
+        <View style={{ gap: 10, marginTop: 16 }}>
+          {/* Buy Now / Price Tracking Row (for catalog products) */}
+          {(!product.kind || product.kind === 'catalog') && (
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <Pressable 
+                style={{ 
+                  flex: 1, 
+                  backgroundColor: '#fff',
+                  paddingVertical: 12,
+                  paddingHorizontal: 16,
+                  borderRadius: 10,
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ color: '#000', fontSize: 15, fontWeight: '700' }}>Buy Now</Text>
+                <Text style={{ color: '#000', fontSize: 13, fontWeight: '600' }}>${product.price}</Text>
+              </Pressable>
+              
+              <Pressable 
+                onPress={togglePriceTracking}
+                style={{
+                  flex: 1,
+                  backgroundColor: isTracking ? Colors.primary : 'rgba(255,255,255,0.1)',
+                  paddingVertical: 12,
+                  paddingHorizontal: 16,
+                  borderRadius: 10,
+                  alignItems: 'center',
+                  borderWidth: isTracking ? 0 : 1,
+                  borderColor: 'rgba(255,255,255,0.2)'
+                }}
+              >
+                <Text style={{ fontSize: 18, marginBottom: 2 }}>
+                  {isTracking ? '🔔' : '◉'}
+                </Text>
+                <Text style={{ 
+                  color: isTracking ? '#fff' : '#e4e4e7', 
+                  fontSize: 12, 
+                  fontWeight: '600',
+                }}>
+                  {isTracking ? 'Tracking' : 'Track Price'}
+                </Text>
+              </Pressable>
+            </View>
+          )}
           
-          {/* View Original Button (for web/imported products) */}
+          {/* Web/Imported products - simple link */}
           {(product.kind === 'web' || product.kind === 'imported' || product.buyUrl || product.productUrl) && (
             <Pressable 
               onPress={async () => {
@@ -1233,83 +1296,23 @@ function Product() {
                 }
               }}
               style={{
-                backgroundColor: 'rgba(99, 102, 241, 0.2)',
-                padding: 16,
-                borderRadius: 12,
+                backgroundColor: 'rgba(255,255,255,0.1)',
+                paddingVertical: 12,
+                paddingHorizontal: 16,
+                borderRadius: 10,
                 alignItems: 'center',
                 borderWidth: 1,
-                borderColor: 'rgba(99, 102, 241, 0.3)'
+                borderColor: 'rgba(255,255,255,0.2)'
               }}
             >
               <Text style={{ 
-                color: '#a5b4fc', 
-                fontSize: 16, 
+                color: '#e4e4e7', 
+                fontSize: 14, 
                 fontWeight: '600',
-                textAlign: 'center'
               }}>
-                🔗 View Original
+                {product.sourceLabel || 'View Product'} →
               </Text>
-              {product.sourceLabel && (
-                <Text style={{ 
-                  color: '#a5b4fc', 
-                  fontSize: 12, 
-                  marginTop: 4,
-                  opacity: 0.8
-                }}>
-                  {product.sourceLabel}
-                </Text>
-              )}
             </Pressable>
-          )}
-          
-          {/* Buy Now / Price Tracking Row (for catalog products) */}
-          {(!product.kind || product.kind === 'catalog') && (
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-          {/* Buy Now Button */}
-          <Pressable 
-            style={{ 
-              flex: 1, 
-              backgroundColor: '#fff',
-              padding: 16,
-              borderRadius: 12,
-              alignItems: 'center',
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.1,
-              shadowRadius: 4,
-              elevation: 3
-            }}
-          >
-            <Text style={{ color: '#000', fontSize: 16, fontWeight: '700' }}>Buy Now</Text>
-            <Text style={{ color: '#000', fontSize: 14, fontWeight: '600' }}>${product.price}</Text>
-          </Pressable>
-          
-          {/* Price Tracking Button */}
-          <Pressable 
-            onPress={togglePriceTracking}
-            style={{
-              flex: 1,
-              backgroundColor: isTracking ? Colors.primary : 'rgba(255,255,255,0.1)',
-              padding: 16,
-              borderRadius: 12,
-              alignItems: 'center',
-              borderWidth: isTracking ? 0 : 1,
-              borderColor: 'rgba(255,255,255,0.2)'
-            }}
-          >
-            <Text style={{ fontSize: 20, marginBottom: 4 }}>
-              {isTracking ? '🔔' : '◉'}
-            </Text>
-            <Text style={{ 
-              color: isTracking ? '#fff' : '#e4e4e7', 
-              fontSize: 14, 
-              fontWeight: '600',
-              textAlign: 'center'
-            }}>
-              {isTracking ? 'Tracking Active' : showPriceInput ? 'Set Price & Track' : 'Track Price'}
-            </Text>
-          </Pressable>
-            </View>
           )}
         </View>
         

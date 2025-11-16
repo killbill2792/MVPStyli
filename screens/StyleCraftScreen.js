@@ -170,6 +170,12 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
                 {previousEnquiries.map((enquiry) => (
                   <Pressable
                     key={enquiry.id}
+                    onPress={() => {
+                      // Load the enquiry data back into the form
+                      setUploadedImage(enquiry.image);
+                      setPrompt(enquiry.prompt);
+                      setShowPreviousEnquiries(false);
+                    }}
                     style={{
                       width: 200,
                       marginRight: 16,

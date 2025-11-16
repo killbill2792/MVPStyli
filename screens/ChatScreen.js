@@ -117,6 +117,9 @@ export default function ChatScreen({ onBack, onProductSelect }) {
     
     if (!query && !uploadedImage) return;
     
+    // Dismiss keyboard when sending
+    Keyboard.dismiss();
+    
     // Add user message to chat
     const userMessage = { type: 'user', message: query || 'Analyze this image', image: uploadedImage };
     setChatHistory(prev => [...prev, userMessage]);
@@ -402,7 +405,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
 
             <View style={{
               position: 'absolute',
-              bottom: BOTTOM_BAR_CONTENT_HEIGHT, // BottomBar content height (safe area is below, not above)
+              bottom: BOTTOM_BAR_CONTENT_HEIGHT, // BottomBar content height - no gap
               left: 0,
               right: 0,
               backgroundColor: 'rgba(0,0,0,0.95)',
@@ -540,11 +543,11 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           <View style={{ 
             position: 'absolute',
             // When keyboard is up: input row bottom should be at keyboard top
-            // Container has paddingTop: 8px, so input row is 8px below container top
             // Input row bottom = container bottom (paddingBottom: 0)
-            // To align row bottom with keyboard top: container bottom = keyboardHeight + INPUT_BAR_PADDING_TOP
-            // When keyboard is down: container bottom = BOTTOM_BAR_CONTENT_HEIGHT + INPUT_BAR_PADDING_TOP
-            bottom: keyboardHeight > 0 ? (keyboardHeight + INPUT_BAR_PADDING_TOP) : (BOTTOM_BAR_CONTENT_HEIGHT + INPUT_BAR_PADDING_TOP),
+            // Container has paddingTop: 8px, but that's INSIDE the container
+            // So container bottom should be at keyboardHeight (row will be 8px above container bottom)
+            // When keyboard is down: container bottom = BOTTOM_BAR_CONTENT_HEIGHT
+            bottom: keyboardHeight > 0 ? keyboardHeight : BOTTOM_BAR_CONTENT_HEIGHT,
             left: 0,
             right: 0,
             paddingHorizontal: Spacing.lg,
