@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useMemo, useEffect, useState, useRef } from 'react';
 import { View, Text, Pressable, Image, StyleSheet, Alert, StatusBar, TextInput, ScrollView, TouchableWithoutFeedback, PanGestureHandler } from 'react-native';
 import { SafeAreaView, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { customAlphabet } from 'nanoid/non-secure';
 import { supabase } from './lib/supabase';
@@ -925,12 +926,16 @@ function Shop() {
                 elevation: 5,
               }}
             >
-              <View style={{
-                flex: 1,
-                padding: Spacing.md,
-                justifyContent: 'space-between',
-                backgroundColor: trend.gradient[1], // Fallback color
-              }}>
+              <LinearGradient
+                colors={trend.gradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{
+                  flex: 1,
+                  padding: Spacing.md,
+                  justifyContent: 'space-between',
+                }}
+              >
                 <Text style={{ fontSize: 32, marginBottom: 4 }}>{trend.emoji}</Text>
                 <View>
                   <Text style={{ 
@@ -956,7 +961,7 @@ function Shop() {
                     TRENDING
                   </Text>
                 </View>
-              </View>
+              </LinearGradient>
             </Pressable>
           ))}
         </ScrollView>
