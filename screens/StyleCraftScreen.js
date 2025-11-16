@@ -27,6 +27,8 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showQuotes, setShowQuotes] = useState(false);
   const [quotes, setQuotes] = useState([]);
+  const [showQuoteDetails, setShowQuoteDetails] = useState(false);
+  const [selectedQuote, setSelectedQuote] = useState(null);
   const [previousEnquiries, setPreviousEnquiries] = useState([
     {
       id: '1',
