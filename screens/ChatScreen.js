@@ -559,48 +559,19 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           </ScrollView>
 
           {/* Input Bar - Fixed at bottom, flush above nav bar or keyboard */}
+          {/* CORE FIX: Remove paddingTop from container to eliminate visual gap */}
+          {/* Position container so input row bottom aligns with target */}
           <View style={{ 
             position: 'absolute',
-            // When keyboard is up: input row bottom should be at keyboard top
-            // Input row is 8px below container top (paddingTop: 8px)
-            // Input row height is 36px
-            // So input row bottom = container top + 8 + 36 = container top + 44
-            // To align input row bottom with keyboard top: container top = keyboardHeight - 44
-            // Which means: container bottom = keyboardHeight - 44 + 44 = keyboardHeight
-            // But wait, that's wrong. Let me recalculate:
-            // Container has paddingTop: 8px, so input row starts 8px below container top
             // Input row height: 36px
-            // Input row bottom = container top + 8 + 36 = container top + 44
-            // Container height = paddingTop (8) + row height (36) = 44px
-            // So container bottom = container top + 44
-            // If input row bottom should be at keyboardHeight, then:
-            // keyboardHeight = container top + 44
-            // container top = keyboardHeight - 44
-            // container bottom = container top + 44 = keyboardHeight
-            // Actually: Input row is 8px below container top, so input row bottom = container top + 8 + 36 = container top + 44
-            // Container height = 8 (paddingTop) + 36 (row) = 44px
-            // Container bottom = container top + 44
-            // To align input row bottom with keyboard top: container top + 44 = keyboardHeight
-            // So container top = keyboardHeight - 44
-            // Container bottom = keyboardHeight - 44 + 44 = keyboardHeight
-            // BUT: The input row is INSIDE the container, 8px from top
-            // So input row bottom = container bottom (since paddingBottom: 0)
-            // Wait, that means input row bottom = container bottom = keyboardHeight ✓
-            // But there's still a gap! The issue is the borderTopWidth: 1 creates visual space
-            // Input row is 8px below container top, height 36px
-            // Input row bottom = container top + 8 + 36 = container top + 44
-            // Container height = 44px (8 paddingTop + 36 row)
-            // Container bottom = container top + 44
-            // To align input row bottom with keyboard: container top + 44 = keyboardHeight
-            // Container bottom = keyboardHeight ✓
-            // When keyboard is down: container bottom = BOTTOM_BAR_CONTENT_HEIGHT
-            // The input row is at container bottom (paddingBottom: 0), so it aligns perfectly
+            // To align input row bottom with target: container bottom = target - 0 (no paddingBottom)
+            // But we need border spacing, so add it to the inner row as marginTop instead
             bottom: keyboardHeight > 0 ? keyboardHeight : BOTTOM_BAR_CONTENT_HEIGHT,
             left: 0,
             right: 0,
             paddingHorizontal: Spacing.lg,
-            paddingTop: INPUT_BAR_PADDING_TOP,
-            paddingBottom: 0, // No paddingBottom - input row bottom is flush with container bottom
+            paddingTop: 0, // REMOVED - this was creating the blank space!
+            paddingBottom: 0,
             borderTopWidth: 1,
             borderTopColor: Colors.border,
             backgroundColor: Colors.background,
@@ -609,7 +580,8 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               flexDirection: 'row', 
               gap: Spacing.xs, 
               alignItems: 'center',
-              height: INPUT_BAR_ROW_HEIGHT, // Use constant for consistency
+              height: INPUT_BAR_ROW_HEIGHT,
+              marginTop: INPUT_BAR_PADDING_TOP, // Move paddingTop here as marginTop
             }}>
               {uploadedImage ? (
                 <Pressable
