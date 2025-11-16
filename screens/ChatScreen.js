@@ -488,7 +488,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             contentContainerStyle={{ 
               paddingHorizontal: Spacing.lg,
               paddingTop: Spacing.md,
-              paddingBottom: INPUT_BAR_TOTAL_HEIGHT + BOTTOM_BAR_CONTENT_HEIGHT + 10 // Input bar total height + bottom bar content height + extra padding
+              paddingBottom: INPUT_BAR_ROW_HEIGHT + INPUT_BAR_PADDING_TOP + BOTTOM_BAR_CONTENT_HEIGHT // Input row height + marginTop + bottom bar
             }}
             onContentSizeChange={() => {
               if (chatScrollRef.current && !showResults) {
