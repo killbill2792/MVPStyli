@@ -176,52 +176,45 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
                   <Pressable
                     key={enquiry.id}
                     onPress={() => {
-                      // Load enquiry and show quotes workflow
-                      setUploadedImage(enquiry.image);
-                      setPrompt(enquiry.prompt);
+                      // Generate quotes directly without showing intermediate screen
+                      const mockQuotes = [
+                        {
+                          id: '1',
+                          vendor: 'Elite Tailors',
+                          rating: 4.8,
+                          material: 'Premium Cotton',
+                          price: Math.floor((minBudget + maxBudget) / 2 * 0.8),
+                          shipping: 15,
+                          refImage: enquiry.image || 'https://images.unsplash.com/photo-1586790170083-2f9ceadc732d?w=400',
+                          deliveryTime: '2-3 weeks',
+                          comments: 'We specialize in custom designs with premium cotton. Our team has 15+ years of experience and we offer free revisions. The design will be tailored to your exact measurements.'
+                        },
+                        {
+                          id: '2',
+                          vendor: 'Boutique Stitches',
+                          rating: 4.6,
+                          material: 'Silk Blend',
+                          price: Math.floor((minBudget + maxBudget) / 2 * 0.9),
+                          shipping: 20,
+                          refImage: enquiry.image || 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400',
+                          deliveryTime: '3-4 weeks',
+                          comments: 'Our silk blend fabric is perfect for elegant designs. We provide detailed progress updates and can accommodate material changes. Quality guaranteed with 30-day return policy.'
+                        },
+                        {
+                          id: '3',
+                          vendor: 'Custom Couture',
+                          rating: 4.9,
+                          material: 'Luxury Fabric',
+                          price: Math.floor((minBudget + maxBudget) / 2 * 1.1),
+                          shipping: 25,
+                          refImage: enquiry.image || 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=400',
+                          deliveryTime: '4-5 weeks',
+                          comments: 'Premium luxury fabrics with handcrafted details. We work with top designers and offer unlimited revisions. Perfect for special occasions. Express delivery available.'
+                        }
+                      ];
+                      setQuotes(mockQuotes);
+                      setShowQuotes(true);
                       setShowPreviousEnquiries(false);
-                      // Generate quotes for this enquiry
-                      setIsProcessing(true);
-                      setTimeout(() => {
-                        setIsProcessing(false);
-                        const mockQuotes = [
-                          {
-                            id: '1',
-                            vendor: 'Elite Tailors',
-                            rating: 4.8,
-                            material: 'Premium Cotton',
-                            price: Math.floor((minBudget + maxBudget) / 2 * 0.8),
-                            shipping: 15,
-                            refImage: enquiry.image || 'https://images.unsplash.com/photo-1586790170083-2f9ceadc732d?w=400',
-                            deliveryTime: '2-3 weeks',
-                            comments: 'We specialize in custom designs with premium cotton. Our team has 15+ years of experience and we offer free revisions. The design will be tailored to your exact measurements.'
-                          },
-                          {
-                            id: '2',
-                            vendor: 'Boutique Stitches',
-                            rating: 4.6,
-                            material: 'Silk Blend',
-                            price: Math.floor((minBudget + maxBudget) / 2 * 0.9),
-                            shipping: 20,
-                            refImage: enquiry.image || 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400',
-                            deliveryTime: '3-4 weeks',
-                            comments: 'Our silk blend fabric is perfect for elegant designs. We provide detailed progress updates and can accommodate material changes. Quality guaranteed with 30-day return policy.'
-                          },
-                          {
-                            id: '3',
-                            vendor: 'Custom Couture',
-                            rating: 4.9,
-                            material: 'Luxury Fabric',
-                            price: Math.floor((minBudget + maxBudget) / 2 * 1.1),
-                            shipping: 25,
-                            refImage: enquiry.image || 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=400',
-                            deliveryTime: '4-5 weeks',
-                            comments: 'Premium luxury fabrics with handcrafted details. We work with top designers and offer unlimited revisions. Perfect for special occasions. Express delivery available.'
-                          }
-                        ];
-                        setQuotes(mockQuotes);
-                        setShowQuotes(true);
-                      }, 500);
                     }}
                     style={{
                       width: 200,

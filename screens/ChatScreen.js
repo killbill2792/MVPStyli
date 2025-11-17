@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, Image, KeyboardAvoidingView, Platform, Dimensions, Alert, Keyboard } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text, TextInput, Pressable, ScrollView, Image, Platform, Dimensions, Alert, Keyboard } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { Colors, Typography, Spacing, BorderRadius, InputStyles, TextStyles, createButtonStyle, getButtonTextStyle, getColors } from '../lib/designSystem';
+import { Colors, Typography, Spacing, BorderRadius, TextStyles, getColors } from '../lib/designSystem';
 import { isUrl, importProductFromUrl, searchWebProducts, normalizeProduct } from '../lib/productSearch';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -20,36 +20,24 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   const [uploadedImage, setUploadedImage] = useState(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const insets = useSafeAreaInsets();
+  const [primaryColor, setPrimaryColor] = useState(getColors().primary);
 
-  // Bottom bar height calculation
-  // BottomBar structure: SafeAreaView (adds insets.bottom) > View (paddingTop:5, paddingBottom:2) > inner View (paddingVertical:5) > buttons (paddingVertical:8)
-  // Total content height: 5 + 2 + 5*2 + 8*2 = 33px
-  // BottomBar is rendered inside Shell's SafeAreaView (edges=['top', 'left', 'right'] only)
-  // BottomBar's SafeAreaView (edges=['bottom']) adds insets.bottom padding BELOW the content
-  // So the BottomBar content starts at BOTTOM_BAR_CONTENT_HEIGHT from Shell's bottom
-  // The input bar should be positioned at BOTTOM_BAR_CONTENT_HEIGHT (not + insets.bottom) because:
-  // - Shell's SafeAreaView doesn't add bottom safe area
-  // - BottomBar's SafeAreaView adds bottom safe area BELOW its content (not above)
-  // BottomBar structure analysis:
-  // SafeAreaView (edges=['bottom']) > View (paddingTop:5, paddingBottom:2, borderTopWidth:1) > inner View (paddingVertical:5) > buttons (paddingVertical:8)
-  // Total content height: 5 + 2 + 5*2 + 8*2 = 33px
-  // BottomBar's top edge (including border) is at 33px from Shell's bottom
-  // CORE FIX: BottomBar is in SafeAreaView with edges=['bottom'], which adds insets.bottom BELOW the content
-  // So the BottomBar's visual top edge is at: content height (33px) from Shell's bottom
-  // But Shell's SafeAreaView has edges=['top', 'left', 'right'] - NO bottom edge
-  // So Shell's bottom = screen bottom (no safe area padding)
-  // BottomBar content top = 33px from screen bottom
-  // Input bar should be positioned at 33px from screen bottom (no + insets.bottom)
-  const BOTTOM_BAR_CONTENT_HEIGHT = 33; // BottomBar content height - this is where BottomBar top edge is
-  const INPUT_BAR_ROW_HEIGHT = 36; // Height of the inner row (input elements)
-  const INPUT_BAR_PADDING_TOP = 8; // Top padding for border spacing
-  const INPUT_BAR_TOTAL_HEIGHT = INPUT_BAR_PADDING_TOP + INPUT_BAR_ROW_HEIGHT; // Total: 8 + 36 = 44px
-  
-  // The real issue: Input row is INSIDE container with paddingTop: 8px
-  // Input row bottom = container bottom (paddingBottom: 0)
-  // To align input row bottom with target: container bottom = target
-  // When keyboard up: container bottom = keyboardHeight (input row bottom aligns with keyboard top) ✓
-  // When keyboard down: container bottom = BOTTOM_BAR_CONTENT_HEIGHT (input row bottom aligns with BottomBar top) ✓
+  // BottomBar content height: paddingTop:5 + paddingBottom:2 + paddingVertical:5*2 + paddingVertical:8*2 = 33px
+  // BottomBar's SafeAreaView adds insets.bottom BELOW its content, so the visual top edge is at 33px from screen bottom
+  const BOTTOM_BAR_HEIGHT = 33;
+  const INPUT_ROW_HEIGHT = 36;
+  const INPUT_CONTAINER_HEIGHT = INPUT_ROW_HEIGHT + 8; // Row height + top spacing for border
+
+  // Update color when theme changes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const currentColor = getColors().primary;
+      if (currentColor !== primaryColor) {
+        setPrimaryColor(currentColor);
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  }, [primaryColor]);
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
@@ -60,16 +48,15 @@ export default function ChatScreen({ onBack, onProductSelect }) {
     }
   }, [chatHistory, showResults]);
 
-  // Handle keyboard show/hide for absolutely positioned input
+  // Handle keyboard show/hide
   useEffect(() => {
-    const keyboardWillShow = Keyboard.addListener(
+    const showListener = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
       (e) => {
-        // Position input bar directly above keyboard with no gap
         setKeyboardHeight(e.endCoordinates.height);
       }
     );
-    const keyboardWillHide = Keyboard.addListener(
+    const hideListener = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
       () => {
         setKeyboardHeight(0);
@@ -77,8 +64,8 @@ export default function ChatScreen({ onBack, onProductSelect }) {
     );
 
     return () => {
-      keyboardWillShow.remove();
-      keyboardWillHide.remove();
+      showListener.remove();
+      hideListener.remove();
     };
   }, []);
 
@@ -336,151 +323,135 @@ export default function ChatScreen({ onBack, onProductSelect }) {
 
   const currentProduct = searchResults[selectedProductIndex];
   const thumbnailHeight = 70;
-  const [primaryColor, setPrimaryColor] = useState(getColors().primary); // State for dynamic color
 
-  // Update color when theme changes
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const currentColor = getColors().primary;
-      if (currentColor !== primaryColor) {
-        setPrimaryColor(currentColor);
-      }
-    }, 100);
-    return () => clearInterval(interval);
-  }, [primaryColor]);
+  // Calculate input bar bottom position
+  // When keyboard is up: position at keyboard top (keyboardHeight from bottom)
+  // When keyboard is down: position at BottomBar top (BOTTOM_BAR_HEIGHT from bottom)
+  const inputBarBottom = keyboardHeight > 0 ? keyboardHeight : BOTTOM_BAR_HEIGHT;
 
-  // CORE FIX: The root View has flex: 1, which means it takes all available space in Shell's SafeAreaView
-  // Shell's SafeAreaView has edges=['top', 'left', 'right'] - NO bottom edge
-  // So Shell's bottom = screen bottom (no safe area padding)
-  // BottomBar is rendered AFTER ChatScreen, so ChatScreen's flex: 1 makes it extend to screen bottom
-  // But BottomBar has SafeAreaView with edges=['bottom'], which adds insets.bottom BELOW its content
-  // So BottomBar's visual top edge is at 33px from screen bottom
-  // The input bar should be positioned at 33px from screen bottom to align with BottomBar top
   return (
     <View style={{ flex: 1, backgroundColor: Colors.background }}>
-        {showResults && searchResults.length > 0 ? (
-          /* Explore-style Product View */
-          <View style={{ flex: 1, position: 'relative' }}>
-            <Pressable 
+      {showResults && searchResults.length > 0 ? (
+        /* Product View */
+        <View style={{ flex: 1, position: 'relative' }}>
+          <Pressable 
             onPress={() => handleProductPress(currentProduct)}
-              style={{ 
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: BOTTOM_BAR_CONTENT_HEIGHT + thumbnailHeight, // Account for bottom bar content + thumbnail bar
-              }}
-            >
-              <Image 
-                source={{ uri: currentProduct.image }} 
-                style={{ 
-                  width: '100%', 
-                  height: '100%',
-                  backgroundColor: Colors.backgroundSecondary
-                }}
-              resizeMode="contain"
-              />
-              
-              <View style={{
-                position: 'absolute',
-                bottom: 0,
-                left: 0,
-                right: 0,
-                backgroundColor: 'rgba(0,0,0,0.85)',
-                padding: Spacing.md,
-                paddingBottom: Spacing.sm,
-                maxHeight: 130
-              }}>
-                <Text 
-                  style={{ ...TextStyles.h3, color: Colors.textWhite, marginBottom: Spacing.xs }}
-                  numberOfLines={1}
-                >
-                  {currentProduct.name}
-                </Text>
-                <Text style={{ ...TextStyles.body, color: Colors.textWhite, marginBottom: Spacing.xs }}>
-                  {currentProduct.brand} • ${currentProduct.price}
-                </Text>
-                {currentProduct.rating && (
-                  <Text style={{ ...TextStyles.caption, color: Colors.textWhite }}>
-                    ⭐ {currentProduct.rating}
-                  </Text>
-                )}
-                <Pressable 
-                  onPress={() => handleProductPress(currentProduct)}
-                  style={{
-                    marginTop: Spacing.sm,
-                    backgroundColor: Colors.primary,
-                    padding: Spacing.sm,
-                    borderRadius: BorderRadius.md,
-                    alignItems: 'center'
-                  }}
-                >
-                  <Text style={{ ...TextStyles.body, color: Colors.textWhite, fontWeight: Typography.semibold, fontSize: Typography.sm }}>
-                    View Details →
-                  </Text>
-                </Pressable>
-              </View>
-            </Pressable>
-
-            <View style={{
+            style={{ 
               position: 'absolute',
-              bottom: BOTTOM_BAR_CONTENT_HEIGHT, // BottomBar content height - no gap
+              top: 0,
               left: 0,
               right: 0,
-              backgroundColor: 'rgba(0,0,0,0.95)',
-              paddingTop: 0, // No padding - thumbnails need full space
-              paddingBottom: 0, // No padding - thumbnails need full space
-              borderTopWidth: 1,
-              borderTopColor: Colors.border,
-              height: thumbnailHeight
+              bottom: BOTTOM_BAR_HEIGHT + thumbnailHeight,
+            }}
+          >
+            <Image 
+              source={{ uri: currentProduct.image }} 
+              style={{ 
+                width: '100%', 
+                height: '100%',
+                backgroundColor: Colors.backgroundSecondary
+              }}
+              resizeMode="contain"
+            />
+            
+            <View style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              backgroundColor: 'rgba(0,0,0,0.85)',
+              padding: Spacing.md,
+              paddingBottom: Spacing.sm,
+              maxHeight: 130
             }}>
-              <View style={{ 
-                paddingHorizontal: Spacing.md,
-                paddingTop: Spacing.xs,
-                paddingBottom: Spacing.xs,
-              }}>
-                <Text style={{ 
-                  ...TextStyles.small, 
-                  color: Colors.textWhite, 
-                  marginBottom: Spacing.xs,
-                  fontWeight: Typography.semibold,
-                  fontSize: Typography.xs
-                }}>
-                  {searchResults.length} Result{searchResults.length > 1 ? 's' : ''}
-                </Text>
-              </View>
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false}
-                style={{ flex: 1 }}
-                contentContainerStyle={{ paddingHorizontal: Spacing.md, paddingBottom: Spacing.xs }}
+              <Text 
+                style={{ ...TextStyles.h3, color: Colors.textWhite, marginBottom: Spacing.xs }}
+                numberOfLines={1}
               >
-                {searchResults.map((product, index) => (
-                  <Pressable
-                    key={product.id || index}
-                  onPress={() => setSelectedProductIndex(index)}
-                    style={{
-                      width: 50,
-                      height: 50,
-                      marginRight: Spacing.xs,
-                      borderRadius: BorderRadius.sm,
-                      overflow: 'hidden',
-                      borderWidth: 2,
-                      borderColor: index === selectedProductIndex ? Colors.primary : 'rgba(255,255,255,0.3)'
-                    }}
-                  >
-                    <Image 
-                      source={{ uri: product.image }} 
-                      style={{ width: '100%', height: '100%' }}
-                      resizeMode="cover"
-                    />
-                  </Pressable>
-                ))}
-              </ScrollView>
+                {currentProduct.name}
+              </Text>
+              <Text style={{ ...TextStyles.body, color: Colors.textWhite, marginBottom: Spacing.xs }}>
+                {currentProduct.brand} • ${currentProduct.price}
+              </Text>
+              {currentProduct.rating && (
+                <Text style={{ ...TextStyles.caption, color: Colors.textWhite }}>
+                  ⭐ {currentProduct.rating}
+                </Text>
+              )}
+              <Pressable 
+                onPress={() => handleProductPress(currentProduct)}
+                style={{
+                  marginTop: Spacing.sm,
+                  backgroundColor: Colors.primary,
+                  padding: Spacing.sm,
+                  borderRadius: BorderRadius.md,
+                  alignItems: 'center'
+                }}
+              >
+                <Text style={{ ...TextStyles.body, color: Colors.textWhite, fontWeight: Typography.semibold, fontSize: Typography.sm }}>
+                  View Details →
+                </Text>
+              </Pressable>
             </View>
+          </Pressable>
+
+          <View style={{
+            position: 'absolute',
+            bottom: BOTTOM_BAR_HEIGHT,
+            left: 0,
+            right: 0,
+            backgroundColor: 'rgba(0,0,0,0.95)',
+            borderTopWidth: 1,
+            borderTopColor: Colors.border,
+            height: thumbnailHeight
+          }}>
+            <View style={{ 
+              paddingHorizontal: Spacing.md,
+              paddingTop: Spacing.xs,
+              paddingBottom: Spacing.xs,
+            }}>
+              <Text style={{ 
+                ...TextStyles.small, 
+                color: Colors.textWhite, 
+                marginBottom: Spacing.xs,
+                fontWeight: Typography.semibold,
+                fontSize: Typography.xs
+              }}>
+                {searchResults.length} Result{searchResults.length > 1 ? 's' : ''}
+              </Text>
+            </View>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingHorizontal: Spacing.md, paddingBottom: Spacing.xs }}
+            >
+              {searchResults.map((product, index) => (
+                <Pressable
+                  key={product.id || index}
+                  onPress={() => setSelectedProductIndex(index)}
+                  style={{
+                    width: 50,
+                    height: 50,
+                    marginRight: Spacing.xs,
+                    borderRadius: BorderRadius.sm,
+                    overflow: 'hidden',
+                    borderWidth: 2,
+                    borderColor: index === selectedProductIndex ? Colors.primary : 'rgba(255,255,255,0.3)'
+                  }}
+                >
+                  <Image 
+                    source={{ uri: product.image }} 
+                    style={{ width: '100%', height: '100%' }}
+                    resizeMode="cover"
+                  />
+                </Pressable>
+              ))}
+            </ScrollView>
           </View>
-        ) : (
-          /* Chat Messages */
+        </View>
+      ) : (
+        /* Chat Messages */
         <>
           <ScrollView 
             ref={chatScrollRef}
@@ -488,7 +459,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             contentContainerStyle={{ 
               paddingHorizontal: Spacing.lg,
               paddingTop: Spacing.md,
-              paddingBottom: INPUT_BAR_ROW_HEIGHT + INPUT_BAR_PADDING_TOP + BOTTOM_BAR_CONTENT_HEIGHT // Input row height + marginTop + bottom bar
+              paddingBottom: INPUT_CONTAINER_HEIGHT + BOTTOM_BAR_HEIGHT + 10,
             }}
             onContentSizeChange={() => {
               if (chatScrollRef.current && !showResults) {
@@ -558,30 +529,24 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             )}
           </ScrollView>
 
-          {/* Input Bar - Fixed at bottom, flush above nav bar or keyboard */}
-          {/* CORE FIX: Remove paddingTop from container to eliminate visual gap */}
-          {/* Position container so input row bottom aligns with target */}
+          {/* Input Bar - Absolutely positioned, flush with bottom bar or keyboard */}
           <View style={{ 
             position: 'absolute',
-            // Input row height: 36px
-            // To align input row bottom with target: container bottom = target - 0 (no paddingBottom)
-            // But we need border spacing, so add it to the inner row as marginTop instead
-            bottom: keyboardHeight > 0 ? keyboardHeight : BOTTOM_BAR_CONTENT_HEIGHT,
+            bottom: inputBarBottom,
             left: 0,
             right: 0,
-            paddingHorizontal: Spacing.lg,
-            paddingTop: 0, // REMOVED - this was creating the blank space!
-            paddingBottom: 0,
+            backgroundColor: Colors.background,
             borderTopWidth: 1,
             borderTopColor: Colors.border,
-            backgroundColor: Colors.background,
           }}>
             <View style={{ 
               flexDirection: 'row', 
               gap: Spacing.xs, 
               alignItems: 'center',
-              height: INPUT_BAR_ROW_HEIGHT,
-              marginTop: INPUT_BAR_PADDING_TOP, // Move paddingTop here as marginTop
+              paddingHorizontal: Spacing.lg,
+              paddingTop: 8,
+              paddingBottom: 0,
+              height: INPUT_ROW_HEIGHT + 8,
             }}>
               {uploadedImage ? (
                 <Pressable
@@ -633,7 +598,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
                 flex: 1, 
                 flexDirection: 'row', 
                 alignItems: 'center',
-                height: 36,
+                height: INPUT_ROW_HEIGHT,
                 backgroundColor: Colors.backgroundSecondary,
                 borderRadius: BorderRadius.md,
                 paddingHorizontal: Spacing.md,
@@ -649,7 +614,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
                     color: Colors.textPrimary,
                     fontSize: Typography.sm,
                     paddingVertical: 0,
-                    height: 36,
+                    height: INPUT_ROW_HEIGHT,
                   }}
                   returnKeyType="send"
                   multiline={false}
@@ -662,7 +627,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
                   backgroundColor: (isSearching || (!searchQuery.trim() && !uploadedImage)) ? Colors.backgroundSecondary : primaryColor,
                   paddingHorizontal: Spacing.md, 
                   paddingVertical: Spacing.xs,
-                  height: 36,
+                  height: INPUT_ROW_HEIGHT,
                   borderRadius: BorderRadius.md,
                   justifyContent: 'center',
                   alignItems: 'center',
@@ -679,7 +644,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             </View>
           </View>
         </>
-        )}
+      )}
     </View>
   );
 }

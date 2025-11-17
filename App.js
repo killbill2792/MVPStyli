@@ -656,6 +656,8 @@ function Shop() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [scrollY, setScrollY] = useState(0);
   
   const categories = [
     { id: 'all', label: 'All', icon: '🛍️' },
@@ -772,7 +774,7 @@ function Shop() {
       <ScrollView 
         horizontal 
         showsHorizontalScrollIndicator={false}
-        style={{ marginBottom: Spacing.sm, maxHeight: 50 }}
+        style={{ maxHeight: 50 }}
         contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.xs, alignItems: 'center' }}
       >
         {categories.map((cat) => (
@@ -872,7 +874,7 @@ function Shop() {
       )}
       
       {/* Trend Cards Section */}
-      <View style={{ paddingHorizontal: Spacing.lg, marginBottom: Spacing.md }}>
+      <View style={{ paddingHorizontal: Spacing.lg, paddingTop: Spacing.xs }}>
         <Text style={{ ...TextStyles.heading, marginBottom: Spacing.sm, fontSize: 18 }}>Trending Now</Text>
         <ScrollView 
           horizontal 
@@ -882,11 +884,17 @@ function Shop() {
           {[
             { city: 'NY', label: 'NYC', fullLabel: 'Trends in NYC', emoji: '🗽', image: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=400' },
             { city: 'Tokyo', label: 'Tokyo', fullLabel: 'Trends in Tokyo', emoji: '🌸', image: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=400' },
-            { city: 'LA', label: 'LA', fullLabel: 'Trends in LA', emoji: '🌴', image: 'https://images.unsplash.com/photo-1515895306158-439f1e15b68a?w=400' },
+            { city: 'LA', label: 'LA', fullLabel: 'Trends in LA', emoji: '🌴', image: 'https://images.unsplash.com/photo-1515895306158-439f1e15b68a?w=400&h=300&fit=crop' },
             { city: 'Paris', label: 'Paris', fullLabel: 'Trends in Paris', emoji: '🗼', image: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=400' },
             { city: 'London', label: 'London', fullLabel: 'Trends in London', emoji: '🇬🇧', image: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=400' },
             { city: 'Seoul', label: 'Seoul', fullLabel: 'Trends in Seoul', emoji: '🇰🇷', image: 'https://images.unsplash.com/photo-1570197788417-0e82375c9371?w=400' },
-          ].map((trend, index) => (
+          ].map((trend, index) => {
+            // Calculate card size based on scroll position
+            const isScrolled = scrollY > 50;
+            const cardWidth = isScrolled ? 80 : 140;
+            const cardHeight = isScrolled ? 50 : 100;
+            
+            return (
             <Pressable
               key={index}
               onPress={async () => {
@@ -916,8 +924,8 @@ function Shop() {
                 }
               }}
               style={{
-                width: 140, // 50% of shop card width (280px)
-                height: 100, // 50% of shop card height (200px)
+                width: cardWidth,
+                height: cardHeight,
                 borderRadius: BorderRadius.lg,
                 overflow: 'hidden',
                 shadowOffset: { width: 0, height: 4 },
@@ -949,39 +957,42 @@ function Shop() {
               }} />
               <View style={{
                 flex: 1,
-                padding: Spacing.md,
+                padding: isScrolled ? Spacing.xs : Spacing.md,
                 justifyContent: 'space-between',
                 position: 'relative',
                 zIndex: 1,
               }}>
-                <Text style={{ fontSize: 32, marginBottom: 4 }}>{trend.emoji}</Text>
+                {!isScrolled && <Text style={{ fontSize: 32, marginBottom: 4 }}>{trend.emoji}</Text>}
                 <View>
                   <Text style={{ 
                     color: '#fff', 
-                    fontSize: 18, 
+                    fontSize: isScrolled ? 12 : 18, 
                     fontWeight: '800',
                     letterSpacing: 0.5,
                     textShadowColor: 'rgba(0,0,0,0.5)',
                     textShadowOffset: { width: 0, height: 2 },
                     textShadowRadius: 3,
                   }}>
-                    {trend.label}
+                    {isScrolled ? trend.emoji + ' ' + trend.label : trend.label}
                   </Text>
-                  <Text style={{ 
-                    color: 'rgba(255,255,255,0.95)', 
-                    fontSize: 11, 
-                    fontWeight: '700',
-                    marginTop: 2,
-                    textShadowColor: 'rgba(0,0,0,0.5)',
-                    textShadowOffset: { width: 0, height: 1 },
-                    textShadowRadius: 2,
-                  }}>
-                    TRENDING
-                  </Text>
+                  {!isScrolled && (
+                    <Text style={{ 
+                      color: 'rgba(255,255,255,0.95)', 
+                      fontSize: 11, 
+                      fontWeight: '700',
+                      marginTop: 2,
+                      textShadowColor: 'rgba(0,0,0,0.5)',
+                      textShadowOffset: { width: 0, height: 1 },
+                      textShadowRadius: 2,
+                    }}>
+                      TRENDING
+                    </Text>
+                  )}
                 </View>
               </View>
             </Pressable>
-          ))}
+            );
+          })}
         </ScrollView>
       </View>
       
@@ -990,6 +1001,11 @@ function Shop() {
         style={{ flex: 1 }} 
         contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
+        onScroll={(e) => {
+          const offsetY = e.nativeEvent.contentOffset.y;
+          setScrollY(offsetY);
+        }}
+        scrollEventThrottle={16}
       >
         <View style={{ 
           flexDirection: 'row', 
@@ -1109,6 +1125,7 @@ function Shop() {
 
 function Product() {
   const { state: { currentProductId, detectedProduct }, setRoute } = useApp();
+  const insets = useSafeAreaInsets();
   const [allProducts, setAllProducts] = useState([...enhancedProducts]);
   const [product, setProduct] = useState(null);
   const [cleanUrl, setCleanUrl] = useState(null);
@@ -1122,6 +1139,10 @@ function Product() {
     { date: '2024-01-05', price: 139 },
     { date: '2024-01-01', price: 119 }
   ]);
+  
+  const lowestPrice = product ? Math.min(...priceHistory.map(p => p.price)) : 0;
+  const isOnSale = product ? product.price < priceHistory[0].price : false;
+  const BOTTOM_BAR_TOTAL_HEIGHT = 33 + insets.bottom;
 
   // Load all products including detected ones
   useEffect(() => {
@@ -1211,27 +1232,17 @@ function Product() {
       </View>
     );
   }
-  
-  const lowestPrice = Math.min(...priceHistory.map(p => p.price));
-  const isOnSale = product.price < priceHistory[0].price;
-  
-  const insets = useSafeAreaInsets();
-  const BOTTOM_BAR_TOTAL_HEIGHT = 33 + insets.bottom; // Bottom bar content + safe area
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      {/* Full screen image like Explore page - no containers blocking it */}
-      <View style={{ flex: 1, position: 'relative', marginBottom: 0 }}>
+      {/* Full screen image like Explore page */}
+      <View style={{ flex: 1, position: 'relative' }}>
         <Image 
           source={{ uri: product.image }} 
           resizeMode="cover" 
           style={{ 
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0, // Image fills the container, details will be below
-            borderRadius: 24,
+            width: '100%',
+            height: '100%',
           }} 
         />
         
@@ -1300,23 +1311,26 @@ function Product() {
         </View>
         <Text style={{ color: '#a1a1aa' }}>Fabric: Cotton blend • Shipping: 2–4 days • Returns: 30 days</Text>
         
-        {/* Action Buttons - Simplified Design */}
-        <View style={{ gap: 10, marginTop: 16 }}>
+        {/* Action Buttons - Redesigned to match app style */}
+        <View style={{ gap: 8, marginTop: 16 }}>
           {/* Buy Now / Price Tracking Row (for catalog products) */}
           {(!product.kind || product.kind === 'catalog') && (
-            <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
               <Pressable 
                 style={{ 
                   flex: 1, 
                   backgroundColor: '#fff',
-                  paddingVertical: 12,
-                  paddingHorizontal: 16,
-                  borderRadius: 10,
+                  paddingVertical: 10,
+                  paddingHorizontal: 14,
+                  borderRadius: 8,
                   alignItems: 'center',
+                  flexDirection: 'row',
+                  justifyContent: 'center',
+                  gap: 6,
                 }}
               >
-                <Text style={{ color: '#000', fontSize: 15, fontWeight: '700' }}>Buy Now</Text>
-                <Text style={{ color: '#000', fontSize: 13, fontWeight: '600' }}>${product.price}</Text>
+                <Text style={{ color: '#000', fontSize: 14, fontWeight: '600' }}>Buy Now</Text>
+                <Text style={{ color: '#000', fontSize: 13, fontWeight: '700' }}>${product.price}</Text>
               </Pressable>
               
               <Pressable 
@@ -1324,20 +1338,23 @@ function Product() {
                 style={{
                   flex: 1,
                   backgroundColor: isTracking ? Colors.primary : 'rgba(255,255,255,0.1)',
-                  paddingVertical: 12,
-                  paddingHorizontal: 16,
-                  borderRadius: 10,
+                  paddingVertical: 10,
+                  paddingHorizontal: 14,
+                  borderRadius: 8,
                   alignItems: 'center',
+                  flexDirection: 'row',
+                  justifyContent: 'center',
+                  gap: 6,
                   borderWidth: isTracking ? 0 : 1,
                   borderColor: 'rgba(255,255,255,0.2)'
                 }}
               >
-                <Text style={{ fontSize: 18, marginBottom: 2 }}>
-                  {isTracking ? '🔔' : '◉'}
+                <Text style={{ fontSize: 14 }}>
+                  {isTracking ? '🔔' : '⚙'}
                 </Text>
                 <Text style={{ 
                   color: isTracking ? '#fff' : '#e4e4e7', 
-                  fontSize: 12, 
+                  fontSize: 13, 
                   fontWeight: '600',
                 }}>
                   {isTracking ? 'Tracking' : 'Track Price'}
@@ -1362,21 +1379,25 @@ function Product() {
               }}
               style={{
                 backgroundColor: 'rgba(255,255,255,0.1)',
-                paddingVertical: 12,
-                paddingHorizontal: 16,
-                borderRadius: 10,
+                paddingVertical: 10,
+                paddingHorizontal: 14,
+                borderRadius: 8,
                 alignItems: 'center',
+                flexDirection: 'row',
+                justifyContent: 'center',
+                gap: 6,
                 borderWidth: 1,
                 borderColor: 'rgba(255,255,255,0.2)'
               }}
             >
               <Text style={{ 
                 color: '#e4e4e7', 
-                fontSize: 14, 
+                fontSize: 13, 
                 fontWeight: '600',
               }}>
-                {product.sourceLabel || 'View Product'} →
+                {product.sourceLabel || 'View Product'}
               </Text>
+              <Text style={{ color: '#e4e4e7', fontSize: 12 }}>→</Text>
             </Pressable>
           )}
         </View>
@@ -1567,8 +1588,36 @@ function TryOn() {
       let humanImgUrl = twinUrl;
       if (twinUrl.startsWith('file://')) {
         console.log('Uploading user image to Supabase...');
-        humanImgUrl = await uploadImageAsync(twinUrl);
-        console.log('User image uploaded:', humanImgUrl);
+        // First upload to get a URL for background removal
+        const uploadedUrl = await uploadImageAsync(twinUrl);
+        console.log('User image uploaded:', uploadedUrl);
+        
+        // Remove background before sending to replicate
+        try {
+          console.log('Removing background from user photo...');
+          const bgRemovalResponse = await fetch(`${process.env.EXPO_PUBLIC_API_BASE}/api/remove-background`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageUrl: uploadedUrl })
+          });
+          
+          if (bgRemovalResponse.ok) {
+            const bgRemovalData = await bgRemovalResponse.json();
+            if (bgRemovalData.cleanUrl) {
+              humanImgUrl = bgRemovalData.cleanUrl;
+              console.log('Background removed, using cleaned image:', humanImgUrl);
+            } else {
+              humanImgUrl = uploadedUrl;
+              console.log('Background removal returned no cleanUrl, using original');
+            }
+          } else {
+            humanImgUrl = uploadedUrl;
+            console.log('Background removal failed, using original image');
+          }
+        } catch (bgError) {
+          console.error('Background removal error:', bgError);
+          humanImgUrl = uploadedUrl; // Fallback to original
+        }
       }
       
       // Upload garment image to Supabase for Replicate access
@@ -1767,7 +1816,7 @@ function TryOn() {
               elevation: 5
             }}
           >
-            <Text style={{ fontSize: 20 }}>⌕</Text>
+            <Text style={{ fontSize: 20 }}>⚙</Text>
           </Pressable>
           <Pressable 
             onPress={() => setRoute('createpod')}
@@ -1785,7 +1834,7 @@ function TryOn() {
               elevation: 5
             }}
           >
-            <Text style={{ fontSize: 20 }}>👥</Text>
+            <Text style={{ fontSize: 20 }}>⚙</Text>
           </Pressable>
           <Pressable 
             onPress={() => setRoute('suggested-outfits')}
@@ -1803,7 +1852,7 @@ function TryOn() {
               elevation: 5
             }}
           >
-            <Text style={{ fontSize: 20 }}>◊</Text>
+            <Text style={{ fontSize: 20 }}>⚙</Text>
           </Pressable>
         </View>
         
@@ -1820,7 +1869,7 @@ function TryOn() {
             }}
           >
             <Text style={{ color: busy ? '#666' : '#000', fontWeight: '700' }}>
-              {busy ? '⏳ Processing...' : '✦ Try On'}
+              {busy ? '⏳ Processing...' : '⚙ Try On'}
             </Text>
           </Pressable>
           {result && (
@@ -1828,7 +1877,7 @@ function TryOn() {
               onPress={() => Linking.openURL(product?.buyUrl || 'https://example.com')} 
               style={{ backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14 }}
             >
-              <Text style={{ color: '#fff', fontWeight: '600' }}>◉ Buy</Text>
+              <Text style={{ color: '#fff', fontWeight: '600' }}>⚙ Buy</Text>
             </Pressable>
           )}
         </View>
@@ -1905,6 +1954,7 @@ function Explore() {
   const { setRoute } = useApp();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [votedItems, setVotedItems] = useState(new Set());
+  const [showThumbnails, setShowThumbnails] = useState(false);
   
   // 30 items for Explore page with voting
   const exploreItems = [
@@ -2402,11 +2452,29 @@ function Explore() {
 
         {/* Progress indicator removed */}
 
-        {/* Instagram-style Suggested Items */}
+        {/* Instagram-style Suggested Items - Hidden by default with arrow */}
+        {!showThumbnails && (
+          <Pressable 
+            onPress={() => setShowThumbnails(true)}
+            style={{ position: 'absolute', bottom: 80, left: 12, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 }}
+          >
+            <Text style={{ color: '#e4e4e7', fontSize: 14, fontWeight: '600' }}>
+              Suggested by Community
+            </Text>
+            <Text style={{ color: '#e4e4e7', fontSize: 16 }}>▼</Text>
+          </Pressable>
+        )}
+        
+        {showThumbnails && (
         <View style={{ position: 'absolute', bottom: 80, left: 12, right: 80 }}>
-          <Text style={{ color: '#e4e4e7', fontSize: 14, fontWeight: '600', marginBottom: 8 }}>
-            Suggested by Community
-          </Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <Text style={{ color: '#e4e4e7', fontSize: 14, fontWeight: '600' }}>
+              Suggested by Community
+            </Text>
+            <Pressable onPress={() => setShowThumbnails(false)}>
+              <Text style={{ color: '#e4e4e7', fontSize: 16 }}>▲</Text>
+            </Pressable>
+          </View>
           
           <ScrollView 
             horizontal 
@@ -2483,6 +2551,7 @@ function Explore() {
             ))}
           </View>
         </View>
+        )}
 
         {/* Bottom overlay with likes and comments */}
         <View style={{ position: 'absolute', left: 12, right: 80, bottom: 12 }}>

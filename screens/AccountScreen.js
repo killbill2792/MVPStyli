@@ -63,28 +63,28 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
     {
       id: 'tryons',
       title: 'My Try-Ons',
-      icon: '◉',
+      icon: '⚙',
       color: '#6366f1',
       count: tryOnResults.length,
     },
     {
       id: 'pods',
       title: 'Active Pods',
-      icon: '◈',
+      icon: '⚙',
       color: '#8b5cf6',
       count: 2,
     },
     {
       id: 'designs',
       title: 'StyleCraft Designs',
-      icon: '✦',
+      icon: '⚙',
       color: '#f59e0b',
       count: 1,
     },
     {
       id: 'favorites',
       title: 'Favorites',
-      icon: '◈',
+      icon: '⚙',
       color: '#ef4444',
       count: 12,
     },
@@ -98,7 +98,7 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
     {
       id: 'help',
       title: 'Help & Support',
-      icon: '◈',
+      icon: '⚙',
       color: '#10b981',
       count: null,
     },
@@ -300,8 +300,13 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
               Choose your preferred accent color
             </Text>
             
-            {/* Preset Colors Grid */}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md, marginBottom: Spacing.md }}>
+            {/* Preset Colors - Horizontal Scroll */}
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: Spacing.sm, paddingRight: Spacing.lg }}
+              style={{ marginBottom: Spacing.md }}
+            >
               {Object.keys(ThemeColors).map((themeName) => {
                 const theme = ThemeColors[themeName];
                 const isSelected = currentTheme === themeName && currentTheme !== 'custom';
@@ -313,23 +318,23 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
                       setShowCustomColorPicker(false);
                     }}
                     style={{
-                      width: 60,
-                      height: 60,
+                      width: 40,
+                      height: 40,
                       borderRadius: BorderRadius.md,
                       backgroundColor: theme.primary,
-                      borderWidth: isSelected ? 3 : 1,
+                      borderWidth: isSelected ? 2 : 1,
                       borderColor: isSelected ? Colors.textWhite : Colors.border,
                       justifyContent: 'center',
                       alignItems: 'center',
                       shadowColor: theme.primary,
-                      shadowOffset: { width: 0, height: 4 },
+                      shadowOffset: { width: 0, height: 2 },
                       shadowOpacity: isSelected ? 0.5 : 0.2,
-                      shadowRadius: 8,
-                      elevation: isSelected ? 8 : 4
+                      shadowRadius: 4,
+                      elevation: isSelected ? 6 : 3
                     }}
                   >
                     {isSelected && (
-                      <Text style={{ color: Colors.textWhite, fontSize: 18 }}>✓</Text>
+                      <Text style={{ color: Colors.textWhite, fontSize: 14 }}>✓</Text>
                     )}
                   </Pressable>
                 );
@@ -344,8 +349,8 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
                   }
                 }}
                 style={{
-                  width: 60,
-                  height: 60,
+                  width: 40,
+                  height: 40,
                   borderRadius: BorderRadius.md,
                   backgroundColor: currentTheme === 'custom' && getCustomColor() ? getCustomColor() : Colors.backgroundSecondary,
                   borderWidth: currentTheme === 'custom' ? 3 : 1,
