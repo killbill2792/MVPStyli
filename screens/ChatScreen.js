@@ -26,7 +26,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   // BottomBar's SafeAreaView adds insets.bottom BELOW its content, so the visual top edge is at 33px from screen bottom
   const BOTTOM_BAR_HEIGHT = 33;
   const INPUT_ROW_HEIGHT = 36;
-  const INPUT_CONTAINER_HEIGHT = INPUT_ROW_HEIGHT + 8; // Row height + top spacing for border
+  const INPUT_CONTAINER_HEIGHT = INPUT_ROW_HEIGHT + Spacing.xs * 2; // Row height + minimal padding
 
   // Update color when theme changes
   useEffect(() => {
@@ -327,7 +327,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   // Calculate input bar bottom position
   // When keyboard is up: position at keyboard top (keyboardHeight from bottom)
   // When keyboard is down: position at BottomBar top (BOTTOM_BAR_HEIGHT from bottom)
-  const inputBarBottom = keyboardHeight > 0 ? keyboardHeight : BOTTOM_BAR_HEIGHT;
+  const inputBarBottom = keyboardHeight > 0 ? keyboardHeight : (BOTTOM_BAR_HEIGHT + insets.bottom);
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.background }}>
@@ -544,9 +544,8 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               gap: Spacing.xs, 
               alignItems: 'center',
               paddingHorizontal: Spacing.lg,
-              paddingTop: 8,
-              paddingBottom: 0,
-              height: INPUT_ROW_HEIGHT + 8,
+              paddingVertical: Spacing.xs,
+              minHeight: INPUT_ROW_HEIGHT,
             }}>
               {uploadedImage ? (
                 <Pressable

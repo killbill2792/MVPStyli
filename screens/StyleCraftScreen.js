@@ -213,6 +213,8 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
                         }
                       ];
                       setQuotes(mockQuotes);
+                      setUploadedImage(enquiry.image); // Set the uploaded image so it shows in quotes
+                      setPrompt(enquiry.prompt);
                       setShowQuotes(true);
                       setShowPreviousEnquiries(false);
                     }}

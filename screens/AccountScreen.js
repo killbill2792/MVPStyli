@@ -63,28 +63,28 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
     {
       id: 'tryons',
       title: 'My Try-Ons',
-      icon: '⚙',
+      icon: '👕', // Relevant icon but will be styled like settings
       color: '#6366f1',
       count: tryOnResults.length,
     },
     {
       id: 'pods',
       title: 'Active Pods',
-      icon: '⚙',
+      icon: '👥', // Relevant icon
       color: '#8b5cf6',
       count: 2,
     },
     {
       id: 'designs',
       title: 'StyleCraft Designs',
-      icon: '⚙',
+      icon: '✂️', // Relevant icon
       color: '#f59e0b',
       count: 1,
     },
     {
       id: 'favorites',
       title: 'Favorites',
-      icon: '⚙',
+      icon: '❤️', // Relevant icon
       color: '#ef4444',
       count: 12,
     },
@@ -98,7 +98,7 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
     {
       id: 'help',
       title: 'Help & Support',
-      icon: '⚙',
+      icon: '❓', // Relevant icon
       color: '#10b981',
       count: null,
     },
@@ -367,7 +367,7 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
                   <Text style={{ color: Colors.textSecondary, fontSize: 24 }}>+</Text>
                 )}
               </Pressable>
-            </View>
+            </ScrollView>
             
             {/* Custom Color Input */}
             {showCustomColorPicker && (

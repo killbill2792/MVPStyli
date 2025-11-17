@@ -874,17 +874,18 @@ function Shop() {
       )}
       
       {/* Trend Cards Section */}
-      <View style={{ paddingHorizontal: Spacing.lg, paddingTop: Spacing.xs }}>
-        <Text style={{ ...TextStyles.heading, marginBottom: Spacing.sm, fontSize: 18 }}>Trending Now</Text>
+      <View style={{ paddingHorizontal: Spacing.lg, paddingTop: Spacing.xs, paddingBottom: Spacing.xs }}>
+        <Text style={{ ...TextStyles.heading, marginBottom: Spacing.xs, fontSize: 18 }}>Trending Now</Text>
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: Spacing.sm }}
+          contentContainerStyle={{ gap: Spacing.sm, paddingBottom: Spacing.xs }}
+          style={{ maxHeight: 110 }}
         >
           {[
             { city: 'NY', label: 'NYC', fullLabel: 'Trends in NYC', emoji: '🗽', image: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=400' },
             { city: 'Tokyo', label: 'Tokyo', fullLabel: 'Trends in Tokyo', emoji: '🌸', image: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=400' },
-            { city: 'LA', label: 'LA', fullLabel: 'Trends in LA', emoji: '🌴', image: 'https://images.unsplash.com/photo-1515895306158-439f1e15b68a?w=400&h=300&fit=crop' },
+            { city: 'LA', label: 'LA', fullLabel: 'Trends in LA', emoji: '🌴', image: 'https://images.unsplash.com/photo-1515895306158-439f1e15b68a?w=400&h=300&fit=crop&crop=center' },
             { city: 'Paris', label: 'Paris', fullLabel: 'Trends in Paris', emoji: '🗼', image: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=400' },
             { city: 'London', label: 'London', fullLabel: 'Trends in London', emoji: '🇬🇧', image: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=400' },
             { city: 'Seoul', label: 'Seoul', fullLabel: 'Trends in Seoul', emoji: '🇰🇷', image: 'https://images.unsplash.com/photo-1570197788417-0e82375c9371?w=400' },
@@ -898,22 +899,28 @@ function Shop() {
             <Pressable
               key={index}
               onPress={async () => {
-                // Search for trend products using AI
+                // Search for trend products and show in shop layout
                 setIsSearching(true);
                 try {
                   const { searchWebProducts } = await import('./lib/productSearch');
                   const results = await searchWebProducts(`fashion trends ${trend.city} ${trend.fullLabel}`);
-                  // Show results in shop layout (limit to 10)
-                  const limitedResults = results.slice(0, 10).map(p => ({
+                  // Show results in shop layout (limit to 20)
+                  const limitedResults = results.slice(0, 20).map(p => ({
                     ...p,
                     id: p.id || `trend-${trend.city}-${Date.now()}-${Math.random()}`,
                     name: p.title || p.name || 'Trend Product',
                     image: p.imageUrl || p.image || 'https://via.placeholder.com/400',
                     kind: 'web',
+                    category: p.category || 'upper',
+                    price: p.price || 99,
+                    brand: p.brand || 'Trending',
+                    rating: p.rating || 4.5,
+                    color: p.color || 'Various',
                   }));
-                  // Store in state and show in shop grid
-                  setAllProducts([...limitedResults, ...allProducts]);
-                  setSearchQuery(trend.fullLabel);
+                  // Replace all products with trend results
+                  setAllProducts(limitedResults);
+                  setFilteredProducts(limitedResults);
+                  setSearchQuery('');
                   setSelectedCategory('all');
                 } catch (error) {
                   console.error('Trend search error:', error);
@@ -1235,12 +1242,17 @@ function Product() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      {/* Full screen image like Explore page */}
-      <View style={{ flex: 1, position: 'relative' }}>
+      {/* Full screen image like Explore page - takes full screen */}
+      <View style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
         <Image 
           source={{ uri: product.image }} 
           resizeMode="cover" 
           style={{ 
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
             width: '100%',
             height: '100%',
           }} 
@@ -2471,8 +2483,16 @@ function Explore() {
             <Text style={{ color: '#e4e4e7', fontSize: 14, fontWeight: '600' }}>
               Suggested by Community
             </Text>
-            <Pressable onPress={() => setShowThumbnails(false)}>
-              <Text style={{ color: '#e4e4e7', fontSize: 16 }}>▲</Text>
+            <Pressable 
+              onPress={() => setShowThumbnails(false)}
+              style={{ 
+                backgroundColor: 'rgba(0,0,0,0.6)', 
+                paddingHorizontal: 8, 
+                paddingVertical: 4, 
+                borderRadius: 12 
+              }}
+            >
+              <Text style={{ color: '#e4e4e7', fontSize: 16, fontWeight: '600' }}>▲ Hide</Text>
             </Pressable>
           </View>
           
