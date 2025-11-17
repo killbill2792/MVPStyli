@@ -122,6 +122,9 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         products: products
       };
       setChatHistory(prev => [...prev, aiMessage]);
+      
+      // Dismiss keyboard after sending
+      Keyboard.dismiss();
     } catch (error) {
       console.error('Search error:', error);
       setChatHistory(prev => [...prev, {
@@ -129,6 +132,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         message: 'Sorry, I encountered an error. Please try again.',
         products: []
       }]);
+      Keyboard.dismiss();
     } finally {
       setIsSearching(false);
     }
@@ -140,7 +144,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
     }
   };
 
-  const inputBarBottom = keyboardHeight > 0 ? keyboardHeight : (BOTTOM_BAR_HEIGHT + insets.bottom);
+  const inputBarBottom = keyboardHeight > 0 ? keyboardHeight : BOTTOM_BAR_HEIGHT;
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.background }}>

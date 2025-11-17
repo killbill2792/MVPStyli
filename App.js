@@ -447,7 +447,7 @@ function Shell() {
   }
   
   return (
-    <SafeAreaView style={s.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={s.safeArea} edges={['top']}>
       <StatusBar barStyle="light-content" translucent={false} />
       
       {/* New screens that need full screen control */}
@@ -765,7 +765,7 @@ function Shop() {
               justifyContent: 'center',
             }}
           >
-            <Text style={{ fontSize: 18 }}>⚙️</Text>
+            <Text style={{ fontSize: 18 }}>☰</Text>
           </Pressable>
         </View>
       </View>
@@ -875,7 +875,7 @@ function Shop() {
       
       {/* Trend Cards Section */}
       <View style={{ paddingHorizontal: Spacing.lg, paddingTop: 0, paddingBottom: Spacing.xs }}>
-        <Text style={{ ...TextStyles.heading, marginBottom: Spacing.xs, fontSize: 18, marginTop: Spacing.xs }}>Trending Now</Text>
+        <Text style={{ ...TextStyles.heading, marginBottom: Spacing.xs, fontSize: 18, marginTop: 0 }}>Trending Now</Text>
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false}
@@ -885,15 +885,16 @@ function Shop() {
           {[
             { city: 'NY', label: 'NYC', fullLabel: 'Trends in NYC', emoji: '🗽', image: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=400' },
             { city: 'Tokyo', label: 'Tokyo', fullLabel: 'Trends in Tokyo', emoji: '🌸', image: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=400' },
-            { city: 'LA', label: 'LA', fullLabel: 'Trends in LA', emoji: '🌴', image: 'https://images.unsplash.com/photo-1515895306158-439f1e15b68a?w=400&h=300&fit=crop&crop=center' },
+            { city: 'LA', label: 'LA', fullLabel: 'Trends in LA', emoji: '🌴', image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&h=300&fit=crop&crop=center' },
             { city: 'Paris', label: 'Paris', fullLabel: 'Trends in Paris', emoji: '🗼', image: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=400' },
             { city: 'London', label: 'London', fullLabel: 'Trends in London', emoji: '🇬🇧', image: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=400' },
             { city: 'Seoul', label: 'Seoul', fullLabel: 'Trends in Seoul', emoji: '🇰🇷', image: 'https://images.unsplash.com/photo-1570197788417-0e82375c9371?w=400' },
           ].map((trend, index) => {
-            // Calculate card size based on scroll position
-            const isScrolled = scrollY > 50;
-            const cardWidth = isScrolled ? 80 : 140;
-            const cardHeight = isScrolled ? 50 : 100;
+            // Calculate card size based on scroll position with smooth transition
+            const scrollThreshold = 50;
+            const scrollProgress = Math.min(Math.max((scrollY - scrollThreshold) / 30, 0), 1);
+            const cardWidth = 140 - (scrollProgress * 60); // Smooth transition from 140 to 80
+            const cardHeight = 100 - (scrollProgress * 50); // Smooth transition from 100 to 50
             
             return (
             <Pressable
@@ -964,25 +965,25 @@ function Shop() {
               }} />
               <View style={{
                 flex: 1,
-                padding: isScrolled ? Spacing.xs : Spacing.md,
+                padding: scrollProgress > 0.5 ? Spacing.xs : Spacing.md,
                 justifyContent: 'space-between',
                 position: 'relative',
                 zIndex: 1,
               }}>
-                {!isScrolled && <Text style={{ fontSize: 32, marginBottom: 4 }}>{trend.emoji}</Text>}
+                {scrollProgress < 0.5 && <Text style={{ fontSize: 32, marginBottom: 4 }}>{trend.emoji}</Text>}
                 <View>
                   <Text style={{ 
                     color: '#fff', 
-                    fontSize: isScrolled ? 12 : 18, 
+                    fontSize: scrollProgress > 0.5 ? 12 : 18, 
                     fontWeight: '800',
                     letterSpacing: 0.5,
                     textShadowColor: 'rgba(0,0,0,0.5)',
                     textShadowOffset: { width: 0, height: 2 },
                     textShadowRadius: 3,
                   }}>
-                    {isScrolled ? trend.emoji + ' ' + trend.label : trend.label}
+                    {scrollProgress > 0.5 ? trend.emoji + ' ' + trend.label : trend.label}
                   </Text>
-                  {!isScrolled && (
+                  {scrollProgress < 0.5 && (
                     <Text style={{ 
                       color: 'rgba(255,255,255,0.95)', 
                       fontSize: 11, 
@@ -1370,6 +1371,19 @@ function Product() {
           {(!product.kind || product.kind === 'catalog') && (
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <Pressable 
+                onPress={async () => {
+                  if (product.buyUrl || product.productUrl) {
+                    const url = product.productUrl || product.buyUrl;
+                    const canOpen = await Linking.canOpenURL(url);
+                    if (canOpen) {
+                      await Linking.openURL(url);
+                    } else {
+                      Alert.alert('Error', 'Cannot open this URL');
+                    }
+                  } else {
+                    Alert.alert('Buy Now', `Product: ${product.name}\nPrice: $${product.price}`);
+                  }
+                }}
                 style={{ 
                   flex: 1, 
                   backgroundColor: '#fff',
@@ -1869,7 +1883,7 @@ function TryOn() {
               elevation: 5
             }}
           >
-            <Text style={{ fontSize: 20 }}>⚙</Text>
+            <Text style={{ fontSize: 20 }}>🔍</Text>
           </Pressable>
           <Pressable 
             onPress={() => setRoute('createpod')}
@@ -1887,7 +1901,7 @@ function TryOn() {
               elevation: 5
             }}
           >
-            <Text style={{ fontSize: 20 }}>⚙</Text>
+            <Text style={{ fontSize: 20 }}>👥</Text>
           </Pressable>
           <Pressable 
             onPress={() => setRoute('suggested-outfits')}
@@ -1905,7 +1919,7 @@ function TryOn() {
               elevation: 5
             }}
           >
-            <Text style={{ fontSize: 20 }}>⚙</Text>
+            <Text style={{ fontSize: 20 }}>✨</Text>
           </Pressable>
         </View>
         
@@ -1922,7 +1936,7 @@ function TryOn() {
             }}
           >
             <Text style={{ color: busy ? '#666' : '#000', fontWeight: '700' }}>
-              {busy ? '⏳ Processing...' : '⚙ Try On'}
+              {busy ? '⏳ Processing...' : '✨ Try On'}
             </Text>
           </Pressable>
           {result && (
@@ -1930,7 +1944,7 @@ function TryOn() {
               onPress={() => Linking.openURL(product?.buyUrl || 'https://example.com')} 
               style={{ backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14 }}
             >
-              <Text style={{ color: '#fff', fontWeight: '600' }}>⚙ Buy</Text>
+              <Text style={{ color: '#fff', fontWeight: '600' }}>🛒 Buy</Text>
             </Pressable>
           )}
         </View>
