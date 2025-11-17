@@ -874,8 +874,8 @@ function Shop() {
       )}
       
       {/* Trend Cards Section */}
-      <View style={{ paddingHorizontal: Spacing.lg, paddingTop: Spacing.xs, paddingBottom: Spacing.xs }}>
-        <Text style={{ ...TextStyles.heading, marginBottom: Spacing.xs, fontSize: 18 }}>Trending Now</Text>
+      <View style={{ paddingHorizontal: Spacing.lg, paddingTop: 0, paddingBottom: Spacing.xs }}>
+        <Text style={{ ...TextStyles.heading, marginBottom: Spacing.xs, fontSize: 18, marginTop: Spacing.xs }}>Trending Now</Text>
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false}
@@ -1140,6 +1140,7 @@ function Product() {
   const [isTracking, setIsTracking] = useState(false);
   const [trackingPrice, setTrackingPrice] = useState('');
   const [showPriceInput, setShowPriceInput] = useState(false);
+  const [isImageFullScreen, setIsImageFullScreen] = useState(false);
   const [priceHistory, setPriceHistory] = useState([
     { date: '2024-01-15', price: 129 },
     { date: '2024-01-10', price: 119 },
@@ -1240,19 +1241,53 @@ function Product() {
     );
   }
 
+  // Full screen image view
+  if (isImageFullScreen) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#000' }}>
+        <Pressable 
+          style={{ flex: 1 }}
+          onPress={() => setIsImageFullScreen(false)}
+        >
+          <Image 
+            source={{ uri: product.image }} 
+            resizeMode="contain" 
+            style={{ 
+              width: '100%',
+              height: '100%',
+            }} 
+          />
+        </Pressable>
+        <Pressable 
+          onPress={() => setIsImageFullScreen(false)}
+          style={{ 
+            position: 'absolute', 
+            top: 12, 
+            left: 12, 
+            backgroundColor: 'rgba(0,0,0,0.7)', 
+            paddingHorizontal: 16, 
+            paddingVertical: 10, 
+            borderRadius: 20 
+          }}
+        >
+          <Text style={{ color: '#fff', fontWeight: '700' }}>← Back</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      {/* Full screen image like Explore page - takes full screen */}
-      <View style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
+      {/* Image takes 3/4 of screen */}
+      <Pressable 
+        style={{ flex: 3 }}
+        onPress={() => setIsImageFullScreen(true)}
+        activeOpacity={1}
+      >
         <Image 
           source={{ uri: product.image }} 
           resizeMode="cover" 
           style={{ 
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
             width: '100%',
             height: '100%',
           }} 
@@ -1261,7 +1296,10 @@ function Product() {
         {/* Floating Action Buttons on Image */}
         <View style={{ position: 'absolute', top: 12, right: 12, gap: 8, zIndex: 1000 }}>
           <Pressable 
-            onPress={() => setRoute('tryon', { garmentId: product.id, category: product.category, garmentCleanUrl: cleanUrl || product.image, product: product })}
+            onPress={(e) => {
+              e.stopPropagation();
+              setRoute('tryon', { garmentId: product.id, category: product.category, garmentCleanUrl: cleanUrl || product.image, product: product });
+            }}
             style={{
               backgroundColor: '#fff',
               paddingHorizontal: 14,
@@ -1277,7 +1315,10 @@ function Product() {
             <Text style={{ color: '#000', fontWeight: '700' }}>✦ Try On</Text>
           </Pressable>
           <Pressable 
-            onPress={() => setRoute('createpod')}
+            onPress={(e) => {
+              e.stopPropagation();
+              setRoute('createpod');
+            }}
             style={{
               backgroundColor: 'rgba(255,255,255,0.9)',
               paddingHorizontal: 14,
@@ -1293,13 +1334,13 @@ function Product() {
             <Text style={{ color: '#000', fontWeight: '700' }}>💬 Ask Pod</Text>
           </Pressable>
         </View>
-      </View>
+      </Pressable>
       
-      {/* Product details - starts below image, not overlaying */}
+      {/* Product details - takes 1/4 of screen */}
       <ScrollView 
         style={{ 
-          flex: 0, // Don't take flex space, just use content height
-          maxHeight: '50%',
+          flex: 1,
+          maxHeight: '25%',
         }} 
         contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: BOTTOM_BAR_TOTAL_HEIGHT + 16 }} 
         showsVerticalScrollIndicator={false}
@@ -1361,8 +1402,8 @@ function Product() {
                   borderColor: 'rgba(255,255,255,0.2)'
                 }}
               >
-                <Text style={{ fontSize: 14 }}>
-                  {isTracking ? '🔔' : '⚙'}
+                <Text style={{ fontSize: 16 }}>
+                  {isTracking ? '🔔' : '💰'}
                 </Text>
                 <Text style={{ 
                   color: isTracking ? '#fff' : '#e4e4e7', 
