@@ -153,7 +153,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: Colors.background, paddingBottom: keyboardHeight > 0 ? 0 : (insets.bottom + BOTTOM_BAR_CONTENT_HEIGHT) }}>
+    <View style={{ flex: 1, backgroundColor: Colors.background }}>
       {/* Header */}
       <View style={{
         flexDirection: 'row',
@@ -298,7 +298,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
       {/* Input Bar - positioned at the bottom of the container or above keyboard */}
       <View style={{ 
         position: 'absolute',
-        bottom: keyboardHeight > 0 ? keyboardHeight : 0,
+        bottom: keyboardHeight > 0 ? keyboardHeight : (insets.bottom + BOTTOM_BAR_CONTENT_HEIGHT),
         left: 0,
         right: 0,
         backgroundColor: Colors.background,
