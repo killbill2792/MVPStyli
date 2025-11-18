@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, Image, Platform, Keyboard, KeyboardAvoidingView } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, Image, Platform, Keyboard } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, Typography, Spacing, BorderRadius, TextStyles, getColors } from '../lib/designSystem';
@@ -152,18 +152,8 @@ export default function ChatScreen({ onBack, onProductSelect }) {
     }
   };
 
-  const Container = keyboardHeight > 0 ? KeyboardAvoidingView : View;
-  const containerProps = keyboardHeight > 0 
-    ? { 
-        style: { flex: 1, backgroundColor: Colors.background },
-        behavior: Platform.OS === 'ios' ? 'padding' : 'height',
-        keyboardVerticalOffset: Platform.OS === 'ios' ? 0 : 0
-      }
-    : { style: { flex: 1, backgroundColor: Colors.background } };
-
   return (
-    <Container {...containerProps}>
-      <View style={{ flex: 1, backgroundColor: Colors.background }}>
+    <View style={{ flex: 1, backgroundColor: Colors.background }}>
         {/* Header */}
         <View style={{
           flexDirection: 'row',
@@ -314,14 +304,13 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         backgroundColor: Colors.background,
         borderTopWidth: 1,
         borderTopColor: Colors.border,
+        paddingHorizontal: Spacing.lg,
+        paddingVertical: Spacing.sm,
       }}>
         <View style={{ 
           flexDirection: 'row', 
           gap: Spacing.xs, 
           alignItems: 'center',
-          paddingHorizontal: Spacing.lg,
-          paddingVertical: Spacing.sm,
-          minHeight: INPUT_ROW_HEIGHT + 8,
         }}>
           {uploadedImage ? (
             <Pressable
@@ -402,7 +391,6 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           </Pressable>
         </View>
       </View>
-      </View>
-    </Container>
+    </View>
   );
 }
