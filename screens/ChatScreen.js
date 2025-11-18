@@ -295,10 +295,10 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         )}
       </ScrollView>
 
-      {/* Input Bar - positioned at the bottom of the container */}
+      {/* Input Bar - positioned at the bottom of the container or above keyboard */}
       <View style={{ 
         position: 'absolute',
-        bottom: 0,
+        bottom: keyboardHeight > 0 ? keyboardHeight : 0,
         left: 0,
         right: 0,
         backgroundColor: Colors.background,
