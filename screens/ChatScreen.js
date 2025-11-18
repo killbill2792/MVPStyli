@@ -152,10 +152,8 @@ export default function ChatScreen({ onBack, onProductSelect }) {
     }
   };
 
-  const inputBarBottom = keyboardHeight > 0 ? keyboardHeight : (insets.bottom + BOTTOM_BAR_CONTENT_HEIGHT);
-
   return (
-    <View style={{ flex: 1, backgroundColor: Colors.background }}>
+    <View style={{ flex: 1, backgroundColor: Colors.background, paddingBottom: keyboardHeight > 0 ? 0 : (insets.bottom + BOTTOM_BAR_CONTENT_HEIGHT) }}>
       {/* Header */}
       <View style={{
         flexDirection: 'row',
@@ -297,10 +295,10 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         )}
       </ScrollView>
 
-      {/* Input Bar - positioned directly above bottom bar */}
+      {/* Input Bar - positioned at the bottom of the container */}
       <View style={{ 
         position: 'absolute',
-        bottom: keyboardHeight > 0 ? keyboardHeight : BOTTOM_BAR_CONTENT_HEIGHT,
+        bottom: 0,
         left: 0,
         right: 0,
         backgroundColor: Colors.background,
