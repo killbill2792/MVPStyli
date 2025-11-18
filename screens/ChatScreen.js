@@ -171,7 +171,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         contentContainerStyle={{ 
           paddingHorizontal: Spacing.lg,
           paddingTop: Spacing.md,
-          paddingBottom: INPUT_ROW_HEIGHT + BOTTOM_BAR_HEIGHT + 20,
+          paddingBottom: INPUT_ROW_HEIGHT + (keyboardHeight > 0 ? keyboardHeight : (insets.bottom + BOTTOM_BAR_HEIGHT)) + 20,
         }}
         onContentSizeChange={() => {
           if (chatScrollRef.current) {
@@ -292,13 +292,12 @@ export default function ChatScreen({ onBack, onProductSelect }) {
       {/* Input Bar */}
       <View style={{ 
         position: 'absolute',
-        bottom: keyboardHeight > 0 ? keyboardHeight : insets.bottom + BOTTOM_BAR_HEIGHT,
+        bottom: keyboardHeight > 0 ? keyboardHeight : (insets.bottom + BOTTOM_BAR_HEIGHT),
         left: 0,
         right: 0,
         backgroundColor: Colors.background,
         borderTopWidth: 1,
         borderTopColor: Colors.border,
-        paddingBottom: keyboardHeight > 0 ? 0 : insets.bottom,
       }}>
         <View style={{ 
           flexDirection: 'row', 

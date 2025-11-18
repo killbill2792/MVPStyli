@@ -766,7 +766,7 @@ function Shop() {
               justifyContent: 'center',
             }}
           >
-            <Text style={{ fontSize: 18 }}>☰</Text>
+            <Text style={{ fontSize: 18, color: showFilters ? Colors.textWhite : Colors.textPrimary }}>☰</Text>
           </Pressable>
         </View>
       </View>
@@ -776,7 +776,7 @@ function Shop() {
         horizontal 
         showsHorizontalScrollIndicator={false}
         style={{ maxHeight: 50 }}
-        contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.xs, alignItems: 'center' }}
+        contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.xs, alignItems: 'center', paddingBottom: 0, marginBottom: 0 }}
       >
         {categories.map((cat) => (
           <Pressable
@@ -875,8 +875,8 @@ function Shop() {
       )}
       
       {/* Trend Cards Section */}
-      <View style={{ paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xs }}>
-        <Text style={{ ...TextStyles.heading, marginBottom: Spacing.xs, fontSize: 18 }}>Trending Now</Text>
+      <View style={{ paddingHorizontal: Spacing.lg, paddingTop: 0, paddingBottom: Spacing.xs }}>
+        <Text style={{ ...TextStyles.heading, marginBottom: Spacing.xs, fontSize: 18, marginTop: 0 }}>Trending Now</Text>
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false}
@@ -1290,7 +1290,7 @@ function Product() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#000' }}>
+    <View style={{ flex: 1, backgroundColor: '#000', paddingTop: 0 }}>
       <Banner 
         message={bannerMessage} 
         type={bannerType}
@@ -1299,7 +1299,7 @@ function Product() {
       />
       {/* Image takes 3/4 of screen */}
       <Pressable 
-        style={{ flex: 3 }}
+        style={{ flex: 3, marginTop: 0, paddingTop: 0 }}
         onPress={() => setIsImageFullScreen(true)}
         activeOpacity={1}
       >
@@ -1360,8 +1360,10 @@ function Product() {
         style={{ 
           flex: 1,
           maxHeight: '25%',
+          marginTop: 0,
+          paddingTop: 0,
         }} 
-        contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: BOTTOM_BAR_TOTAL_HEIGHT + 16 }} 
+        contentContainerStyle={{ padding: 16, gap: 14, paddingTop: 0, paddingBottom: BOTTOM_BAR_TOTAL_HEIGHT + 16 }} 
         showsVerticalScrollIndicator={false}
       >
       <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderRadius: 24, padding: 16 }}>
