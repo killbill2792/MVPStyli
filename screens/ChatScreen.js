@@ -17,9 +17,15 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   const [primaryColor, setPrimaryColor] = useState(getColors().primary);
   const chatScrollRef = useRef(null);
 
-  // Bottom bar actual height: paddingTop(5) + paddingBottom(2) + inner padding(5*2) + button padding(8*2) + text(~14) = ~47px
+  // Bottom bar actual height calculation:
+  // Outer View: paddingTop(5) + paddingBottom(2) = 7px
+  // Inner container: paddingVertical(5) = 10px (5 top + 5 bottom)
+  // Button: paddingVertical(8) = 16px (8 top + 8 bottom)
+  // Text: fontSize(14) ≈ 14px
+  // Border: borderTopWidth(1) = 1px
+  // Total: 5 + 2 + 5 + 8 + 14 + 8 + 5 + 1 = 48px
   // SafeAreaView in BottomBar adds insets.bottom automatically, so we only need content height
-  const BOTTOM_BAR_CONTENT_HEIGHT = 47;
+  const BOTTOM_BAR_CONTENT_HEIGHT = 48;
   const INPUT_ROW_HEIGHT = 40;
 
   // Update color when theme changes
@@ -291,16 +297,15 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         )}
       </ScrollView>
 
-      {/* Input Bar */}
+      {/* Input Bar - positioned directly above bottom bar */}
       <View style={{ 
         position: 'absolute',
-        bottom: keyboardHeight > 0 ? keyboardHeight : 0,
+        bottom: keyboardHeight > 0 ? keyboardHeight : (insets.bottom + BOTTOM_BAR_CONTENT_HEIGHT),
         left: 0,
         right: 0,
         backgroundColor: Colors.background,
         borderTopWidth: 1,
         borderTopColor: Colors.border,
-        paddingBottom: keyboardHeight > 0 ? 0 : (insets.bottom + BOTTOM_BAR_CONTENT_HEIGHT),
       }}>
         <View style={{ 
           flexDirection: 'row', 
