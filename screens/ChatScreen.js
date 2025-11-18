@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, Image, Platform, Keyboard } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, Image, Platform, Keyboard, KeyboardAvoidingView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, Typography, Spacing, BorderRadius, TextStyles, getColors } from '../lib/designSystem';
@@ -153,7 +153,12 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: Colors.background }}>
+    <KeyboardAvoidingView 
+      style={{ flex: 1, backgroundColor: Colors.background }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+    >
+      <View style={{ flex: 1, backgroundColor: Colors.background }}>
         {/* Header */}
         <View style={{
           flexDirection: 'row',
@@ -177,7 +182,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           contentContainerStyle={{ 
             paddingHorizontal: Spacing.lg,
             paddingTop: Spacing.md,
-            paddingBottom: 20,
+            paddingBottom: INPUT_ROW_HEIGHT + 60,
           }}
           onContentSizeChange={() => {
             if (chatScrollRef.current) {
@@ -295,12 +300,15 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         )}
       </ScrollView>
 
-      {/* Input Bar Container - at bottom of screen */}
+      {/* Input Bar Container - positioned absolutely at bottom */}
       <View style={{ 
+        position: 'absolute',
+        bottom: keyboardHeight > 0 ? keyboardHeight : (BOTTOM_BAR_CONTENT_HEIGHT + insets.bottom),
+        left: 0,
+        right: 0,
         backgroundColor: Colors.background,
         borderTopWidth: 1,
         borderTopColor: Colors.border,
-        marginBottom: keyboardHeight > 0 ? 0 : (BOTTOM_BAR_CONTENT_HEIGHT + insets.bottom),
       }}>
         <View style={{ 
           flexDirection: 'row', 
@@ -388,6 +396,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           </Pressable>
         </View>
       </View>
-    </View>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
