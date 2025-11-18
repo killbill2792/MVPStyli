@@ -298,7 +298,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
       {/* Input Bar Container - positioned at bottom above nav bar */}
       <View style={{ 
         position: 'absolute',
-        bottom: keyboardHeight > 0 ? keyboardHeight : (insets.bottom + BOTTOM_BAR_CONTENT_HEIGHT),
+        bottom: keyboardHeight > 0 ? keyboardHeight : BOTTOM_BAR_CONTENT_HEIGHT,
         left: 0,
         right: 0,
         backgroundColor: Colors.background,
