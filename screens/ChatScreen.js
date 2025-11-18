@@ -152,12 +152,17 @@ export default function ChatScreen({ onBack, onProductSelect }) {
     }
   };
 
+  const Container = keyboardHeight > 0 ? KeyboardAvoidingView : View;
+  const containerProps = keyboardHeight > 0 
+    ? { 
+        style: { flex: 1, backgroundColor: Colors.background },
+        behavior: Platform.OS === 'ios' ? 'padding' : 'height',
+        keyboardVerticalOffset: Platform.OS === 'ios' ? 0 : 0
+      }
+    : { style: { flex: 1, backgroundColor: Colors.background } };
+
   return (
-    <KeyboardAvoidingView 
-      style={{ flex: 1, backgroundColor: Colors.background }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-    >
+    <Container {...containerProps}>
       <View style={{ flex: 1, backgroundColor: Colors.background }}>
         {/* Header */}
         <View style={{
@@ -398,6 +403,6 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         </View>
       </View>
       </View>
-    </KeyboardAvoidingView>
+    </Container>
   );
 }
