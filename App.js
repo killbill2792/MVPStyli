@@ -523,7 +523,7 @@ function Shell() {
       
       {/* Original screens that use the container */}
       {!["createpod", "podlive", "podrecap", "podshome", "inbox", "stylecraft", "account", "shop", "chat", "feed"].includes(route) && (
-        <View style={s.container}>
+        <View style={route === "product" ? { ...s.container, paddingBottom: 0 } : s.container}>
           {route === "signin" && <SignInScreen onDone={() => setRoute("onboarding")} />}
           {route === "onboarding" && <Onboarding />}
           {route === "product" && <Product />}
@@ -775,7 +775,7 @@ function Shop() {
       <ScrollView 
         horizontal 
         showsHorizontalScrollIndicator={false}
-        style={{ maxHeight: 50 }}
+        style={{ maxHeight: 50, marginBottom: 0, paddingBottom: 0 }}
         contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.xs, alignItems: 'center', paddingBottom: 0, marginBottom: 0 }}
       >
         {categories.map((cat) => (
@@ -875,8 +875,8 @@ function Shop() {
       )}
       
       {/* Trend Cards Section */}
-      <View style={{ paddingHorizontal: Spacing.lg, paddingTop: 0, paddingBottom: Spacing.xs }}>
-        <Text style={{ ...TextStyles.heading, marginBottom: Spacing.xs, fontSize: 18, marginTop: 0 }}>Trending Now</Text>
+      <View style={{ paddingHorizontal: Spacing.lg, paddingTop: 0, marginTop: 0, paddingBottom: Spacing.xs }}>
+        <Text style={{ ...TextStyles.heading, marginBottom: Spacing.xs, fontSize: 18, marginTop: 0, paddingTop: 0 }}>Trending Now</Text>
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false}
@@ -1155,7 +1155,9 @@ function Product() {
   
   const lowestPrice = product ? Math.min(...priceHistory.map(p => p.price)) : 0;
   const isOnSale = product ? product.price < priceHistory[0].price : false;
-  const BOTTOM_BAR_TOTAL_HEIGHT = 33 + insets.bottom;
+  // Bottom bar actual height: paddingTop(5) + paddingBottom(2) + inner padding(5*2) + button padding(8*2) + text(~14) = ~47px
+  // SafeAreaView in BottomBar adds insets.bottom automatically
+  const BOTTOM_BAR_TOTAL_HEIGHT = 47 + insets.bottom;
 
   // Load all products including detected ones
   useEffect(() => {
@@ -2413,7 +2415,9 @@ function Explore() {
   };
 
   const insets = useSafeAreaInsets();
-  const BOTTOM_BAR_TOTAL_HEIGHT = 33 + insets.bottom; // Bottom bar content + safe area
+  // Bottom bar actual height: paddingTop(5) + paddingBottom(2) + inner padding(5*2) + button padding(8*2) + text(~14) = ~47px
+  // SafeAreaView in BottomBar adds insets.bottom automatically
+  const BOTTOM_BAR_TOTAL_HEIGHT = 47 + insets.bottom;
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
