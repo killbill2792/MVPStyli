@@ -490,7 +490,7 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
                   Choose your preferred vendor for your custom design
                 </Text>
 
-                {quotes.map((quote, index) => (
+                {quotes.filter(quote => quote && quote.id).map((quote, index) => (
                   <Pressable
                     key={quote.id}
                     onPress={() => {

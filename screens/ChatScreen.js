@@ -294,12 +294,13 @@ export default function ChatScreen({ onBack, onProductSelect }) {
       {/* Input Bar */}
       <View style={{ 
         position: 'absolute',
-        bottom: keyboardHeight > 0 ? keyboardHeight : (insets.bottom + BOTTOM_BAR_CONTENT_HEIGHT),
+        bottom: keyboardHeight > 0 ? keyboardHeight : 0,
         left: 0,
         right: 0,
         backgroundColor: Colors.background,
         borderTopWidth: 1,
         borderTopColor: Colors.border,
+        paddingBottom: keyboardHeight > 0 ? 0 : (insets.bottom + BOTTOM_BAR_CONTENT_HEIGHT),
       }}>
         <View style={{ 
           flexDirection: 'row', 
