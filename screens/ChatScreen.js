@@ -146,7 +146,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
     }
   };
 
-  const inputBarBottom = keyboardHeight > 0 ? keyboardHeight : BOTTOM_BAR_HEIGHT;
+  const inputBarBottom = keyboardHeight > 0 ? keyboardHeight : (insets.bottom + BOTTOM_BAR_CONTENT_HEIGHT);
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.background }}>
