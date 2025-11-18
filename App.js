@@ -1827,7 +1827,6 @@ function TryOn() {
       />
       <TouchableWithoutFeedback onLongPress={() => setRoute('shop')}>
         <View style={{ flex: 1 }}>
-
       {/* Transparent Overlay */}
       {showOverlay && (
         <TouchableWithoutFeedback onPress={hideOverlay}>
@@ -2057,9 +2056,9 @@ function TryOn() {
           </View>
         )}
         
-      </View>
-      </View>
-    </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </View>
   );
 }
 
