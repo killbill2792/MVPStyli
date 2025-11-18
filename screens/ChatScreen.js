@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, Image, Platform, Keyboard } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, Image, Platform, Keyboard, KeyboardAvoidingView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, Typography, Spacing, BorderRadius, TextStyles, getColors } from '../lib/designSystem';
@@ -153,38 +153,43 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: Colors.background }}>
-      {/* Header */}
-      <View style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: Spacing.lg,
-        paddingTop: Spacing.md,
-        paddingBottom: Spacing.sm,
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.border,
-      }}>
-        <Pressable onPress={onBack} style={{ marginRight: Spacing.md }}>
-          <Text style={{ color: Colors.textPrimary, fontSize: 18 }}>←</Text>
-        </Pressable>
-        <Text style={{ ...TextStyles.heading, flex: 1 }}>AI Assistant</Text>
-      </View>
-
-      {/* Chat Messages */}
-      <ScrollView 
-        ref={chatScrollRef}
-        style={{ flex: 1 }}
-        contentContainerStyle={{ 
+    <KeyboardAvoidingView 
+      style={{ flex: 1, backgroundColor: Colors.background }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+    >
+      <View style={{ flex: 1, backgroundColor: Colors.background }}>
+        {/* Header */}
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
           paddingHorizontal: Spacing.lg,
           paddingTop: Spacing.md,
-          paddingBottom: INPUT_ROW_HEIGHT + (keyboardHeight > 0 ? keyboardHeight : (insets.bottom + BOTTOM_BAR_CONTENT_HEIGHT)) + 20,
-        }}
-        onContentSizeChange={() => {
-          if (chatScrollRef.current) {
-            chatScrollRef.current.scrollToEnd({ animated: true });
-          }
-        }}
-      >
+          paddingBottom: Spacing.sm,
+          borderBottomWidth: 1,
+          borderBottomColor: Colors.border,
+        }}>
+          <Pressable onPress={onBack} style={{ marginRight: Spacing.md }}>
+            <Text style={{ color: Colors.textPrimary, fontSize: 18 }}>←</Text>
+          </Pressable>
+          <Text style={{ ...TextStyles.heading, flex: 1 }}>AI Assistant</Text>
+        </View>
+
+        {/* Chat Messages */}
+        <ScrollView 
+          ref={chatScrollRef}
+          style={{ flex: 1 }}
+          contentContainerStyle={{ 
+            paddingHorizontal: Spacing.lg,
+            paddingTop: Spacing.md,
+            paddingBottom: INPUT_ROW_HEIGHT + (keyboardHeight > 0 ? keyboardHeight : (insets.bottom + BOTTOM_BAR_CONTENT_HEIGHT)) + 20,
+          }}
+          onContentSizeChange={() => {
+            if (chatScrollRef.current) {
+              chatScrollRef.current.scrollToEnd({ animated: true });
+            }
+          }}
+        >
         {chatHistory.map((msg, idx) => (
           <View key={idx} style={{ marginBottom: Spacing.lg }}>
             {msg.type === 'user' ? (
@@ -295,15 +300,12 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         )}
       </ScrollView>
 
-      {/* Input Bar - positioned at the bottom of the container or above keyboard */}
+      {/* Input Bar - positioned at the bottom */}
       <View style={{ 
-        position: 'absolute',
-        bottom: keyboardHeight > 0 ? keyboardHeight : (insets.bottom + BOTTOM_BAR_CONTENT_HEIGHT),
-        left: 0,
-        right: 0,
         backgroundColor: Colors.background,
         borderTopWidth: 1,
         borderTopColor: Colors.border,
+        paddingBottom: keyboardHeight > 0 ? 0 : (insets.bottom + BOTTOM_BAR_CONTENT_HEIGHT),
       }}>
         <View style={{ 
           flexDirection: 'row', 
@@ -392,6 +394,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           </Pressable>
         </View>
       </View>
-    </View>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
