@@ -20,6 +20,7 @@ import ChatScreen from './screens/ChatScreen';
 import { ProductDetector } from './components/ProductDetector';
 import { fetchRealClothingProducts } from './lib/productApi';
 import { Colors, Typography, Spacing, BorderRadius, ButtonStyles, CardStyles, InputStyles, TextStyles, createButtonStyle, getButtonTextStyle, setTheme as setDesignTheme, getCurrentThemeName, getColors } from './lib/designSystem';
+import { Banner } from './components/Banner';
 
 // Enhanced product data with working model images - upper body and lower body items
 const enhancedProducts = [
@@ -874,8 +875,8 @@ function Shop() {
       )}
       
       {/* Trend Cards Section */}
-      <View style={{ paddingHorizontal: Spacing.lg, paddingTop: 0, paddingBottom: Spacing.xs }}>
-        <Text style={{ ...TextStyles.heading, marginBottom: Spacing.xs, fontSize: 18, marginTop: 0 }}>Trending Now</Text>
+      <View style={{ paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xs }}>
+        <Text style={{ ...TextStyles.heading, marginBottom: Spacing.xs, fontSize: 18 }}>Trending Now</Text>
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false}
@@ -1142,6 +1143,9 @@ function Product() {
   const [trackingPrice, setTrackingPrice] = useState('');
   const [showPriceInput, setShowPriceInput] = useState(false);
   const [isImageFullScreen, setIsImageFullScreen] = useState(false);
+  const [bannerMessage, setBannerMessage] = useState(null);
+  const [bannerType, setBannerType] = useState('error');
+  const [showBanner, setShowBanner] = useState(false);
   const [priceHistory, setPriceHistory] = useState([
     { date: '2024-01-15', price: 129 },
     { date: '2024-01-10', price: 119 },
@@ -1213,7 +1217,9 @@ function Product() {
       setTrackingPrice(lowestPrice.toString());
     } else if (trackingPrice && !isTracking) {
       setIsTracking(true);
-      Alert.alert('Price Tracking Enabled', `You'll be notified when the price drops below $${trackingPrice}`);
+      setBannerMessage(`Price tracking enabled! You'll be notified when the price drops below $${trackingPrice}`);
+      setBannerType('success');
+      setShowBanner(true);
     } else {
       setIsTracking(false);
       setShowPriceInput(false);
@@ -1246,6 +1252,12 @@ function Product() {
   if (isImageFullScreen) {
     return (
       <View style={{ flex: 1, backgroundColor: '#000' }}>
+        <Banner 
+          message={bannerMessage} 
+          type={bannerType}
+          visible={showBanner}
+          onHide={() => setShowBanner(false)}
+        />
         <Pressable 
           style={{ flex: 1 }}
           onPress={() => setIsImageFullScreen(false)}
@@ -1279,6 +1291,12 @@ function Product() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
+      <Banner 
+        message={bannerMessage} 
+        type={bannerType}
+        visible={showBanner}
+        onHide={() => setShowBanner(false)}
+      />
       {/* Image takes 3/4 of screen */}
       <Pressable 
         style={{ flex: 3 }}
@@ -1378,10 +1396,14 @@ function Product() {
                     if (canOpen) {
                       await Linking.openURL(url);
                     } else {
-                      Alert.alert('Error', 'Cannot open this URL');
+                      setBannerMessage('Cannot open this URL');
+                      setBannerType('error');
+                      setShowBanner(true);
                     }
                   } else {
-                    Alert.alert('Buy Now', `Product: ${product.name}\nPrice: $${product.price}`);
+                    setBannerMessage(`Product: ${product.name}\nPrice: $${product.price}`);
+                    setBannerType('success');
+                    setShowBanner(true);
                   }
                 }}
                 style={{ 
@@ -1440,7 +1462,9 @@ function Product() {
                   if (canOpen) {
                     await Linking.openURL(url);
                   } else {
-                    Alert.alert('Error', 'Cannot open this URL');
+                    setBannerMessage('Cannot open this URL');
+                    setBannerType('error');
+                    setShowBanner(true);
                   }
                 }
               }}
@@ -1558,6 +1582,10 @@ function TryOn() {
   const [showOverlay, setShowOverlay] = useState(false);
   const [overlayContent, setOverlayContent] = useState(null);
   const [showOutfitAnalysis, setShowOutfitAnalysis] = useState(false);
+  const [bannerMessage, setBannerMessage] = useState(null);
+  const [bannerType, setBannerType] = useState('error');
+  const [showBanner, setShowBanner] = useState(false);
+  const [tryOnSuccess, setTryOnSuccess] = useState(false);
 
   // Load all products including detected ones
   useEffect(() => {
@@ -1750,21 +1778,30 @@ function TryOn() {
         
         if (status.status === 'succeeded' && status.resultUrl) {
           setResult(status.resultUrl);
+          setTryOnSuccess(true); // Hide Try On button after success
           // Save try-on result to Supabase for persistence
           await saveTryOnResult(status.resultUrl, product?.id, product?.name, setTryOnResults);
-          // AI try-on generated successfully
+          // Show success banner
+          setBannerMessage('AI try-on completed successfully!');
+          setBannerType('success');
+          setShowBanner(true);
         } else {
-          // Silently handle failures - log for debugging but don't show to user
-          console.log('Try-on failed silently:', status.error || 'Unknown error');
-          // Just return without setting result - user will see the original images
+          // Show error banner
+          setBannerMessage(status.error || 'Try-on failed. Please try again.');
+          setBannerType('error');
+          setShowBanner(true);
+          setTryOnSuccess(false); // Keep button visible on failure
         }
       } else {
         throw new Error(data.error || 'Failed to start try-on');
       }
     } catch (error) {
-      // Log error for debugging but don't show to user
+      // Show error banner
       console.error('Try-on error:', error);
-      // Silently handle - user will just see the original images
+      setBannerMessage(error.message || 'Failed to start try-on. Please try again.');
+      setBannerType('error');
+      setShowBanner(true);
+      setTryOnSuccess(false); // Keep button visible on error
     } finally {
       setBusy(false);
     }
@@ -1781,8 +1818,15 @@ function TryOn() {
   };
   
   return (
-    <TouchableWithoutFeedback onLongPress={() => setRoute('shop')}>
-      <View style={{ flex: 1, backgroundColor: '#000' }}>
+    <View style={{ flex: 1, backgroundColor: '#000', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+      <Banner 
+        message={bannerMessage} 
+        type={bannerType}
+        visible={showBanner}
+        onHide={() => setShowBanner(false)}
+      />
+      <TouchableWithoutFeedback onLongPress={() => setRoute('shop')}>
+        <View style={{ flex: 1 }}>
 
       {/* Transparent Overlay */}
       {showOverlay && (
@@ -1883,7 +1927,7 @@ function TryOn() {
               elevation: 5
             }}
           >
-            <Text style={{ fontSize: 20 }}>🔍</Text>
+            <Text style={{ fontSize: 20 }}>✨</Text>
           </Pressable>
           <Pressable 
             onPress={() => setRoute('createpod')}
@@ -1919,26 +1963,28 @@ function TryOn() {
               elevation: 5
             }}
           >
-            <Text style={{ fontSize: 20 }}>✨</Text>
+            <Text style={{ fontSize: 20 }}>👗</Text>
           </Pressable>
         </View>
         
         <View style={{ position: 'absolute', left: 8, bottom: 8, flexDirection: 'row', gap: 8 }}>
-          <Pressable 
-            onPress={handleTryOn} 
-            disabled={busy}
-            style={{ 
-              backgroundColor: busy ? 'rgba(255,255,255,0.3)' : '#fff', 
-              paddingHorizontal: 14, 
-              paddingVertical: 10, 
-              borderRadius: 14,
-              opacity: busy ? 0.6 : 1
-            }}
-          >
-            <Text style={{ color: busy ? '#666' : '#000', fontWeight: '700' }}>
-              {busy ? '⏳ Processing...' : '✨ Try On'}
-            </Text>
-          </Pressable>
+          {!tryOnSuccess && (
+            <Pressable 
+              onPress={handleTryOn} 
+              disabled={busy}
+              style={{ 
+                backgroundColor: busy ? 'rgba(255,255,255,0.3)' : '#fff', 
+                paddingHorizontal: 14, 
+                paddingVertical: 10, 
+                borderRadius: 14,
+                opacity: busy ? 0.6 : 1
+              }}
+            >
+              <Text style={{ color: busy ? '#666' : '#000', fontWeight: '700' }}>
+                {busy ? '⏳ Processing...' : '✨ Try On'}
+              </Text>
+            </Pressable>
+          )}
           {result && (
             <Pressable 
               onPress={() => Linking.openURL(product?.buyUrl || 'https://example.com')} 

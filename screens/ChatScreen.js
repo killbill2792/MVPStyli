@@ -292,19 +292,20 @@ export default function ChatScreen({ onBack, onProductSelect }) {
       {/* Input Bar */}
       <View style={{ 
         position: 'absolute',
-        bottom: inputBarBottom,
+        bottom: keyboardHeight > 0 ? keyboardHeight : insets.bottom + BOTTOM_BAR_HEIGHT,
         left: 0,
         right: 0,
         backgroundColor: Colors.background,
         borderTopWidth: 1,
         borderTopColor: Colors.border,
+        paddingBottom: keyboardHeight > 0 ? 0 : insets.bottom,
       }}>
         <View style={{ 
           flexDirection: 'row', 
           gap: Spacing.xs, 
           alignItems: 'center',
           paddingHorizontal: Spacing.lg,
-          paddingVertical: Spacing.sm,
+          paddingVertical: Spacing.xs,
         }}>
           {uploadedImage ? (
             <Pressable
