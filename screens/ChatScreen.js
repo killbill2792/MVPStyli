@@ -295,7 +295,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         )}
       </ScrollView>
 
-      {/* Input Bar - positioned absolutely at the bottom */}
+      {/* Input Bar Container - positioned at bottom above nav bar */}
       <View style={{ 
         position: 'absolute',
         bottom: keyboardHeight > 0 ? keyboardHeight : (insets.bottom + BOTTOM_BAR_CONTENT_HEIGHT),
@@ -304,13 +304,13 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         backgroundColor: Colors.background,
         borderTopWidth: 1,
         borderTopColor: Colors.border,
-        paddingHorizontal: Spacing.lg,
-        paddingVertical: Spacing.sm,
       }}>
         <View style={{ 
           flexDirection: 'row', 
           gap: Spacing.xs, 
           alignItems: 'center',
+          paddingHorizontal: Spacing.lg,
+          paddingVertical: Spacing.sm,
         }}>
           {uploadedImage ? (
             <Pressable
