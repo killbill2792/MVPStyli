@@ -298,13 +298,15 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         backgroundColor: Colors.background,
         borderTopWidth: 1,
         borderTopColor: Colors.border,
+        paddingBottom: keyboardHeight > 0 ? 0 : insets.bottom,
       }}>
         <View style={{ 
           flexDirection: 'row', 
           gap: Spacing.xs, 
           alignItems: 'center',
           paddingHorizontal: Spacing.lg,
-          paddingVertical: Spacing.xs,
+          paddingVertical: Spacing.sm,
+          minHeight: INPUT_ROW_HEIGHT + 8,
         }}>
           {uploadedImage ? (
             <Pressable
