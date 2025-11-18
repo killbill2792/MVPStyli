@@ -177,7 +177,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           contentContainerStyle={{ 
             paddingHorizontal: Spacing.lg,
             paddingTop: Spacing.md,
-            paddingBottom: INPUT_ROW_HEIGHT + (keyboardHeight > 0 ? keyboardHeight : (insets.bottom + BOTTOM_BAR_CONTENT_HEIGHT)) + 20,
+            paddingBottom: 20,
           }}
           onContentSizeChange={() => {
             if (chatScrollRef.current) {
@@ -295,15 +295,12 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         )}
       </ScrollView>
 
-      {/* Input Bar Container - positioned at bottom above nav bar */}
+      {/* Input Bar Container - at bottom of screen */}
       <View style={{ 
-        position: 'absolute',
-        bottom: keyboardHeight > 0 ? keyboardHeight : (BOTTOM_BAR_CONTENT_HEIGHT + insets.bottom),
-        left: 0,
-        right: 0,
         backgroundColor: Colors.background,
         borderTopWidth: 1,
         borderTopColor: Colors.border,
+        marginBottom: keyboardHeight > 0 ? 0 : (BOTTOM_BAR_CONTENT_HEIGHT + insets.bottom),
       }}>
         <View style={{ 
           flexDirection: 'row', 
