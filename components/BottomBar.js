@@ -3,10 +3,10 @@ import { View, Text, Pressable } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getColors } from '../lib/designSystem';
 
-export default function BottomBar({ route, go }: { route: string; go: (r: string) => void }) {
+export default function BottomBar({ route, go }) {
   const insets = useSafeAreaInsets();
   const colors = getColors();
-  const items: [string, string][] = [['shop', 'Shop'], ['feed', 'Explore'], ['tryon', 'Try-On'], ['podshome', 'Pods'], ['stylecraft', 'StyleCraft']];
+  const items = [['shop', 'Shop'], ['feed', 'Explore'], ['tryon', 'Stylit'], ['podshome', 'Pods'], ['stylecraft', 'StyleCraft']];
   
   return (
     <SafeAreaView style={{ backgroundColor: colors.background }} edges={['bottom']}>
@@ -68,3 +68,4 @@ export default function BottomBar({ route, go }: { route: string; go: (r: string
     </SafeAreaView>
   );
 }
+

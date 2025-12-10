@@ -13,11 +13,13 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Spacing } from '../lib/designSystem';
 
 const { width, height } = Dimensions.get('window');
 
 const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
+  const insets = useSafeAreaInsets();
   const [uploadedImage, setUploadedImage] = useState(null);
   const [prompt, setPrompt] = useState('');
   const [minBudget, setMinBudget] = useState(100);
@@ -144,7 +146,7 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
     <View style={styles.fullScreenContainer}>
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={[styles.scrollContent, { paddingTop: Spacing.lg, paddingBottom: 100 }]}
+          contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 20, paddingBottom: 100 }]}
           showsVerticalScrollIndicator={false}
         >
           {/* Previous Enquiries Toggle */}

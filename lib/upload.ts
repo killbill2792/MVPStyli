@@ -82,3 +82,39 @@ export async function uploadDataUrlToSupabase(dataUrl: string, pathPrefix = 'gar
   const { data } = supabase.storage.from('images').getPublicUrl(filePath);
   return data.publicUrl;
 }
+
+/**
+ * Upload a remote URL (e.g., Replicate result) to Supabase "images" bucket and return a PUBLIC https URL.
+ */
+export async function uploadRemoteImage(remoteUrl: string): Promise<string> {
+  try {
+    console.log('Downloading remote image:', remoteUrl);
+    const response = await fetch(remoteUrl);
+    const blob = await response.blob();
+    const arrayBuffer = await new Response(blob).arrayBuffer();
+
+    const ext = remoteUrl.split('.').pop()?.split('?')[0] || 'jpg';
+    const path = `generated/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    
+    console.log('Uploading to path:', path);
+
+    const { error } = await supabase.storage
+      .from('images')
+      .upload(path, arrayBuffer, {
+        contentType: blob.type || 'image/jpeg',
+        upsert: true,
+      });
+
+    if (error) {
+      console.error('Supabase upload error:', error);
+      throw error;
+    }
+
+    const { data } = supabase.storage.from('images').getPublicUrl(path);
+    console.log('Upload successful, public URL:', data.publicUrl);
+    return data.publicUrl;
+  } catch (error) {
+    console.error('Remote upload error:', error);
+    return remoteUrl; // Fallback to original URL if upload fails
+  }
+}

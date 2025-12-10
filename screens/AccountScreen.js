@@ -11,14 +11,15 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useApp } from '../App';
-import { Colors, Typography, Spacing, BorderRadius, CardStyles, TextStyles, ThemeColors, getCurrentThemeName, setCustomColor, getCustomColor } from '../lib/designSystem';
+import { useApp } from '../lib/AppContext';
+import { Colors, Typography, Spacing, BorderRadius, CardStyles, TextStyles, ThemeColors, getCurrentThemeName, setTheme, setCustomColor, getCustomColor } from '../lib/designSystem';
 
 const { width, height } = Dimensions.get('window');
 
-const AccountScreen = ({ onBack, tryOnResults = [] }) => {
-  const { state, setTheme, setCustomColor: setAppCustomColor, setRoute } = useApp();
+const AccountScreen = ({ tryOnResults = [] }) => {
+  const { state, setRoute, setProcessingResult } = useApp();
   const [username] = useState('Fashionista');
   const [showCustomColorPicker, setShowCustomColorPicker] = useState(false);
   const [customColorInput, setCustomColorInput] = useState('');
@@ -89,6 +90,13 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
       count: 12,
     },
     {
+      id: 'cart',
+      title: 'My Cart',
+      icon: '🛒',
+      color: '#10b981',
+      count: 3,
+    },
+    {
       id: 'settings',
       title: 'Settings',
       icon: '⚙',
@@ -135,11 +143,14 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
   const SectionCard = ({ section }) => {
     const handlePress = () => {
       if (section.id === 'tryons') {
-        // Show try-on results - could navigate to a try-on results screen
-        Alert.alert('Try-On Results', `You have ${tryOnResults.length} try-on results.`);
+        // Show try-on results
+        setRoute('tryon');
       } else if (section.id === 'pods') {
         // Navigate to pods home
         setRoute('podshome');
+      } else if (section.id === 'cart') {
+        // Navigate to cart
+        Alert.alert('My Cart', 'Cart feature coming soon! (3 items)');
       } else if (section.id === 'designs') {
         // Navigate to StyleCraft
         setRoute('stylecraft');
@@ -191,10 +202,10 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
   };
 
   return (
-    <View style={styles.fullScreenContainer}>
+    <SafeAreaView style={styles.fullScreenContainer} edges={['top']}>
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 100, paddingTop: 60 }]}
         showsVerticalScrollIndicator={false}
       >
           {/* Hero Section */}
@@ -253,13 +264,19 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
               <FlatList
                 data={tryOnResults}
                 renderItem={({ item }) => (
-                  <View style={{
+                  <Pressable
+                    onPress={() => {
+                      setProcessingResult(item.resultUrl);
+                      setRoute('tryonresult');
+                    }}
+                    style={{
                     ...CardStyles.container,
                     width: 200,
                     marginRight: Spacing.md,
                     padding: 0,
                     overflow: 'hidden'
-                  }}>
+                    }}
+                  >
                     <Image 
                       source={{ uri: item.resultUrl }} 
                       style={{ width: '100%', height: 250, backgroundColor: Colors.backgroundSecondary }}
@@ -273,7 +290,7 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
                         {new Date(item.createdAt).toLocaleDateString()}
                       </Text>
                     </View>
-                  </View>
+                  </Pressable>
                 )}
                 keyExtractor={(item) => item.id}
                 horizontal
@@ -417,7 +434,6 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
                     onPress={() => {
                       if (customColorInput && /^#[0-9A-Fa-f]{6}$/.test(customColorInput)) {
                         setCustomColor(customColorInput);
-                        setAppCustomColor(customColorInput);
                         setShowCustomColorPicker(false);
                       }
                     }}
@@ -473,7 +489,7 @@ const AccountScreen = ({ onBack, tryOnResults = [] }) => {
             </Pressable>
           </View>
         </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -691,6 +707,16 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 8,
+  },
+  backButtonPill: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   backButtonText: {
     color: '#fff',

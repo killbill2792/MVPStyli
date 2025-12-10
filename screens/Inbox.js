@@ -9,25 +9,8 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
-interface Notification {
-  id: string;
-  type: 'invite' | 'milestone' | 'expired';
-  title: string;
-  message: string;
-  timestamp: string;
-  read: boolean;
-  podId?: string;
-}
-
-interface InboxProps {
-  onBack: () => void;
-  onPodLive?: (podId: string) => void;
-  onPodRecap?: (podId: string) => void;
-  userId?: string;
-}
-
-const Inbox: React.FC<InboxProps> = ({ onBack, onPodLive, onPodRecap, userId }) => {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+const Inbox = ({ onBack, onPodLive, onPodRecap, userId }) => {
+  const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
     loadNotifications();
@@ -35,7 +18,7 @@ const Inbox: React.FC<InboxProps> = ({ onBack, onPodLive, onPodRecap, userId }) 
 
   const loadNotifications = () => {
     // Mock notifications for now
-    const mockNotifications: Notification[] = [
+    const mockNotifications = [
       {
         id: '1',
         type: 'invite',
@@ -67,7 +50,7 @@ const Inbox: React.FC<InboxProps> = ({ onBack, onPodLive, onPodRecap, userId }) 
     setNotifications(mockNotifications);
   };
 
-  const handleNotificationPress = (notification: Notification) => {
+  const handleNotificationPress = (notification) => {
     // Mark as read
     setNotifications(prev => 
       prev.map(n => 
@@ -85,7 +68,7 @@ const Inbox: React.FC<InboxProps> = ({ onBack, onPodLive, onPodRecap, userId }) 
     }
   };
 
-  const getNotificationIcon = (type: string): string => {
+  const getNotificationIcon = (type) => {
     switch (type) {
       case 'invite': return '📨';
       case 'milestone': return '🎉';
@@ -94,7 +77,7 @@ const Inbox: React.FC<InboxProps> = ({ onBack, onPodLive, onPodRecap, userId }) 
     }
   };
 
-  const getNotificationColor = (type: string): [string, string] => {
+  const getNotificationColor = (type) => {
     switch (type) {
       case 'invite': return ['#6366f1', '#8b5cf6'];
       case 'milestone': return ['#10b981', '#059669'];
@@ -103,7 +86,7 @@ const Inbox: React.FC<InboxProps> = ({ onBack, onPodLive, onPodRecap, userId }) 
     }
   };
 
-  const NotificationCard = ({ notification }: { notification: Notification }) => (
+  const NotificationCard = ({ notification }) => (
     <Pressable 
       style={styles.notificationCard}
       onPress={() => handleNotificationPress(notification)}
@@ -297,3 +280,5 @@ const styles = StyleSheet.create({
 });
 
 export default Inbox;
+
+

@@ -11,6 +11,7 @@ export interface NormalizedProduct {
   currency?: string;
   imageUrl: string;
   image?: string; // For backward compatibility
+  images?: string[]; // Array of all product images
   productUrl?: string;
   buyUrl?: string; // For backward compatibility
   sourceLabel?: string;
@@ -19,12 +20,26 @@ export interface NormalizedProduct {
   color?: string;
   material?: string;
   garment_des?: string;
+  sizeChart?: { size: string; measurements: Record<string, string> }[];
 }
 
 /**
  * Normalize a product from any source to our standard shape
  */
 export function normalizeProduct(product: any): NormalizedProduct {
+  // Build images array - include main image and any additional images
+  const mainImage = product.imageUrl || product.image || '';
+  let images: string[] = [];
+  
+  if (product.images && Array.isArray(product.images)) {
+    images = product.images.filter((img: any) => img && typeof img === 'string');
+  }
+  
+  // Make sure main image is first
+  if (mainImage && !images.includes(mainImage)) {
+    images.unshift(mainImage);
+  }
+  
   return {
     id: product.id || `product-${Date.now()}`,
     kind: product.kind || 'catalog',
@@ -33,8 +48,9 @@ export function normalizeProduct(product: any): NormalizedProduct {
     brand: product.brand,
     price: product.price,
     currency: product.currency || 'USD',
-    imageUrl: product.imageUrl || product.image || '',
-    image: product.imageUrl || product.image || '', // Backward compat
+    imageUrl: mainImage,
+    image: mainImage, // Backward compat
+    images: images,
     productUrl: product.productUrl || product.buyUrl,
     buyUrl: product.productUrl || product.buyUrl, // Backward compat
     sourceLabel: product.sourceLabel || product.brand,
@@ -42,7 +58,8 @@ export function normalizeProduct(product: any): NormalizedProduct {
     rating: product.rating || 4.0,
     color: product.color,
     material: product.material,
-    garment_des: product.garment_des || product.description
+    garment_des: product.garment_des || product.description,
+    sizeChart: product.sizeChart || []
   };
 }
 

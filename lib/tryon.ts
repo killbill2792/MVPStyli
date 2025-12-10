@@ -17,21 +17,42 @@ export async function startTryOn(
   }
   
   try {
+    // Validate category - must be one of the three valid values
+    const validCategories = ['upper_body', 'lower_body', 'dresses'];
+    
+    if (!category || !validCategories.includes(category)) {
+      console.error('❌ INVALID CATEGORY in startTryOn:', category);
+      throw new Error(`Invalid category: ${category}. Must be one of: ${validCategories.join(', ')}`);
+    }
+    
+    // Build request body
+    const requestBody = { 
+      human_img: personUrl, 
+      garm_img: clothUrl, 
+      category: category
+    };
+    
+    console.log('📤 startTryOn - REQUEST BODY:', JSON.stringify(requestBody));
+    console.log('📤 startTryOn - CATEGORY VALUE:', category, 'TYPE:', typeof category);
+    
     const response = await fetch(`${API}/api/tryon`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        userUrl: personUrl, 
-        garmentUrl: clothUrl, 
-        category 
-      })
+      body: JSON.stringify(requestBody)
     });
     
+    const responseText = await response.text();
+    console.log('📥 startTryOn - RAW RESPONSE:', responseText);
+    
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+      throw new Error(`HTTP ${response.status}: ${responseText}`);
     }
     
-    return await response.json();
+    const result = JSON.parse(responseText);
+    console.log('✅ startTryOn - PARSED RESPONSE:', result);
+    console.log('✅ startTryOn - Category that API says it sent:', result.categorySent);
+    
+    return result;
   } catch (error) {
     console.error('Try-on start error:', error);
     throw error;

@@ -1,6 +1,6 @@
-// api/product/from-url.ts
 // Import product from URL - extracts product info from any product page
 // CONFIGURATION: No API keys needed for basic scraping
+// Fallback: Uses PRODUCT_SEARCH_API_KEY (SerpAPI/Google) if direct scraping is blocked
 
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import * as crypto from 'crypto';
@@ -13,6 +13,7 @@ interface NormalizedProduct {
   price?: number;
   currency?: string;
   imageUrl: string;
+  images?: string[];
   productUrl?: string;
   sourceLabel?: string;
   category?: string;
@@ -20,6 +21,7 @@ interface NormalizedProduct {
   color?: string;
   material?: string;
   garment_des?: string;
+  sizeChart?: { size: string; measurements: Record<string, string> }[];
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -43,10 +45,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     console.log('Importing product from URL:', url);
     
-    const productData = await scrapeProductFromUrl(url);
+    // 1. Try direct scraping first
+    let productData = await scrapeProductFromUrl(url);
+    
+    // 2. If direct scraping failed or was blocked (empty or no image), try Search API fallback
+    if (!productData || !productData.image || productData.image === '') {
+      console.log('Direct scraping failed or blocked. Trying search API fallback...');
+      const fallbackData = await scrapeViaSearchFallback(url);
+      if (fallbackData) {
+        console.log('Fallback scraping successful');
+        productData = { ...(productData || {}), ...fallbackData };
+      }
+    }
     
     if (!productData) {
-      return res.status(404).json({ error: 'Could not extract product information from URL' });
+      return res.status(404).json({ error: 'Could not extract product information. The store might be blocking automated access.' });
     }
 
     // Normalize to our product shape
@@ -58,13 +71,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       price: productData.price,
       currency: productData.currency || 'USD',
       imageUrl: productData.image || productData.imageUrl || '',
+      images: productData.images || [],
       productUrl: url,
       sourceLabel: productData.brand || extractBrandFromUrl(url),
       category: productData.category || detectCategoryFromUrl(url),
       rating: productData.rating || 4.0,
       color: productData.color,
       material: productData.material,
-      garment_des: productData.description || productData.garment_des
+      garment_des: productData.description || productData.garment_des,
+      sizeChart: productData.sizeChart || []
     };
 
     // Ensure we have at least imageUrl and title - with better fallbacks
@@ -109,6 +124,62 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (error: any) {
     console.error('Error importing product from URL:', error);
     return res.status(500).json({ error: 'Failed to import product', details: error.message });
+  }
+}
+
+// Fallback: Use SerpAPI to search for the URL and get structured data
+async function scrapeViaSearchFallback(productUrl: string) {
+  try {
+    const apiKey = process.env.PRODUCT_SEARCH_API_KEY;
+    if (!apiKey) {
+      console.log('No PRODUCT_SEARCH_API_KEY available for fallback');
+      return null;
+    }
+
+    // We search for the specific URL to get the Google Shopping snippet or rich snippet
+    const query = encodeURIComponent(productUrl);
+    const url = `https://serpapi.com/search.json?engine=google&q=${query}&api_key=${apiKey}&num=1`;
+    
+    console.log('Calling SerpAPI fallback for URL');
+    const response = await fetch(url);
+    
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    
+    // Check organic results for rich snippets
+    const result = data.organic_results?.[0];
+    if (result) {
+      let price = undefined;
+      let currency = 'USD';
+      
+      // Extract price from rich snippet
+      if (result.rich_snippet?.top?.detected_extensions?.price) {
+        price = result.rich_snippet.top.detected_extensions.price;
+      } else if (result.snippet) {
+        const priceMatch = result.snippet.match(/\$(\d+(?:\.\d{2})?)/);
+        if (priceMatch) price = parseFloat(priceMatch[1]);
+      }
+
+      // Extract image - SerpAPI organic results sometimes have thumbnail
+      const image = result.thumbnail || undefined;
+
+      return {
+        name: result.title,
+        title: result.title,
+        price,
+        currency,
+        image,
+        description: result.snippet,
+        brand: extractBrandFromUrl(productUrl),
+        category: detectCategoryFromUrl(productUrl, result.title)
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error in search fallback:', error);
+    return null;
   }
 }
 
@@ -474,72 +545,98 @@ async function scrapeGenericProduct(url: string) {
     const price = productData?.offers?.price || undefined;
     const currency = productData?.offers?.priceCurrency || 'USD';
     
-    // Try multiple image extraction methods
-    let image = productData?.image?.[0] || 
-                productData?.image ||
-                html.match(/<meta property="og:image" content="([^"]+)"/i)?.[1] ||
-                html.match(/<meta name="og:image" content="([^"]+)"/i)?.[1] ||
-                html.match(/<img[^>]*class="[^"]*product[^"]*"[^>]*src="([^"]+)"/i)?.[1] ||
-                html.match(/<img[^>]*data-src="([^"]+)"/i)?.[1] ||
-                html.match(/<img[^>]*src="([^"]*product[^"]*\.(jpg|jpeg|png|webp))"/i)?.[1] ||
-                '';
+    // Extract ALL product images
+    const allImages: string[] = [];
     
-    // If image is an array, get first item
-    if (Array.isArray(image)) {
-      image = image[0] || '';
-    }
-    
-    // If image is relative, make it absolute
-    if (image && !image.startsWith('http')) {
-      try {
-        const urlObj = new URL(url);
-        image = image.startsWith('/') 
-          ? `${urlObj.protocol}//${urlObj.host}${image}`
-          : `${urlObj.protocol}//${urlObj.host}/${image}`;
-      } catch (e) {
-        // Keep original if URL parsing fails
+    // 1. Get images from JSON-LD (most reliable)
+    if (productData?.image) {
+      if (Array.isArray(productData.image)) {
+        allImages.push(...productData.image.filter((img: any) => typeof img === 'string'));
+      } else if (typeof productData.image === 'string') {
+        allImages.push(productData.image);
       }
     }
     
-    const descMatch = html.match(/<meta property="og:description" content="([^"]+)"/i);
-    const description = productData?.description || descMatch?.[1] || '';
+    // 2. Get og:image
+    const ogImageMatch = html.match(/<meta property="og:image" content="([^"]+)"/i);
+    if (ogImageMatch?.[1]) {
+      allImages.push(ogImageMatch[1]);
+    }
+    
+    // 3. Extract from gallery/carousel patterns
+    const galleryPatterns = [
+      /<img[^>]*class="[^"]*(?:gallery|carousel|product|thumbnail|slide)[^"]*"[^>]*src=["']([^"']+)["']/gi,
+      /<img[^>]*data-(?:src|lazy|original)=["']([^"']+)["'][^>]*class="[^"]*product[^"]*"/gi,
+      /<img[^>]*srcset=["']([^\s"']+)/gi,
+      /data-zoom-image=["']([^"']+)["']/gi,
+      /data-large-image=["']([^"']+)["']/gi,
+      /data-image=["']([^"']+)["']/gi
+    ];
+    
+    for (const pattern of galleryPatterns) {
+      let match;
+      while ((match = pattern.exec(html)) !== null) {
+        if (match[1] && !match[1].includes('data:image') && !match[1].includes('placeholder')) {
+          allImages.push(match[1]);
+        }
+      }
+    }
+    
+    // 4. Look for image arrays in JavaScript
+    const jsImageArrayMatch = html.match(/(?:images|gallery|photos)\s*[=:]\s*\[([^\]]+)\]/i);
+    if (jsImageArrayMatch) {
+      const imgUrls = jsImageArrayMatch[1].match(/["']([^"']+(?:\.jpg|\.jpeg|\.png|\.webp)[^"']*)["']/gi);
+      if (imgUrls) {
+        imgUrls.forEach(url => {
+          allImages.push(url.replace(/["']/g, ''));
+        });
+      }
+    }
+    
+    // Helper to normalize image URL
+    const normalizeImageUrl = (imgUrl: string): string => {
+      if (!imgUrl || imgUrl.startsWith('data:')) return '';
+      if (imgUrl.startsWith('http')) return imgUrl;
+      if (imgUrl.startsWith('//')) return 'https:' + imgUrl;
+      try {
+        const urlObj = new URL(url);
+        return imgUrl.startsWith('/') 
+          ? `${urlObj.protocol}//${urlObj.host}${imgUrl}`
+          : `${urlObj.protocol}//${urlObj.host}/${imgUrl}`;
+      } catch (e) {
+        return imgUrl;
+      }
+    };
+    
+    // Normalize and deduplicate images
+    const uniqueImages = [...new Set(
+      allImages
+        .map(normalizeImageUrl)
+        .filter(img => img && img.length > 10 && !img.includes('logo') && !img.includes('icon'))
+    )];
+    
+    const finalImage = uniqueImages[0] || '';
     
     // Ensure we have at least a name (use URL as fallback)
     const finalName = name || (extractBrandFromUrl(url) ? extractBrandFromUrl(url) + ' Product' : 'Online Product');
     
     // If we don't have image or title, try harder to extract them
-    let finalImage = image;
     let finalTitle = finalName;
     
-    // If no image found, try to extract from img tags
-    if (!finalImage || finalImage === '') {
+    // If no images found, try to extract from all img tags
+    if (uniqueImages.length === 0) {
       const imgMatches = html.match(/<img[^>]*src=["']([^"']+)["'][^>]*>/gi);
       if (imgMatches && imgMatches.length > 0) {
-        for (const imgTag of imgMatches.slice(0, 5)) {
+        for (const imgTag of imgMatches.slice(0, 10)) {
           const srcMatch = imgTag.match(/src=["']([^"']+)["']/i);
           if (srcMatch && srcMatch[1]) {
-            const imgUrl = srcMatch[1];
+            const imgUrl = normalizeImageUrl(srcMatch[1]);
             // Prefer larger images (likely product images)
-            if (imgUrl.includes('product') || imgUrl.includes('item') || imgUrl.match(/\d{3,}/)) {
-              finalImage = imgUrl;
-              break;
-            } else if (!finalImage) {
-              finalImage = imgUrl; // Fallback to first image
+            if (imgUrl && (imgUrl.includes('product') || imgUrl.includes('item') || imgUrl.match(/\d{3,}/))) {
+              uniqueImages.push(imgUrl);
             }
           }
         }
-      }
-    }
-    
-    // Make image URL absolute if relative
-    if (finalImage && !finalImage.startsWith('http')) {
-      try {
-        const urlObj = new URL(url);
-        finalImage = finalImage.startsWith('/') 
-          ? `${urlObj.protocol}//${urlObj.host}${finalImage}`
-          : `${urlObj.protocol}//${urlObj.host}/${finalImage}`;
-      } catch (e) {
-        // Keep original if URL parsing fails
       }
     }
     
@@ -554,15 +651,46 @@ async function scrapeGenericProduct(url: string) {
       }
     }
     
+    const descMatch = html.match(/<meta property="og:description" content="([^"]+)"/i);
+    const description = productData?.description || descMatch?.[1] || '';
+    
+    // Try to extract size chart
+    let sizeChart: { size: string; measurements: Record<string, string> }[] = [];
+    const sizeChartMatch = html.match(/(?:size\s*chart|measurements)[^<]*<table[^>]*>([\s\S]*?)<\/table>/i);
+    if (sizeChartMatch) {
+      // Basic extraction - can be enhanced
+      const rows = sizeChartMatch[1].match(/<tr[^>]*>([\s\S]*?)<\/tr>/gi);
+      if (rows && rows.length > 1) {
+        const headerRow = rows[0].match(/<t[hd][^>]*>([^<]*)<\/t[hd]>/gi);
+        const headers = headerRow?.map(h => h.replace(/<\/?t[hd][^>]*>/gi, '').trim()) || [];
+        
+        for (let i = 1; i < Math.min(rows.length, 8); i++) {
+          const cells = rows[i].match(/<t[hd][^>]*>([^<]*)<\/t[hd]>/gi);
+          if (cells && cells.length > 0) {
+            const size = cells[0].replace(/<\/?t[hd][^>]*>/gi, '').trim();
+            const measurements: Record<string, string> = {};
+            for (let j = 1; j < cells.length && j < headers.length; j++) {
+              measurements[headers[j]] = cells[j].replace(/<\/?t[hd][^>]*>/gi, '').trim();
+            }
+            if (size) {
+              sizeChart.push({ size, measurements });
+            }
+          }
+        }
+      }
+    }
+    
     return {
       name: finalTitle,
       title: finalTitle,
       price,
       currency,
-      image: finalImage,
+      image: uniqueImages[0] || '',
+      images: uniqueImages.slice(0, 10), // Limit to 10 images
       description,
       brand: extractBrandFromUrl(url),
-      category: detectCategoryFromUrl(url, finalTitle)
+      category: detectCategoryFromUrl(url, finalTitle),
+      sizeChart
     };
   } catch (error) {
     console.error('Error scraping generic product:', error);
