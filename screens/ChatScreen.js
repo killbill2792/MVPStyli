@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, Image, Platform, KeyboardAvoidingView, Keyboard } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, Image, Platform, KeyboardAvoidingView, Keyboard, Modal, FlatList, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, Typography, Spacing, BorderRadius, TextStyles, getColors } from '../lib/designSystem';
 import { isUrl, importProductFromUrl, searchWebProducts, normalizeProduct } from '../lib/productSearch';
 import { useApp } from '../lib/AppContext';
 import { trackEvent } from '../lib/styleEngine';
+import { supabase } from '../lib/supabase';
 
 export default function ChatScreen({ onBack, onProductSelect }) {
   const { state } = useApp();
@@ -21,6 +22,12 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   const chatScrollRef = useRef(null);
   const textInputRef = useRef(null);
   
+  // Chat history states
+  const [showHistorySidebar, setShowHistorySidebar] = useState(false);
+  const [conversations, setConversations] = useState([]);
+  const [currentConversationId, setCurrentConversationId] = useState(null);
+  const [loadingConversations, setLoadingConversations] = useState(false);
+  
   const INPUT_ROW_HEIGHT = 60;
 
   // Update color when theme changes
@@ -34,6 +41,13 @@ export default function ChatScreen({ onBack, onProductSelect }) {
     return () => clearInterval(interval);
   }, [primaryColor]);
 
+  // Load conversation history on mount
+  useEffect(() => {
+    if (user?.id) {
+      loadConversations();
+    }
+  }, [user?.id]);
+
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
     if (chatScrollRef.current) {
@@ -42,6 +56,122 @@ export default function ChatScreen({ onBack, onProductSelect }) {
       }, 100);
     }
   }, [chatHistory]);
+
+  // Load user's conversations
+  const loadConversations = async () => {
+    if (!user?.id) return;
+    setLoadingConversations(true);
+    try {
+      const { data, error } = await supabase
+        .from('chat_conversations')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false })
+        .limit(20);
+      
+      if (!error && data) {
+        setConversations(data);
+      }
+    } catch (err) {
+      console.log('Error loading conversations:', err);
+    } finally {
+      setLoadingConversations(false);
+    }
+  };
+
+  // Load messages for a specific conversation
+  const loadConversation = async (conversationId) => {
+    try {
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true });
+      
+      if (!error && data) {
+        const messages = data.map(msg => ({
+          type: msg.type,
+          message: msg.message,
+          image: msg.image_url,
+          products: msg.products || []
+        }));
+        setChatHistory(messages.length > 0 ? messages : [
+          { type: 'ai', message: 'Continue our conversation!' }
+        ]);
+        setCurrentConversationId(conversationId);
+      }
+    } catch (err) {
+      console.log('Error loading conversation:', err);
+    }
+    setShowHistorySidebar(false);
+  };
+
+  // Create a new conversation
+  const createNewConversation = async () => {
+    if (!user?.id) return null;
+    
+    try {
+      const { data, error } = await supabase
+        .from('chat_conversations')
+        .insert({
+          user_id: user.id,
+          title: 'New Chat'
+        })
+        .select()
+        .single();
+      
+      if (!error && data) {
+        setCurrentConversationId(data.id);
+        await loadConversations();
+        return data.id;
+      }
+    } catch (err) {
+      console.log('Error creating conversation:', err);
+    }
+    return null;
+  };
+
+  // Save a message to the current conversation
+  const saveMessage = async (message) => {
+    if (!user?.id) return;
+    
+    let convId = currentConversationId;
+    if (!convId) {
+      convId = await createNewConversation();
+    }
+    if (!convId) return;
+    
+    try {
+      await supabase.from('chat_messages').insert({
+        conversation_id: convId,
+        type: message.type,
+        message: message.message || '',
+        image_url: message.image || null,
+        products: message.products || null
+      });
+      
+      // Update conversation title based on first user message
+      if (message.type === 'user' && message.message) {
+        const title = message.message.substring(0, 50) + (message.message.length > 50 ? '...' : '');
+        await supabase
+          .from('chat_conversations')
+          .update({ title, updated_at: new Date().toISOString() })
+          .eq('id', convId);
+        await loadConversations();
+      }
+    } catch (err) {
+      console.log('Error saving message:', err);
+    }
+  };
+
+  // Start a new chat
+  const startNewChat = () => {
+    setCurrentConversationId(null);
+    setChatHistory([
+      { type: 'ai', message: 'Hi! I\'m your AI shopping assistant. Ask me anything like "show me red polka dot dresses" or "what dress would suit me?" You can also paste a product URL to get details!' }
+    ]);
+    setShowHistorySidebar(false);
+  };
 
   const handleImageUpload = async () => {
     try {
@@ -78,6 +208,10 @@ export default function ChatScreen({ onBack, onProductSelect }) {
       image: uploadedImage
     };
     setChatHistory(prev => [...prev, newUserMessage]);
+    
+    // Save user message to database
+    saveMessage(newUserMessage);
+    
     setUploadedImage(null);
 
     // Track search event
@@ -110,15 +244,20 @@ export default function ChatScreen({ onBack, onProductSelect }) {
       };
       setChatHistory(prev => [...prev, aiMessage]);
       
+      // Save AI message to database
+      saveMessage(aiMessage);
+      
       // Dismiss keyboard after sending
       Keyboard.dismiss();
     } catch (error) {
       console.error('Search error:', error);
-      setChatHistory(prev => [...prev, {
+      const errorMessage = {
         type: 'ai',
         message: 'Sorry, I encountered an error. Please try again.',
         products: []
-      }]);
+      };
+      setChatHistory(prev => [...prev, errorMessage]);
+      saveMessage(errorMessage);
       Keyboard.dismiss();
     } finally {
       setIsSearching(false);
@@ -149,6 +288,27 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           <Text style={{ color: Colors.textPrimary, fontSize: 18 }}>←</Text>
         </Pressable>
         <Text style={{ ...TextStyles.heading, flex: 1 }}>AI Assistant</Text>
+        
+        {/* History Button */}
+        <Pressable 
+          onPress={() => setShowHistorySidebar(true)} 
+          style={{ 
+            marginRight: Spacing.sm,
+            padding: Spacing.xs,
+          }}
+        >
+          <Text style={{ fontSize: 20 }}>📋</Text>
+        </Pressable>
+        
+        {/* New Chat Button */}
+        <Pressable 
+          onPress={startNewChat}
+          style={{ 
+            padding: Spacing.xs,
+          }}
+        >
+          <Text style={{ fontSize: 20 }}>✏️</Text>
+        </Pressable>
       </View>
 
       <KeyboardAvoidingView 
@@ -379,6 +539,103 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             </View>
           </View>
       </KeyboardAvoidingView>
+
+      {/* Chat History Sidebar Modal */}
+      <Modal visible={showHistorySidebar} transparent animationType="slide">
+        <Pressable 
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}
+          onPress={() => setShowHistorySidebar(false)}
+        >
+          <View style={{
+            width: '80%',
+            maxWidth: 320,
+            height: '100%',
+            backgroundColor: Colors.background,
+            paddingTop: insets.top + Spacing.lg,
+          }}>
+            <Pressable onPress={(e) => e.stopPropagation()}>
+              {/* Sidebar Header */}
+              <View style={{ 
+                flexDirection: 'row', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                paddingHorizontal: Spacing.lg,
+                paddingBottom: Spacing.md,
+                borderBottomWidth: 1,
+                borderBottomColor: Colors.border,
+              }}>
+                <Text style={{ ...TextStyles.heading, fontSize: 18 }}>Chat History</Text>
+                <Pressable onPress={() => setShowHistorySidebar(false)}>
+                  <Text style={{ color: Colors.textSecondary, fontSize: 24 }}>✕</Text>
+                </Pressable>
+              </View>
+
+              {/* New Chat Button */}
+              <Pressable 
+                onPress={startNewChat}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  padding: Spacing.lg,
+                  borderBottomWidth: 1,
+                  borderBottomColor: Colors.border,
+                  gap: Spacing.sm,
+                }}
+              >
+                <Text style={{ fontSize: 16 }}>✨</Text>
+                <Text style={{ color: Colors.primary, fontWeight: Typography.semibold }}>
+                  New Chat
+                </Text>
+              </Pressable>
+
+              {/* Conversation List */}
+              {loadingConversations ? (
+                <View style={{ padding: Spacing.xl, alignItems: 'center' }}>
+                  <ActivityIndicator color={Colors.primary} />
+                </View>
+              ) : conversations.length === 0 ? (
+                <View style={{ padding: Spacing.xl, alignItems: 'center' }}>
+                  <Text style={{ color: Colors.textSecondary }}>No chat history yet</Text>
+                </View>
+              ) : (
+                <ScrollView style={{ maxHeight: '70%' }}>
+                  {conversations.map((conv) => (
+                    <Pressable
+                      key={conv.id}
+                      onPress={() => loadConversation(conv.id)}
+                      style={{
+                        padding: Spacing.lg,
+                        borderBottomWidth: 1,
+                        borderBottomColor: Colors.border,
+                        backgroundColor: currentConversationId === conv.id 
+                          ? Colors.primaryLight 
+                          : 'transparent',
+                      }}
+                    >
+                      <Text 
+                        style={{ 
+                          color: Colors.textPrimary, 
+                          fontWeight: currentConversationId === conv.id ? Typography.semibold : Typography.regular,
+                        }}
+                        numberOfLines={2}
+                      >
+                        {conv.title || 'New Chat'}
+                      </Text>
+                      <Text style={{ 
+                        color: Colors.textSecondary, 
+                        fontSize: Typography.xs,
+                        marginTop: 4,
+                      }}>
+                        {new Date(conv.updated_at).toLocaleDateString()}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              )}
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

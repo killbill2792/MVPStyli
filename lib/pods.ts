@@ -355,44 +355,72 @@ export const deletePod = async (podId: string): Promise<boolean> => {
   }
   
   try {
-    console.log('🗑️ Deleting pod:', podId);
+    console.log('🗑️ Starting pod deletion:', podId);
     
     // Delete related records first (even though CASCADE should handle this)
     // This ensures clean deletion even if CASCADE isn't set up
-    const { error: votesError } = await supabase
-      .from('pod_votes')
-      .delete()
-      .eq('pod_id', podId);
-    if (votesError) console.log('Note: Error deleting votes (might not exist):', votesError.message);
+    try {
+      const { error: votesError } = await supabase
+        .from('pod_votes')
+        .delete()
+        .eq('pod_id', podId);
+      console.log('Votes delete result:', votesError ? votesError.message : 'success');
+    } catch (e) {
+      console.log('Votes delete skipped');
+    }
     
-    const { error: commentsError } = await supabase
-      .from('pod_comments')
-      .delete()
-      .eq('pod_id', podId);
-    if (commentsError) console.log('Note: Error deleting comments (might not exist):', commentsError.message);
+    try {
+      const { error: commentsError } = await supabase
+        .from('pod_comments')
+        .delete()
+        .eq('pod_id', podId);
+      console.log('Comments delete result:', commentsError ? commentsError.message : 'success');
+    } catch (e) {
+      console.log('Comments delete skipped');
+    }
     
-    const { error: invitesError } = await supabase
-      .from('pod_invites')
-      .delete()
-      .eq('pod_id', podId);
-    if (invitesError) console.log('Note: Error deleting invites (might not exist):', invitesError.message);
+    try {
+      const { error: invitesError } = await supabase
+        .from('pod_invites')
+        .delete()
+        .eq('pod_id', podId);
+      console.log('Invites delete result:', invitesError ? invitesError.message : 'success');
+    } catch (e) {
+      console.log('Invites delete skipped');
+    }
     
     // Now delete the pod itself
-    const { error, data } = await supabase
+    console.log('🗑️ Deleting pod record...');
+    const { error } = await supabase
       .from('pods')
       .delete()
-      .eq('id', podId)
-      .select();
+      .eq('id', podId);
     
     if (error) {
-      console.error('❌ Error deleting pod:', error);
+      console.error('❌ Error deleting pod:', error.message, error.code, error.details);
+      // Check if it's an RLS error
+      if (error.code === '42501' || error.message.includes('policy')) {
+        console.error('⚠️ This looks like an RLS policy issue. Run FIX_POD_DELETION.sql in Supabase.');
+      }
       throw error;
     }
     
-    console.log('✅ Pod deleted successfully:', podId, 'Deleted rows:', data?.length);
+    // Verify deletion by trying to fetch the pod
+    const { data: verifyData } = await supabase
+      .from('pods')
+      .select('id')
+      .eq('id', podId)
+      .single();
+    
+    if (verifyData) {
+      console.error('❌ Pod still exists after deletion! This is likely an RLS issue.');
+      return false;
+    }
+    
+    console.log('✅ Pod deleted and verified:', podId);
     return true;
-  } catch (error) {
-    console.error('❌ Error in deletePod:', error);
+  } catch (error: any) {
+    console.error('❌ Error in deletePod:', error?.message || error);
     return false;
   }
 };

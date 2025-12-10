@@ -46,8 +46,17 @@ const ProductScreen = () => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showAISheet, setShowAISheet] = useState(false);
 
-  // Use product from routeParams if available
-  const product = routeParams?.product || currentProduct;
+  // ALWAYS use currentProduct as the source of truth
+  // routeParams?.product is only used to initially SET currentProduct
+  const product = currentProduct;
+
+  // When navigating with routeParams, update currentProduct
+  useEffect(() => {
+    if (routeParams?.product && setCurrentProduct) {
+      console.log('🔄 Updating currentProduct from routeParams:', routeParams.product?.name);
+      setCurrentProduct(routeParams.product);
+    }
+  }, [routeParams?.product?.id]);
 
   // Generate image gallery - use multiple images if available
   const images = product?.images || (product?.image ? [product.image] : []);
@@ -62,16 +71,11 @@ const ProductScreen = () => {
   const isTracking = !!trackingData;
   const trackedPrice = trackingData?.price || null;
 
-  // Load tracking state on mount
+  // Track view event when product changes
   useEffect(() => {
-    // Track View Event
     if (product && user?.id) {
-        trackEvent(user.id, 'product_view', product);
-    }
-    
-    // Update currentProduct if we came from routeParams
-    if (routeParams?.product && setCurrentProduct) {
-      setCurrentProduct(routeParams.product);
+      console.log('📊 Tracking product view:', product?.name);
+      trackEvent(user.id, 'product_view', product);
     }
   }, [product?.id]);
 

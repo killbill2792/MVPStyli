@@ -127,7 +127,7 @@ const AskAISheet = ({ visible, onClose, product }) => {
         colorProfile = await loadColorProfile(user.id);
       }
 
-      // Build user profile from fetched data
+      // Build user profile for API
       const userProfile = {
         height: userProfileData?.height || '',
         weight: userProfileData?.weight || '',
@@ -137,7 +137,9 @@ const AskAISheet = ({ visible, onClose, product }) => {
         waist: userProfileData?.waist || '',
         hips: userProfileData?.hips || '',
         bodyShape: userProfileData?.body_shape || '',
-        colorProfile: colorProfile,
+        gender: userProfileData?.gender || '',
+        skinTone: colorProfile?.tone || userProfileData?.color_tone || '',
+        colorSeason: colorProfile?.season || userProfileData?.color_season || '',
       };
       
       console.log('User profile for AI advice:', userProfile);
@@ -154,19 +156,83 @@ const AskAISheet = ({ visible, onClose, product }) => {
         brand: product?.brand,
       };
 
-      // Generate all advice
-      const fit = generateFitAdvice(userProfile, productInfo);
-      const size = generateSizeAdvice(userProfile, productInfo);
-      const style = generateStyleAdvice(userProfile, productInfo);
-
-      setFitAdvice(fit);
-      setSizeAdvice(size);
-      setStyleAdvice(style);
+      // Try to get AI-powered insights from API
+      const API_BASE = process.env.EXPO_PUBLIC_API_BASE;
+      
+      if (API_BASE) {
+        try {
+          // Fetch fit advice from AI
+          const fitResponse = await fetch(`${API_BASE}/api/ai-insights`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userProfile, product: productInfo, insightType: 'fit' })
+          });
+          
+          if (fitResponse.ok) {
+            const fitData = await fitResponse.json();
+            if (fitData.insights) {
+              setFitAdvice(fitData.insights);
+              console.log('✅ AI fit insights loaded from:', fitData.source);
+            }
+          }
+          
+          // Fetch size advice from AI
+          const sizeResponse = await fetch(`${API_BASE}/api/ai-insights`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userProfile, product: productInfo, insightType: 'size' })
+          });
+          
+          if (sizeResponse.ok) {
+            const sizeData = await sizeResponse.json();
+            if (sizeData.insights) {
+              setSizeAdvice(sizeData.insights);
+            }
+          }
+          
+          // Fetch style advice from AI
+          const styleResponse = await fetch(`${API_BASE}/api/ai-insights`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userProfile, product: productInfo, insightType: 'style' })
+          });
+          
+          if (styleResponse.ok) {
+            const styleData = await styleResponse.json();
+            if (styleData.insights) {
+              setStyleAdvice(styleData.insights);
+            }
+          }
+          
+        } catch (apiError) {
+          console.log('AI API not available, using fallback:', apiError.message);
+          // Fallback to local generation
+          useFallbackAdvice(userProfile, productInfo);
+        }
+      } else {
+        // No API configured, use local fallback
+        useFallbackAdvice(userProfile, productInfo);
+      }
+      
     } catch (error) {
       console.error('Error loading AI insights:', error);
+      // Set empty fallback
+      setFitAdvice({ verdict: 'good_with_tweaks', verdictText: 'Unable to analyze', bodyAdvice: [], colorAdvice: [], hasEnoughData: false });
+      setSizeAdvice({ recommendedSize: 'M', reasoning: ['Unable to determine'], returnRisk: 'medium', hasEnoughData: false });
+      setStyleAdvice({ bestFor: ['Versatile'], stylingTips: ['Style as desired'], occasions: [] });
     } finally {
       setLoading(false);
     }
+  };
+  
+  // Fallback to local rule-based advice
+  const useFallbackAdvice = (userProfile, productInfo) => {
+    const fit = generateFitAdvice(userProfile, productInfo);
+    const size = generateSizeAdvice(userProfile, productInfo);
+    const style = generateStyleAdvice(userProfile, productInfo);
+    setFitAdvice(fit);
+    setSizeAdvice(size);
+    setStyleAdvice(style);
   };
 
   // Helper to infer category from product name
