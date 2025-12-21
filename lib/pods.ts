@@ -213,8 +213,19 @@ export const getUserActivePods = async (userId: string): Promise<Pod[]> => {
       throw error;
     }
     
-    console.log('Active pods fetched successfully:', data?.length || 0);
-    return data || [];
+    // Filter out pods with invalid or missing image URLs
+    const validPods = (data || []).filter(pod => {
+      const hasValidImage = pod.image_url && 
+                           typeof pod.image_url === 'string' && 
+                           pod.image_url.startsWith('http');
+      if (!hasValidImage) {
+        console.log('⚠️ Filtering out pod with invalid image:', pod.id, pod.image_url);
+      }
+      return hasValidImage;
+    });
+    
+    console.log('Active pods fetched successfully:', validPods.length, 'valid out of', data?.length || 0);
+    return validPods;
   } catch (error) {
     console.error('Error fetching user active pods:', error);
     // Return empty array instead of throwing to prevent app crashes
@@ -239,8 +250,19 @@ export const getUserPastPods = async (userId: string): Promise<Pod[]> => {
       throw error;
     }
     
-    console.log('Past pods fetched successfully:', data?.length || 0);
-    return data || [];
+    // Filter out pods with invalid or missing image URLs
+    const validPods = (data || []).filter(pod => {
+      const hasValidImage = pod.image_url && 
+                           typeof pod.image_url === 'string' && 
+                           pod.image_url.startsWith('http');
+      if (!hasValidImage) {
+        console.log('⚠️ Filtering out pod with invalid image:', pod.id, pod.image_url);
+      }
+      return hasValidImage;
+    });
+    
+    console.log('Past pods fetched successfully:', validPods.length, 'valid out of', data?.length || 0);
+    return validPods;
   } catch (error) {
     console.error('Error fetching user past pods:', error);
     return [];
@@ -292,7 +314,15 @@ export const getInvitedPods = async (userId: string): Promise<Pod[]> => {
       .order('created_at', { ascending: false });
 
     if (podsError) throw podsError;
-    return pods || [];
+    
+    // Filter out pods with invalid or missing image URLs
+    const validPods = (pods || []).filter(pod => {
+      return pod.image_url && 
+             typeof pod.image_url === 'string' && 
+             pod.image_url.startsWith('http');
+    });
+    
+    return validPods;
   } catch (error) {
     console.error('Error fetching invited pods:', error);
     return [];
@@ -389,7 +419,7 @@ export const deletePod = async (podId: string): Promise<boolean> => {
       console.log('Invites delete skipped');
     }
     
-    // Now delete the pod itself
+    // Now delete the pod itself (hard delete)
     console.log('🗑️ Deleting pod record...');
     const { error } = await supabase
       .from('pods')
@@ -400,7 +430,7 @@ export const deletePod = async (podId: string): Promise<boolean> => {
       console.error('❌ Error deleting pod:', error.message, error.code, error.details);
       // Check if it's an RLS error
       if (error.code === '42501' || error.message.includes('policy')) {
-        console.error('⚠️ This looks like an RLS policy issue. Run FIX_POD_DELETION.sql in Supabase.');
+        console.error('⚠️ RLS policy issue. Run FIX_POD_DELETION.sql in Supabase.');
       }
       throw error;
     }
@@ -521,7 +551,15 @@ export const getPublicLivePods = async (): Promise<Pod[]> => {
       .limit(20);
 
     if (error) throw error;
-    return data || [];
+    
+    // Filter out pods with invalid or missing image URLs
+    const validPods = (data || []).filter(pod => {
+      return pod.image_url && 
+             typeof pod.image_url === 'string' && 
+             pod.image_url.startsWith('http');
+    });
+    
+    return validPods;
   } catch (error) {
     console.error('Error fetching public live pods:', error);
     return [];

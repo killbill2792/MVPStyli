@@ -115,6 +115,6 @@ export async function uploadRemoteImage(remoteUrl: string): Promise<string> {
     return data.publicUrl;
   } catch (error) {
     console.error('Remote upload error:', error);
-    return remoteUrl; // Fallback to original URL if upload fails
+    throw error; // Don't return Replicate URL - fail instead so we don't save temporary URLs
   }
 }

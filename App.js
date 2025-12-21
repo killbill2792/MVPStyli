@@ -964,14 +964,34 @@ const TryOn = () => {
       }
 
       if (status.status === 'succeeded' && status.resultUrl) {
-        // Upload the result to Supabase to make it permanent
+        // ALWAYS upload Replicate results to Supabase Storage immediately
+        // We never save Replicate URLs - only permanent Supabase URLs
         let finalResultUrl = status.resultUrl;
-        try {
+        const isReplicateUrl = status.resultUrl.includes('replicate.delivery') || 
+                              status.resultUrl.includes('replicate.com');
+        
+        if (isReplicateUrl) {
+          console.log('📤 Replicate URL detected, uploading to Supabase immediately...');
+          try {
             finalResultUrl = await uploadRemoteImage(status.resultUrl);
-        } catch (e) {
-            console.error("Failed to persist try-on result:", e);
+            console.log('✅ Replicate image uploaded to Supabase, permanent URL:', finalResultUrl);
+            
+            // Verify it's a Supabase URL, not still a Replicate URL
+            if (finalResultUrl.includes('replicate')) {
+              throw new Error('Upload failed - still a Replicate URL');
+            }
+          } catch (e) {
+            console.error("❌ Failed to upload Replicate image to Supabase:", e);
+            setBannerMessage("Failed to save image. Please try again.");
+            setBannerType('error');
+            setIsProcessing(false);
+            return; // Don't save if upload failed
+          }
+        } else {
+          console.log('✅ Using permanent URL (not Replicate):', finalResultUrl);
         }
 
+        // Only use the permanent URL from here on
         setProcessingResult(finalResultUrl);
         setResult(finalResultUrl);
         
@@ -1363,12 +1383,21 @@ export default function App() {
           console.log('Error fetching try-on history:', tryOnError.message);
         } else if (tryOns && tryOns.length > 0) {
           console.log('Loaded', tryOns.length, 'try-ons');
-          const validTryOns = tryOns.filter(item => 
-            (item.result_url || item.resultUrl) && typeof (item.result_url || item.resultUrl) === 'string'
-          );
+          const validTryOns = tryOns.filter(item => {
+            const url = item.result_url || item.resultUrl;
+            // Filter out Replicate URLs (they expire) - only show permanent Supabase URLs
+            const hasValidUrl = url && typeof url === 'string' && url.startsWith('http');
+            const isReplicateUrl = url && (url.includes('replicate.delivery') || url.includes('replicate.com'));
+            
+            if (isReplicateUrl) {
+              console.log('⚠️ Filtering out expired Replicate URL from try-on history:', item.id);
+            }
+            
+            return hasValidUrl && !isReplicateUrl;
+          });
           setTryOnHistory(validTryOns.map(item => ({
             id: item.id,
-            resultUrl: item.result_url || item.resultUrl, // Preserve URL
+            resultUrl: item.result_url || item.resultUrl, // Permanent Supabase URL only
             productName: item.product_name || item.productName,
             productImage: item.product_image || item.productImage, // Preserve image URL
             productUrl: item.product_url || item.productUrl,
