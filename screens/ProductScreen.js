@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Image, ScrollView, Pressable, StyleSheet, TextInput, Alert, Dimensions, Modal, FlatList, Animated, Linking } from 'react-native';
+import { View, Text, Image, ScrollView, Pressable, StyleSheet, TextInput, Dimensions, Modal, FlatList, Animated, Linking, ActivityIndicator } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../lib/AppContext';
 import { Colors } from '../lib/designSystem';
@@ -7,6 +7,7 @@ import { trackEvent } from '../lib/styleEngine';
 import { LinearGradient } from 'expo-linear-gradient';
 import BottomBar from '../components/BottomBar';
 import AskAISheet from '../components/AskAISheet';
+import { supabase } from '../lib/supabase';
 
 const { width, height } = Dimensions.get('window');
 
@@ -37,26 +38,25 @@ const SafeImage = ({ source, style, resizeMode, ...props }) => {
 };
 
 const ProductScreen = () => {
-  const { state, setRoute, setPriceTracking, setCurrentProduct } = useApp();
-  const { currentProduct, priceTracking, user, routeParams } = state;
+  const { state, setRoute, setPriceTracking, setCurrentProduct, setSavedFits, setBannerMessage, setBannerType } = useApp();
+  const { currentProduct, priceTracking, user, routeParams, savedFits } = state;
   const insets = useSafeAreaInsets();
   const [targetPrice, setTargetPrice] = useState('');
   const [isTrackPriceOpen, setIsTrackPriceOpen] = useState(false);
   const [showFullImage, setShowFullImage] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showAISheet, setShowAISheet] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // ALWAYS use currentProduct as the source of truth
-  // routeParams?.product is only used to initially SET currentProduct
-  const product = currentProduct;
-
-  // When navigating with routeParams, update currentProduct
+  // Use currentProduct as source of truth
+  // Only fall back to routeParams if currentProduct is null
+  const product = currentProduct || routeParams?.product;
+  
+  // Log to debug
   useEffect(() => {
-    if (routeParams?.product && setCurrentProduct) {
-      console.log('🔄 Updating currentProduct from routeParams:', routeParams.product?.name);
-      setCurrentProduct(routeParams.product);
-    }
-  }, [routeParams?.product?.id]);
+    console.log('📦 ProductScreen - currentProduct:', currentProduct?.name, 'routeParams:', routeParams?.product?.name);
+  }, [currentProduct?.id, routeParams?.product?.id]);
 
   // Generate image gallery - use multiple images if available
   const images = product?.images || (product?.image ? [product.image] : []);
@@ -78,6 +78,157 @@ const ProductScreen = () => {
       trackEvent(user.id, 'product_view', product);
     }
   }, [product?.id]);
+
+  // Check if product is already saved
+  useEffect(() => {
+    if (product && savedFits) {
+      const productUrl = product.url || product.buyUrl || product.productUrl;
+      const productImage = product.image || product.imageUrl || (product.images && product.images[0]);
+      
+      const alreadySaved = savedFits.some(fit => {
+        // Check by URL first, then by image
+        if (productUrl && fit.product_url === productUrl) return true;
+        if (productImage && fit.image === productImage) return true;
+        return false;
+      });
+      
+      setIsSaved(alreadySaved);
+    }
+  }, [product?.id, product?.url, savedFits]);
+
+  // Handle save product
+  const handleSaveProduct = async () => {
+    if (!user?.id) {
+      if (setBannerMessage && setBannerType) {
+        setBannerMessage('Please sign in to save products');
+        setBannerType('error');
+        setTimeout(() => {
+          setBannerMessage(null);
+          setBannerType(null);
+        }, 3000);
+      }
+      return;
+    }
+
+    if (isSaved) {
+      if (setBannerMessage && setBannerType) {
+        setBannerMessage('This product is already saved');
+        setBannerType('success');
+        setTimeout(() => {
+          setBannerMessage(null);
+          setBannerType(null);
+        }, 3000);
+      }
+      return;
+    }
+
+    setIsSaving(true);
+    
+    try {
+      const productUrl = product.url || product.buyUrl || product.productUrl;
+      const productImage = product.image || product.imageUrl || (product.images && product.images[0]);
+      
+      // Check if already saved in database
+      if (productUrl) {
+        const { data: existing } = await supabase
+          .from('saved_fits')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('product_url', productUrl)
+          .limit(1);
+        
+        if (existing && existing.length > 0) {
+          setIsSaved(true);
+          if (setBannerMessage && setBannerType) {
+            setBannerMessage('This product is already saved');
+            setBannerType('success');
+            setTimeout(() => {
+              setBannerMessage(null);
+              setBannerType(null);
+            }, 3000);
+          }
+          setIsSaving(false);
+          return;
+        }
+      }
+      
+      // Save to Supabase
+      const { data, error } = await supabase
+        .from('saved_fits')
+        .insert({
+          user_id: user.id,
+          image_url: productImage,
+          title: product.name || product.title || 'Product',
+          product_url: productUrl,
+          price: product.price,
+          product_data: {
+            name: product.name || product.title,
+            brand: product.brand,
+            price: product.price,
+            image: productImage,
+            images: product.images,
+            url: productUrl,
+            category: product.category,
+            color: product.color,
+            fabric: product.fabric,
+            description: product.description || product.garment_des
+          },
+          visibility: 'private'
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('Error saving product:', error);
+        if (setBannerMessage && setBannerType) {
+          setBannerMessage('Failed to save product. Please try again.');
+          setBannerType('error');
+          setTimeout(() => {
+            setBannerMessage(null);
+            setBannerType(null);
+          }, 3000);
+        }
+        setIsSaving(false);
+        return;
+      }
+      
+      // Update local state
+      if (setSavedFits && data) {
+        setSavedFits((prev) => [{
+          id: data.id,
+          image: data.image_url,
+          title: data.title,
+          price: data.price,
+          product_url: data.product_url,
+          product_data: data.product_data,
+          visibility: data.visibility,
+          createdAt: data.created_at
+        }, ...(prev || [])]);
+      }
+      
+      setIsSaved(true);
+      if (setBannerMessage && setBannerType) {
+        setBannerMessage('Product saved to your saved fits');
+        setBannerType('success');
+        setTimeout(() => {
+          setBannerMessage(null);
+          setBannerType(null);
+        }, 3000);
+      }
+    } catch (error) {
+      console.error('Error saving product:', error);
+      if (setBannerMessage && setBannerType) {
+        setBannerMessage('Failed to save product. Please try again.');
+        setBannerType('error');
+        setTimeout(() => {
+          setBannerMessage(null);
+          setBannerType(null);
+        }, 3000);
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   if (!product) return null;
 
@@ -170,10 +321,40 @@ const ProductScreen = () => {
             <Text style={styles.backText}>←</Text>
           </Pressable>
 
+          {/* Bookmark/Save Button (Top Right - Instagram Style) */}
+          <Pressable 
+            style={[styles.bookmarkButton, isSaved && styles.bookmarkButtonSaved]}
+            onPress={handleSaveProduct}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <View style={styles.bookmarkIconContainer}>
+                {/* Bookmark shape: rectangle with triangle bottom */}
+                <View style={[styles.bookmarkShape, isSaved && styles.bookmarkShapeFilled]}>
+                  {/* Top rectangle */}
+                  <View style={[styles.bookmarkTop, isSaved && styles.bookmarkTopFilled]} />
+                  {/* Bottom triangle */}
+                  <View style={[styles.bookmarkBottom, isSaved && styles.bookmarkBottomFilled]} />
+                </View>
+              </View>
+            )}
+          </Pressable>
+
           {/* Add to Cart Overlay (Bottom Right) */}
           <Pressable 
             style={styles.addToCartOverlay}
-            onPress={() => Alert.alert('Added to cart')}
+            onPress={() => {
+              if (setBannerMessage && setBannerType) {
+                setBannerMessage('Added to cart');
+                setBannerType('success');
+                setTimeout(() => {
+                  setBannerMessage(null);
+                  setBannerType(null);
+                }, 2000);
+              }
+            }}
           >
             <Text style={{ fontSize: 20 }}>🛒</Text>
           </Pressable>
@@ -545,12 +726,71 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 10,
   },
   backText: {
     color: '#fff',
     fontSize: 20,
     fontWeight: 'bold',
     marginTop: -2,
+  },
+  bookmarkButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  bookmarkButtonSaved: {
+    backgroundColor: 'rgba(99, 102, 241, 0.8)',
+  },
+  bookmarkIconContainer: {
+    width: 20,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bookmarkShape: {
+    width: 14,
+    height: 20,
+    position: 'relative',
+  },
+  bookmarkTop: {
+    width: 14,
+    height: 14,
+    borderWidth: 2,
+    borderColor: '#fff',
+    borderTopLeftRadius: 2,
+    borderTopRightRadius: 2,
+    borderBottomWidth: 0,
+    backgroundColor: 'transparent',
+  },
+  bookmarkTopFilled: {
+    backgroundColor: '#fff',
+    borderWidth: 0,
+  },
+  bookmarkBottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 7,
+    borderRightWidth: 7,
+    borderTopWidth: 6,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: '#fff',
+    borderStyle: 'solid',
+  },
+  bookmarkBottomFilled: {
+    borderTopColor: '#fff',
   },
   addToCartOverlay: {
     position: 'absolute',

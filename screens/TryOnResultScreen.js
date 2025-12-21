@@ -117,12 +117,12 @@ const TryOnResultScreen = () => {
                 <Text style={styles.badgeText}>✨ Try-On Result</Text>
             </View>
         </LinearGradient>
-
+            
         {/* Product Thumbnail */}
         {originalImageUrl ? (
-          <Pressable 
-            style={styles.productThumbnail}
-            onPress={() => {
+            <Pressable 
+              style={styles.productThumbnail}
+              onPress={() => {
               const productToUse = displayProduct || { name: 'Original Item' };
               const productData = {
                   name: productToUse.name || productToUse.productName || 'Original Item',
@@ -131,17 +131,17 @@ const TryOnResultScreen = () => {
                   price: productToUse.price
               };
               setRoute('product', { product: productData });
-            }}
-          >
+              }}
+            >
             <SafeImage 
               source={{ uri: originalImageUrl }} 
-              style={styles.productThumbImage} 
+                style={styles.productThumbImage} 
               resizeMode="contain" 
-            />
-            <View style={styles.productThumbBadge}>
-              <Text style={styles.productThumbText}>Original</Text>
-            </View>
-          </Pressable>
+              />
+              <View style={styles.productThumbBadge}>
+                <Text style={styles.productThumbText}>Original</Text>
+              </View>
+            </Pressable>
         ) : null}
 
         {/* Bottom Overlay with Action Buttons */}

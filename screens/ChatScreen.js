@@ -41,12 +41,41 @@ export default function ChatScreen({ onBack, onProductSelect }) {
     return () => clearInterval(interval);
   }, [primaryColor]);
 
-  // Load conversation history on mount
+  // Load conversation history on mount and auto-load most recent conversation
   useEffect(() => {
     if (user?.id) {
-      loadConversations();
+      loadConversationsAndResume();
     }
   }, [user?.id]);
+  
+  // Load conversations and automatically resume the most recent one
+  const loadConversationsAndResume = async () => {
+    if (!user?.id) return;
+    setLoadingConversations(true);
+    try {
+      const { data, error } = await supabase
+        .from('chat_conversations')
+        .select('*')
+        .eq('user_id', user.id)
+        .neq('title', 'New Chat')
+        .order('updated_at', { ascending: false })
+        .limit(20);
+      
+      if (!error && data) {
+        setConversations(data);
+        
+        // Auto-load the most recent conversation if one exists and we're not already in one
+        if (data.length > 0 && !currentConversationId) {
+          console.log('🔄 Auto-loading most recent conversation:', data[0].title);
+          loadConversation(data[0].id);
+        }
+      }
+    } catch (err) {
+      console.log('Error loading conversations:', err);
+    } finally {
+      setLoadingConversations(false);
+    }
+  };
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
@@ -56,16 +85,29 @@ export default function ChatScreen({ onBack, onProductSelect }) {
       }, 100);
     }
   }, [chatHistory]);
+  
+  // Debug: Log chatHistory state to see if products are present
+  useEffect(() => {
+    const productsInHistory = chatHistory.filter(m => m.products && m.products.length > 0);
+    if (productsInHistory.length > 0) {
+      console.log('🎨 ChatHistory state has products:', productsInHistory.length, 'messages with products');
+      productsInHistory.forEach((msg, idx) => {
+        console.log(`  Message ${idx}: ${msg.products.length} products`);
+      });
+    } else {
+      console.log('⚠️ ChatHistory state has NO products');
+    }
+  }, [chatHistory]);
 
-  // Load user's conversations
+  // Reload conversations list (without auto-loading)
   const loadConversations = async () => {
     if (!user?.id) return;
-    setLoadingConversations(true);
     try {
       const { data, error } = await supabase
         .from('chat_conversations')
         .select('*')
         .eq('user_id', user.id)
+        .neq('title', 'New Chat')
         .order('updated_at', { ascending: false })
         .limit(20);
       
@@ -74,27 +116,127 @@ export default function ChatScreen({ onBack, onProductSelect }) {
       }
     } catch (err) {
       console.log('Error loading conversations:', err);
-    } finally {
-      setLoadingConversations(false);
     }
   };
 
   // Load messages for a specific conversation
   const loadConversation = async (conversationId) => {
     try {
+      console.log('📂 Loading conversation:', conversationId);
+      // Explicitly select all fields including products JSONB
       const { data, error } = await supabase
         .from('chat_messages')
-        .select('*')
+        .select('id, conversation_id, type, message, image_url, products, created_at')
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: true });
       
-      if (!error && data) {
-        const messages = data.map(msg => ({
-          type: msg.type,
-          message: msg.message,
-          image: msg.image_url,
-          products: msg.products || []
-        }));
+      if (error) {
+        console.log('❌ Error loading messages:', error);
+        return;
+      }
+      
+      if (data) {
+        console.log('📂 Raw messages from DB:', data.length);
+        
+        // Log all message types to see what we have
+        data.forEach((msg, idx) => {
+          console.log(`📋 Message ${idx}: type=${msg.type}, hasProducts=${!!msg.products}, message="${msg.message?.substring(0, 50)}"`);
+        });
+        
+        const messages = data.map((msg, idx) => {
+          // Parse products - handle various formats
+          let products = msg.products;
+          
+          // Debug: Log the raw products value
+          console.log(`📦 Message ${idx} (${msg.type}):`, {
+            hasProducts: !!products,
+            productsType: typeof products,
+            isArray: Array.isArray(products),
+            rawValue: products ? JSON.stringify(products).substring(0, 150) : 'null'
+          });
+          
+          // Handle null/undefined
+          if (!products || products === null) {
+            products = [];
+          }
+          // Parse if string
+          else if (typeof products === 'string') {
+            try {
+              products = JSON.parse(products);
+            } catch (e) {
+              console.log('⚠️ Failed to parse products string:', e.message);
+              products = [];
+            }
+          }
+          // Handle object (might be JSONB object)
+          else if (typeof products === 'object' && !Array.isArray(products)) {
+            // Check if it has array-like properties
+            if (products.length !== undefined) {
+              products = Array.from(products);
+            } else if (Object.keys(products).length > 0) {
+              // Single product object? Wrap in array
+              products = [products];
+            } else {
+              products = [];
+            }
+          }
+          
+          // Ensure it's an array
+          if (!Array.isArray(products)) {
+            console.log('⚠️ Products is not an array after parsing, converting to empty array');
+            products = [];
+          }
+          
+          // Validate and clean products - ensure they have required fields
+          products = products.filter(p => {
+            if (!p) return false;
+            const hasImage = !!(p.image || p.imageUrl);
+            const hasName = !!(p.name || p.title);
+            if (!hasImage || !hasName) {
+              console.log('⚠️ Filtering out invalid product:', { hasImage, hasName, product: p.name || p.title });
+            }
+            return hasImage && hasName;
+          });
+          
+          // Normalize product structure
+          products = products.map(p => ({
+            id: p.id || `prod_${idx}_${Math.random().toString(36).substr(2, 9)}`,
+            name: p.name || p.title || 'Product',
+            price: p.price,
+            image: p.image || p.imageUrl, // Use image or imageUrl
+            brand: p.brand,
+            url: p.url || p.buyUrl || p.productUrl,
+            category: p.category
+          }));
+          
+          console.log(`✅ Message ${idx} final products:`, products.length);
+          
+          return {
+            type: msg.type,
+            message: msg.message,
+            image: msg.image_url,
+            products: products
+          };
+        });
+        
+        const productsCount = messages.reduce((sum, m) => sum + (m.products?.length || 0), 0);
+        console.log('📂 Total products loaded:', productsCount);
+        
+        // Verify by querying all messages to see what we have
+        console.log('🔍 All messages in conversation:');
+        data.forEach((msg, idx) => {
+          console.log(`  ${idx}. ${msg.type.toUpperCase()}: "${msg.message?.substring(0, 40)}" - Products: ${msg.products ? (Array.isArray(msg.products) ? msg.products.length : 'not array') : 'null'}`);
+        });
+        
+        // Check if we have any AI messages with products
+        const aiMessagesWithProducts = data.filter(m => m.type === 'ai' && m.products);
+        console.log(`📊 Found ${aiMessagesWithProducts.length} AI messages with products`);
+        
+        if (aiMessagesWithProducts.length === 0 && data.some(m => m.type === 'ai')) {
+          console.log('⚠️ WARNING: AI messages exist but have no products!');
+          console.log('⚠️ This means products were not saved when the AI responded.');
+        }
+        
         setChatHistory(messages.length > 0 ? messages : [
           { type: 'ai', message: 'Continue our conversation!' }
         ]);
@@ -132,23 +274,117 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   };
 
   // Save a message to the current conversation
-  const saveMessage = async (message) => {
-    if (!user?.id) return;
-    
-    let convId = currentConversationId;
-    if (!convId) {
-      convId = await createNewConversation();
+  // Returns the conversation ID that was used
+  // Optionally accepts a conversationId to use (to avoid race conditions)
+  const saveMessage = async (message, providedConvId = null) => {
+    if (!user?.id) {
+      console.log('⚠️ Cannot save message: no user');
+      return null;
     }
-    if (!convId) return;
+    
+    let convId = providedConvId || currentConversationId;
+    if (!convId) {
+      console.log('📝 No current conversation, creating new one...');
+      convId = await createNewConversation();
+      if (convId) {
+        setCurrentConversationId(convId);
+        console.log('✅ Created new conversation:', convId);
+      }
+    }
+    
+    if (!convId) {
+      console.log('❌ Failed to get/create conversation ID');
+      return null;
+    }
+    
+    console.log('💾 Saving message to conversation:', convId, 'type:', message.type);
     
     try {
-      await supabase.from('chat_messages').insert({
+      // Clean and serialize products for JSONB storage
+      let productsToSave = null;
+      if (message.products && message.products.length > 0) {
+        // Only keep essential fields that can be serialized
+        productsToSave = message.products.map(p => ({
+          id: p.id || `prod_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          name: p.name || p.title || 'Product',
+          price: p.price,
+          image: p.image || p.imageUrl, // Support both field names
+          brand: p.brand,
+          url: p.url || p.buyUrl || p.productUrl,
+          category: p.category
+        }));
+        console.log('📦 Products to save:', productsToSave.map(p => ({ name: p.name, hasImage: !!p.image })));
+      }
+      
+      console.log('💾 Saving message:', { 
+        type: message.type, 
+        productsCount: productsToSave?.length || 0,
+        convId 
+      });
+      
+      // Prepare insert data
+      const insertData = {
         conversation_id: convId,
         type: message.type,
         message: message.message || '',
         image_url: message.image || null,
-        products: message.products || null
+        products: productsToSave // This should be an array or null
+      };
+      
+      console.log('💾 Insert data:', {
+        hasProducts: !!productsToSave,
+        productsCount: productsToSave?.length || 0,
+        productsType: typeof productsToSave,
+        productsIsArray: Array.isArray(productsToSave),
+        productsSample: productsToSave ? JSON.stringify(productsToSave[0]).substring(0, 100) : 'null'
       });
+      
+      const { data: savedData, error } = await supabase
+        .from('chat_messages')
+        .insert(insertData)
+        .select('id, type, message, products');
+      
+      if (error) {
+        console.log('❌ Error saving message:', error);
+        console.log('❌ Error details:', JSON.stringify(error, null, 2));
+      } else if (savedData && savedData.length > 0) {
+        // Verify what was actually saved (select returns array)
+        const savedRecord = savedData[0];
+        console.log('✅ Message saved. Verifying products in DB...');
+        console.log('📦 Saved record:', {
+          id: savedRecord.id,
+          type: savedRecord.type,
+          hasProducts: !!savedRecord.products,
+          productsType: typeof savedRecord.products,
+          productsIsArray: Array.isArray(savedRecord.products),
+          productsValue: savedRecord.products ? JSON.stringify(savedRecord.products).substring(0, 200) : 'null'
+        });
+        
+        if (!savedRecord.products) {
+          console.log('⚠️ WARNING: Products were NOT saved to database!');
+          console.log('⚠️ This might be an RLS policy issue or JSONB field issue');
+          
+          // Try to query the record directly to see what's in DB
+          setTimeout(async () => {
+            const { data: verifyData, error: verifyError } = await supabase
+              .from('chat_messages')
+              .select('id, products')
+              .eq('id', savedRecord.id)
+              .single();
+            
+            if (!verifyError && verifyData) {
+              console.log('🔍 Direct DB query result:', {
+                hasProducts: !!verifyData.products,
+                products: verifyData.products
+              });
+            }
+          }, 500);
+        } else {
+          console.log('✅ Products successfully saved!');
+        }
+      } else {
+        console.log('⚠️ No data returned from insert');
+      }
       
       // Update conversation title based on first user message
       if (message.type === 'user' && message.message) {
@@ -159,8 +395,11 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           .eq('id', convId);
         await loadConversations();
       }
+      
+      return convId; // Return the conversation ID used
     } catch (err) {
       console.log('Error saving message:', err);
+      return null;
     }
   };
 
@@ -209,8 +448,11 @@ export default function ChatScreen({ onBack, onProductSelect }) {
     };
     setChatHistory(prev => [...prev, newUserMessage]);
     
-    // Save user message to database
-    saveMessage(newUserMessage);
+    // Save user message to database and get conversation ID
+    const convId = await saveMessage(newUserMessage);
+    if (convId && !currentConversationId) {
+      setCurrentConversationId(convId);
+    }
     
     setUploadedImage(null);
 
@@ -244,8 +486,13 @@ export default function ChatScreen({ onBack, onProductSelect }) {
       };
       setChatHistory(prev => [...prev, aiMessage]);
       
-      // Save AI message to database
-      saveMessage(aiMessage);
+      // Save AI message to database (use the same conversation ID from user message)
+      console.log('💾 About to save AI message. Using conversation ID:', convId);
+      if (convId) {
+        setCurrentConversationId(convId); // Update state for future messages
+      }
+      const aiConvId = await saveMessage(aiMessage, convId); // Pass convId directly to avoid race condition
+      console.log('✅ AI message saved to conversation:', aiConvId);
       
       // Dismiss keyboard after sending
       Keyboard.dismiss();
@@ -272,11 +519,12 @@ export default function ChatScreen({ onBack, onProductSelect }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.background }}>
-      {/* Header */}
+      {/* Header - ChatGPT Style */}
       <View style={{
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: Spacing.lg,
+        justifyContent: 'space-between',
+        paddingHorizontal: Spacing.md,
         paddingTop: insets.top + Spacing.sm,
         paddingBottom: Spacing.sm,
         borderBottomWidth: 1,
@@ -284,30 +532,40 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         backgroundColor: Colors.background,
         zIndex: 10
       }}>
-        <Pressable onPress={onBack} style={{ marginRight: Spacing.md }}>
-          <Text style={{ color: Colors.textPrimary, fontSize: 18 }}>←</Text>
-        </Pressable>
-        <Text style={{ ...TextStyles.heading, flex: 1 }}>AI Assistant</Text>
-        
-        {/* History Button */}
+        {/* Left: Hamburger Menu */}
         <Pressable 
           onPress={() => setShowHistorySidebar(true)} 
           style={{ 
-            marginRight: Spacing.sm,
-            padding: Spacing.xs,
+            width: 40,
+            height: 40,
+            justifyContent: 'center',
+            alignItems: 'center',
           }}
         >
-          <Text style={{ fontSize: 20 }}>📋</Text>
+          <View style={{ gap: 5 }}>
+            <View style={{ width: 20, height: 2, backgroundColor: Colors.textPrimary, borderRadius: 1 }} />
+            <View style={{ width: 20, height: 2, backgroundColor: Colors.textPrimary, borderRadius: 1 }} />
+            <View style={{ width: 20, height: 2, backgroundColor: Colors.textPrimary, borderRadius: 1 }} />
+          </View>
         </Pressable>
         
-        {/* New Chat Button */}
+        {/* Center: Title */}
+        <Pressable onPress={onBack} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text style={{ color: Colors.textPrimary, fontSize: 17, fontWeight: '600' }}>Stylit AI</Text>
+          <Text style={{ color: Colors.textSecondary, fontSize: 12 }}>▼</Text>
+        </Pressable>
+        
+        {/* Right: New Chat Button */}
         <Pressable 
           onPress={startNewChat}
           style={{ 
-            padding: Spacing.xs,
+            width: 40,
+            height: 40,
+            justifyContent: 'center',
+            alignItems: 'center',
           }}
         >
-          <Text style={{ fontSize: 20 }}>✏️</Text>
+          <Text style={{ color: Colors.textPrimary, fontSize: 24, fontWeight: '300' }}>+</Text>
         </Pressable>
       </View>
 
@@ -540,101 +798,100 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           </View>
       </KeyboardAvoidingView>
 
-      {/* Chat History Sidebar Modal */}
-      <Modal visible={showHistorySidebar} transparent animationType="slide">
-        <Pressable 
-          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}
-          onPress={() => setShowHistorySidebar(false)}
-        >
+      {/* Chat History Sidebar Modal - ChatGPT Style */}
+      <Modal visible={showHistorySidebar} transparent animationType="none">
+        <View style={{ flex: 1, flexDirection: 'row' }}>
+          {/* Sidebar */}
           <View style={{
-            width: '80%',
-            maxWidth: 320,
+            width: '75%',
+            maxWidth: 280,
             height: '100%',
-            backgroundColor: Colors.background,
-            paddingTop: insets.top + Spacing.lg,
+            backgroundColor: '#171717',
+            paddingTop: insets.top,
           }}>
-            <Pressable onPress={(e) => e.stopPropagation()}>
-              {/* Sidebar Header */}
-              <View style={{ 
-                flexDirection: 'row', 
-                alignItems: 'center', 
-                justifyContent: 'space-between',
-                paddingHorizontal: Spacing.lg,
-                paddingBottom: Spacing.md,
-                borderBottomWidth: 1,
-                borderBottomColor: Colors.border,
-              }}>
-                <Text style={{ ...TextStyles.heading, fontSize: 18 }}>Chat History</Text>
-                <Pressable onPress={() => setShowHistorySidebar(false)}>
-                  <Text style={{ color: Colors.textSecondary, fontSize: 24 }}>✕</Text>
-                </Pressable>
-              </View>
+            {/* New Chat Button */}
+            <Pressable 
+              onPress={startNewChat}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                margin: 12,
+                padding: 12,
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: 'rgba(255,255,255,0.2)',
+                gap: 10,
+              }}
+            >
+              <Text style={{ color: '#fff', fontSize: 16 }}>+</Text>
+              <Text style={{ color: '#fff', fontSize: 14 }}>New chat</Text>
+            </Pressable>
 
-              {/* New Chat Button */}
-              <Pressable 
-                onPress={startNewChat}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  padding: Spacing.lg,
-                  borderBottomWidth: 1,
-                  borderBottomColor: Colors.border,
-                  gap: Spacing.sm,
-                }}
-              >
-                <Text style={{ fontSize: 16 }}>✨</Text>
-                <Text style={{ color: Colors.primary, fontWeight: Typography.semibold }}>
-                  New Chat
-                </Text>
-              </Pressable>
-
-              {/* Conversation List */}
+            {/* Conversation List */}
+            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
               {loadingConversations ? (
-                <View style={{ padding: Spacing.xl, alignItems: 'center' }}>
-                  <ActivityIndicator color={Colors.primary} />
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                  <ActivityIndicator color="#666" size="small" />
                 </View>
               ) : conversations.length === 0 ? (
-                <View style={{ padding: Spacing.xl, alignItems: 'center' }}>
-                  <Text style={{ color: Colors.textSecondary }}>No chat history yet</Text>
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                  <Text style={{ color: '#666', fontSize: 13 }}>No conversations yet</Text>
                 </View>
               ) : (
-                <ScrollView style={{ maxHeight: '70%' }}>
+                <>
+                  <Text style={{ color: '#666', fontSize: 11, paddingHorizontal: 12, paddingTop: 16, paddingBottom: 8 }}>
+                    Recent
+                  </Text>
                   {conversations.map((conv) => (
                     <Pressable
                       key={conv.id}
                       onPress={() => loadConversation(conv.id)}
                       style={{
-                        padding: Spacing.lg,
-                        borderBottomWidth: 1,
-                        borderBottomColor: Colors.border,
+                        paddingVertical: 10,
+                        paddingHorizontal: 12,
+                        marginHorizontal: 8,
+                        borderRadius: 6,
                         backgroundColor: currentConversationId === conv.id 
-                          ? Colors.primaryLight 
+                          ? 'rgba(255,255,255,0.1)' 
                           : 'transparent',
                       }}
                     >
                       <Text 
                         style={{ 
-                          color: Colors.textPrimary, 
-                          fontWeight: currentConversationId === conv.id ? Typography.semibold : Typography.regular,
+                          color: currentConversationId === conv.id ? '#fff' : '#ececec',
+                          fontSize: 14,
                         }}
-                        numberOfLines={2}
+                        numberOfLines={1}
                       >
                         {conv.title || 'New Chat'}
                       </Text>
-                      <Text style={{ 
-                        color: Colors.textSecondary, 
-                        fontSize: Typography.xs,
-                        marginTop: 4,
-                      }}>
-                        {new Date(conv.updated_at).toLocaleDateString()}
-                      </Text>
                     </Pressable>
                   ))}
-                </ScrollView>
+                </>
               )}
-            </Pressable>
+            </ScrollView>
+
+            {/* Bottom section */}
+            <View style={{ 
+              borderTopWidth: 1, 
+              borderTopColor: 'rgba(255,255,255,0.1)',
+              padding: 12,
+            }}>
+              <Pressable 
+                onPress={() => setShowHistorySidebar(false)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 }}
+              >
+                <Text style={{ color: '#ececec', fontSize: 14 }}>← Back</Text>
+              </Pressable>
+            </View>
           </View>
-        </Pressable>
+
+          {/* Overlay to close */}
+          <Pressable 
+            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}
+            onPress={() => setShowHistorySidebar(false)}
+          />
+        </View>
       </Modal>
     </View>
   );

@@ -254,18 +254,18 @@ const PodLive = ({ podId, onBack, onRecap, userId }) => {
               ) : (
                 // Standard stats
                 <>
-                  <View style={styles.statItem}>
-                      <Text style={styles.emoji}>🔥</Text>
-                      <Text style={styles.count}>{voteCounts.yes}</Text>
-                  </View>
-                  <View style={styles.statItem}>
-                      <Text style={styles.emoji}>🤔</Text>
-                      <Text style={styles.count}>{voteCounts.maybe}</Text>
-                  </View>
-                  <View style={styles.statItem}>
-                      <Text style={styles.emoji}>❌</Text>
-                      <Text style={styles.count}>{voteCounts.no}</Text>
-                  </View>
+              <View style={styles.statItem}>
+                  <Text style={styles.emoji}>🔥</Text>
+                  <Text style={styles.count}>{voteCounts.yes}</Text>
+              </View>
+              <View style={styles.statItem}>
+                  <Text style={styles.emoji}>🤔</Text>
+                  <Text style={styles.count}>{voteCounts.maybe}</Text>
+              </View>
+              <View style={styles.statItem}>
+                  <Text style={styles.emoji}>❌</Text>
+                  <Text style={styles.count}>{voteCounts.no}</Text>
+              </View>
                 </>
               )}
           </View>

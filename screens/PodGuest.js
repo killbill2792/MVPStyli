@@ -342,9 +342,9 @@ const PodGuest = ({ podId, onBack, onRecap, userId }) => {
                     {podImages.length > 1 ? (
                       <Text style={styles.votedEmoji}>{userVote}</Text>
                     ) : (
-                      <Text style={styles.votedEmoji}>
-                        {userVote === 'yes' ? '🔥' : userVote === 'maybe' ? '🤔' : '❌'}
-                      </Text>
+                    <Text style={styles.votedEmoji}>
+                      {userVote === 'yes' ? '🔥' : userVote === 'maybe' ? '🤔' : '❌'}
+                    </Text>
                     )}
                     {showVoteSuccess && (
                       <Text style={styles.votedText}>Vote submitted!</Text>

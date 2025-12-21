@@ -336,7 +336,7 @@ const PodsScreen = ({ onBack, onCreatePod, userId, userName, params }) => {
 
       // Store multiple images as JSON array if more than one
       const imageData = uploadedImages.length > 1 ? JSON.stringify(uploadedImages) : mainImage;
-      
+
       const podData = {
         owner_id: userId,
         image_url: imageData, // Can be single URL or JSON array

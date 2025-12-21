@@ -147,12 +147,11 @@ const BannerNotification = ({ message, type, onDismiss, onPress }) => {
     >
       <Pressable onPress={onPress} style={styles.bannerPressable}>
         <View style={styles.bannerContent}>
-          {type === 'processing' && <ActivityIndicator size="small" color="#fff" />}
+          {type === 'processing' && <ActivityIndicator size="small" color="#fff" style={{ marginRight: 12 }} />}
           {type === 'success' && <Text style={styles.bannerIcon}>✨</Text>}
           {type === 'error' && <Text style={styles.bannerIcon}>⚠️</Text>}
           <Text style={styles.bannerText}>{message}</Text>
         </View>
-        <Text style={styles.bannerHint}>Swipe up to dismiss</Text>
       </Pressable>
     </Animated.View>
   );
@@ -1578,10 +1577,8 @@ export default function App() {
 
   const handleSetRoute = (newRoute, params = {}) => {
     console.log('Setting route:', newRoute, 'with params:', params);
-    // If params are provided, merge with existing params, otherwise keep existing
-    if (Object.keys(params).length > 0) {
-      setRouteParams(params);
-    }
+    // Always set params - if empty, clear the params to avoid stale data
+    setRouteParams(params);
     setRoute(newRoute);
   };
 
@@ -1639,8 +1636,9 @@ export default function App() {
                             key={p.id} 
                             style={styles.productCard}
                             onPress={() => {
+                                console.log('🛒 Shop: selecting product:', p.name);
                                 setCurrentProduct(p);
-                                setRoute('product');
+                                handleSetRoute('product');
                             }}
                         >
                             <Image source={{ uri: p.image }} style={styles.productImage} />
@@ -2004,20 +2002,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   bannerIcon: {
-    fontSize: 20,
-    marginRight: 10,
+    fontSize: 22,
+    marginRight: 12,
   },
   bannerText: {
     color: '#fff',
     fontWeight: '600',
-    fontSize: 16,
-    flex: 1,
-  },
-  bannerHint: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: 11,
+    fontSize: 18,
     textAlign: 'center',
-    marginTop: 6,
   },
   searchText: {
     color: '#9ca3af',

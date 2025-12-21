@@ -1,5 +1,5 @@
 // api/ai-insights/index.ts
-// Uses OpenAI to generate personalized outfit insights based on user profile and product
+// Uses Google Gemini 2.5 Flash Lite to generate personalized outfit insights based on user profile and product
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
@@ -36,11 +36,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Product info required' });
     }
 
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
     
-    if (!OPENAI_API_KEY) {
+    if (!GEMINI_API_KEY) {
       // Fallback to rule-based if no API key
-      console.log('No OpenAI API key, using fallback');
+      console.log('No Gemini API key, using fallback');
       return res.status(200).json({
         insights: generateFallbackInsights(userProfile, product, insightType),
         source: 'fallback'
@@ -48,51 +48,65 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const prompt = buildPrompt(userProfile, product, insightType);
+    const systemInstruction = `You are a professional fashion stylist and personal shopper with expertise in body types, color analysis, and fit. 
+Give specific, actionable advice based on the user's profile. Be direct and helpful, not generic.
+Always explain WHY something works or doesn't work for their specific body type/coloring.
+Use conversational but professional tone. Be encouraging but honest.`;
     
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Gemini API endpoint - Production: Using Gemini 2.5 Flash Lite (stable production model)
+    // This is the production-ready 2.5 Flash Lite model
+    const model = 'gemini-2.5-flash-lite';
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+    
+    console.log('🔵 Calling Gemini API (Production):', model);
+    
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
+        contents: [
           {
-            role: 'system',
-            content: `You are a professional fashion stylist and personal shopper with expertise in body types, color analysis, and fit. 
-Give specific, actionable advice based on the user's profile. Be direct and helpful, not generic.
-Always explain WHY something works or doesn't work for their specific body type/coloring.
-Use conversational but professional tone. Be encouraging but honest.`
-          },
-          {
-            role: 'user',
-            content: prompt
+            parts: [
+              {
+                text: `${systemInstruction}\n\n${prompt}`
+              }
+            ]
           }
         ],
-        max_tokens: 500,
-        temperature: 0.7
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 500,
+          topP: 0.8,
+          topK: 40
+        }
       })
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error('OpenAI API error:', error);
+      const errorText = await response.text();
+      console.error('❌ Gemini API error:', response.status, errorText);
+      
+      // Return fallback if API fails
       return res.status(200).json({
         insights: generateFallbackInsights(userProfile, product, insightType),
-        source: 'fallback'
+        source: 'fallback',
+        error: `Gemini API error: ${response.status}`
       });
     }
 
     const data = await response.json();
-    const aiResponse = data.choices?.[0]?.message?.content || '';
+    const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    
+    console.log('✅ Gemini API response received, length:', aiResponse.length);
     
     // Parse AI response into structured format
     const insights = parseAIResponse(aiResponse, insightType);
     
     return res.status(200).json({
       insights,
-      source: 'openai'
+      source: 'gemini-2.5-flash-lite'
     });
 
   } catch (error: any) {
@@ -108,51 +122,40 @@ function buildPrompt(user: UserProfile, product: ProductInfo, type: string): str
   if (type === 'fit') {
     return `${userDesc}
 
-The user is considering this item: ${productDesc}
+Item: ${productDesc}
 
-Analyze if this outfit suits them. Consider:
-1. How the item's fit/silhouette works with their body shape
-2. How the color works with their skin tone/coloring
-3. Any length/proportion considerations for their height
+Give BRIEF, SPECIFIC advice. Be concise - max 1 short sentence per point.
 
-Give a clear verdict (Strong Match / Good with Tweaks / Consider Alternatives) and 2-3 specific reasons.
-Format your response as:
-VERDICT: [your verdict]
-BODY: [1-2 points about body/shape fit]
-COLOR: [1-2 points about color match with their skin tone]`;
+Format EXACTLY like this:
+VERDICT: [Strong Match OR Good with Tweaks OR Consider Alternatives]
+BODY: [ONE short sentence about how this fits their body shape]
+COLOR: [ONE short sentence about how this color works with their skin tone]`;
   }
   
   if (type === 'size') {
     return `${userDesc}
 
-The user wants to know what size to buy: ${productDesc}
+Item: ${productDesc}
 
-Based on their measurements and usual sizes, recommend:
-1. The best size for them
-2. A backup size if between sizes
-3. Any brand-specific sizing notes
-4. Return risk level (Low/Medium/High)
+Be brief and direct.
 
 Format:
-RECOMMENDED: [size]
-BACKUP: [backup size or "none needed"]
-REASONING: [why this size]
+RECOMMENDED: [size only, e.g. "M"]
+BACKUP: [backup size or "none"]
+REASONING: [ONE short sentence]
 RISK: [Low/Medium/High]`;
   }
   
   // Style advice
   return `${userDesc}
 
-The user has this item: ${productDesc}
+Item: ${productDesc}
 
-Give styling advice:
-1. Best occasions/settings for this piece
-2. 3-4 specific outfit ideas/pairings
-3. Accessories that would work
+Be brief - just key points.
 
 Format:
-OCCASIONS: [comma-separated list]
-TIPS: [numbered styling tips]`;
+OCCASIONS: [3-4 words max, comma-separated]
+TIPS: [3 SHORT tips, one line each]`;
 }
 
 function buildUserDescription(user: UserProfile): string {
@@ -250,26 +253,37 @@ function parseAIResponse(response: string, type: string): any {
 }
 
 function generateFallbackInsights(user: UserProfile, product: ProductInfo, type: string): any {
-  // Rule-based fallback when OpenAI is not available
+  // Rule-based fallback when Gemini API is not available
   if (type === 'fit') {
-    const bodyAdvice = [];
-    const colorAdvice = [];
+    const bodyAdvice: string[] = [];
+    const colorAdvice: string[] = [];
     
     if (user?.bodyShape) {
-      bodyAdvice.push(`For your ${user.bodyShape} body shape, consider how this cut flatters your proportions.`);
+      const shape = user.bodyShape.toLowerCase();
+      if (shape === 'hourglass') bodyAdvice.push('Fitted styles highlight your waist definition');
+      else if (shape === 'pear') bodyAdvice.push('A-line cuts balance your silhouette nicely');
+      else if (shape === 'apple') bodyAdvice.push('Empire or wrap styles create flattering lines');
+      else if (shape === 'rectangle') bodyAdvice.push('Belted styles add dimension to your frame');
+      else bodyAdvice.push(`Works with your ${user.bodyShape} shape`);
     }
-    if (user?.height) {
-      bodyAdvice.push(`At ${user.height}, check if the length/proportions work for you.`);
-    }
-    if (user?.skinTone || user?.colorSeason) {
-      colorAdvice.push(`Based on your ${user.colorSeason || user.skinTone} coloring, ${product.color || 'this color'} could work well.`);
+    
+    if (user?.colorSeason) {
+      const season = user.colorSeason.toLowerCase();
+      const color = product.color?.toLowerCase() || '';
+      if ((season === 'winter' || season === 'summer') && (color.includes('warm') || color.includes('gold'))) {
+        colorAdvice.push('Cool tones suit you better than this warm shade');
+      } else if ((season === 'spring' || season === 'autumn') && (color.includes('cool') || color.includes('silver'))) {
+        colorAdvice.push('Warm tones flatter you more than cool shades');
+      } else {
+        colorAdvice.push(`${product.color || 'This color'} complements your ${season} coloring`);
+      }
     }
     
     return {
       verdict: 'good_with_tweaks',
-      verdictText: user?.bodyShape ? `This piece has potential for your ${user.bodyShape} shape` : 'This piece is versatile',
-      bodyAdvice: bodyAdvice.length > 0 ? bodyAdvice : ['Add your body shape in profile for personalized fit advice'],
-      colorAdvice: colorAdvice.length > 0 ? colorAdvice : ['Add a face photo to get color matching advice'],
+      verdictText: 'Good with tweaks',
+      bodyAdvice: bodyAdvice.length > 0 ? bodyAdvice : ['Add body shape for fit advice'],
+      colorAdvice: colorAdvice.length > 0 ? colorAdvice : ['Add face photo for color advice'],
       hasEnoughData: !!(user?.bodyShape || user?.colorSeason)
     };
   }
@@ -278,19 +292,15 @@ function generateFallbackInsights(user: UserProfile, product: ProductInfo, type:
     return {
       recommendedSize: user?.topSize || 'M',
       backupSize: undefined,
-      reasoning: user?.topSize ? [`Based on your usual size ${user.topSize}`] : ['Add your measurements for better recommendations'],
+      reasoning: user?.topSize ? [`Based on your usual ${user.topSize}`] : ['Add measurements'],
       returnRisk: 'medium' as const,
       hasEnoughData: !!user?.topSize
     };
   }
   
   return {
-    bestFor: ['Versatile wear', 'Multiple occasions'],
-    stylingTips: [
-      'Layer with basics for everyday wear',
-      'Dress up with accessories for special occasions',
-      'Mix textures for visual interest'
-    ],
+    bestFor: ['Casual', 'Weekend', 'Work'],
+    stylingTips: ['Layer with basics', 'Add statement accessories', 'Mix textures'],
     occasions: ['Casual', 'Work', 'Weekend']
   };
 }

@@ -347,6 +347,8 @@ const StyleVaultScreen = () => {
           image: item.image_url || item.image, // Preserve image URL
           title: item.title,
           price: item.price,
+          product_url: item.product_url,
+          product_data: item.product_data, // Include full product data
           visibility: item.visibility || 'private',
           createdAt: item.created_at || item.createdAt
         })));
@@ -566,10 +568,41 @@ const StyleVaultScreen = () => {
 
   const SavedFitCard = ({ fit }) => {
     const imageSource = fit.image && typeof fit.image === 'string' ? { uri: fit.image } : null;
+    
+    // Handle navigation to product detail
+    const handlePress = () => {
+      // If product_data exists, navigate to product detail
+      if (fit.product_data || fit.product_url) {
+        const productData = fit.product_data || {
+          name: fit.title,
+          image: fit.image,
+          imageUrl: fit.image,
+          images: fit.image ? [fit.image] : [],
+          url: fit.product_url,
+          buyUrl: fit.product_url,
+          productUrl: fit.product_url,
+          price: fit.price,
+          brand: fit.product_data?.brand,
+          category: fit.product_data?.category,
+          color: fit.product_data?.color,
+          fabric: fit.product_data?.fabric,
+          description: fit.product_data?.description
+        };
+        
+        if (setCurrentProduct) {
+          setCurrentProduct(productData);
+        }
+        setRoute('product');
+      } else {
+        // Otherwise, show full screen image
+        setFullScreenImage(fit.image);
+      }
+    };
+    
     return (
     <Pressable 
         style={styles.fitCard}
-        onPress={() => setFullScreenImage(fit.image)}
+        onPress={handlePress}
         onLongPress={() => handleDeleteSavedFit(fit)}
     >
       <SafeImage source={imageSource} style={styles.fitImage} resizeMode="cover" />
@@ -893,6 +926,7 @@ const StyleVaultScreen = () => {
                       // Pass product data explicitly via route params to ensure thumbnail shows
                       setRoute('tryonresult', { product: productData });
                     }}
+                    onLongPress={() => handleDeleteTryOn(item)}
                   >
                     <SafeImage source={{ uri: item.resultUrl }} style={styles.tryOnImage} resizeMode="cover" />
                     

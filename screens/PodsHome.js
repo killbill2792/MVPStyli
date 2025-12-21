@@ -210,18 +210,18 @@ const PodsHome = ({
         onLongPress={() => setShowDeleteConfirm(true)}
       >
         <SafeImage source={getValidImageUri(pod.image_url)} style={styles.cardImage} resizeMode="cover" />
-        <View style={styles.cardContent}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle} numberOfLines={1}>{pod.title}</Text>
-            <View style={[styles.liveBadge, { backgroundColor: 'rgba(239, 68, 68, 0.2)' }]}>
-              <Text style={[styles.liveText, { color: '#ef4444' }]}>ENDED</Text>
-            </View>
+      <View style={styles.cardContent}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.cardTitle} numberOfLines={1}>{pod.title}</Text>
+          <View style={[styles.liveBadge, { backgroundColor: 'rgba(239, 68, 68, 0.2)' }]}>
+            <Text style={[styles.liveText, { color: '#ef4444' }]}>ENDED</Text>
           </View>
-          <Text style={styles.cardSubtitle}>
-            {getModeLabel(pod.audience)} · <Text style={{ color: '#ef4444' }}>Ended</Text>
-          </Text>
-          <Text style={styles.confidenceText}>View results →</Text>
         </View>
+        <Text style={styles.cardSubtitle}>
+          {getModeLabel(pod.audience)} · <Text style={{ color: '#ef4444' }}>Ended</Text>
+        </Text>
+        <Text style={styles.confidenceText}>View results →</Text>
+      </View>
         
         {/* Delete Confirmation Modal */}
         {showDeleteConfirm && (
@@ -246,8 +246,8 @@ const PodsHome = ({
             </View>
           </View>
         )}
-      </Pressable>
-    );
+    </Pressable>
+  );
   };
 
   const InvitedPodCard = ({ pod }) => {
