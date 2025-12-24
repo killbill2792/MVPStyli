@@ -173,3 +173,4 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- 4. Verify
 SELECT '✅ Style Functions Fixed' as status;
 
+

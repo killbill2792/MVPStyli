@@ -5,3 +5,4 @@ ALTER TABLE public.pods
 ADD COLUMN IF NOT EXISTS product_url TEXT;
 
 
+

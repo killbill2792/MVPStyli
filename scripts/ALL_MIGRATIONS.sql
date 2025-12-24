@@ -73,3 +73,4 @@ SELECT COUNT(*) as friends_table_exists FROM information_schema.tables
     WHERE table_name = 'friends';
 
 
+

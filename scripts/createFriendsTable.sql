@@ -38,3 +38,4 @@ CREATE POLICY "Users can update their own friendships" ON public.friends
 --   FOREIGN KEY (friend_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
 
 
+

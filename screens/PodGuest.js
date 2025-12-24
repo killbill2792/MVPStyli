@@ -204,6 +204,12 @@ const PodGuest = ({ podId, onBack, onRecap, userId }) => {
   };
 
   const handleSubmitComment = async () => {
+    // FIX: Don't allow comments on ended pods
+    if (isEnded) {
+      console.log('Pod has ended - commenting disabled');
+      return;
+    }
+    
     if (!newComment.trim() || commentSubmitted) return;
     
     const success = await addComment(podId, userId, newComment.trim());

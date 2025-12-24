@@ -18,7 +18,7 @@ import {
   expirePod,
   getVoteCounts
 } from '../lib/pods';
-
+import { buildShareUrl } from '../lib/share';
 import { supabase } from '../lib/supabase';
 
 // Safe Image Component
@@ -137,8 +137,10 @@ const PodLive = ({ podId, onBack, onRecap, userId }) => {
 
   const handleShare = async () => {
     try {
+      if (!userId || !podId || !pod) return;
+      const shareUrl = buildShareUrl({ kind: 'pod', podId, fromUserId: userId, audience: pod.audience });
       await Share.share({
-        message: `Help me decide! Check out my look: https://mvpstyli.vercel.app/p/${podId}`,
+        message: `Help me decide! Check out my look: ${shareUrl}`,
       });
     } catch (error) {
       console.log(error);

@@ -80,49 +80,9 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
 
     setIsProcessing(true);
     
-    // Simulate AI processing and generate mock quotes
+    // Simulate processing, then show waitlist message
     setTimeout(() => {
       setIsProcessing(false);
-      
-      // Generate mock vendor quotes with comments
-      const mockQuotes = [
-        {
-          id: '1',
-          vendor: 'Elite Tailors',
-          rating: 4.8,
-          material: 'Premium Cotton',
-          price: Math.floor((minBudget + maxBudget) / 2 * 0.8),
-          shipping: 15,
-          refImage: 'https://images.unsplash.com/photo-1586790170083-2f9ceadc732d?w=400',
-          deliveryTime: '2-3 weeks',
-          comments: 'We specialize in custom designs with premium cotton. Our team has 15+ years of experience and we offer free revisions. The design will be tailored to your exact measurements.'
-        },
-        {
-          id: '2',
-          vendor: 'Boutique Stitches',
-          rating: 4.6,
-          material: 'Silk Blend',
-          price: Math.floor((minBudget + maxBudget) / 2 * 0.9),
-          shipping: 20,
-          refImage: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400',
-          deliveryTime: '3-4 weeks',
-          comments: 'Our silk blend fabric is perfect for elegant designs. We provide detailed progress updates and can accommodate material changes. Quality guaranteed with 30-day return policy.'
-        },
-        {
-          id: '3',
-          vendor: 'Custom Couture',
-          rating: 4.9,
-          material: 'Luxury Fabric',
-          price: Math.floor((minBudget + maxBudget) / 2 * 1.1),
-          shipping: 25,
-          refImage: 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=400',
-          deliveryTime: '4-5 weeks',
-          comments: 'Premium luxury fabrics with handcrafted details. We work with top designers and offer unlimited revisions. Perfect for special occasions. Express delivery available.'
-        }
-      ];
-      
-      setQuotes(mockQuotes);
-      setShowQuotes(true);
       
       // Save to previous enquiries
       const newEnquiry = {
@@ -134,7 +94,20 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
         vendor: null
       };
       setPreviousEnquiries([newEnquiry, ...previousEnquiries]);
-    }, 3000);
+      
+      // Show waitlist confirmation instead of fake quotes
+      Alert.alert(
+        'Request Saved ✓',
+        "Your request is saved. We'll notify you when your design is ready.",
+        [{ text: 'OK', onPress: () => {
+          // Reset form
+          setUploadedImage(null);
+          setPrompt('');
+          setMinBudget(100);
+          setMaxBudget(500);
+        }}]
+      );
+    }, 2000);
   };
 
   const handleSuggestionTap = (suggestion) => {
@@ -149,6 +122,24 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
           contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 20, paddingBottom: 100 }]}
           showsVerticalScrollIndicator={false}
         >
+          {/* Early Access Badge */}
+          <View style={{ marginBottom: 20, alignItems: 'center' }}>
+            <View style={{
+              backgroundColor: 'rgba(245, 158, 11, 0.2)',
+              borderWidth: 1,
+              borderColor: 'rgba(245, 158, 11, 0.4)',
+              borderRadius: 12,
+              paddingHorizontal: 16,
+              paddingVertical: 8,
+              marginBottom: 12,
+            }}>
+              <Text style={{ color: '#fbbf24', fontSize: 12, fontWeight: '600' }}>🚧 Early Access</Text>
+            </View>
+            <Text style={{ color: '#9ca3af', fontSize: 14, textAlign: 'center', lineHeight: 20 }}>
+              StyleCraft is in early access. We're training AI on real style data.
+            </Text>
+          </View>
+
           {/* Previous Enquiries Toggle */}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
             <Text style={styles.sectionTitle}>StyleCraft</Text>
@@ -178,47 +169,12 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
                   <Pressable
                     key={enquiry.id}
                     onPress={() => {
-                      // Generate quotes directly without showing intermediate screen
-                      const mockQuotes = [
-                        {
-                          id: '1',
-                          vendor: 'Elite Tailors',
-                          rating: 4.8,
-                          material: 'Premium Cotton',
-                          price: Math.floor((minBudget + maxBudget) / 2 * 0.8),
-                          shipping: 15,
-                          refImage: enquiry.image || 'https://images.unsplash.com/photo-1586790170083-2f9ceadc732d?w=400',
-                          deliveryTime: '2-3 weeks',
-                          comments: 'We specialize in custom designs with premium cotton. Our team has 15+ years of experience and we offer free revisions. The design will be tailored to your exact measurements.'
-                        },
-                        {
-                          id: '2',
-                          vendor: 'Boutique Stitches',
-                          rating: 4.6,
-                          material: 'Silk Blend',
-                          price: Math.floor((minBudget + maxBudget) / 2 * 0.9),
-                          shipping: 20,
-                          refImage: enquiry.image || 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400',
-                          deliveryTime: '3-4 weeks',
-                          comments: 'Our silk blend fabric is perfect for elegant designs. We provide detailed progress updates and can accommodate material changes. Quality guaranteed with 30-day return policy.'
-                        },
-                        {
-                          id: '3',
-                          vendor: 'Custom Couture',
-                          rating: 4.9,
-                          material: 'Luxury Fabric',
-                          price: Math.floor((minBudget + maxBudget) / 2 * 1.1),
-                          shipping: 25,
-                          refImage: enquiry.image || 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=400',
-                          deliveryTime: '4-5 weeks',
-                          comments: 'Premium luxury fabrics with handcrafted details. We work with top designers and offer unlimited revisions. Perfect for special occasions. Express delivery available.'
-                        }
-                      ];
-                      setQuotes(mockQuotes);
-                      setUploadedImage(enquiry.image); // Set the uploaded image so it shows in quotes
-                      setPrompt(enquiry.prompt);
-                      setShowQuotes(true);
-                      setShowPreviousEnquiries(false);
+                      // Show waitlist message for previous enquiries too
+                      Alert.alert(
+                        'Request Saved ✓',
+                        "Your request is saved. We'll notify you when your design is ready.",
+                        [{ text: 'OK' }]
+                      );
                     }}
                     style={{
                       width: 200,
@@ -265,22 +221,6 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
             <Text style={styles.heroSubtitle}>
               Drop your inspo, AI does the rest 🎨
             </Text>
-
-            {/* Live Stats Cards */}
-            <View style={styles.statsContainer}>
-              <View style={styles.statCard}>
-                <Text style={styles.statNumber}>500+</Text>
-                <Text style={styles.statLabel}>✨ Designs Done</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statNumber}>50+</Text>
-                <Text style={styles.statLabel}>🧵 Tailors</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statNumber}>4.9</Text>
-                <Text style={styles.statLabel}>⭐ Rating</Text>
-              </View>
-            </View>
           </View>
 
           {/* Upload Section */}
@@ -441,7 +381,7 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
               style={styles.ctaGradient}
             >
               <Text style={styles.ctaButtonText}>
-                {isProcessing ? '🪡 AI Stitching...' : 'Get Vendor Quotes'}
+                {isProcessing ? '🪡 Saving Request...' : 'Submit Request'}
               </Text>
             </LinearGradient>
           </Pressable>
@@ -451,7 +391,7 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
               <View style={styles.processingBar}>
                 <View style={styles.processingFill} />
               </View>
-              <Text style={styles.processingText}>AI is analyzing your design...</Text>
+              <Text style={styles.processingText}>Saving your request...</Text>
             </View>
           )}
         </ScrollView>
@@ -975,3 +915,4 @@ const styles = StyleSheet.create({
 });
 
 export default StyleCraftScreen;
+

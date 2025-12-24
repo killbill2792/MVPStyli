@@ -65,3 +65,4 @@ CREATE POLICY "Users can manage own boards" ON public.boards FOR ALL USING (auth
 -- OR manually insert demo data using the user IDs from auth.users
 
 
+

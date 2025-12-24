@@ -13,6 +13,10 @@ export interface Pod {
   title: string;
   summary?: string;
   product_url?: string;
+  // FIX: Store product metadata for accurate style profile tracking
+  product_tags?: string[];
+  product_colors?: string[];
+  product_category?: string;
 }
 
 export interface PodVote {
@@ -20,7 +24,14 @@ export interface PodVote {
   pod_id: string;
   voter_id?: string;
   choice: 'yes' | 'maybe' | 'no';
+  metadata?: { selectedOption?: string; selectedIndex?: number }; // For multi-image pods
   created_at: string;
+  // Guest voting fields
+  guest_id?: string;
+  guest_name?: string;
+  guest_comment?: string;
+  vote_source?: 'app' | 'web';
+  from_user_id?: string;
 }
 
 export interface PodComment {
@@ -123,34 +134,81 @@ export const getPodVotes = async (podId: string): Promise<PodVote[]> => {
 };
 
 // Submit a vote
-export const submitVote = async (podId: string, choice: 'yes' | 'maybe' | 'no', voterId?: string): Promise<boolean> => {
+export const submitVote = async (
+  podId: string, 
+  choice: 'yes' | 'maybe' | 'no', 
+  voterId?: string | null,
+  metadata?: { selectedOption?: string; selectedIndex?: number } | null | undefined
+): Promise<boolean> => {
   try {
+    // Ensure podId is a string
+    if (!podId || typeof podId !== 'string') {
+      throw new Error('Invalid podId');
+    }
+    
+    const voteData: any = {
+      pod_id: podId,
+      choice,
+    };
+    
+    // Only add voter_id if it exists
+    if (voterId && typeof voterId === 'string') {
+      voteData.voter_id = voterId;
+    }
+    
+    // FIX: Store metadata for multi-image pods (which option was selected)
+    // Only add metadata if it exists and has valid data
+    if (metadata && typeof metadata === 'object' && !Array.isArray(metadata) && metadata !== null) {
+      const hasValidData = (metadata.selectedOption && typeof metadata.selectedOption === 'string') || 
+                          (typeof metadata.selectedIndex === 'number');
+      if (hasValidData) {
+        // Ensure metadata is a plain object for JSONB - use only primitive types
+        voteData.metadata = {
+          selectedOption: metadata.selectedOption || null,
+          selectedIndex: typeof metadata.selectedIndex === 'number' ? metadata.selectedIndex : null
+        };
+      }
+    }
+    
     const { error } = await supabase
       .from('pod_votes')
-      .insert({
-        pod_id: podId,
-        voter_id: voterId,
-        choice,
-      });
+      .insert(voteData);
 
     if (error) throw error;
 
     // Track event for style profile
     if (voterId) {
       // We need to fetch the pod to get product info
-      const { data: pod } = await supabase.from('pods').select('product_url, image_url').eq('id', podId).single();
+      const { data: pod } = await supabase
+        .from('pods')
+        .select('product_url, image_url, product_tags, product_colors, product_category')
+        .eq('id', podId)
+        .single();
       
       // Determine event type
       const eventType = choice === 'yes' ? 'vote_yes' : choice === 'maybe' ? 'vote_maybe' : 'vote_no';
       
-      // Track it (fire and forget)
-      trackEvent(voterId, eventType, {
-        id: podId, // Use pod ID as proxy if product ID unknown, or we need product ID on pod
+      // FIX: Use product metadata from pod if available, otherwise infer
+      const productData: any = {
+        id: podId,
         url: pod?.product_url,
         image: pod?.image_url,
-        // Tags/Colors/Category should ideally be on the Pod or fetched from product. 
-        // For now trackEvent helper tries to infer from what it has.
-      });
+      };
+      
+      // If pod has stored metadata, use it (more accurate)
+      if (pod?.product_tags) productData.tags = pod.product_tags;
+      if (pod?.product_colors) productData.colors = pod.product_colors;
+      if (pod?.product_category) productData.category = pod.product_category;
+      
+      // Track it (fire and forget)
+      trackEvent(voterId, eventType, productData).then(() => {
+        // FIX: Trigger style profile recalculation after tracking (async, fire and forget)
+        import('./styleEngine').then(({ refreshStyleProfile }) => {
+          refreshStyleProfile(voterId).catch(err => 
+            console.error('Error refreshing style profile after vote:', err)
+          );
+        });
+      }).catch(err => console.error('Error tracking vote event:', err));
     }
 
     return true;
@@ -160,9 +218,26 @@ export const submitVote = async (podId: string, choice: 'yes' | 'maybe' | 'no', 
   }
 };
 
-// Get comments for a pod (friends only)
-export const getPodComments = async (podId: string): Promise<PodComment[]> => {
+// Get comments for a pod
+// FIX: For friends pods, comments are private to pod owner only
+// For other audiences, comments are visible to all participants
+export const getPodComments = async (podId: string, viewerId?: string): Promise<PodComment[]> => {
   try {
+    // First get the pod to check audience
+    const { data: pod } = await supabase
+      .from('pods')
+      .select('audience, owner_id')
+      .eq('id', podId)
+      .single();
+    
+    if (!pod) return [];
+    
+    // For friends pods, only owner can see comments (private notes)
+    if (pod.audience === 'friends' && viewerId !== pod.owner_id) {
+      return [];
+    }
+    
+    // For other audiences or if viewer is owner, show all comments
     const { data, error } = await supabase
       .from('pod_comments')
       .select('*')
@@ -519,9 +594,11 @@ export const createPodInvites = async (podId: string, friendIds: string[], fromU
 };
 
 // Calculate confidence percentage
+// Includes both app votes (voter_id) and guest votes (guest_id)
 export const calculateConfidence = (votes: PodVote[]): number => {
   if (votes.length === 0) return 0;
   
+  // Count all votes (both app and guest)
   const yesVotes = votes.filter(v => v.choice === 'yes').length;
   const maybeVotes = votes.filter(v => v.choice === 'maybe').length;
   const totalVotes = votes.length;
@@ -530,12 +607,17 @@ export const calculateConfidence = (votes: PodVote[]): number => {
 };
 
 // Get vote counts
+// Includes both app votes (voter_id) and guest votes (guest_id)
 export const getVoteCounts = (votes: PodVote[]) => {
+  // Count all votes regardless of source (app or web guest)
   return {
     yes: votes.filter(v => v.choice === 'yes').length,
     maybe: votes.filter(v => v.choice === 'maybe').length,
     no: votes.filter(v => v.choice === 'no').length,
     total: votes.length,
+    // Optional: breakdown by source
+    appVotes: votes.filter(v => v.voter_id && !v.guest_id).length,
+    guestVotes: votes.filter(v => v.guest_id).length,
   };
 };
 
@@ -599,25 +681,45 @@ export const getFriendsTabPods = async (userId: string): Promise<Pod[]> => {
   if (!userId) return [];
   
   try {
-    // Get pods I'm invited to (NOT my own - I don't vote on my own pods in Explore)
+    // FIX: Include pods where user is invited OR has voted (implicit membership)
+    // Get pods I'm invited to
     const { data: invites } = await supabase
       .from('pod_invites')
       .select('pod_id')
       .eq('to_user', userId);
 
-    let invitedPods: Pod[] = [];
-    if (invites && invites.length > 0) {
-      const podIds = invites.map(i => i.pod_id);
-      const { data: pods } = await supabase
-        .from('pods')
-        .select('*')
-        .in('id', podIds)
-        .neq('owner_id', userId) // Don't show my own pods
-        .order('created_at', { ascending: false });
-      invitedPods = pods || [];
+    const invitedPodIds = invites?.map(i => i.pod_id) || [];
+    
+    // Get pods I've voted on (implicit membership for share links)
+    const { data: votes } = await supabase
+      .from('pod_votes')
+      .select('pod_id')
+      .eq('voter_id', userId);
+
+    const votedPodIds = votes?.map(v => v.pod_id) || [];
+    
+    // Combine both sets
+    const allPodIds = [...new Set([...invitedPodIds, ...votedPodIds])];
+    
+    if (allPodIds.length === 0) {
+      return [];
     }
 
-    return enrichPodsWithOwner(invitedPods);
+    // Fetch all pods (both live and ended in last 7 days for recaps)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    const { data: pods, error } = await supabase
+      .from('pods')
+      .select('*')
+      .in('id', allPodIds)
+      .eq('audience', 'friends') // Only friends audience
+      .neq('owner_id', userId) // Don't show my own pods
+      .or(`status.eq.live,ends_at.gte.${sevenDaysAgo.toISOString()}`) // Live or ended in last 7 days
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return enrichPodsWithOwner(pods || []);
   } catch (error) {
     console.error('Error fetching friends tab pods:', error);
     return [];
@@ -633,12 +735,16 @@ export const getTwinsTabPods = async (userId: string): Promise<Pod[]> => {
 
     // 2. If no twins found (new user), fall back to standard "style_twins" audience query
     if (twinIds.length === 0) {
+       // FIX: Include ended pods from last 7 days as recaps
+       const sevenDaysAgo = new Date();
+       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+       
        const { data, error } = await supabase
         .from('pods')
         .select('*')
         .eq('audience', 'style_twins')
-        .eq('status', 'live')
         .neq('owner_id', userId || '')
+        .or(`status.eq.live,ends_at.gte.${sevenDaysAgo.toISOString()}`) // Live or ended in last 7 days
         .order('created_at', { ascending: false })
         .limit(20);
        if (error) throw error;
@@ -646,14 +752,18 @@ export const getTwinsTabPods = async (userId: string): Promise<Pod[]> => {
     }
 
     // 3. Fetch public pods from these twins
+    // FIX: Only show style_twins audience, not global_mix (to avoid leaking Global pods)
+    // FIX: Include ended pods from last 7 days as recaps
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
     const { data, error } = await supabase
       .from('pods')
       .select('*')
       .in('owner_id', twinIds) // Pods from my twins
-      .eq('status', 'live')
-      // Show their public pods (style_twins or global)
-      .in('audience', ['style_twins', 'global_mix']) 
+      .eq('audience', 'style_twins') // Only style_twins, not global_mix
       .neq('owner_id', userId || '')
+      .or(`status.eq.live,ends_at.gte.${sevenDaysAgo.toISOString()}`) // Live or ended in last 7 days
       .order('created_at', { ascending: false })
       .limit(20);
 
@@ -668,12 +778,16 @@ export const getTwinsTabPods = async (userId: string): Promise<Pod[]> => {
 // Get pods for Global Mix tab
 export const getGlobalTabPods = async (userId: string): Promise<Pod[]> => {
   try {
+    // FIX: Include ended pods from last 7 days as recaps
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
     const { data, error } = await supabase
       .from('pods')
       .select('*')
       .eq('audience', 'global_mix')
-      .eq('status', 'live')
       .neq('owner_id', userId || '')
+      .or(`status.eq.live,ends_at.gte.${sevenDaysAgo.toISOString()}`) // Live or ended in last 7 days
       .order('created_at', { ascending: false })
       .limit(20);
 

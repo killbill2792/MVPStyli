@@ -85,7 +85,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
       }, 100);
     }
   }, [chatHistory]);
-  
+
   // Debug: Log chatHistory state to see if products are present
   useEffect(() => {
     const productsInHistory = chatHistory.filter(m => m.products && m.products.length > 0);
@@ -574,228 +574,228 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         style={{ flex: 1 }}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
-        {/* Chat Messages - Takes remaining space */}
-        <ScrollView 
-          ref={chatScrollRef}
-          style={{ flex: 1 }}
-          contentContainerStyle={{ 
-            paddingHorizontal: Spacing.lg,
-            paddingTop: Spacing.md,
+      {/* Chat Messages - Takes remaining space */}
+      <ScrollView 
+        ref={chatScrollRef}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ 
+          paddingHorizontal: Spacing.lg,
+          paddingTop: Spacing.md,
             paddingBottom: Spacing.xl,
-          }}
-          onContentSizeChange={() => {
-            if (chatScrollRef.current) {
-              chatScrollRef.current.scrollToEnd({ animated: true });
-            }
-          }}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="interactive"
-          showsVerticalScrollIndicator={true}
-        >
-          {chatHistory.map((msg, idx) => (
-            <View key={idx} style={{ marginBottom: Spacing.lg }}>
-              {msg.type === 'user' ? (
-                <View style={{ alignItems: 'flex-end' }}>
-                  <View style={{
-                    backgroundColor: Colors.primaryLight,
-                    padding: Spacing.md,
-                    borderRadius: BorderRadius.lg,
-                    borderTopRightRadius: BorderRadius.sm,
-                    maxWidth: '80%'
-                  }}>
-                    {msg.image && (
-                      <Image 
-                        source={{ uri: msg.image }} 
-                        style={{ 
-                          width: 200, 
-                          height: 200, 
-                          borderRadius: BorderRadius.md, 
-                          marginBottom: Spacing.sm 
-                        }} 
-                        resizeMode="cover"
-                      />
-                    )}
-                    {msg.message && (
-                      <Text style={{ ...TextStyles.body, color: Colors.primary }}>
-                        {msg.message}
-                      </Text>
-                    )}
-                  </View>
-                </View>
-              ) : (
-                <View style={{ alignItems: 'flex-start' }}>
-                  <View style={{
-                    backgroundColor: Colors.backgroundSecondary,
-                    padding: Spacing.md,
-                    borderRadius: BorderRadius.lg,
-                    borderTopLeftRadius: BorderRadius.sm,
-                    maxWidth: '85%'
-                  }}>
-                    <Text style={{ ...TextStyles.body, color: Colors.textPrimary, marginBottom: msg.products && msg.products.length > 0 ? Spacing.md : 0 }}>
+        }}
+        onContentSizeChange={() => {
+          if (chatScrollRef.current) {
+            chatScrollRef.current.scrollToEnd({ animated: true });
+          }
+        }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        showsVerticalScrollIndicator={true}
+      >
+        {chatHistory.map((msg, idx) => (
+          <View key={idx} style={{ marginBottom: Spacing.lg }}>
+            {msg.type === 'user' ? (
+              <View style={{ alignItems: 'flex-end' }}>
+                <View style={{
+                  backgroundColor: Colors.primaryLight,
+                  padding: Spacing.md,
+                  borderRadius: BorderRadius.lg,
+                  borderTopRightRadius: BorderRadius.sm,
+                  maxWidth: '80%'
+                }}>
+                  {msg.image && (
+                    <Image 
+                      source={{ uri: msg.image }} 
+                      style={{ 
+                        width: 200, 
+                        height: 200, 
+                        borderRadius: BorderRadius.md, 
+                        marginBottom: Spacing.sm 
+                      }} 
+                      resizeMode="cover"
+                    />
+                  )}
+                  {msg.message && (
+                    <Text style={{ ...TextStyles.body, color: Colors.primary }}>
                       {msg.message}
                     </Text>
-                    
-                    {/* Products Grid */}
-                    {msg.products && msg.products.length > 0 && (
-                      <View style={{ 
-                        flexDirection: 'row', 
-                        flexWrap: 'wrap', 
-                        gap: Spacing.sm,
-                        marginTop: Spacing.sm
-                      }}>
-                        {msg.products.map((product, pIdx) => (
-                          <Pressable
-                            key={product.id || pIdx}
-                            onPress={() => handleProductPress(product)}
-                            style={{
-                              width: '48%',
-                              backgroundColor: Colors.background,
-                              borderRadius: BorderRadius.md,
-                              overflow: 'hidden',
-                              borderWidth: 1,
-                              borderColor: Colors.border,
-                            }}
-                          >
-                            <Image 
-                              source={{ uri: product.image }} 
-                              style={{ 
-                                width: '100%', 
-                                height: 150,
-                                backgroundColor: Colors.backgroundSecondary
-                              }}
-                              resizeMode="cover"
-                            />
-                            <View style={{ padding: Spacing.sm }}>
-                              <Text 
-                                style={{ ...TextStyles.small, fontWeight: Typography.semibold }}
-                                numberOfLines={1}
-                              >
-                                {product.name}
-                              </Text>
-                              <Text style={{ ...TextStyles.caption, color: Colors.primary, marginTop: 2 }}>
-                                ${product.price || 'N/A'}
-                              </Text>
-                            </View>
-                          </Pressable>
-                        ))}
-                      </View>
-                    )}
-                  </View>
+                  )}
                 </View>
-              )}
-            </View>
-          ))}
-          
-          {isSearching && (
-            <View style={{ alignItems: 'flex-start', marginBottom: Spacing.lg }}>
-              <View style={{
-                backgroundColor: Colors.backgroundSecondary,
-                padding: Spacing.md,
-                borderRadius: BorderRadius.lg,
-                borderTopLeftRadius: BorderRadius.sm,
-              }}>
-                <Text style={{ ...TextStyles.body, color: Colors.textSecondary }}>
-                  Searching...
-                </Text>
               </View>
-            </View>
-          )}
-        </ScrollView>
-
-        {/* Input Bar */}
-        <View style={{
-          backgroundColor: Colors.background,
-          borderTopWidth: 1,
-          borderTopColor: Colors.border,
-          paddingHorizontal: Spacing.lg,
-          paddingTop: Spacing.sm,
-          paddingBottom: insets.bottom > 0 ? insets.bottom : Spacing.sm,
-        }}>
-          <View style={{ 
-            flexDirection: 'row', 
-            gap: Spacing.xs, 
-            alignItems: 'center',
-          }}>
-              {uploadedImage ? (
-                <Pressable
-                  onPress={() => setUploadedImage(null)}
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: BorderRadius.sm,
-                    overflow: 'hidden',
-                  }}
-                >
-                  <Image 
-                    source={{ uri: uploadedImage }} 
-                    style={{ width: 40, height: 40 }} 
-                    resizeMode="cover"
-                  />
-                </Pressable>
-              ) : (
-                <Pressable
-                  onPress={handleImageUpload}
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: BorderRadius.sm,
-                    backgroundColor: Colors.backgroundSecondary,
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text style={{ fontSize: 18 }}>📷</Text>
-                </Pressable>
-              )}
-              
-              <TextInput
-                ref={textInputRef}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                onSubmitEditing={handleSearchSubmit}
-                placeholder="Ask me anything or paste a URL..."
-                placeholderTextColor={Colors.textSecondary}
-                style={{ 
-                  flex: 1, 
-                  height: 40,
+            ) : (
+              <View style={{ alignItems: 'flex-start' }}>
+                <View style={{
                   backgroundColor: Colors.backgroundSecondary,
-                  borderRadius: BorderRadius.md,
-                  paddingHorizontal: Spacing.md,
-                  color: Colors.textPrimary,
-                  fontSize: Typography.sm,
-                  paddingVertical: 10,
-                }}
-                returnKeyType="send"
-                multiline={false}
-                editable={!isSearching}
-                autoCapitalize="none"
-                autoCorrect={true}
-              />
-              
-              <Pressable 
-                onPress={handleSearchSubmit}
-                disabled={isSearching || (!searchQuery.trim() && !uploadedImage)}
-                style={{ 
-                  backgroundColor: (isSearching || (!searchQuery.trim() && !uploadedImage)) ? Colors.backgroundSecondary : primaryColor,
-                  paddingHorizontal: Spacing.md, 
-                  paddingVertical: Spacing.sm,
-                  height: 40,
-                  borderRadius: BorderRadius.md,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  minWidth: 60,
-                }}
-              >
-                <Text style={{ 
-                  color: (isSearching || (!searchQuery.trim() && !uploadedImage)) ? Colors.textSecondary : Colors.textWhite,
-                  fontSize: Typography.sm,
-                  fontWeight: Typography.semibold,
+                  padding: Spacing.md,
+                  borderRadius: BorderRadius.lg,
+                  borderTopLeftRadius: BorderRadius.sm,
+                  maxWidth: '85%'
                 }}>
-                  {isSearching ? '...' : 'Send'}
-                </Text>
-              </Pressable>
+                  <Text style={{ ...TextStyles.body, color: Colors.textPrimary, marginBottom: msg.products && msg.products.length > 0 ? Spacing.md : 0 }}>
+                    {msg.message}
+                  </Text>
+                  
+                  {/* Products Grid */}
+                  {msg.products && msg.products.length > 0 && (
+                    <View style={{ 
+                      flexDirection: 'row', 
+                      flexWrap: 'wrap', 
+                      gap: Spacing.sm,
+                      marginTop: Spacing.sm
+                    }}>
+                      {msg.products.map((product, pIdx) => (
+                        <Pressable
+                          key={product.id || pIdx}
+                          onPress={() => handleProductPress(product)}
+                          style={{
+                            width: '48%',
+                            backgroundColor: Colors.background,
+                            borderRadius: BorderRadius.md,
+                            overflow: 'hidden',
+                            borderWidth: 1,
+                            borderColor: Colors.border,
+                          }}
+                        >
+                          <Image 
+                            source={{ uri: product.image }} 
+                            style={{ 
+                              width: '100%', 
+                              height: 150,
+                              backgroundColor: Colors.backgroundSecondary
+                            }}
+                            resizeMode="cover"
+                          />
+                          <View style={{ padding: Spacing.sm }}>
+                            <Text 
+                              style={{ ...TextStyles.small, fontWeight: Typography.semibold }}
+                              numberOfLines={1}
+                            >
+                              {product.name}
+                            </Text>
+                            <Text style={{ ...TextStyles.caption, color: Colors.primary, marginTop: 2 }}>
+                              ${product.price || 'N/A'}
+                            </Text>
+                          </View>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              </View>
+            )}
+          </View>
+        ))}
+        
+        {isSearching && (
+          <View style={{ alignItems: 'flex-start', marginBottom: Spacing.lg }}>
+            <View style={{
+              backgroundColor: Colors.backgroundSecondary,
+              padding: Spacing.md,
+              borderRadius: BorderRadius.lg,
+              borderTopLeftRadius: BorderRadius.sm,
+            }}>
+              <Text style={{ ...TextStyles.body, color: Colors.textSecondary }}>
+                Searching...
+              </Text>
             </View>
           </View>
+        )}
+      </ScrollView>
+
+        {/* Input Bar */}
+      <View style={{
+        backgroundColor: Colors.background,
+        borderTopWidth: 1,
+        borderTopColor: Colors.border,
+        paddingHorizontal: Spacing.lg,
+        paddingTop: Spacing.sm,
+          paddingBottom: insets.bottom > 0 ? insets.bottom : Spacing.sm,
+      }}>
+        <View style={{ 
+          flexDirection: 'row', 
+          gap: Spacing.xs, 
+          alignItems: 'center',
+        }}>
+            {uploadedImage ? (
+              <Pressable
+                onPress={() => setUploadedImage(null)}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: BorderRadius.sm,
+                  overflow: 'hidden',
+                }}
+              >
+                <Image 
+                  source={{ uri: uploadedImage }} 
+                  style={{ width: 40, height: 40 }} 
+                  resizeMode="cover"
+                />
+              </Pressable>
+            ) : (
+              <Pressable
+                onPress={handleImageUpload}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: BorderRadius.sm,
+                  backgroundColor: Colors.backgroundSecondary,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ fontSize: 18 }}>📷</Text>
+              </Pressable>
+            )}
+            
+            <TextInput
+              ref={textInputRef}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onSubmitEditing={handleSearchSubmit}
+              placeholder="Ask me anything or paste a URL..."
+              placeholderTextColor={Colors.textSecondary}
+              style={{ 
+                flex: 1, 
+                  height: 40,
+                backgroundColor: Colors.backgroundSecondary,
+                borderRadius: BorderRadius.md,
+                paddingHorizontal: Spacing.md,
+                color: Colors.textPrimary,
+                fontSize: Typography.sm,
+                paddingVertical: 10,
+              }}
+              returnKeyType="send"
+              multiline={false}
+              editable={!isSearching}
+              autoCapitalize="none"
+              autoCorrect={true}
+            />
+            
+            <Pressable 
+              onPress={handleSearchSubmit}
+              disabled={isSearching || (!searchQuery.trim() && !uploadedImage)}
+              style={{ 
+                backgroundColor: (isSearching || (!searchQuery.trim() && !uploadedImage)) ? Colors.backgroundSecondary : primaryColor,
+                paddingHorizontal: Spacing.md, 
+                paddingVertical: Spacing.sm,
+                  height: 40,
+                borderRadius: BorderRadius.md,
+                justifyContent: 'center',
+                alignItems: 'center',
+                minWidth: 60,
+              }}
+            >
+              <Text style={{ 
+                color: (isSearching || (!searchQuery.trim() && !uploadedImage)) ? Colors.textSecondary : Colors.textWhite,
+                fontSize: Typography.sm,
+                fontWeight: Typography.semibold,
+              }}>
+                {isSearching ? '...' : 'Send'}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
       </KeyboardAvoidingView>
 
       {/* Chat History Sidebar Modal - ChatGPT Style */}

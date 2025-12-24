@@ -13,6 +13,8 @@ import {
   Switch,
   Alert,
   Share,
+  InteractionManager,
+  Linking,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -23,8 +25,11 @@ import { getUserActivePods, getUserPastPods, deletePod } from '../lib/pods';
 import { uploadImageAsync } from '../lib/upload';
 import { supabase } from '../lib/supabase';
 import { getUserFriends } from '../lib/friends';
+import { buildShareUrl } from '../lib/share';
 import { getStyleProfile, refreshStyleProfile } from '../lib/styleEngine';
 import { loadColorProfile, saveColorProfile, getAllSeasons, getSeasonSwatches, analyzeFaceForColorProfile } from '../lib/colorAnalysis';
+import PhotoGuidelinesModal from '../components/PhotoGuidelinesModal';
+import PhotoGuidelinesScreen from '../components/PhotoGuidelinesScreen';
 
 // Safe Image Component to prevent crashes
 const SafeImage = ({ source, style, resizeMode, ...props }) => {
@@ -122,8 +127,10 @@ const StyleVaultScreen = () => {
     thigh: '',
     neck: '',
     braSize: '',
-    notes: ''
+    notes: '',
+    bodyShape: '' // Body shape (Hourglass, Pear, Apple, Rectangle, Inverted Triangle)
   });
+  const [isBodyShapeManuallySet, setIsBodyShapeManuallySet] = useState(false); // Track if user manually set body shape
   const [showFitProfile, setShowFitProfile] = useState(false);
   const [showVisibilitySettings, setShowVisibilitySettings] = useState(false);
   const [styleStatsUnlocked, setStyleStatsUnlocked] = useState(false);
@@ -131,6 +138,96 @@ const StyleVaultScreen = () => {
   const [showPrivacyPicker, setShowPrivacyPicker] = useState(null); // { type: 'tryon' | 'pod', id: string }
   const [styleProfile, setStyleProfile] = useState(null);
   const [fullScreenImage, setFullScreenImage] = useState(null); // Added for saved fits
+  const [showBodyPhotoGuidelines, setShowBodyPhotoGuidelines] = useState(false);
+  const [showFacePhotoGuidelines, setShowFacePhotoGuidelines] = useState(false);
+  const [showBodyMeasurements, setShowBodyMeasurements] = useState(false); // Collapsible body measurements section
+  const [showPhotoGuidelinesScreen, setShowPhotoGuidelinesScreen] = useState(false); // Support section guidelines
+
+  // Generate style summary for Identity section
+  const getStyleSummary = () => {
+    const parts = [];
+    
+    // Color season (e.g., "Warm autumn")
+    if (colorProfile?.description) {
+      parts.push(colorProfile.description);
+    }
+    
+    // Top categories (e.g., "Dress & upper-wear focused")
+    if (styleProfile?.categories && styleProfile.categories.length > 0) {
+      const categoryNames = styleProfile.categories.slice(0, 2).map(c => {
+        // Convert category to readable format
+        if (c === 'dress' || c === 'dresses') return 'Dress';
+        if (c === 'upper' || c === 'upper_body') return 'Upper-wear';
+        if (c === 'lower' || c === 'lower_body') return 'Lower-wear';
+        return c.charAt(0).toUpperCase() + c.slice(1);
+      });
+      if (categoryNames.length > 0) {
+        parts.push(categoryNames.join(' & ') + ' focused');
+      }
+    }
+    
+    // Top tags (e.g., "Clean silhouettes")
+    if (styleProfile?.tags && styleProfile.tags.length > 0) {
+      const tag = styleProfile.tags[0];
+      const readableTag = tag.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      parts.push(readableTag);
+    }
+    
+    return parts.length > 0 ? parts.join(' • ') : null;
+  };
+
+  // Body shape prediction function
+  const predictBodyShape = (profile) => {
+    const chest = parseFloat(profile.chest) || 0;
+    const waist = parseFloat(profile.waist) || 0;
+    const hips = parseFloat(profile.hips) || 0;
+    const shoulder = parseFloat(profile.shoulder) || 0;
+    
+    // Need at least waist and hips for prediction
+    if (!waist || !hips) return null;
+    
+    const waistToHipRatio = waist / hips;
+    const chestToHipRatio = chest / hips;
+    const shoulderToHipRatio = shoulder / hips;
+    
+    // Hourglass: waist is significantly smaller than both chest and hips
+    if (waistToHipRatio < 0.75 && chestToHipRatio > 0.9 && chestToHipRatio < 1.1) {
+      return 'Hourglass';
+    }
+    
+    // Pear: hips are larger than chest and shoulders
+    if (hips > chest && (shoulderToHipRatio < 0.9 || !shoulder)) {
+      return 'Pear';
+    }
+    
+    // Apple: waist is close to or larger than chest/hips
+    if (waistToHipRatio > 0.85 && waist >= chest * 0.95) {
+      return 'Apple';
+    }
+    
+    // Inverted Triangle: shoulders/chest are larger than hips
+    if (shoulderToHipRatio > 1.1 || (chest > hips && chestToHipRatio > 1.1)) {
+      return 'Inverted Triangle';
+    }
+    
+    // Rectangle: relatively straight proportions
+    if (waistToHipRatio > 0.75 && waistToHipRatio < 0.85) {
+      return 'Rectangle';
+    }
+    
+    // Default to Rectangle if we can't determine
+    return 'Rectangle';
+  };
+
+  // Auto-predict body shape when measurements change (only if not manually set)
+  useEffect(() => {
+    if (!isBodyShapeManuallySet && fitProfile.waist && fitProfile.hips) {
+      const predicted = predictBodyShape(fitProfile);
+      if (predicted && predicted !== fitProfile.bodyShape) {
+        setFitProfile(prev => ({ ...prev, bodyShape: predicted }));
+      }
+    }
+  }, [fitProfile.chest, fitProfile.waist, fitProfile.hips, fitProfile.shoulder, isBodyShapeManuallySet]);
 
   // Helper function to show banner notifications
   const showBanner = (message, type = 'success') => {
@@ -238,6 +335,124 @@ const StyleVaultScreen = () => {
       loadUserColorProfile();
     }
   }, [user?.id]);
+
+  // Handler for body photo upload after guidelines
+  const handleBodyPhotoUpload = async () => {
+    console.log('📸 handleBodyPhotoUpload START');
+    // Don't close modal yet - open ImagePicker first
+    const res = await ImagePicker.launchImageLibraryAsync({ 
+      mediaTypes: ['images'],
+      allowsEditing: false,
+      quality: 0.8
+    });
+    console.log('📸 ImagePicker returned:', res.canceled ? 'CANCELLED' : 'SELECTED');
+    // Now close the modal
+    setShowBodyPhotoGuidelines(false);
+    
+    if (!res.canceled && res.assets && res.assets[0]) {
+      try {
+        console.log('📸 Uploading image...');
+        const uploadedUrl = await uploadImageAsync(res.assets[0].uri);
+        console.log('📸 Uploaded URL:', uploadedUrl);
+        if (user?.id) {
+           await supabase.from('profiles').update({ body_image_url: uploadedUrl }).eq('id', user.id);
+        }
+        setBodyImage(uploadedUrl);
+        if (setUser) setUser(prev => ({ ...prev, body_image_url: uploadedUrl }));
+        if (setTwinUrl) setTwinUrl(uploadedUrl);
+        showBanner('✓ Body photo saved!', 'success');
+      } catch (error) {
+        console.error('❌ Error saving body photo:', error);
+        showBanner('Failed to upload photo', 'error');
+      }
+    } else {
+      console.log('📸 No image selected or cancelled');
+    }
+  };
+
+  // Handler for face photo upload after guidelines
+  const handleFacePhotoSource = () => {
+    setShowFacePhotoGuidelines(false);
+    Alert.alert(
+      'Add Face Photo',
+      'How would you like to add your photo?',
+      [
+        {
+          text: 'Take Selfie',
+          onPress: async () => {
+            const permission = await ImagePicker.requestCameraPermissionsAsync();
+            if (permission.granted) {
+              const res = await ImagePicker.launchCameraAsync({
+                mediaTypes: ['images'],
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+                cameraType: ImagePicker.CameraType.front
+              });
+              if (!res.canceled && res.assets[0]) {
+                try {
+                  const uploadedUrl = await uploadImageAsync(res.assets[0].uri);
+                  if (user?.id) {
+                    await supabase.from('profiles').update({ face_image_url: uploadedUrl }).eq('id', user.id);
+                  }
+                  setFaceImage(uploadedUrl);
+                  if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
+                  // Analyze for color profile
+                  const profile = await analyzeFaceForColorProfile(uploadedUrl);
+                  if (profile && user?.id) {
+                    await saveColorProfile(user.id, profile);
+                    setColorProfile(profile);
+                    showBanner('✓ Face photo saved & colors analyzed!', 'success');
+                  } else {
+                    showBanner('✓ Face photo saved!', 'success');
+                  }
+                } catch (error) {
+                  console.error('Error saving face photo:', error);
+                  Alert.alert('Error', 'Failed to save photo');
+                }
+              }
+            } else {
+              Alert.alert('Camera Permission', 'Please allow camera access to take a selfie.');
+            }
+          }
+        },
+        {
+          text: 'Choose from Library',
+          onPress: async () => {
+            const res = await ImagePicker.launchImageLibraryAsync({ 
+              mediaTypes: ['images'],
+              allowsEditing: true,
+              aspect: [1, 1],
+              quality: 0.8
+            });
+            if (!res.canceled && res.assets[0]) {
+              try {
+                const uploadedUrl = await uploadImageAsync(res.assets[0].uri);
+                if (user?.id) {
+                  await supabase.from('profiles').update({ face_image_url: uploadedUrl }).eq('id', user.id);
+                }
+                setFaceImage(uploadedUrl);
+                if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
+                // Analyze for color profile
+                const profile = await analyzeFaceForColorProfile(uploadedUrl);
+                if (profile && user?.id) {
+                  await saveColorProfile(user.id, profile);
+                  setColorProfile(profile);
+                  showBanner('✓ Face photo saved & colors analyzed!', 'success');
+                } else {
+                  showBanner('✓ Face photo saved!', 'success');
+                }
+              } catch (error) {
+                console.error('Error saving face photo:', error);
+                Alert.alert('Error', 'Failed to save photo');
+              }
+            }
+          }
+        },
+        { text: 'Cancel', style: 'cancel' }
+      ]
+    );
+  };
 
   const loadUserColorProfile = async () => {
     if (!user?.id) return;
@@ -476,6 +691,7 @@ const StyleVaultScreen = () => {
         setFitProfile({
           height: data.height || '',
           weight: data.weight || '',
+          gender: data.gender || '', // Load gender
           topSize: data.top_size || '',
           bottomSize: data.bottom_size || '',
           shoeSize: data.shoe_size || '',
@@ -489,8 +705,14 @@ const StyleVaultScreen = () => {
           thigh: data.thigh || '',
           neck: data.neck || '',
           braSize: data.bra_size || '',
-          notes: data.notes || ''
+          notes: data.notes || '',
+          bodyShape: data.body_shape || '' // Load body_shape
         });
+        
+        // If body_shape exists in DB, mark it as manually set (user may have set it before)
+        if (data.body_shape) {
+          setIsBodyShapeManuallySet(true);
+        }
         
         // Update global user state so it persists
         if (setUser) {
@@ -826,50 +1048,259 @@ const StyleVaultScreen = () => {
             </Pressable>
           )}
 
-          {/* Counters */}
-          <View style={styles.counters}>
-            <View style={styles.counterItem}>
-              <Text style={styles.counterNumber}>{tryOnHistory.length}</Text>
-              <Text style={styles.counterLabel}>Try-Ons</Text>
-            </View>
-            <View style={styles.counterItem}>
-              <Text style={styles.counterNumber}>{activePods.length + pastPods.length}</Text>
-              <Text style={styles.counterLabel}>Pods</Text>
-            </View>
-            <View style={styles.counterItem}>
-              <Text style={styles.counterNumber}>0</Text>
-              <Text style={styles.counterLabel}>Designs</Text>
-            </View>
-          </View>
         </View>
 
-        {/* Saved Fits */}
+        {/* ============================================
+            SECTION 2: YOUR STYLE DNA
+            ============================================ */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Saved Fits</Text>
-            <Pressable onPress={() => Alert.alert('Add Fit', 'Feature coming soon')}>
-              <Text style={styles.addButton}>+ Add</Text>
-            </Pressable>
+          <Text style={[styles.sectionTitle, { fontSize: 18, marginBottom: 16, color: '#6366f1' }]}>Your Style DNA</Text>
+          
+          {/* Style Stats */}
+          <View style={[styles.section, { marginBottom: 20 }]}>
+            {!styleStatsUnlocked ? (
+              <View style={styles.lockedStatsCard}>
+                <Text style={styles.lockedTitle}>Unlock Style Stats</Text>
+                <Text style={styles.lockedText}>
+                  Interact with products (vote, save, try-on) to build your taste profile.
+                </Text>
+                <View style={styles.unlockButtons}>
+                  <Pressable 
+                    style={styles.unlockBtn}
+                    onPress={() => setRoute('shop')}
+                  >
+                    <Text style={styles.unlockBtnText}>🛍️ Go Shopping</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.statsCard}>
+                <View style={styles.statItem}>
+                  <Text style={styles.statEmoji}>🏷️</Text>
+                  <View style={styles.statContent}>
+                    <Text style={styles.statTitle}>Top Vibes</Text>
+                    <Text style={styles.statValue}>
+                      {styleProfile?.tags?.slice(0, 3).map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(', ') || 'No tags yet'}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statEmoji}>🎨</Text>
+                  <View style={styles.statContent}>
+                    <Text style={styles.statTitle}>Core Colors</Text>
+                    <Text style={styles.statValue}>
+                      {styleProfile?.colors?.slice(0, 3).join(', ') || 'No colors yet'}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statEmoji}>🧥</Text>
+                  <View style={styles.statContent}>
+                    <Text style={styles.statTitle}>Top Categories</Text>
+                    <Text style={styles.statValue}>
+                      {styleProfile?.categories?.slice(0, 2).map(c => c.charAt(0).toUpperCase() + c.slice(1)).join(', ') || 'No categories yet'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
           </View>
-          {localSavedFits.length > 0 ? (
-            <FlatList
-              data={localSavedFits}
-              renderItem={({ item }) => <SavedFitCard fit={item} />}
-              keyExtractor={item => item.id}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingRight: 20 }}
-            />
-          ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No saved fits yet</Text>
-              <Text style={styles.emptySubtext}>Save products you love to build your style vault</Text>
+
+          {/* Your Colors */}
+          {colorProfile && (
+            <View style={[styles.section, { marginBottom: 20 }]}>
+              <View style={styles.colorProfileSection}>
+                <Text style={styles.colorProfileTitle}>🎨 Your Colors</Text>
+                <View style={styles.colorSeasonBadge}>
+                  <Text style={styles.colorSeasonText}>{colorProfile.description}</Text>
+                </View>
+                <View style={styles.colorSwatchRow}>
+                  {getSeasonSwatches(colorProfile.season).slice(0, 6).map((color, idx) => (
+                    <View key={idx} style={[styles.colorSwatch, { backgroundColor: color }]} />
+                  ))}
+                </View>
+                <Text style={styles.colorBestLabel}>Colors that love you:</Text>
+                <Text style={styles.colorBestList}>{colorProfile.bestColors.slice(0, 4).join(', ')}</Text>
+                <Pressable 
+                  style={styles.changeSeasonBtn}
+                  onPress={() => setShowSeasonPicker(true)}
+                >
+                  <Text style={styles.changeSeasonText}>Change Season →</Text>
+                </Pressable>
+              </View>
             </View>
           )}
+
+          {/* Fit Profile / Body Measurements */}
+          <View style={styles.section}>
+            <Pressable 
+              style={styles.sectionHeader}
+              onPress={() => setShowBodyMeasurements(!showBodyMeasurements)}
+            >
+              <Text style={styles.sectionTitle}>Fit Profile</Text>
+              <Text style={styles.addButton}>{showBodyMeasurements ? '▼' : '▶'}</Text>
+            </Pressable>
+            {showBodyMeasurements && (
+              <View style={styles.fitProfileCard}>
+                {/* Body Photo Section */}
+                <View style={styles.photoSection}>
+                  <View style={styles.photoInfo}>
+                    <Text style={styles.photoLabel}>📸 Body Photo</Text>
+                    <Text style={styles.photoHint}>Full body, front view, good lighting. Used for AI try-on.</Text>
+                  </View>
+                  <View style={styles.photoActions}>
+                    <Pressable 
+                      style={styles.photoThumb}
+                      onPress={() => {
+                        setShowBodyPhotoGuidelines(true);
+                      }}
+                    >
+                      {bodyImage ? (
+                         <SafeImage source={{ uri: bodyImage }} style={styles.photoThumbImg} resizeMode="cover" />
+                      ) : (
+                         <View style={styles.photoPlaceholder}>
+                             <Text style={{ fontSize: 20, color: '#666' }}>+</Text>
+                         </View>
+                      )}
+                    </Pressable>
+                    {bodyImage && (
+                      <Pressable 
+                        style={styles.removePhotoBtn}
+                        onPress={async () => {
+                          setBodyImage(null);
+                          if (setTwinUrl) setTwinUrl(null);
+                          if (user?.id) {
+                            await supabase.from('profiles').update({ body_image_url: null }).eq('id', user.id);
+                          }
+                          showBanner('Photo removed', 'success');
+                        }}
+                      >
+                        <Text style={styles.removePhotoText}>✕</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                </View>
+
+                {/* Face Photo Section */}
+                <View style={styles.photoSection}>
+                  <View style={styles.photoInfo}>
+                    <Text style={styles.photoLabel}>🎨 Face Photo</Text>
+                    <Text style={styles.photoHint}>Clear face, natural light. Used to determine your best colors.</Text>
+                  </View>
+                  <View style={styles.photoActions}>
+                    <Pressable 
+                      style={styles.photoThumb}
+                      onPress={() => {
+                        setShowFacePhotoGuidelines(true);
+                      }}
+                    >
+                      {faceImage ? (
+                         <SafeImage source={{ uri: faceImage }} style={styles.photoThumbImg} resizeMode="cover" />
+                      ) : (
+                         <View style={styles.photoPlaceholder}>
+                             <Text style={{ fontSize: 20, color: '#666' }}>+</Text>
+                         </View>
+                      )}
+                    </Pressable>
+                    {faceImage && (
+                      <Pressable 
+                        style={styles.removePhotoBtn}
+                        onPress={async () => {
+                          setFaceImage(null);
+                          if (user?.id) {
+                            await supabase.from('profiles').update({ face_image_url: null }).eq('id', user.id);
+                          }
+                          showBanner('Photo removed', 'success');
+                        }}
+                      >
+                        <Text style={styles.removePhotoText}>✕</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                </View>
+
+                {/* Body Measurements */}
+                <View style={styles.profileRow}>
+                  <Text style={styles.profileLabel}>Gender:</Text>
+                  <Text style={styles.profileValue}>{fitProfile.gender || 'Not set'}</Text>
+                </View>
+                <View style={styles.profileRow}>
+                  <Text style={styles.profileLabel}>Body Shape:</Text>
+                  <Text style={styles.profileValue}>{fitProfile.bodyShape || 'Not set'}</Text>
+                </View>
+                <View style={styles.divider} />
+                <View style={styles.profileRow}>
+                  <Text style={styles.profileLabel}>Height:</Text>
+                  <Text style={styles.profileValue}>{fitProfile.height || 'Not set'}</Text>
+                </View>
+                <View style={styles.profileRow}>
+                  <Text style={styles.profileLabel}>Weight:</Text>
+                  <Text style={styles.profileValue}>{fitProfile.weight || 'Not set'}</Text>
+                </View>
+                <View style={styles.profileRow}>
+                  <Text style={styles.profileLabel}>Bust/Chest:</Text>
+                  <Text style={styles.profileValue}>{fitProfile.chest || 'Not set'}</Text>
+                </View>
+                <View style={styles.profileRow}>
+                  <Text style={styles.profileLabel}>Waist:</Text>
+                  <Text style={styles.profileValue}>{fitProfile.waist || 'Not set'}</Text>
+                </View>
+                <View style={styles.profileRow}>
+                  <Text style={styles.profileLabel}>Hips:</Text>
+                  <Text style={styles.profileValue}>{fitProfile.hips || 'Not set'}</Text>
+                </View>
+                <View style={styles.profileRow}>
+                  <Text style={styles.profileLabel}>Top Size:</Text>
+                  <Text style={styles.profileValue}>{fitProfile.topSize || 'Not set'}</Text>
+                </View>
+                <View style={styles.profileRow}>
+                  <Text style={styles.profileLabel}>Bottom Size:</Text>
+                  <Text style={styles.profileValue}>{fitProfile.bottomSize || 'Not set'}</Text>
+                </View>
+                <View style={styles.profileRow}>
+                  <Text style={styles.profileLabel}>Shoe Size:</Text>
+                  <Text style={styles.profileValue}>{fitProfile.shoeSize || 'Not set'}</Text>
+                </View>
+                <Pressable 
+                  style={[styles.saveBtn, { marginTop: 12 }]}
+                  onPress={() => setShowFitProfile(true)}
+                >
+                  <Text style={styles.saveBtnText}>Edit Measurements</Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
         </View>
 
-        {/* Boards */}
-        {/* Mood Boards */}
+        {/* ============================================
+            SECTION 3: YOUR WORKSPACE
+            ============================================ */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { fontSize: 18, marginBottom: 16, color: '#6366f1' }]}>Your Workspace</Text>
+          
+          {/* Saved Fits */}
+          <View style={[styles.section, { marginBottom: 20 }]}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Saved Fits</Text>
+            </View>
+            {localSavedFits.length > 0 ? (
+              <FlatList
+                data={localSavedFits}
+                renderItem={({ item }) => <SavedFitCard fit={item} />}
+                keyExtractor={item => item.id}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingRight: 20 }}
+              />
+            ) : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>No saved fits yet</Text>
+                <Text style={styles.emptySubtext}>Save products you love to build your style vault</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Try-On History */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Mood Boards</Text>
@@ -894,14 +1325,10 @@ const StyleVaultScreen = () => {
           )}
         </View>
 
-        {/* Try-On History */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Try-On History</Text>
-            <Pressable onPress={() => setShowVisibilitySettings(true)}>
-              <Text style={styles.settingsButton}>⚙️ Privacy</Text>
-            </Pressable>
-          </View>
+          <View style={[styles.section, { marginBottom: 20 }]}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Try-On History</Text>
+            </View>
           {tryOnHistory.length > 0 ? (
             <FlatList
               data={tryOnHistory}
@@ -1087,16 +1514,13 @@ const StyleVaultScreen = () => {
               <Text style={styles.emptySubtext}>Try on outfits to see them here</Text>
             </View>
           )}
-        </View>
-
-        {/* Pods */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>My Pods</Text>
-            <Pressable onPress={() => setShowVisibilitySettings(true)}>
-              <Text style={styles.settingsButton}>⚙️ Privacy</Text>
-            </Pressable>
           </View>
+
+          {/* My Pods */}
+          <View style={[styles.section, { marginBottom: 20 }]}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>My Pods</Text>
+            </View>
           {activePods.length > 0 && (
             <View style={styles.podsSubsection}>
               <Text style={styles.subsectionTitle}>Live</Text>
@@ -1129,802 +1553,675 @@ const StyleVaultScreen = () => {
               <Text style={styles.emptySubtext}>Create pods to get style feedback</Text>
             </View>
           )}
-        </View>
-
-        {/* Style Stats */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Style Stats</Text>
-          {!styleStatsUnlocked ? (
-            <View style={styles.lockedStatsCard}>
-              <Text style={styles.lockedTitle}>Unlock Style Stats</Text>
-              <Text style={styles.lockedText}>
-                Interact with products (vote, save, try-on) to build your taste profile.
-              </Text>
-              <View style={styles.unlockButtons}>
-                <Pressable 
-                  style={styles.unlockBtn}
-                  onPress={() => setRoute('shop')}
-                >
-                  <Text style={styles.unlockBtnText}>🛍️ Go Shopping</Text>
-                </Pressable>
-              </View>
-            </View>
-          ) : (
-            <View style={styles.statsCard}>
-              <View style={styles.statItem}>
-                <Text style={styles.statEmoji}>🏷️</Text>
-                <View style={styles.statContent}>
-                  <Text style={styles.statTitle}>Top Vibes</Text>
-                  <Text style={styles.statValue}>
-                    {styleProfile?.tags?.slice(0, 3).map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(', ') || 'No tags yet'}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statEmoji}>🎨</Text>
-                <View style={styles.statContent}>
-                  <Text style={styles.statTitle}>Core Colors</Text>
-                  <Text style={styles.statValue}>
-                    {styleProfile?.colors?.slice(0, 3).join(', ') || 'No colors yet'}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statEmoji}>🧥</Text>
-                <View style={styles.statContent}>
-                  <Text style={styles.statTitle}>Top Categories</Text>
-                  <Text style={styles.statValue}>
-                    {styleProfile?.categories?.slice(0, 2).map(c => c.charAt(0).toUpperCase() + c.slice(1)).join(', ') || 'No categories yet'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          )}
-        </View>
-
-        {/* Fit Profile */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Fit Profile</Text>
-            <Pressable onPress={() => setShowFitProfile(true)}>
-              <Text style={styles.addButton}>Edit</Text>
-            </Pressable>
           </View>
-          <View style={styles.fitProfileCard}>
-            {/* Body Photo Section */}
-            <View style={styles.photoSection}>
-              <View style={styles.photoInfo}>
-                <Text style={styles.photoLabel}>📸 Body Photo</Text>
-                <Text style={styles.photoHint}>Full body, front view, good lighting. Used for AI try-on.</Text>
-              </View>
-              <View style={styles.photoActions}>
-                <Pressable 
-                  style={styles.photoThumb}
-                  onPress={async () => {
-                    const res = await ImagePicker.launchImageLibraryAsync({ 
-                      mediaTypes: ['images'],
-                      quality: 0.8
-                    });
-                    if (!res.canceled && res.assets[0]) {
-                      try {
-                        const uploadedUrl = await uploadImageAsync(res.assets[0].uri);
-                        if (user?.id) {
-                           await supabase.from('profiles').update({ body_image_url: uploadedUrl }).eq('id', user.id);
-                        }
-                        setBodyImage(uploadedUrl);
-                        if (setUser) setUser(prev => ({ ...prev, body_image_url: uploadedUrl }));
-                        if (setTwinUrl) setTwinUrl(uploadedUrl);
-                        showBanner('✓ Body photo saved!', 'success');
-                      } catch (error) {
-                        console.error('Error saving body photo:', error);
-                        Alert.alert('Error', 'Failed to upload photo');
-                      }
-                    }
-                  }}
-                >
-                  {bodyImage ? (
-                     <SafeImage source={{ uri: bodyImage }} style={styles.photoThumbImg} resizeMode="cover" />
-                  ) : (
-                     <View style={styles.photoPlaceholder}>
-                         <Text style={{ fontSize: 20, color: '#666' }}>+</Text>
-                     </View>
-                  )}
-                </Pressable>
-                {bodyImage && (
-                  <Pressable 
-                    style={styles.removePhotoBtn}
-                    onPress={async () => {
-                      setBodyImage(null);
-                      if (setTwinUrl) setTwinUrl(null);
-                      if (user?.id) {
-                        await supabase.from('profiles').update({ body_image_url: null }).eq('id', user.id);
-                      }
-                      showBanner('Photo removed', 'success');
-                    }}
-                  >
-                    <Text style={styles.removePhotoText}>✕</Text>
-                  </Pressable>
-                )}
-              </View>
-            </View>
 
-            {/* Face Photo Section */}
-            <View style={styles.photoSection}>
-              <View style={styles.photoInfo}>
-                <Text style={styles.photoLabel}>🎨 Face Photo</Text>
-                <Text style={styles.photoHint}>Clear face, natural light. Used to determine your best colors.</Text>
-              </View>
-              <View style={styles.photoActions}>
-                <Pressable 
-                  style={styles.photoThumb}
-                  onPress={() => {
-                    Alert.alert(
-                      'Add Face Photo',
-                      'How would you like to add your photo?',
-                      [
-                        {
-                          text: 'Take Selfie',
-                          onPress: async () => {
-                            const permission = await ImagePicker.requestCameraPermissionsAsync();
-                            if (permission.granted) {
-                              const res = await ImagePicker.launchCameraAsync({
-                                mediaTypes: ['images'],
-                                allowsEditing: true,
-                                aspect: [1, 1],
-                                quality: 0.8,
-                                cameraType: ImagePicker.CameraType.front
-                              });
-                              if (!res.canceled && res.assets[0]) {
-                                try {
-                                  const uploadedUrl = await uploadImageAsync(res.assets[0].uri);
-                                  if (user?.id) {
-                                    await supabase.from('profiles').update({ face_image_url: uploadedUrl }).eq('id', user.id);
-                                  }
-                                  setFaceImage(uploadedUrl);
-                                  if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
-                                  // Analyze for color profile
-                                  const profile = await analyzeFaceForColorProfile(uploadedUrl);
-                                  if (profile && user?.id) {
-                                    await saveColorProfile(user.id, profile);
-                                    setColorProfile(profile);
-                                    showBanner('✓ Face photo saved & colors analyzed!', 'success');
-                                  } else {
-                                    showBanner('✓ Face photo saved!', 'success');
-                                  }
-                                } catch (error) {
-                                  console.error('Error saving face photo:', error);
-                                  Alert.alert('Error', 'Failed to save photo');
-                                }
-                              }
-                            } else {
-                              Alert.alert('Camera Permission', 'Please allow camera access to take a selfie.');
-                            }
-                          }
-                        },
-                        {
-                          text: 'Choose from Library',
-                          onPress: async () => {
-                            const res = await ImagePicker.launchImageLibraryAsync({ 
-                              mediaTypes: ['images'],
-                              allowsEditing: true,
-                              aspect: [1, 1],
-                              quality: 0.8
-                            });
-                            if (!res.canceled && res.assets[0]) {
-                              try {
-                                const uploadedUrl = await uploadImageAsync(res.assets[0].uri);
-                                if (user?.id) {
-                                  await supabase.from('profiles').update({ face_image_url: uploadedUrl }).eq('id', user.id);
-                                }
-                                setFaceImage(uploadedUrl);
-                                if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
-                                // Analyze for color profile
-                                const profile = await analyzeFaceForColorProfile(uploadedUrl);
-                                if (profile && user?.id) {
-                                  await saveColorProfile(user.id, profile);
-                                  setColorProfile(profile);
-                                  showBanner('✓ Face photo saved & colors analyzed!', 'success');
-                                } else {
-                                  showBanner('✓ Face photo saved!', 'success');
-                                }
-                              } catch (error) {
-                                console.error('Error saving face photo:', error);
-                                Alert.alert('Error', 'Failed to save photo');
-                              }
-                            }
-                          }
-                        },
-                        { text: 'Cancel', style: 'cancel' }
-                      ]
-                    );
-                  }}
-                >
-                  {faceImage ? (
-                     <SafeImage source={{ uri: faceImage }} style={styles.photoThumbImg} resizeMode="cover" />
-                  ) : (
-                     <View style={styles.photoPlaceholder}>
-                         <Text style={{ fontSize: 20, color: '#666' }}>+</Text>
-                     </View>
-                  )}
-                </Pressable>
-                {faceImage && (
-                  <Pressable 
-                    style={styles.removePhotoBtn}
-                    onPress={async () => {
-                      setFaceImage(null);
-                      if (user?.id) {
-                        await supabase.from('profiles').update({ face_image_url: null }).eq('id', user.id);
-                      }
-                      showBanner('Photo removed', 'success');
-                    }}
-                  >
-                    <Text style={styles.removePhotoText}>✕</Text>
-                  </Pressable>
-                )}
-              </View>
+          {/* Mood Boards */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Mood Boards</Text>
+              <Pressable onPress={() => Alert.alert('Create Board', 'Mood board creation coming soon!')}>
+                <Text style={styles.addButton}>+ Create</Text>
+              </Pressable>
             </View>
-
-            {/* Color Profile Section */}
-            {colorProfile ? (
-              <View style={styles.colorProfileSection}>
-                <Text style={styles.colorProfileTitle}>🎨 Your Colors</Text>
-                <View style={styles.colorSeasonBadge}>
-                  <Text style={styles.colorSeasonText}>{colorProfile.description}</Text>
-                </View>
-                <View style={styles.colorSwatchRow}>
-                  {getSeasonSwatches(colorProfile.season).slice(0, 6).map((color, idx) => (
-                    <View key={idx} style={[styles.colorSwatch, { backgroundColor: color }]} />
-                  ))}
-                </View>
-                <Text style={styles.colorBestLabel}>Colors that love you:</Text>
-                <Text style={styles.colorBestList}>{colorProfile.bestColors.slice(0, 4).join(', ')}</Text>
-                <Pressable 
-                  style={styles.changeSeasonBtn}
-                  onPress={() => setShowSeasonPicker(true)}
-                >
-                  <Text style={styles.changeSeasonText}>Change Season →</Text>
-                </Pressable>
-              </View>
+            {boards.length > 0 ? (
+              <FlatList
+                data={boards}
+                renderItem={({ item }) => <BoardCard board={item} />}
+                keyExtractor={item => item.id}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingRight: 20 }}
+              />
             ) : (
-              <View style={styles.colorProfileEmpty}>
-                <Text style={styles.colorProfileEmptyText}>
-                  Add a face photo to discover your best colors! ✨
-                </Text>
-                <Pressable 
-                  style={styles.selectSeasonBtn}
-                  onPress={() => setShowSeasonPicker(true)}
-                >
-                  <Text style={styles.selectSeasonText}>Or select your season manually</Text>
-                </Pressable>
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>No mood boards yet</Text>
+                <Text style={styles.emptySubtext}>Create mood boards to organize your style inspiration</Text>
               </View>
             )}
-
-            <View style={styles.divider} />
-
-            <View style={styles.profileRow}>
-              <Text style={styles.profileLabel}>Height:</Text>
-              <Text style={styles.profileValue}>{fitProfile.height || 'Not set'}</Text>
-            </View>
-            <View style={styles.profileRow}>
-              <Text style={styles.profileLabel}>Weight:</Text>
-              <Text style={styles.profileValue}>{fitProfile.weight || 'Not set'}</Text>
-            </View>
-            <View style={styles.profileRow}>
-              <Text style={styles.profileLabel}>Bust/Chest:</Text>
-              <Text style={styles.profileValue}>{fitProfile.chest || 'Not set'}</Text>
-            </View>
-            <View style={styles.profileRow}>
-              <Text style={styles.profileLabel}>Waist:</Text>
-              <Text style={styles.profileValue}>{fitProfile.waist || 'Not set'}</Text>
-            </View>
-            <View style={styles.profileRow}>
-              <Text style={styles.profileLabel}>Hips:</Text>
-              <Text style={styles.profileValue}>{fitProfile.hips || 'Not set'}</Text>
-            </View>
-            <View style={styles.profileRow}>
-              <Text style={styles.profileLabel}>Top Size:</Text>
-              <Text style={styles.profileValue}>{fitProfile.topSize || 'Not set'}</Text>
-            </View>
-            <View style={styles.profileRow}>
-              <Text style={styles.profileLabel}>Bottom Size:</Text>
-              <Text style={styles.profileValue}>{fitProfile.bottomSize || 'Not set'}</Text>
-            </View>
-            <View style={styles.profileRow}>
-              <Text style={styles.profileLabel}>Shoe Size:</Text>
-              <Text style={styles.profileValue}>{fitProfile.shoeSize || 'Not set'}</Text>
-            </View>
           </View>
         </View>
 
-        {/* Friends List */}
+        {/* ============================================
+            SECTION 4: SOCIAL (lightweight)
+            ============================================ */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Friends</Text>
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-                <Pressable onPress={() => Share.share({ message: "Join me on Stylit! Let's rate each other's outfits. Download: https://stylit.app" })}>
+          <Text style={[styles.sectionTitle, { fontSize: 18, marginBottom: 16, color: '#6366f1' }]}>Social</Text>
+          
+          {/* Friends */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Friends</Text>
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <Pressable onPress={async () => {
+                  if (!user?.id) return;
+                  const shareUrl = buildShareUrl({ kind: 'install', fromUserId: user.id });
+                  await Share.share({ 
+                    message: `Join me on Stylit! Let's rate each other's outfits. Download: ${shareUrl}` 
+                  });
+                }}>
                   <Text style={styles.addButton}>+ Invite</Text>
                 </Pressable>
                 <Pressable onPress={() => setShowFriends(!showFriends)}>
                   <Text style={styles.addButton}>{showFriends ? 'Hide' : 'Show'} ({friends.length})</Text>
                 </Pressable>
+              </View>
             </View>
+            {showFriends && (
+              <View style={styles.friendsContainer}>
+                {friends.length > 0 ? (
+                  friends.map((friend) => (
+                    <Pressable
+                      key={friend.id}
+                      style={styles.friendItem}
+                      onPress={() => {
+                        if (friend.friend_id && setRoute) {
+                          setRoute('userprofile', { userId: friend.friend_id });
+                        }
+                      }}
+                    >
+                      {friend.friend_avatar ? (
+                        <SafeImage source={{ uri: friend.friend_avatar }} style={styles.friendItemAvatar} />
+                      ) : (
+                        <View style={[styles.friendItemAvatar, styles.friendItemAvatarPlaceholder]}>
+                          <Text style={styles.friendItemAvatarText}>
+                            {friend.friend_name?.charAt(0)?.toUpperCase() || 'F'}
+                          </Text>
+                        </View>
+                      )}
+                      <Text style={styles.friendItemName}>{friend.friend_name || 'Friend'}</Text>
+                      <Text style={styles.friendItemArrow}>→</Text>
+                    </Pressable>
+                  ))
+                ) : (
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyText}>No friends yet</Text>
+                    <Text style={styles.emptySubtext}>Add friends to share pods with them</Text>
+                  </View>
+                )}
+              </View>
+            )}
           </View>
-          {showFriends && (
-            <View style={styles.friendsContainer}>
-              {friends.length > 0 ? (
-                friends.map((friend) => (
-                  <Pressable
-                    key={friend.id}
-                    style={styles.friendItem}
-                    onPress={() => {
-                      if (friend.friend_id && setRoute) {
-                        setRoute('userprofile', { userId: friend.friend_id });
-                      }
-                    }}
-                  >
-                    {friend.friend_avatar ? (
-                      <SafeImage source={{ uri: friend.friend_avatar }} style={styles.friendItemAvatar} />
-                    ) : (
-                      <View style={[styles.friendItemAvatar, styles.friendItemAvatarPlaceholder]}>
-                        <Text style={styles.friendItemAvatarText}>
-                          {friend.friend_name?.charAt(0)?.toUpperCase() || 'F'}
-                        </Text>
-                      </View>
-                    )}
-                    <Text style={styles.friendItemName}>{friend.friend_name || 'Friend'}</Text>
-                    <Text style={styles.friendItemArrow}>→</Text>
-                  </Pressable>
-                ))
-              ) : (
-                <View style={styles.emptyState}>
-                  <Text style={styles.emptyText}>No friends yet</Text>
-                  <Text style={styles.emptySubtext}>Add friends to share pods with them</Text>
-                </View>
-              )}
-            </View>
-          )}
         </View>
 
-        {/* Account Actions */}
-        <View style={styles.section}>
+
+      {/* Support Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionHeader}>Support</Text>
+        
+        <View style={styles.supportCard}>
           <Pressable
-            style={styles.signOutButton}
-            onPress={() => {
-              Alert.alert(
-                'Sign Out',
-                'Are you sure you want to sign out?',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Sign Out',
-                    style: 'destructive',
-                    onPress: async () => {
-                      try {
-                        // Sign out from Supabase
-                        await supabase.auth.signOut();
-                        // Explicitly clear state and navigate
-                        if (setUser) setUser(null);
-                        if (setSavedFits) setSavedFits([]);
-                        if (setRoute) setRoute('auth'); // Force navigation immediately
-                        
-                        showBanner('Signed out', 'success');
-                      } catch (error) {
-                        console.log('Sign out error:', error);
-                        // Still clear local state and navigate
-                        if (setUser) setUser(null);
-                        if (setRoute) setRoute('auth');
-                      }
-                    }
-                  }
-                ]
-              );
+            style={styles.supportItem}
+            onPress={async () => {
+              const email = 'support@stylit.ai';
+              const url = `mailto:${email}`;
+              try {
+                const canOpen = await Linking.canOpenURL(url);
+                if (canOpen) {
+                  await Linking.openURL(url);
+                } else {
+                  Alert.alert('Email not available', `Please contact us at ${email}`);
+                }
+              } catch (error) {
+                Alert.alert('Error', `Please contact us at ${email}`);
+              }
             }}
           >
-            <Text style={styles.signOutText}>Sign Out</Text>
+            <Text style={styles.supportItemText}>Contact Support</Text>
+            <Text style={styles.supportItemArrow}>→</Text>
+          </Pressable>
+          
+          <View style={styles.supportDivider} />
+          
+          <Pressable
+            style={styles.supportItem}
+            onPress={() => setShowPhotoGuidelinesScreen(true)}
+          >
+            <Text style={styles.supportItemText}>Photo Upload Guidelines</Text>
+            <Text style={styles.supportItemArrow}>→</Text>
+          </Pressable>
+          
+          <View style={styles.supportDivider} />
+          
+          <Pressable
+            style={styles.supportItem}
+            onPress={async () => {
+              const url = 'https://stylit.ai/privacy.html';
+              try {
+                const canOpen = await Linking.canOpenURL(url);
+                if (canOpen) {
+                  await Linking.openURL(url);
+                } else {
+                  Alert.alert('Unable to open', 'Please visit: ' + url);
+                }
+              } catch (error) {
+                Alert.alert('Error', 'Please visit: ' + url);
+              }
+            }}
+          >
+            <Text style={styles.supportItemText}>Privacy Policy</Text>
+            <Text style={styles.supportItemArrow}>→</Text>
+          </Pressable>
+          
+          <View style={styles.supportDivider} />
+          
+          <Pressable
+            style={styles.supportItem}
+            onPress={async () => {
+              const url = 'https://stylit.ai/terms.html';
+              try {
+                const canOpen = await Linking.canOpenURL(url);
+                if (canOpen) {
+                  await Linking.openURL(url);
+                } else {
+                  Alert.alert('Unable to open', 'Please visit: ' + url);
+                }
+              } catch (error) {
+                Alert.alert('Error', 'Please visit: ' + url);
+              }
+            }}
+          >
+            <Text style={styles.supportItemText}>Terms of Service</Text>
+            <Text style={styles.supportItemArrow}>→</Text>
           </Pressable>
         </View>
+      </View>
 
-      </ScrollView>
-
-      {/* Visibility Settings Modal */}
-      <Modal visible={showVisibilitySettings} transparent={true} animationType="slide">
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Privacy Settings</Text>
-              <Pressable onPress={() => setShowVisibilitySettings(false)}>
-                <Text style={styles.modalClose}>✕</Text>
-              </Pressable>
-            </View>
-            
-            <ScrollView style={styles.modalScroll}>
-              <View style={styles.visibilitySection}>
-                <Text style={styles.visibilitySectionTitle}>Try-On History</Text>
-                <Text style={styles.visibilitySectionDesc}>Who can see your try-on history?</Text>
-                {['public', 'friends', 'private'].map((option) => (
-                  <Pressable
-                    key={option}
-                    style={[
-                      styles.visibilityOption,
-                      tryOnVisibility === option && styles.visibilityOptionSelected
-                    ]}
-                    onPress={() => setTryOnVisibility(option)}
-                  >
-                    <Text style={styles.visibilityOptionEmoji}>
-                      {option === 'public' ? '🌐' : option === 'friends' ? '👥' : '🔒'}
-                    </Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.visibilityOptionTitle}>
-                        {option === 'public' ? 'Everyone' : option === 'friends' ? 'Friends Only' : 'Only Me'}
-                      </Text>
-                      <Text style={styles.visibilityOptionDesc}>
-                        {option === 'public' ? 'Visible in Explore and Style Twins' : 
-                         option === 'friends' ? 'Only people you share with' : 
-                         'Private to you only'}
-                      </Text>
-                    </View>
-                    {tryOnVisibility === option && (
-                      <Text style={styles.visibilityCheck}>✓</Text>
-                    )}
-                  </Pressable>
-                ))}
-              </View>
-
-              <View style={[styles.visibilitySection, { marginTop: 24 }]}>
-                <Text style={styles.visibilitySectionTitle}>Pods</Text>
-                <Text style={styles.visibilitySectionDesc}>Who can see your pods?</Text>
-                {['public', 'friends', 'private'].map((option) => (
-                  <Pressable
-                    key={option}
-                    style={[
-                      styles.visibilityOption,
-                      podsVisibility === option && styles.visibilityOptionSelected
-                    ]}
-                    onPress={() => setPodsVisibility(option)}
-                  >
-                    <Text style={styles.visibilityOptionEmoji}>
-                      {option === 'public' ? '🌐' : option === 'friends' ? '👥' : '🔒'}
-                    </Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.visibilityOptionTitle}>
-                        {option === 'public' ? 'Everyone' : option === 'friends' ? 'Friends Only' : 'Only Me'}
-                      </Text>
-                      <Text style={styles.visibilityOptionDesc}>
-                        {option === 'public' ? 'Visible in Explore and Style Twins' : 
-                         option === 'friends' ? 'Only people you share with' : 
-                         'Private to you only'}
-                      </Text>
-                    </View>
-                    {podsVisibility === option && (
-                      <Text style={styles.visibilityCheck}>✓</Text>
-                    )}
-                  </Pressable>
-                ))}
-              </View>
-
-              <Pressable 
-                style={styles.saveBtn}
-                onPress={() => {
-                  setShowVisibilitySettings(false);
-                  // Save visibility settings logic here
-                }}
-              >
-                <Text style={styles.saveBtnText}>Save Settings</Text>
-              </Pressable>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Fit Profile Modal */}
-      <Modal visible={showFitProfile} transparent={true} animationType="slide">
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Fit Profile</Text>
-              <Pressable onPress={() => setShowFitProfile(false)}>
-                <Text style={styles.modalClose}>✕</Text>
-              </Pressable>
-            </View>
-            
-            <ScrollView style={styles.modalScroll}>
-              <Text style={styles.modalSubtitle}>Basic Info</Text>
-              
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Gender Identity</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.genderScroll}>
-                  {['Female', 'Male', 'Non-binary', 'Prefer not to say'].map((g) => (
-                    <Pressable 
-                      key={g} 
-                      style={[styles.genderBtn, fitProfile.gender === g && styles.genderBtnActive]}
-                      onPress={() => setFitProfile(prev => ({ ...prev, gender: g }))}
-                    >
-                      <Text style={[styles.genderText, fitProfile.gender === g && styles.genderTextActive]}>{g}</Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Height</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g., 5'8 or 173cm"
-                  placeholderTextColor="#666"
-                  value={fitProfile.height}
-                  onChangeText={(text) => setFitProfile(prev => ({ ...prev, height: text }))}
-                />
-              </View>
-              
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Weight</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g., 140lbs or 65kg"
-                  placeholderTextColor="#666"
-                  value={fitProfile.weight}
-                  onChangeText={(text) => setFitProfile(prev => ({ ...prev, weight: text }))}
-                />
-              </View>
-
-              <Text style={styles.modalSubtitle}>Body Measurements</Text>
-              
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Bust / Chest</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g., 34, 86cm"
-                  placeholderTextColor="#666"
-                  value={fitProfile.chest}
-                  onChangeText={(text) => setFitProfile(prev => ({ ...prev, chest: text }))}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Underbust (Ribcage)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g., 30, 76cm"
-                  placeholderTextColor="#666"
-                  value={fitProfile.underbust}
-                  onChangeText={(text) => setFitProfile(prev => ({ ...prev, underbust: text }))}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Waist (Natural)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g., 28, 71cm"
-                  placeholderTextColor="#666"
-                  value={fitProfile.waist}
-                  onChangeText={(text) => setFitProfile(prev => ({ ...prev, waist: text }))}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Hips (Fullest part)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g., 36, 91cm"
-                  placeholderTextColor="#666"
-                  value={fitProfile.hips}
-                  onChangeText={(text) => setFitProfile(prev => ({ ...prev, hips: text }))}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Shoulder Width</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g., 16, 40cm"
-                  placeholderTextColor="#666"
-                  value={fitProfile.shoulder}
-                  onChangeText={(text) => setFitProfile(prev => ({ ...prev, shoulder: text }))}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Arm Length / Sleeve</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g., 24, 60cm"
-                  placeholderTextColor="#666"
-                  value={fitProfile.sleeve}
-                  onChangeText={(text) => setFitProfile(prev => ({ ...prev, sleeve: text }))}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Inseam (Inner leg)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g., 30, 76cm"
-                  placeholderTextColor="#666"
-                  value={fitProfile.inseam}
-                  onChangeText={(text) => setFitProfile(prev => ({ ...prev, inseam: text }))}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Thigh</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g., 22, 56cm"
-                  placeholderTextColor="#666"
-                  value={fitProfile.thigh}
-                  onChangeText={(text) => setFitProfile(prev => ({ ...prev, thigh: text }))}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Neck</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g., 15, 38cm"
-                  placeholderTextColor="#666"
-                  value={fitProfile.neck}
-                  onChangeText={(text) => setFitProfile(prev => ({ ...prev, neck: text }))}
-                />
-              </View>
-
-              <Text style={styles.modalSubtitle}>Standard Sizes</Text>
-              
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Typical Top Size</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g., M, L, 10"
-                  placeholderTextColor="#666"
-                  value={fitProfile.topSize}
-                  onChangeText={(text) => setFitProfile(prev => ({ ...prev, topSize: text }))}
-                />
-              </View>
-              
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Typical Bottom Size</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g., 30, M, 10"
-                  placeholderTextColor="#666"
-                  value={fitProfile.bottomSize}
-                  onChangeText={(text) => setFitProfile(prev => ({ ...prev, bottomSize: text }))}
-                />
-              </View>
-              
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Shoe Size</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g., 9, 42"
-                  placeholderTextColor="#666"
-                  value={fitProfile.shoeSize}
-                  onChangeText={(text) => setFitProfile(prev => ({ ...prev, shoeSize: text }))}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Bra Size (Optional)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g., 34B"
-                  placeholderTextColor="#666"
-                  value={fitProfile.braSize}
-                  onChangeText={(text) => setFitProfile(prev => ({ ...prev, braSize: text }))}
-                />
-              </View>
-              
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Notes (optional)</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  placeholder="e.g., broad shoulders, petite"
-                  placeholderTextColor="#666"
-                  multiline
-                  numberOfLines={3}
-                  value={fitProfile.notes}
-                  onChangeText={(text) => setFitProfile(prev => ({ ...prev, notes: text }))}
-                />
-              </View>
-              
-              <Pressable 
-                style={styles.saveBtn}
-                onPress={async () => {
-                  try {
-                    if (user?.id) {
-                      await supabase.from('profiles').upsert({
-                        id: user.id,
-                        gender: fitProfile.gender, // Added gender
-                        height: fitProfile.height,
-                        weight: fitProfile.weight,
-                        top_size: fitProfile.topSize,
-                        bottom_size: fitProfile.bottomSize,
-                        shoe_size: fitProfile.shoeSize,
-                        chest: fitProfile.chest,
-                        underbust: fitProfile.underbust,
-                        waist: fitProfile.waist,
-                        hips: fitProfile.hips,
-                        shoulder: fitProfile.shoulder,
-                        sleeve: fitProfile.sleeve,
-                        inseam: fitProfile.inseam,
-                        thigh: fitProfile.thigh,
-                        neck: fitProfile.neck,
-                        bra_size: fitProfile.braSize,
-                        notes: fitProfile.notes,
-                        updated_at: new Date().toISOString()
-                      });
-                      showBanner('✓ Fit profile saved!', 'success');
+      {/* Account Actions */}
+      <View style={styles.section}>
+        <Pressable
+          style={styles.signOutButton}
+          onPress={() => {
+            Alert.alert(
+              'Sign Out',
+              'Are you sure you want to sign out?',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Sign Out',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      // Sign out from Supabase
+                      await supabase.auth.signOut();
+                      // Explicitly clear state and navigate
+                      if (setUser) setUser(null);
+                      if (setSavedFits) setSavedFits([]);
+                      if (setRoute) setRoute('auth'); // Force navigation immediately
+                      
+                      showBanner('Signed out', 'success');
+                    } catch (error) {
+                      console.log('Sign out error:', error);
+                      // Still clear local state and navigate
+                      if (setUser) setUser(null);
+                      if (setRoute) setRoute('auth');
                     }
-                    setShowFitProfile(false);
-                  } catch (error) {
-                    console.error('Error saving profile:', error);
-                    showBanner('Failed to save profile', 'error');
                   }
-                }}
-              >
-                <Text style={styles.saveBtnText}>Save Profile</Text>
-              </Pressable>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+                }
+              ]
+            );
+          }}
+        >
+          <Text style={styles.signOutText}>Sign Out</Text>
+        </Pressable>
+      </View>
 
-      {/* Season Picker Modal */}
-      <Modal visible={showSeasonPicker} transparent={true} animationType="slide">
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Choose Your Color Season</Text>
-              <Pressable onPress={() => setShowSeasonPicker(false)}>
-                <Text style={styles.modalClose}>✕</Text>
-              </Pressable>
-            </View>
-            
-            <ScrollView style={styles.modalScroll}>
-              <Text style={styles.seasonDescription}>
-                Your color season is based on your skin tone and natural coloring. Select the one that best matches you:
-              </Text>
-              
-              {getAllSeasons().map((season) => (
+    </ScrollView>
+
+    {/* Visibility Settings Modal */}
+    <Modal visible={showVisibilitySettings} transparent={true} animationType="slide">
+      <View style={styles.modalContainer}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Privacy Settings</Text>
+            <Pressable onPress={() => setShowVisibilitySettings(false)}>
+              <Text style={styles.modalClose}>✕</Text>
+            </Pressable>
+          </View>
+          
+          <ScrollView style={styles.modalScroll}>
+            <View style={styles.visibilitySection}>
+              <Text style={styles.visibilitySectionTitle}>Try-On History</Text>
+              <Text style={styles.visibilitySectionDesc}>Who can see your try-on history?</Text>
+              {['public', 'friends', 'private'].map((option) => (
                 <Pressable
-                  key={season.id}
+                  key={option}
                   style={[
-                    styles.seasonOption,
-                    colorProfile?.season === season.id && styles.seasonOptionSelected
+                    styles.visibilityOption,
+                    tryOnVisibility === option && styles.visibilityOptionSelected
                   ]}
-                  onPress={async () => {
-                    const { getSeasonProfile } = await import('../lib/colorAnalysis');
-                    const profile = getSeasonProfile(season.id);
-                    setColorProfile(profile);
-                    if (user?.id) {
-                      await saveColorProfile(user.id, profile);
-                    }
-                    setShowSeasonPicker(false);
-                    showBanner(`✓ Color season set to ${season.name}!`, 'success');
-                  }}
+                  onPress={() => setTryOnVisibility(option)}
                 >
-                  <View style={styles.seasonHeader}>
-                    <Text style={styles.seasonName}>{season.name}</Text>
-                    <Text style={styles.seasonTone}>{season.tone} • {season.depth}</Text>
+                  <Text style={styles.visibilityOptionEmoji}>
+                    {option === 'public' ? '🌐' : option === 'friends' ? '👥' : '🔒'}
+                  </Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.visibilityOptionTitle}>
+                      {option === 'public' ? 'Everyone' : option === 'friends' ? 'Friends Only' : 'Only Me'}
+                    </Text>
+                    <Text style={styles.visibilityOptionDesc}>
+                      {option === 'public' ? 'Visible in Explore and Style Twins' : 
+                       option === 'friends' ? 'Only people you share with' : 
+                       'Private to you only'}
+                    </Text>
                   </View>
-                  <View style={styles.seasonSwatches}>
-                    {season.swatches.map((color, idx) => (
-                      <View key={idx} style={[styles.seasonSwatch, { backgroundColor: color }]} />
-                    ))}
-                  </View>
-                  {colorProfile?.season === season.id && (
-                    <View style={styles.seasonCheck}>
-                      <Text style={styles.seasonCheckText}>✓</Text>
-                    </View>
+                  {tryOnVisibility === option && (
+                    <Text style={styles.visibilityCheck}>✓</Text>
                   )}
                 </Pressable>
               ))}
-              
-              <View style={{ height: 40 }} />
-            </ScrollView>
-          </View>
+            </View>
+
+            <View style={[styles.visibilitySection, { marginTop: 24 }]}>
+              <Text style={styles.visibilitySectionTitle}>Pods</Text>
+              <Text style={styles.visibilitySectionDesc}>Who can see your pods?</Text>
+              {['public', 'friends', 'private'].map((option) => (
+                <Pressable
+                  key={option}
+                  style={[
+                    styles.visibilityOption,
+                    podsVisibility === option && styles.visibilityOptionSelected
+                  ]}
+                  onPress={() => setPodsVisibility(option)}
+                >
+                  <Text style={styles.visibilityOptionEmoji}>
+                    {option === 'public' ? '🌐' : option === 'friends' ? '👥' : '🔒'}
+                  </Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.visibilityOptionTitle}>
+                      {option === 'public' ? 'Everyone' : option === 'friends' ? 'Friends Only' : 'Only Me'}
+                    </Text>
+                    <Text style={styles.visibilityOptionDesc}>
+                      {option === 'public' ? 'Visible in Explore and Style Twins' : 
+                       option === 'friends' ? 'Only people you share with' : 
+                       'Private to you only'}
+                    </Text>
+                  </View>
+                  {podsVisibility === option && (
+                    <Text style={styles.visibilityCheck}>✓</Text>
+                  )}
+                </Pressable>
+              ))}
+            </View>
+
+            <Pressable 
+              style={styles.saveBtn}
+              onPress={() => {
+                setShowVisibilitySettings(false);
+                // Save visibility settings logic here
+              }}
+            >
+              <Text style={styles.saveBtnText}>Save Settings</Text>
+            </Pressable>
+          </ScrollView>
         </View>
-      </Modal>
+      </View>
+    </Modal>
+
+    {/* Fit Profile Modal */}
+    <Modal visible={showFitProfile} transparent={true} animationType="slide">
+      <View style={styles.modalContainer}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Fit Profile</Text>
+            <Pressable onPress={() => setShowFitProfile(false)}>
+              <Text style={styles.modalClose}>✕</Text>
+            </Pressable>
+          </View>
+          
+          <ScrollView style={styles.modalScroll}>
+            <Text style={styles.modalSubtitle}>Basic Info</Text>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Gender Identity</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.genderScroll}>
+                {['Female', 'Male', 'Non-binary', 'Prefer not to say'].map((g) => (
+                  <Pressable 
+                    key={g} 
+                    style={[styles.genderBtn, fitProfile.gender === g && styles.genderBtnActive]}
+                    onPress={() => setFitProfile(prev => ({ ...prev, gender: g }))}
+                  >
+                    <Text style={[styles.genderText, fitProfile.gender === g && styles.genderTextActive]}>{g}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Body Shape</Text>
+              <Text style={[styles.inputLabel, { fontSize: 12, color: '#9ca3af', marginBottom: 8 }]}>
+                {fitProfile.bodyShape 
+                  ? (isBodyShapeManuallySet ? `Selected: ${fitProfile.bodyShape}` : `Auto-suggested: ${fitProfile.bodyShape}`)
+                  : 'Will be auto-detected from measurements'}
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.genderScroll}>
+                {['Hourglass', 'Pear', 'Apple', 'Rectangle', 'Inverted Triangle'].map((shape) => (
+                  <Pressable 
+                    key={shape} 
+                    style={[styles.genderBtn, fitProfile.bodyShape === shape && styles.genderBtnActive]}
+                    onPress={() => {
+                      setFitProfile(prev => ({ ...prev, bodyShape: shape }));
+                      setIsBodyShapeManuallySet(true); // Mark as manually set
+                    }}
+                  >
+                    <Text style={[styles.genderText, fitProfile.bodyShape === shape && styles.genderTextActive]}>{shape}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Height</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., 5'8 or 173cm"
+                placeholderTextColor="#666"
+                value={fitProfile.height}
+                onChangeText={(text) => setFitProfile(prev => ({ ...prev, height: text }))}
+              />
+            </View>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Weight</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., 140lbs or 65kg"
+                placeholderTextColor="#666"
+                value={fitProfile.weight}
+                onChangeText={(text) => setFitProfile(prev => ({ ...prev, weight: text }))}
+              />
+            </View>
+
+            <Text style={styles.modalSubtitle}>Body Measurements</Text>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Bust / Chest</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., 34, 86cm"
+                placeholderTextColor="#666"
+                value={fitProfile.chest}
+                onChangeText={(text) => setFitProfile(prev => ({ ...prev, chest: text }))}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Underbust (Ribcage)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., 30, 76cm"
+                placeholderTextColor="#666"
+                value={fitProfile.underbust}
+                onChangeText={(text) => setFitProfile(prev => ({ ...prev, underbust: text }))}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Waist (Natural)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., 28, 71cm"
+                placeholderTextColor="#666"
+                value={fitProfile.waist}
+                onChangeText={(text) => setFitProfile(prev => ({ ...prev, waist: text }))}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Hips (Fullest part)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., 36, 91cm"
+                placeholderTextColor="#666"
+                value={fitProfile.hips}
+                onChangeText={(text) => setFitProfile(prev => ({ ...prev, hips: text }))}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Shoulder Width</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., 16, 40cm"
+                placeholderTextColor="#666"
+                value={fitProfile.shoulder}
+                onChangeText={(text) => setFitProfile(prev => ({ ...prev, shoulder: text }))}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Arm Length / Sleeve</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., 24, 60cm"
+                placeholderTextColor="#666"
+                value={fitProfile.sleeve}
+                onChangeText={(text) => setFitProfile(prev => ({ ...prev, sleeve: text }))}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Inseam (Inner leg)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., 30, 76cm"
+                placeholderTextColor="#666"
+                value={fitProfile.inseam}
+                onChangeText={(text) => setFitProfile(prev => ({ ...prev, inseam: text }))}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Thigh</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., 22, 56cm"
+                placeholderTextColor="#666"
+                value={fitProfile.thigh}
+                onChangeText={(text) => setFitProfile(prev => ({ ...prev, thigh: text }))}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Neck</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., 15, 38cm"
+                placeholderTextColor="#666"
+                value={fitProfile.neck}
+                onChangeText={(text) => setFitProfile(prev => ({ ...prev, neck: text }))}
+              />
+            </View>
+
+            <Text style={styles.modalSubtitle}>Standard Sizes</Text>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Typical Top Size</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., M, L, 10"
+                placeholderTextColor="#666"
+                value={fitProfile.topSize}
+                onChangeText={(text) => setFitProfile(prev => ({ ...prev, topSize: text }))}
+              />
+            </View>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Typical Bottom Size</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., 30, M, 10"
+                placeholderTextColor="#666"
+                value={fitProfile.bottomSize}
+                onChangeText={(text) => setFitProfile(prev => ({ ...prev, bottomSize: text }))}
+              />
+            </View>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Shoe Size</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., 9, 42"
+                placeholderTextColor="#666"
+                value={fitProfile.shoeSize}
+                onChangeText={(text) => setFitProfile(prev => ({ ...prev, shoeSize: text }))}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Bra Size (Optional)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., 34B"
+                placeholderTextColor="#666"
+                value={fitProfile.braSize}
+                onChangeText={(text) => setFitProfile(prev => ({ ...prev, braSize: text }))}
+              />
+            </View>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Notes (optional)</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                placeholder="e.g., broad shoulders, petite"
+                placeholderTextColor="#666"
+                multiline
+                numberOfLines={3}
+                value={fitProfile.notes}
+                onChangeText={(text) => setFitProfile(prev => ({ ...prev, notes: text }))}
+              />
+            </View>
+            
+            <Pressable 
+              style={styles.saveBtn}
+              onPress={async () => {
+                try {
+                  if (user?.id) {
+                    // Auto-predict body shape ONLY if not manually set and measurements are available
+                    let finalBodyShape = fitProfile.bodyShape;
+                    if (!finalBodyShape && !isBodyShapeManuallySet) {
+                      const predicted = predictBodyShape(fitProfile);
+                      if (predicted) {
+                        finalBodyShape = predicted;
+                        setFitProfile(prev => ({ ...prev, bodyShape: predicted }));
+                      }
+                    }
+                    
+                    await supabase.from('profiles').upsert({
+                      id: user.id,
+                      gender: fitProfile.gender,
+                      body_shape: fitProfile.bodyShape || finalBodyShape,
+                      height: fitProfile.height,
+                      weight: fitProfile.weight,
+                      top_size: fitProfile.topSize,
+                      bottom_size: fitProfile.bottomSize,
+                      shoe_size: fitProfile.shoeSize,
+                      chest: fitProfile.chest,
+                      underbust: fitProfile.underbust,
+                      waist: fitProfile.waist,
+                      hips: fitProfile.hips,
+                      shoulder: fitProfile.shoulder,
+                      sleeve: fitProfile.sleeve,
+                      inseam: fitProfile.inseam,
+                      thigh: fitProfile.thigh,
+                      neck: fitProfile.neck,
+                      bra_size: fitProfile.braSize,
+                      notes: fitProfile.notes,
+                      updated_at: new Date().toISOString()
+                    });
+                    showBanner('✓ Fit profile saved!', 'success');
+                  }
+                  setShowFitProfile(false);
+                } catch (error) {
+                  console.error('Error saving profile:', error);
+                  showBanner('Failed to save profile', 'error');
+                }
+              }}
+            >
+              <Text style={styles.saveBtnText}>Save Profile</Text>
+            </Pressable>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+
+    {/* Season Picker Modal */}
+    <Modal visible={showSeasonPicker} transparent={true} animationType="slide">
+      <View style={styles.modalContainer}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Choose Your Color Season</Text>
+            <Pressable onPress={() => setShowSeasonPicker(false)}>
+              <Text style={styles.modalClose}>✕</Text>
+            </Pressable>
+          </View>
+          
+          <ScrollView style={styles.modalScroll}>
+            <Text style={styles.seasonDescription}>
+              Your color season is based on your skin tone and natural coloring. Select the one that best matches you:
+            </Text>
+            
+            {getAllSeasons().map((season) => (
+              <Pressable
+                key={season.id}
+                style={[
+                  styles.seasonOption,
+                  colorProfile?.season === season.id && styles.seasonOptionSelected
+                ]}
+                onPress={async () => {
+                  const { getSeasonProfile } = await import('../lib/colorAnalysis');
+                  const profile = getSeasonProfile(season.id);
+                  setColorProfile(profile);
+                  if (user?.id) {
+                    await saveColorProfile(user.id, profile);
+                  }
+                  setShowSeasonPicker(false);
+                  showBanner(`✓ Color season set to ${season.name}!`, 'success');
+                }}
+              >
+                <View style={styles.seasonHeader}>
+                  <Text style={styles.seasonName}>{season.name}</Text>
+                  <Text style={styles.seasonTone}>{season.tone} • {season.depth}</Text>
+                </View>
+                <View style={styles.seasonSwatches}>
+                  {season.swatches.map((color, idx) => (
+                    <View key={idx} style={[styles.seasonSwatch, { backgroundColor: color }]} />
+                  ))}
+                </View>
+                {colorProfile?.season === season.id && (
+                  <View style={styles.seasonCheck}>
+                    <Text style={styles.seasonCheckText}>✓</Text>
+                  </View>
+                )}
+              </Pressable>
+            ))}
+            
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+      {/* Body Photo Guidelines Modal */}
+      <PhotoGuidelinesModal
+        visible={showBodyPhotoGuidelines}
+        type="body"
+        onClose={() => setShowBodyPhotoGuidelines(false)}
+        onContinue={handleBodyPhotoUpload}
+      />
+
+      {/* Face Photo Guidelines Modal */}
+      <PhotoGuidelinesModal
+        visible={showFacePhotoGuidelines}
+        type="face"
+        onClose={() => setShowFacePhotoGuidelines(false)}
+        onContinue={handleFacePhotoSource}
+      />
+
+      {/* Photo Guidelines Screen (from Support section) */}
+      <PhotoGuidelinesScreen
+        visible={showPhotoGuidelinesScreen}
+        onClose={() => setShowPhotoGuidelinesScreen(false)}
+      />
+
       {/* Full Screen Image Modal */}
       <Modal visible={!!fullScreenImage} transparent={true} animationType="fade">
         <View style={styles.fullScreenModalContainer}>
@@ -2619,6 +2916,31 @@ const styles = StyleSheet.create({
     height: 80,
     textAlignVertical: 'top',
   },
+  genderScroll: {
+    marginTop: 8,
+  },
+  genderBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    marginRight: 8,
+  },
+  genderBtnActive: {
+    backgroundColor: 'rgba(99, 102, 241, 0.3)',
+    borderColor: '#6366f1',
+  },
+  genderText: {
+    color: '#9ca3af',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  genderTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
   saveBtn: {
     backgroundColor: '#fff',
     paddingVertical: 14,
@@ -2890,6 +3212,49 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  modalSubtitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  // Support Section Styles
+  sectionHeader: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  supportCard: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
+  },
+  supportItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+  },
+  supportItemText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  supportItemArrow: {
+    color: '#9ca3af',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  supportDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    marginHorizontal: 16,
   },
 });
 

@@ -85,3 +85,4 @@ WHERE u1.email = 'stylit@stylit.com' OR u2.email = 'stylit@stylit.com';
 -- Done! You should see the friendships listed above.
 
 
+

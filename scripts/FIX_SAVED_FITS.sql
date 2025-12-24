@@ -63,3 +63,4 @@ SELECT 'saved_fits' as table_name, count(*) as row_count FROM public.saved_fits
 UNION ALL
 SELECT 'try_on_history' as table_name, count(*) as row_count FROM public.try_on_history;
 
+

@@ -64,3 +64,4 @@ For easiest testing, you can disable RLS on the `friends` table:
 This will fix the "Could not find product_url" error.
 
 
+

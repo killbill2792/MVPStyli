@@ -145,3 +145,4 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 SELECT '✅ Style Algo Fixed & Schema Reloaded' as status;
 
+

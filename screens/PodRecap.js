@@ -91,7 +91,7 @@ const PodRecap = ({ podId, onBack, onStyleCraft, onShopSimilar, onViewProduct, o
     const [podData, votesData, commentsData] = await Promise.all([
       getPod(podId),
       getPodVotes(podId),
-      getPodComments(podId)
+      getPodComments(podId, userId) // FIX: Pass viewerId for privacy filtering
     ]);
     
     setPod(podData);

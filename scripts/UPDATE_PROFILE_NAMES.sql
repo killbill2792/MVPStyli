@@ -43,3 +43,4 @@ ON CONFLICT (id) DO UPDATE SET name = 'Stylit', email = 'stylit@stylit.com';
 SELECT id, name, email FROM public.profiles;
 
 
+

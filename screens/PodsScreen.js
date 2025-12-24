@@ -270,7 +270,7 @@ const PodsScreen = ({ onBack, onCreatePod, userId, userName, params }) => {
       const contact = await Contacts.pickContactAsync();
       if (contact && contact.phones && contact.phones.length > 0) {
         const phoneNumber = contact.phones[0].number.replace(/\D/g, '');
-        const shareLink = podLink || `https://mvpstyli.vercel.app/p/${Date.now()}`;
+        const shareLink = podLink || (userId ? buildShareUrl({ kind: 'pod', podId: 'temp', fromUserId: userId }) : 'https://stylit.ai/download');
         
         // Open SMS with share link
         const smsUrl = `sms:${phoneNumber}?body=Check out my fit! ${shareLink}`;
@@ -337,6 +337,32 @@ const PodsScreen = ({ onBack, onCreatePod, userId, userName, params }) => {
       // Store multiple images as JSON array if more than one
       const imageData = uploadedImages.length > 1 ? JSON.stringify(uploadedImages) : mainImage;
 
+      // FIX: Extract product metadata (tags, colors, category) for style profile tracking
+      let productTags = null;
+      let productColors = null;
+      let productCategory = null;
+      
+      if (product) {
+        // Extract tags - check multiple sources
+        if (product.tags && Array.isArray(product.tags)) {
+          productTags = product.tags;
+        } else if (product.product_tags && Array.isArray(product.product_tags)) {
+          productTags = product.product_tags;
+        }
+        
+        // Extract colors
+        if (product.colors && Array.isArray(product.colors)) {
+          productColors = product.colors;
+        } else if (product.color) {
+          productColors = [product.color];
+        } else if (product.product_colors && Array.isArray(product.product_colors)) {
+          productColors = product.product_colors;
+        }
+        
+        // Extract category
+        productCategory = product.category || product.product_category || null;
+      }
+      
       const podData = {
         owner_id: userId,
         image_url: imageData, // Can be single URL or JSON array
@@ -344,14 +370,17 @@ const PodsScreen = ({ onBack, onCreatePod, userId, userName, params }) => {
         duration_mins: selectedDuration,
         title: finalTitle,
         ends_at: new Date(Date.now() + selectedDuration * 60000).toISOString(),
-        // product_url will be added via SQL migration - omit for now to avoid error
-        // product_url: product?.url || product?.link || null,
+        product_url: product?.url || product?.productUrl || product?.buyUrl || null,
+        // FIX: Store product metadata for accurate style profile tracking
+        product_tags: productTags,
+        product_colors: productColors,
+        product_category: productCategory,
       };
 
       const pod = await createPod(podData);
       
       if (pod && pod.id) {
-        const shareUrl = `https://mvpstyli.vercel.app/p/${pod.id}`;
+        const shareUrl = buildShareUrl({ kind: 'pod', podId: pod.id, fromUserId: userId, audience: pod.audience });
         setPodLink(shareUrl);
 
         // Create invites and notifications for Friends pods

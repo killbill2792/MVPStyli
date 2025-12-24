@@ -204,3 +204,4 @@ CREATE POLICY "Users can update their own friendships" ON public.friends
 main().catch(console.error);
 
 
+

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Pressable, Image, StyleSheet, Alert, StatusBar, TextInput, ScrollView, Modal, ActivityIndicator, Dimensions, FlatList, Animated, PanResponder, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, Pressable, Image, StyleSheet, Alert, StatusBar, TextInput, ScrollView, Modal, ActivityIndicator, Dimensions, FlatList, Animated, PanResponder, KeyboardAvoidingView, Platform, InteractionManager, Linking } from 'react-native';
 import { SafeAreaView, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -22,11 +22,16 @@ import ProductScreen from './screens/ProductScreen';
 import TryOnResultScreen from './screens/TryOnResultScreen';
 import AuthScreen from './screens/AuthScreen';
 import UserProfileScreen from './screens/UserProfileScreen';
+import PhotoGuidelinesModal from './components/PhotoGuidelinesModal';
 import { startTryOn, pollTryOn } from './lib/tryon';
 import { setupStylitFriends } from './lib/setupFriends';
 import { runMigrations } from './lib/migrations';
 import { supabase } from './lib/supabase';
 import { trackEvent, refreshStyleProfile } from './lib/styleEngine';
+import { buildShareUrl, parseDeepLink } from './lib/share';
+import { sendFriendRequest, areFriends } from './lib/friends';
+import { createPodInvites } from './lib/pods';
+import { submitVote as submitVoteToDB } from './lib/pods';
 
 // Safe Image Component to prevent crashes
 const SafeImage = ({ source, style, resizeMode, ...props }) => {
@@ -178,23 +183,36 @@ function Explore() {
       let fetchedPods = [];
       const userId = user?.id;
       
+      // FIX: Get all pods (including voted ones) - we'll sort them by live/ended
       if (activeTab === 'friends') {
-        // Import dynamically to avoid circular deps
-        const { getFriendsTabPods, getUnvotedPods } = await import('./lib/pods');
-        const allPods = await getFriendsTabPods(userId);
-        fetchedPods = await getUnvotedPods(allPods, userId);
+        const { getFriendsTabPods } = await import('./lib/pods');
+        fetchedPods = await getFriendsTabPods(userId);
       } else if (activeTab === 'twins') {
-        const { getTwinsTabPods, getUnvotedPods } = await import('./lib/pods');
-        const allPods = await getTwinsTabPods(userId);
-        fetchedPods = await getUnvotedPods(allPods, userId);
+        const { getTwinsTabPods } = await import('./lib/pods');
+        fetchedPods = await getTwinsTabPods(userId);
       } else {
-        const { getGlobalTabPods, getUnvotedPods } = await import('./lib/pods');
-        const allPods = await getGlobalTabPods(userId);
-        fetchedPods = await getUnvotedPods(allPods, userId);
+        const { getGlobalTabPods } = await import('./lib/pods');
+        fetchedPods = await getGlobalTabPods(userId);
       }
       
       // Transform pods to feed items format
-      const feedItems = fetchedPods.filter(pod => pod.image_url).map(pod => {
+      // Filter out ended pods older than 7 days
+      const now = new Date();
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      
+      const feedItems = fetchedPods
+        .filter(pod => {
+          // Filter out pods without images
+          if (!pod.image_url) return false;
+          
+          // Filter out ended pods older than 7 days
+          const endsAt = new Date(pod.ends_at);
+          const isEnded = pod.status === 'expired' || endsAt < now;
+          if (isEnded && endsAt < sevenDaysAgo) return false;
+          
+          return true;
+        })
+        .map(pod => {
         // Parse image_url - could be single URL or JSON array
         let images = [];
         if (pod.image_url && typeof pod.image_url === 'string') {
@@ -232,12 +250,21 @@ function Explore() {
           images: images,
           question: pod.title || "What do you think?",
           timeLeft: getTimeLeft(pod.ends_at),
-          isLive: pod.status === 'live' && new Date(pod.ends_at) > new Date(),
+          isLive: Boolean(pod.status === 'live' && new Date(pod.ends_at) > new Date()),
           ownerId: pod.owner_id,
           isOwner: pod.owner_id === userId,
           productUrl: pod.product_url,
         };
-      }).filter(item => item !== null); // Remove null items
+      })
+      .filter(item => item !== null) // Remove null items
+      .sort((a, b) => {
+        // FIX: Sort pods - live pods first, then ended pods
+        // Live pods come first
+        if (a.isLive && !b.isLive) return -1;
+        if (!a.isLive && b.isLive) return 1;
+        // If both are live or both are ended, keep original order (already sorted by created_at desc)
+        return 0;
+      });
       
       setPods(feedItems);
     } catch (error) {
@@ -263,12 +290,32 @@ function Explore() {
   };
 
   const handleVoteComplete = (podId) => {
-    // Remove pod from list after voting
-    setVotedPodIds(prev => new Set([...prev, podId]));
-    setPods(prev => prev.filter(p => p.id !== podId));
+    try {
+      // Remove pod from list after voting
+      // Ensure podId is a string to avoid React Native bridge type errors
+      if (!podId) return;
+      const podIdStr = String(podId);
+      
+      // FIX: Track voted pods but don't remove them from feed
+      setVotedPodIds(prev => {
+        try {
+          const newSet = new Set(prev);
+          newSet.add(podIdStr);
+          return newSet;
+        } catch (e) {
+          console.warn('Error updating votedPodIds:', e);
+          return prev;
+        }
+      });
+      
+      // FIX: Don't remove pods from feed - keep them visible even after voting
+    } catch (error) {
+      console.error('Error in handleVoteComplete:', error);
+    }
   };
 
-  const filteredFeed = pods.filter(p => !votedPodIds.has(p.id));
+  // FIX: Show all pods (including voted ones) - sorted by live/ended
+  const filteredFeed = pods;
 
   const FeedItem = ({ item, onVoteComplete, showComments = false }) => {
     const { state } = useApp();
@@ -278,6 +325,61 @@ function Explore() {
     const [commentText, setCommentText] = useState('');
     const [commentSubmitted, setCommentSubmitted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [voteCounts, setVoteCounts] = useState(null); // For ended pods
+    
+    // FIX: Track if both vote and comment are done (for friends tab)
+    const [hasVoted, setHasVoted] = useState(false);
+    const [hasCommented, setHasCommented] = useState(false);
+    
+    // FIX: Remove pod from feed only after both vote AND comment (if comments required)
+    useEffect(() => {
+      if (showComments) {
+        // For friends tab: require both vote and comment
+        if (hasVoted && hasCommented) {
+          setTimeout(() => {
+            if (onVoteComplete && typeof onVoteComplete === 'function') {
+              try {
+                const podIdToRemove = item.podId || item.id;
+                if (podIdToRemove) {
+                  requestAnimationFrame(() => {
+                    try {
+                      onVoteComplete(String(podIdToRemove));
+                    } catch (e) {
+                      console.warn('Non-critical UI update error:', e);
+                    }
+                  });
+                }
+              } catch (e) {
+                console.warn('Non-critical callback error:', e);
+              }
+            }
+          }, 1500);
+        }
+      } else {
+        // For other tabs: only require vote
+        if (hasVoted) {
+          setTimeout(() => {
+            if (onVoteComplete && typeof onVoteComplete === 'function') {
+              try {
+                const podIdToRemove = item.podId || item.id;
+                if (podIdToRemove) {
+                  requestAnimationFrame(() => {
+                    try {
+                      onVoteComplete(String(podIdToRemove));
+                    } catch (e) {
+                      console.warn('Non-critical UI update error:', e);
+                    }
+                  });
+                }
+              } catch (e) {
+                console.warn('Non-critical callback error:', e);
+              }
+            }
+          }, 1500);
+        }
+      }
+    }, [hasVoted, hasCommented, showComments, item.podId, item.id, onVoteComplete]);
+    
     const scaleAnims = {
         fire: useRef(new Animated.Value(1)).current,
         maybe: useRef(new Animated.Value(1)).current,
@@ -288,36 +390,70 @@ function Explore() {
     };
 
     const handleVote = async (type) => {
+      // FIX: Disable voting on ended pods (read-only recaps)
+      if (!item.isLive) {
+        console.log('Pod has ended - voting disabled');
+        return;
+      }
       if (voted || isSubmitting) return;
       setIsSubmitting(true);
-      setVoted(type);
+      setVoted(String(type)); // Ensure type is always a string
       
-      if (scaleAnims[type]) {
-        Animated.sequence([
-            Animated.timing(scaleAnims[type], { toValue: 1.5, duration: 150, useNativeDriver: true }),
-            Animated.timing(scaleAnims[type], { toValue: 1, duration: 150, useNativeDriver: true })
-        ]).start();
+      // Safely animate if the animation ref exists
+      try {
+        const animRef = scaleAnims[type];
+        if (animRef && typeof animRef === 'object' && 'setValue' in animRef) {
+          Animated.sequence([
+              Animated.timing(animRef, { toValue: 1.5, duration: 150, useNativeDriver: true }),
+              Animated.timing(animRef, { toValue: 1, duration: 150, useNativeDriver: true })
+          ]).start();
+        }
+      } catch (animError) {
+        console.warn('Animation error (non-critical):', animError);
       }
 
       // Map vote type to database choice
       let choice = 'maybe';
-      if (type === 'fire') choice = 'yes';
-      else if (type === 'x') choice = 'no';
-      else if (type === 'maybe') choice = 'maybe';
-      else if (['1', '2', '3'].includes(type)) choice = 'yes'; // Multi-image pick counts as yes
+      let metadata = null;
+      
+      if (type === 'fire') {
+        choice = 'yes';
+      } else if (type === 'x') {
+        choice = 'no';
+      } else if (type === 'maybe') {
+        choice = 'maybe';
+      } else if (['1', '2', '3'].includes(String(type))) {
+        // FIX: Store which option was selected for multi-image pods
+        choice = 'yes';
+        const selectedIndex = parseInt(String(type), 10) - 1;
+        metadata = {
+          selectedOption: String(type),
+          selectedIndex: selectedIndex
+        };
+      }
 
       try {
-        // Submit vote to Supabase
-        const { submitVote } = await import('./lib/pods');
-        await submitVote(item.podId || item.id, choice, user?.id);
+        // Submit vote to Supabase - use direct import to avoid React Native bridge issues
+        const podId = String(item.podId || item.id || '');
+        const userId = user?.id ? String(user.id) : undefined;
         
-        // Wait a moment then remove from feed
-        setTimeout(() => {
-          if (onVoteComplete) {
-            onVoteComplete(item.podId || item.id);
-          }
+        // Ensure all parameters are properly typed before passing
+        if (!podId || podId === '') {
+          console.error('Invalid podId:', podId);
           setIsSubmitting(false);
-        }, 1500);
+          return;
+        }
+        
+        // Call submitVote with proper parameters
+        if (metadata && typeof metadata === 'object' && metadata.selectedOption) {
+          await submitVoteToDB(podId, choice, userId, metadata);
+        } else {
+          await submitVoteToDB(podId, choice, userId);
+        }
+        
+        // FIX: Mark as voted - useEffect will handle removal when both vote and comment are done
+        setIsSubmitting(false);
+        setHasVoted(true);
       } catch (error) {
         console.error('Error submitting vote:', error);
         setIsSubmitting(false);
@@ -325,17 +461,47 @@ function Explore() {
     };
 
     const handleSubmitComment = async () => {
+      // FIX: Don't allow comments on ended pods
+      if (!item.isLive) {
+        console.log('Pod has ended - commenting disabled');
+        return;
+      }
+      
       if (!commentText.trim() || commentSubmitted) return;
       
       try {
         const { addComment } = await import('./lib/pods');
-        await addComment(item.podId || item.id, user?.id, commentText.trim());
-        setCommentSubmitted(true);
-        setCommentText('');
+        const success = await addComment(item.podId || item.id, user?.id, commentText.trim());
+        if (success) {
+          setCommentSubmitted(true);
+          setHasCommented(true);
+          setCommentText('');
+          // FIX: useEffect will handle removal when both vote and comment are done
+        }
       } catch (error) {
         console.error('Error submitting comment:', error);
       }
     };
+
+    // FIX: Fetch vote counts for ended pods
+    useEffect(() => {
+      if (!item.isLive && (item.podId || item.id)) {
+        const loadVoteCounts = async () => {
+          try {
+            const { getPodVotes, getVoteCounts } = await import('./lib/pods');
+            const votes = await getPodVotes(item.podId || item.id);
+            const counts = getVoteCounts(votes);
+            setVoteCounts(counts);
+          } catch (error) {
+            console.error('Error loading vote counts:', error);
+          }
+        };
+        loadVoteCounts();
+      } else {
+        // Reset for live pods
+        setVoteCounts(null);
+      }
+    }, [item.isLive, item.podId, item.id]);
 
     // Calculate height based on available space above bottom bar
     const BOTTOM_BAR_HEIGHT = 80; // Bottom bar height
@@ -346,33 +512,43 @@ function Explore() {
       <View style={{ height: availableHeight, marginBottom: 20, borderRadius: 24, overflow: 'hidden', backgroundColor: '#1a1a1a' }}>
         {/* Image Carousel */}
         <View style={{ flex: 1 }}>
-          <ScrollView 
-            horizontal 
-            pagingEnabled 
-            showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={(e) => {
-              const newIndex = Math.round(e.nativeEvent.contentOffset.x / width);
-              setCurrentImageIndex(newIndex);
-            }}
-          >
-            {item.images.map((img, idx) => {
-              const imageSource = img && typeof img === 'string' ? { uri: img } : null;
-              return (
-              <View key={idx} style={{ width: width - 20, height: '100%' }}>
-                  <SafeImage 
-                    source={imageSource} 
-                    style={{ width: '100%', height: '100%', resizeMode: 'cover' }} 
-                  />
-                  
-                  {/* Image Label if multiple */}
-                  {item.images.filter(i => i && typeof i === 'string').length > 1 && (
-                      <View style={{ position: 'absolute', top: 20, left: 20, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 12, width: 30, height: 30, justifyContent: 'center', alignItems: 'center' }}>
-                          <Text style={{ color: '#fff', fontWeight: 'bold' }}>{idx + 1}</Text>
-                      </View>
-                  )}
-              </View>
-            )})}
-          </ScrollView>
+          {item.images.length > 1 ? (
+            <ScrollView 
+              horizontal={true}
+              pagingEnabled={true}
+              showsHorizontalScrollIndicator={false}
+              scrollEventThrottle={16}
+              onMomentumScrollEnd={(e) => {
+                const scrollWidth = e.nativeEvent.layoutMeasurement.width;
+                const newIndex = Math.round(e.nativeEvent.contentOffset.x / scrollWidth);
+                setCurrentImageIndex(newIndex);
+              }}
+              style={{ flex: 1 }}
+              contentContainerStyle={{ flexGrow: 1 }}
+            >
+              {item.images.map((img, idx) => {
+                const imageSource = img && typeof img === 'string' ? { uri: img } : null;
+                return (
+                  <View key={idx} style={{ width: width - 20, height: '100%' }}>
+                    <SafeImage 
+                      source={imageSource} 
+                      style={{ width: '100%', height: '100%', resizeMode: 'cover' }} 
+                    />
+                    
+                    {/* Image Label if multiple */}
+                    <View style={{ position: 'absolute', top: 20, left: 20, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 12, width: 30, height: 30, justifyContent: 'center', alignItems: 'center' }}>
+                      <Text style={{ color: '#fff', fontWeight: 'bold' }}>{idx + 1}</Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </ScrollView>
+          ) : (
+            <SafeImage 
+              source={item.images[0] && typeof item.images[0] === 'string' ? { uri: item.images[0] } : null} 
+              style={{ width: '100%', height: '100%', resizeMode: 'cover' }} 
+            />
+          )}
           
           {/* Dots Indicator */}
           {item.images.filter(i => i && typeof i === 'string').length > 1 && (
@@ -421,9 +597,52 @@ function Explore() {
             <Text style={{ color: '#fff', fontSize: 20, fontWeight: '700' }}>{item.question}</Text>
           </View>
 
-          {/* Voting Actions */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            {item.images.length > 1 ? (
+          {/* Voting Actions or Results */}
+          {!item.isLive && voteCounts ? (
+            // FIX: Show vote percentages for ended pods
+            <View style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingVertical: 10 }}>
+              {item.images.length > 1 ? (
+                // Multi-image results - need to fetch actual votes with metadata
+                item.images.map((_, idx) => {
+                  const type = (idx + 1).toString();
+                  // For now, show placeholder - proper counting requires fetching votes with metadata
+                  // This will be improved when we load votes in useEffect
+                  return (
+                    <View key={type} style={{ alignItems: 'center' }}>
+                      <Text style={{ fontSize: 24, color: '#fff', fontWeight: 'bold', marginBottom: 4 }}>{type}</Text>
+                      <Text style={{ fontSize: 14, color: '#9ca3af' }}>
+                        {voteCounts.total > 0 ? Math.round((voteCounts.yes / item.images.length / voteCounts.total) * 100) : 0}%
+                      </Text>
+                    </View>
+                  );
+                })
+              ) : (
+                // Single image results
+                <>
+                  <View style={{ alignItems: 'center' }}>
+                    <Text style={{ fontSize: 32, marginBottom: 4 }}>🔥</Text>
+                    <Text style={{ fontSize: 14, color: '#9ca3af' }}>
+                      {voteCounts.total > 0 ? Math.round((voteCounts.yes / voteCounts.total) * 100) : 0}%
+                    </Text>
+                  </View>
+                  <View style={{ alignItems: 'center' }}>
+                    <Text style={{ fontSize: 32, marginBottom: 4 }}>🤔</Text>
+                    <Text style={{ fontSize: 14, color: '#9ca3af' }}>
+                      {voteCounts.total > 0 ? Math.round((voteCounts.maybe / voteCounts.total) * 100) : 0}%
+                    </Text>
+                  </View>
+                  <View style={{ alignItems: 'center' }}>
+                    <Text style={{ fontSize: 32, marginBottom: 4 }}>❌</Text>
+                    <Text style={{ fontSize: 14, color: '#9ca3af' }}>
+                      {voteCounts.total > 0 ? Math.round((voteCounts.no / voteCounts.total) * 100) : 0}%
+                    </Text>
+                  </View>
+                </>
+              )}
+            </View>
+          ) : (
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              {item.images.length > 1 ? (
                 // Multi-image voting (1, 2, 3...)
                 item.images.map((_, idx) => {
                     const type = (idx + 1).toString();
@@ -436,10 +655,12 @@ function Explore() {
                         <Pressable 
                           key={type}
                           onPress={() => handleVote(type)}
+                          disabled={Boolean(!item.isLive || Boolean(voted) || Boolean(isSubmitting))} // FIX: Ensure boolean type
                           style={{ 
                             alignItems: 'center', 
                             flex: voted ? 1 : 0,
-                            marginHorizontal: voted ? 0 : 10
+                            marginHorizontal: voted ? 0 : 10,
+                            opacity: (!item.isLive || voted || isSubmitting) ? 0.5 : 1 // FIX: Visual feedback
                           }}
                         >
                           <Animated.View style={{ 
@@ -451,14 +672,14 @@ function Explore() {
                             alignItems: 'center',
                             borderWidth: 1,
                             borderColor: 'rgba(255,255,255,0.3)',
-                            transform: [{ scale: scaleAnims[type] || 1 }]
+                            transform: [{ scale: (scaleAnims[type] && typeof scaleAnims[type] === 'object') ? scaleAnims[type] : 1 }]
                           }}>
                             <Text style={{ fontSize: 24, color: '#fff', fontWeight: 'bold' }}>{type}</Text>
                           </Animated.View>
                         </Pressable>
                     );
                 })
-            ) : (
+              ) : (
                 // Single image voting (Fire, Maybe, X)
                 ['fire', 'maybe', 'x'].map((type) => {
                   const isSelected = voted === type;
@@ -473,9 +694,11 @@ function Explore() {
                     <Pressable 
                       key={type}
                       onPress={() => handleVote(type)}
+                      disabled={Boolean(!item.isLive || Boolean(voted) || Boolean(isSubmitting))} // FIX: Ensure boolean type
                       style={{ 
                         alignItems: 'center', 
                         flex: voted ? 1 : 0,
+                        opacity: (!item.isLive || voted || isSubmitting) ? 0.5 : 1 // FIX: Visual feedback
                       }}
                     >
                       <Animated.View style={{ 
@@ -485,18 +708,19 @@ function Explore() {
                         // Transparent background for emoji only
                         justifyContent: 'center', 
                         alignItems: 'center',
-                        transform: [{ scale: scaleAnims[type] }]
+                        transform: [{ scale: (scaleAnims[type] && typeof scaleAnims[type] === 'object') ? scaleAnims[type] : 1 }]
                       }}>
                         <Text style={{ fontSize: 40 }}>{emoji}</Text>
                       </Animated.View>
                     </Pressable>
                   );
                 })
-            )}
-          </View>
+              )}
+            </View>
+          )}
           
-          {/* Comments for Friends */}
-          {activeTab === 'friends' && (
+          {/* Comments for Friends - Only show for live pods */}
+          {activeTab === 'friends' && item.isLive && (
              <View style={{ marginTop: 20 }}>
                 {commentSubmitted ? (
                   <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.2)', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
@@ -509,31 +733,8 @@ function Explore() {
                       placeholderTextColor="#999"
                       value={commentText}
                       onChangeText={setCommentText}
-                      onSubmitEditing={async () => {
-                        if (!commentText.trim()) return;
-                        // If item has a podId, submit to backend
-                        if (item.podId && user?.id) {
-                          try {
-                            const { addComment } = await import('./lib/pods');
-                            const success = await addComment(item.podId, user.id, commentText.trim());
-                            if (success) {
-                              setCommentSubmitted(true);
-                              setCommentText('');
-                              setTimeout(() => setCommentSubmitted(false), 3000);
-                            } else {
-                              Alert.alert('Error', 'Failed to send comment. Please try again.');
-                            }
-                          } catch (error) {
-                            console.error('Error submitting comment:', error);
-                            Alert.alert('Error', 'Failed to send comment. Please try again.');
-                          }
-                        } else {
-                          // Mock submission for demo items
-                          setCommentSubmitted(true);
-                          setCommentText('');
-                          setTimeout(() => setCommentSubmitted(false), 3000);
-                        }
-                      }}
+                      onSubmitEditing={handleSubmitComment}
+                      editable={Boolean(item.isLive)} // FIX: Disable commenting on ended pods
                       returnKeyType="send"
                       style={{ 
                         flex: 1,
@@ -546,31 +747,8 @@ function Explore() {
                       }}
                     />
                     <Pressable
-                      onPress={async () => {
-                        if (!commentText.trim()) return;
-                        // If item has a podId, submit to backend
-                        if (item.podId && user?.id) {
-                          try {
-                            const { addComment } = await import('./lib/pods');
-                            const success = await addComment(item.podId, user.id, commentText.trim());
-                            if (success) {
-                              setCommentSubmitted(true);
-                              setCommentText('');
-                              setTimeout(() => setCommentSubmitted(false), 3000);
-                            } else {
-                              Alert.alert('Error', 'Failed to send comment. Please try again.');
-                            }
-                          } catch (error) {
-                            console.error('Error submitting comment:', error);
-                            Alert.alert('Error', 'Failed to send comment. Please try again.');
-                          }
-                        } else {
-                          // Mock submission for demo items
-                          setCommentSubmitted(true);
-                          setCommentText('');
-                          setTimeout(() => setCommentSubmitted(false), 3000);
-                        }
-                      }}
+                      onPress={handleSubmitComment}
+                      disabled={Boolean(!item.isLive || !commentText.trim() || commentSubmitted)} // FIX: Disable on ended pods or if already submitted
                       style={{
                         backgroundColor: commentText.trim() ? '#fff' : 'rgba(255,255,255,0.2)',
                         paddingHorizontal: 16,
@@ -601,7 +779,7 @@ function Explore() {
     >
       {/* Top Tabs */}
       <View style={{ paddingHorizontal: 10, paddingVertical: 8, height: 44 }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center' }}>
+        <ScrollView horizontal={true} showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center' }}>
           {[
             { id: 'friends', label: 'Friends' },
             { id: 'twins', label: 'Twins' },
@@ -670,7 +848,7 @@ function Explore() {
             <FeedItem 
               item={item} 
               onVoteComplete={handleVoteComplete}
-              showComments={activeTab === 'friends'}
+              showComments={Boolean(activeTab === 'friends')}
             />
           )}
           contentContainerStyle={{ paddingHorizontal: 10, paddingBottom: 80 }}
@@ -679,7 +857,7 @@ function Explore() {
           snapToAlignment="start"
           decelerationRate="fast"
           onRefresh={loadPods}
-          refreshing={loading}
+          refreshing={Boolean(loading)}
         />
       )}
     </KeyboardAvoidingView>
@@ -698,6 +876,7 @@ const TryOn = () => {
   const [pendingCategory, setPendingCategory] = useState(null); // Store category to use after user confirms
   const [selectedCategory, setSelectedCategory] = useState(null); // Category selected on screen
   const [isCategoryManuallySelected, setIsCategoryManuallySelected] = useState(false); // Track if user manually selected
+  const [showBodyPhotoGuidelines, setShowBodyPhotoGuidelines] = useState(false);
   
   // AI Search placeholder
   const placeholders = ["Dress below $80", "Find me a red polka dots dress", "suggest me wedding wear", "what to wear for miami vacation"];
@@ -1160,9 +1339,8 @@ const TryOn = () => {
                 <Text style={styles.sectionTitle}>Your Body Photo</Text>
                 <Text style={styles.sectionSubtitle}>Used to generate the fit</Text>
             </View>
-            <Pressable onPress={async () => {
-                const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'] });
-                if (!res.canceled && res.assets[0]) setTwinUrl(res.assets[0].uri);
+            <Pressable onPress={() => {
+                setShowBodyPhotoGuidelines(true);
             }}>
                 {twinUrl ? (
                   <View>
@@ -1236,7 +1414,7 @@ const TryOn = () => {
                 console.log('🎯 Try On button pressed with selectedCategory:', selectedCategory);
                 handleTryOn(selectedCategory);
               }}
-              disabled={isProcessing || !selectedCategory}
+              disabled={Boolean(isProcessing || !selectedCategory)}
           >
               {isProcessing ? (
                   <ActivityIndicator color="#000" size="small" />
@@ -1262,7 +1440,7 @@ const TryOn = () => {
       </View>
 
       {/* Category Selection Modal */}
-      <Modal visible={showCategoryModal} transparent={true} animationType="slide">
+      <Modal visible={Boolean(showCategoryModal)} transparent={true} animationType="slide">
         <View style={styles.categoryModalContainer}>
           <View style={styles.categoryModalContent}>
             <View style={styles.categoryModalHeader}>
@@ -1337,7 +1515,7 @@ const TryOn = () => {
                     handleTryOn(category);
                   }
                 }}
-                disabled={!pendingCategory}
+                disabled={Boolean(!pendingCategory)}
               >
                 <Text style={[styles.categoryModalButtonTextConfirm, !pendingCategory && styles.categoryModalButtonTextDisabled]}>
                   Continue
@@ -1347,6 +1525,54 @@ const TryOn = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Body Photo Guidelines Modal */}
+      <PhotoGuidelinesModal
+        visible={Boolean(showBodyPhotoGuidelines)}
+        type="body"
+        onClose={() => setShowBodyPhotoGuidelines(false)}
+        onContinue={async () => {
+          console.log('📸 onContinue START in TryOn');
+          // Don't close modal yet - open ImagePicker first
+          const res = await ImagePicker.launchImageLibraryAsync({ 
+            mediaTypes: ['images'],
+            allowsEditing: false,
+            quality: 0.8
+          });
+          console.log('📸 ImagePicker returned:', res.canceled ? 'CANCELLED' : 'SELECTED');
+          // Now close the modal
+          setShowBodyPhotoGuidelines(false);
+          
+          if (!res.canceled && res.assets && res.assets[0]) {
+            try {
+              console.log('📸 Uploading image...');
+              const uploadedUrl = await uploadImageAsync(res.assets[0].uri);
+              console.log('📸 Uploaded URL:', uploadedUrl);
+              if (user?.id) {
+                await supabase.from('profiles').update({ body_image_url: uploadedUrl }).eq('id', user.id);
+              }
+              setTwinUrl(uploadedUrl);
+              if (setUser) setUser(prev => ({ ...prev, body_image_url: uploadedUrl }));
+              setBannerMessage('✓ Body photo saved!');
+              setBannerType('success');
+              setTimeout(() => {
+                setBannerMessage(null);
+                setBannerType(null);
+              }, 3000);
+            } catch (error) {
+              console.error('❌ Error saving body photo:', error);
+              setBannerMessage('Failed to save photo');
+              setBannerType('error');
+              setTimeout(() => {
+                setBannerMessage(null);
+                setBannerType(null);
+              }, 3000);
+            }
+          } else {
+            console.log('📸 No image selected or cancelled');
+          }
+        }}
+      />
     </ScrollView>
   );
 };
@@ -1366,6 +1592,7 @@ export default function App() {
   const [bannerMessage, setBannerMessage] = useState(null); // Banner message state
   const [bannerType, setBannerType] = useState(null); // 'processing' or 'success'
   const [savedFits, setSavedFits] = useState([]); // Saved outfits
+  const [pendingInvite, setPendingInvite] = useState(null); // Pending invite from deep link
   
   // Check for existing Supabase session on startup
   useEffect(() => {
@@ -1549,6 +1776,36 @@ export default function App() {
         // Refresh style profile
         refreshStyleProfile(userId).catch(e => console.log('Style profile refresh error:', e));
         
+        // Claim pending invite if exists (load from AsyncStorage)
+        const storedInvite = await AsyncStorage.getItem('pendingInvite');
+        if (storedInvite) {
+          try {
+            const invite = JSON.parse(storedInvite);
+            const result = await claimInvite(invite, userId);
+            if (result.success) {
+              console.log('Invite claimed successfully:', result.message);
+              setPendingInvite(null);
+              await AsyncStorage.removeItem('pendingInvite');
+              setBannerMessage('✓ Connected with friend!');
+              setBannerType('success');
+              setTimeout(() => {
+                setBannerMessage(null);
+                setBannerType(null);
+              }, 3000);
+              
+              // If it's a pod invite, navigate to the pod
+              if (invite.type === 'pod' && invite.podId) {
+                setRoute('podlive', { id: invite.podId });
+                return; // Don't navigate to shop, go to pod instead
+              }
+            } else {
+              console.log('Failed to claim invite:', result.message);
+            }
+          } catch (error) {
+            console.error('Error claiming invite:', error);
+          }
+        }
+        
         // Navigate to shop after successful login
         setRoute('shop');
       } else if (event === 'SIGNED_OUT') {
@@ -1589,6 +1846,100 @@ export default function App() {
     
     return () => subscription?.unsubscribe();
   }, []);
+
+  // Deep link handling
+  useEffect(() => {
+    // Handle initial URL (when app opens from a link)
+    const handleInitialURL = async () => {
+      try {
+        const initialUrl = await Linking.getInitialURL();
+        if (initialUrl) {
+          console.log('App opened from deep link:', initialUrl);
+          const parsed = parseDeepLink(initialUrl);
+          if (parsed) {
+            setPendingInvite(parsed);
+            await AsyncStorage.setItem('pendingInvite', JSON.stringify(parsed));
+            console.log('Stored pending invite:', parsed);
+            
+            // If user is not logged in, ensure we're on auth screen
+            if (!user?.email) {
+              setRoute('auth');
+            } else {
+              // User is logged in, claim immediately
+              try {
+                const result = await claimInvite(parsed, user.id);
+                if (result.success) {
+                  console.log('Invite claimed successfully:', result.message);
+                  setPendingInvite(null);
+                  await AsyncStorage.removeItem('pendingInvite');
+                  setBannerMessage('✓ Connected with friend!');
+                  setBannerType('success');
+                  setTimeout(() => {
+                    setBannerMessage(null);
+                    setBannerType(null);
+                  }, 3000);
+                  
+                  // If it's a pod invite, navigate to the pod
+                  if (parsed.type === 'pod' && parsed.podId) {
+                    setRoute('podlive', { id: parsed.podId });
+                  }
+                }
+              } catch (error) {
+                console.error('Error claiming invite:', error);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error handling initial URL:', error);
+      }
+    };
+
+    handleInitialURL();
+
+    // Listen for deep links while app is running
+    const subscription = Linking.addEventListener('url', async (event) => {
+      console.log('Deep link received:', event.url);
+      const parsed = parseDeepLink(event.url);
+      if (parsed) {
+        setPendingInvite(parsed);
+        await AsyncStorage.setItem('pendingInvite', JSON.stringify(parsed));
+        console.log('Stored pending invite:', parsed);
+        
+        // If user is not logged in, go to auth screen
+        if (!user?.email) {
+          setRoute('auth');
+        } else {
+          // User is logged in, claim immediately
+          try {
+            const result = await claimInvite(parsed, user.id);
+            if (result.success) {
+              console.log('Invite claimed successfully:', result.message);
+              setPendingInvite(null);
+              await AsyncStorage.removeItem('pendingInvite');
+              setBannerMessage('✓ Connected with friend!');
+              setBannerType('success');
+              setTimeout(() => {
+                setBannerMessage(null);
+                setBannerType(null);
+              }, 3000);
+              
+              // If it's a pod invite, navigate to the pod
+              if (parsed.type === 'pod' && parsed.podId) {
+                setRoute('podlive', { id: parsed.podId });
+              }
+            }
+          } catch (error) {
+            console.error('Error claiming invite:', error);
+          }
+        }
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [user]);
 
   // Run migrations and setup friends when Stylit user logs in
   useEffect(() => {
