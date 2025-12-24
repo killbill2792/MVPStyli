@@ -22,6 +22,7 @@ import * as Contacts from 'expo-contacts';
 import { createPod, createPodInvites } from '../lib/pods';
 import { getUserFriends, createNotification, addFriend } from '../lib/friends';
 import { uploadImageAsync } from '../lib/upload';
+import { buildShareUrl } from '../lib/share';
 import { Colors, Spacing, BorderRadius, Typography } from '../lib/designSystem';
 import { useApp } from '../lib/AppContext';
 import { supabase } from '../lib/supabase';
