@@ -33,15 +33,17 @@ export function buildShareUrl({ kind, podId, fromUserId, audience }) {
       audParam = 'global';
     }
     
-    return `${baseUrl}/pod/${encodeURIComponent(podId)}?from=${encodeURIComponent(fromUserId)}&aud=${audParam}`;
+    // Use static file path: pod.html?podId=... (not dynamic route /pod/<id>)
+    return `${baseUrl}/pod.html?podId=${encodeURIComponent(podId)}&from=${encodeURIComponent(fromUserId)}&aud=${audParam}`;
   }
   
   if (kind === 'install') {
-    return `${baseUrl}/download?from=${encodeURIComponent(fromUserId)}`;
+    // Use static file path: download.html?from=...
+    return `${baseUrl}/download.html?from=${encodeURIComponent(fromUserId)}`;
   }
   
   // Fallback to install link
-  return `${baseUrl}/download?from=${encodeURIComponent(fromUserId)}`;
+  return `${baseUrl}/download.html?from=${encodeURIComponent(fromUserId)}`;
 }
 
 /**
@@ -61,18 +63,21 @@ export function parseDeepLink(url) {
     const urlObj = new URL(normalizedUrl);
     const params = new URLSearchParams(urlObj.search);
     
-    // Check if it's a pod link (new format: /pod/<podId>?from=...&aud=...)
-    // or old format: /pod?podId=...&from=...
+    // Check if it's a pod link
+    // New format: /pod.html?podId=...&from=...&aud=...
+    // Old format (for backwards compatibility): /pod/<podId> or /pod?podId=...
     let podId = null;
-    if (urlObj.pathname.includes('/pod/')) {
-      // New format: /pod/<podId>
+    
+    // Check query parameter first (new static file format)
+    podId = params.get('podId');
+    
+    // Fallback: check pathname for old dynamic route format
+    if (!podId && urlObj.pathname.includes('/pod/')) {
+      // Old format: /pod/<podId>
       const pathParts = urlObj.pathname.split('/pod/');
       if (pathParts.length > 1) {
         podId = pathParts[1].split('?')[0]; // Remove query params if any
       }
-    } else {
-      // Old format: /pod?podId=...
-      podId = params.get('podId');
     }
     
     const fromUserId = params.get('from') || params.get('ref');
@@ -86,12 +91,25 @@ export function parseDeepLink(url) {
     }
     
     // Check if it's a download/install link
-    if (fromUserId && (urlObj.pathname.includes('/download') || urlObj.pathname.includes('/pod'))) {
+    // New format: /download.html?from=...
+    // Old format: /download?from=...
+    if (fromUserId && (urlObj.pathname.includes('/download') || urlObj.pathname.includes('/download.html'))) {
       const ref = params.get('ref') || params.get('from');
       if (ref) {
         return {
-          type: urlObj.pathname.includes('/pod') && podId ? 'pod' : 'install',
-          podId: podId || undefined,
+          type: 'install',
+          fromUserId: ref,
+        };
+      }
+    }
+    
+    // Check if it's a pod link by pathname (old format)
+    if (urlObj.pathname.includes('/pod') || urlObj.pathname.includes('/pod.html')) {
+      const ref = params.get('ref') || params.get('from');
+      if (ref && podId) {
+        return {
+          type: 'pod',
+          podId,
           fromUserId: ref,
         };
       }
