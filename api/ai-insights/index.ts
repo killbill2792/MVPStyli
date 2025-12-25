@@ -245,6 +245,7 @@ Use conversational but professional tone. Be encouraging but honest.`;
       return res.status(200).json({
         insights: generateFallbackInsights(userProfile, product, insightType, garmentDimensions),
         source: 'fallback',
+        modelUsed: usedModel,
         error: 'Empty response from Gemini'
       });
     }
