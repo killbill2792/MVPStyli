@@ -103,7 +103,7 @@ Use conversational but professional tone. Be encouraging but honest.`;
     console.log('🔵 API Key present:', !!GEMINI_API_KEY, 'Length:', GEMINI_API_KEY?.length || 0);
     console.log('🔵 API URL:', apiUrl.replace(GEMINI_API_KEY, 'KEY_HIDDEN'));
     
-    const response = await fetch(apiUrl, {
+    let response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
