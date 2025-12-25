@@ -73,10 +73,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     
     if (!GEMINI_API_KEY) {
       // Fallback to rule-based if no API key
-      console.log('No Gemini API key, using fallback');
+      console.error('❌ GEMINI_API_KEY not found in environment variables. Using fallback.');
+      console.error('Please set GEMINI_API_KEY in Vercel environment variables.');
       return res.status(200).json({
-        insights: generateFallbackInsights(userProfile, product, insightType),
-        source: 'fallback'
+        insights: generateFallbackInsights(userProfile, product, insightType, garmentDimensions),
+        source: 'fallback',
+        error: 'GEMINI_API_KEY not configured'
       });
     }
 
@@ -109,10 +111,10 @@ Use conversational but professional tone. Be encouraging but honest.`;
           }
         ],
         generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 500,
-          topP: 0.8,
-          topK: 40
+          temperature: 0.9, // Increased for more varied responses
+          maxOutputTokens: 800, // Increased for more detailed responses
+          topP: 0.95, // Increased for more diversity
+          topK: 50 // Increased for more variety
         }
       })
     });
@@ -120,12 +122,14 @@ Use conversational but professional tone. Be encouraging but honest.`;
     if (!response.ok) {
       const errorText = await response.text();
       console.error('❌ Gemini API error:', response.status, errorText);
+      console.error('❌ Full error response:', errorText.substring(0, 500));
       
       // Return fallback if API fails
       return res.status(200).json({
         insights: generateFallbackInsights(userProfile, product, insightType, garmentDimensions),
         source: 'fallback',
-        error: `Gemini API error: ${response.status}`
+        error: `Gemini API error: ${response.status}`,
+        errorDetails: errorText.substring(0, 200)
       });
     }
 
@@ -133,13 +137,26 @@ Use conversational but professional tone. Be encouraging but honest.`;
     const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     
     console.log('✅ Gemini API response received, length:', aiResponse.length);
+    console.log('✅ Raw AI response:', aiResponse.substring(0, 200));
+    
+    if (!aiResponse || aiResponse.trim().length === 0) {
+      console.error('⚠️ Empty response from Gemini, using fallback');
+      return res.status(200).json({
+        insights: generateFallbackInsights(userProfile, product, insightType, garmentDimensions),
+        source: 'fallback',
+        error: 'Empty response from Gemini'
+      });
+    }
     
     // Parse AI response into structured format
     const insights = parseAIResponse(aiResponse, insightType);
     
+    console.log('✅ Parsed insights:', JSON.stringify(insights, null, 2));
+    
     return res.status(200).json({
       insights,
-      source: 'gemini-2.5-flash-lite'
+      source: 'gemini-2.5-flash-lite',
+      rawResponse: aiResponse.substring(0, 100) // Include snippet for debugging
     });
 
   } catch (error: any) {
@@ -152,17 +169,24 @@ function buildPrompt(user: UserProfile, product: ProductInfo, type: string, garm
   const userDesc = buildUserDescription(user);
   const productDesc = buildProductDescription(product, garmentDimensions);
   
+  // Add timestamp/random element to ensure different responses
+  const variation = Date.now() % 1000;
+  
   if (type === 'fit') {
     return `${userDesc}
 
 Item: ${productDesc}
 
-Give BRIEF, SPECIFIC advice. Be concise - max 1 short sentence per point.
+You are a professional fashion stylist. Analyze this specific item for this specific user. Give personalized, unique advice that considers their exact body type, measurements, and coloring.
+
+Be specific and actionable. Reference the actual measurements if provided.
 
 Format EXACTLY like this:
 VERDICT: [Strong Match OR Good with Tweaks OR Consider Alternatives]
-BODY: [ONE short sentence about how this fits their body shape]
-COLOR: [ONE short sentence about how this color works with their skin tone]`;
+BODY: [ONE specific sentence about how this fits their body shape - mention specific measurements if relevant]
+COLOR: [ONE specific sentence about how this color works with their skin tone/season]
+
+Make your advice unique to this combination of user and product.`;
   }
   
   if (type === 'size') {
@@ -170,13 +194,17 @@ COLOR: [ONE short sentence about how this color works with their skin tone]`;
 
 Item: ${productDesc}
 
-Be brief and direct.
+You are a professional fit specialist. Recommend the best size for this specific user based on their measurements and the garment's measurements.
+
+Be precise and reference actual measurements when available.
 
 Format:
-RECOMMENDED: [size only, e.g. "M"]
+RECOMMENDED: [size only, e.g. "M" or "Large"]
 BACKUP: [backup size or "none"]
-REASONING: [ONE short sentence]
-RISK: [Low/Medium/High]`;
+REASONING: [ONE specific sentence explaining why this size - mention measurements if available]
+RISK: [Low/Medium/High]
+
+Base your recommendation on the actual measurements provided, not generic advice.`;
   }
   
   // Style advice
@@ -184,11 +212,15 @@ RISK: [Low/Medium/High]`;
 
 Item: ${productDesc}
 
-Be brief - just key points.
+You are a professional stylist. Suggest how to style this specific item for this specific user.
+
+Be creative and specific to this product and user combination.
 
 Format:
-OCCASIONS: [3-4 words max, comma-separated]
-TIPS: [3 SHORT tips, one line each]`;
+OCCASIONS: [3-4 specific occasions, comma-separated]
+TIPS: [3 specific styling tips, one line each - be creative and unique]
+
+Make suggestions that are tailored to this specific item and user's style profile.`;
 }
 
 function buildUserDescription(user: UserProfile): string {

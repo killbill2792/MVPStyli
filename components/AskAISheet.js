@@ -170,10 +170,17 @@ const AskAISheet = ({ visible, onClose, product }) => {
           
           if (fitResponse.ok) {
             const fitData = await fitResponse.json();
+            console.log('📊 Fit response source:', fitData.source);
+            console.log('📊 Fit response error:', fitData.error);
             if (fitData.insights) {
               setFitAdvice(fitData.insights);
               console.log('✅ AI fit insights loaded from:', fitData.source);
+            } else {
+              console.warn('⚠️ No insights in fit response:', fitData);
             }
+          } else {
+            const errorText = await fitResponse.text();
+            console.error('❌ Fit API error:', fitResponse.status, errorText);
           }
           
           // Fetch size advice from AI
@@ -185,9 +192,15 @@ const AskAISheet = ({ visible, onClose, product }) => {
           
           if (sizeResponse.ok) {
             const sizeData = await sizeResponse.json();
+            console.log('📊 Size response source:', sizeData.source);
             if (sizeData.insights) {
               setSizeAdvice(sizeData.insights);
+            } else {
+              console.warn('⚠️ No insights in size response:', sizeData);
             }
+          } else {
+            const errorText = await sizeResponse.text();
+            console.error('❌ Size API error:', sizeResponse.status, errorText);
           }
           
           // Fetch style advice from AI
@@ -199,9 +212,15 @@ const AskAISheet = ({ visible, onClose, product }) => {
           
           if (styleResponse.ok) {
             const styleData = await styleResponse.json();
+            console.log('📊 Style response source:', styleData.source);
             if (styleData.insights) {
               setStyleAdvice(styleData.insights);
+            } else {
+              console.warn('⚠️ No insights in style response:', styleData);
             }
+          } else {
+            const errorText = await styleResponse.text();
+            console.error('❌ Style API error:', styleResponse.status, errorText);
           }
           
         } catch (apiError) {
