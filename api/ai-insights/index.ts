@@ -92,16 +92,12 @@ Give specific, actionable advice based on the user's profile. Be direct and help
 Always explain WHY something works or doesn't work for their specific body type/coloring.
 Use conversational but professional tone. Be encouraging but honest.`;
     
-    // Try multiple model/API combinations systematically
-    // Common free tier models: gemini-1.5-flash, gemini-1.5-pro, gemini-pro
-    const modelConfigs = [
-      { model: 'gemini-1.5-flash', version: 'v1beta', name: 'gemini-1.5-flash (v1beta)' },
-      { model: 'gemini-1.5-pro', version: 'v1beta', name: 'gemini-1.5-pro (v1beta)' },
-      { model: 'gemini-pro', version: 'v1beta', name: 'gemini-pro (v1beta)' },
-      { model: 'gemini-1.5-flash', version: 'v1', name: 'gemini-1.5-flash (v1)' },
-      { model: 'gemini-1.5-pro', version: 'v1', name: 'gemini-1.5-pro (v1)' },
-      { model: 'gemini-2.5-flash', version: 'v1', name: 'gemini-2.5-flash (v1)' },
-      { model: 'gemini-2.5-pro', version: 'v1', name: 'gemini-2.5-pro (v1)' },
+    // Default model: gemini-2.5-flash (confirmed available)
+    // Fallback chain for rate limits (429): gemini-2.0-flash -> gemini-flash-latest
+    const models = [
+      'gemini-2.5-flash',      // Primary (default)
+      'gemini-2.0-flash',      // Fallback for 429
+      'gemini-flash-latest',   // Fallback for 429
     ];
     
     const requestBody = {
@@ -122,19 +118,23 @@ Use conversational but professional tone. Be encouraging but honest.`;
       }
     };
     
-    console.log('🔵 Trying Gemini API models...');
+    console.log('🔵 Calling Gemini API...');
     console.log('🔵 API Key present:', !!GEMINI_API_KEY, 'Length:', GEMINI_API_KEY?.length || 0);
     
     let response: Response | null = null;
+    let usedModel = models[0]; // Default to gemini-2.5-flash
     let lastError: any = null;
-    let usedModel = '';
-    let usedApiUrl = '';
+    let modelIndex = 0;
     
-    // Try each model configuration until one works
-    for (const config of modelConfigs) {
-      const apiUrl = `https://generativelanguage.googleapis.com/${config.version}/models/${config.model}:generateContent?key=${GEMINI_API_KEY}`;
-      console.log(`🔵 Trying: ${config.name}`);
-      console.log(`🔵 URL: ${apiUrl.replace(GEMINI_API_KEY, 'KEY_HIDDEN')}`);
+    // Try models in order
+    while (modelIndex < models.length) {
+      const model = models[modelIndex];
+      // Use v1beta API - confirmed working format
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+      const safeUrl = apiUrl.replace(GEMINI_API_KEY, 'KEY_HIDDEN');
+      
+      console.log(`🔵 Trying model: ${model}`);
+      console.log(`🔵 Full URL path: ${safeUrl}`);
       
       try {
         response = await fetch(apiUrl, {
@@ -146,35 +146,55 @@ Use conversational but professional tone. Be encouraging but honest.`;
         });
         
         if (response.ok) {
-          usedModel = config.model;
-          usedApiUrl = apiUrl;
-          console.log(`✅ Success with ${config.name}!`);
+          usedModel = model;
+          console.log(`✅ Success with model: ${model}`);
           break;
-        } else {
-          const errorText = await response.text();
-          let errorJson = null;
-          try {
-            errorJson = JSON.parse(errorText);
-          } catch (e) {
-            // Not JSON
-          }
-          
-          console.log(`❌ ${config.name} failed: ${response.status}`);
-          if (errorJson?.error?.message) {
-            console.log(`   Error: ${errorJson.error.message.substring(0, 100)}`);
-          }
-          
-          lastError = { status: response.status, error: errorJson || errorText };
-          
-          // If it's not a 404, it might be quota/auth error - don't continue
-          if (response.status !== 404) {
-            console.log(`⚠️ Non-404 error (${response.status}), stopping retries`);
+        }
+        
+        const errorText = await response.text();
+        let errorJson = null;
+        try {
+          errorJson = JSON.parse(errorText);
+        } catch (e) {
+          // Not JSON
+        }
+        
+        console.log(`❌ Model ${model} failed: ${response.status}`);
+        if (errorJson?.error?.message) {
+          console.log(`   Error: ${errorJson.error.message.substring(0, 150)}`);
+        }
+        
+        lastError = { status: response.status, error: errorJson || errorText, model };
+        
+        // If 404, immediately retry with gemini-2.5-flash (should always work)
+        if (response.status === 404) {
+          console.log('⚠️ 404 error - retrying with gemini-2.5-flash...');
+          if (model !== 'gemini-2.5-flash') {
+            modelIndex = 0; // Reset to gemini-2.5-flash
+            usedModel = 'gemini-2.5-flash';
+            continue;
+          } else {
+            // Even gemini-2.5-flash failed with 404 - this shouldn't happen
+            console.error('❌ CRITICAL: gemini-2.5-flash returned 404. Check API key permissions.');
             break;
           }
         }
+        
+        // If 429 (rate limit), try next model in fallback chain
+        if (response.status === 429) {
+          console.log(`⚠️ Rate limit (429) on ${model}, trying next fallback...`);
+          modelIndex++;
+          continue;
+        }
+        
+        // For other errors (auth, etc), stop trying
+        console.log(`⚠️ Non-404/429 error (${response.status}), stopping retries`);
+        break;
+        
       } catch (fetchError) {
-        console.error(`❌ Fetch error for ${config.name}:`, fetchError);
+        console.error(`❌ Fetch error for ${model}:`, fetchError);
         lastError = fetchError;
+        modelIndex++;
         continue;
       }
     }
@@ -199,15 +219,17 @@ Use conversational but professional tone. Be encouraging but honest.`;
       }
       
       console.error('❌ All Gemini models failed. Using fallback.');
+      console.error('❌ Last error:', JSON.stringify(lastError, null, 2));
       
       // Return fallback if API fails
       return res.status(200).json({
         insights: generateFallbackInsights(userProfile, product, insightType, garmentDimensions),
         source: 'fallback',
+        modelUsed: null,
         error: `All Gemini models failed. Last error: ${lastError?.status || 'Unknown'}`,
         errorDetails: errorJson || errorText.substring(0, 200),
         isQuotaError: quotaError,
-        triedModels: modelConfigs.map(c => c.name)
+        triedModels: models
       });
     }
 
@@ -232,9 +254,12 @@ Use conversational but professional tone. Be encouraging but honest.`;
     
     console.log('✅ Parsed insights:', JSON.stringify(insights, null, 2));
     
+    console.log(`✅ Final model used: ${usedModel}`);
+    
     return res.status(200).json({
       insights,
-      source: usedModel || 'gemini',
+      source: 'gemini',
+      modelUsed: usedModel, // Include which model was actually used
       rawResponse: aiResponse.substring(0, 100) // Include snippet for debugging
     });
 
