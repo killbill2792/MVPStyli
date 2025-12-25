@@ -1,5 +1,6 @@
 // api/ai-insights/index.ts
-// Uses Google Gemini Pro to generate personalized outfit insights based on user profile and product
+// Uses Google Gemini API (v1) with gemini-2.0-flash-exp (free tier) to generate personalized outfit insights
+// Falls back to gemini-2.5-flash or gemini-pro if needed
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
@@ -91,13 +92,14 @@ Give specific, actionable advice based on the user's profile. Be direct and help
 Always explain WHY something works or doesn't work for their specific body type/coloring.
 Use conversational but professional tone. Be encouraging but honest.`;
     
-    // Gemini API endpoint - Using gemini-pro (stable production model)
-    // Available models: gemini-pro, gemini-1.5-pro, gemini-1.5-flash-latest
-    // For v1beta API, use: gemini-pro or gemini-1.5-pro
-    const model = 'gemini-pro'; // Standard stable model for v1beta API
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+    // Gemini API endpoint - Using v1 API with gemini-2.0-flash-exp (free tier, experimental)
+    // For newer models (2.0+), use v1 API, not v1beta
+    // Available models in v1: gemini-2.0-flash-exp, gemini-2.5-flash, gemini-2.5-pro
+    // Try gemini-2.0-flash-exp first (free tier), fallback to gemini-2.5-flash if needed
+    const model = 'gemini-2.0-flash-exp'; // Free tier experimental model
+    let apiUrl = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
     
-    console.log('🔵 Calling Gemini API:', model);
+    console.log('🔵 Calling Gemini API (v1):', model);
     console.log('🔵 API Key present:', !!GEMINI_API_KEY, 'Length:', GEMINI_API_KEY?.length || 0);
     console.log('🔵 API URL:', apiUrl.replace(GEMINI_API_KEY, 'KEY_HIDDEN'));
     
@@ -125,15 +127,15 @@ Use conversational but professional tone. Be encouraging but honest.`;
       })
     });
 
+    // If v1 fails with 404, try v1beta with gemini-pro
     if (!response.ok) {
-      let errorText = '';
+      const errorText = await response.text();
       let errorJson = null;
       
       try {
-        errorText = await response.text();
         errorJson = JSON.parse(errorText);
       } catch (e) {
-        // Not JSON, use text as is
+        // Not JSON, continue
       }
       
       console.error('❌ Gemini API error:', response.status);
@@ -142,23 +144,99 @@ Use conversational but professional tone. Be encouraging but honest.`;
         console.error('❌ Parsed error:', JSON.stringify(errorJson, null, 2));
       }
       
-      // Check for specific quota errors
-      const quotaError = errorText.includes('quota') || errorText.includes('QUOTA') || 
-                        errorText.includes('429') || errorText.includes('rate limit');
-      
-      if (quotaError) {
-        console.error('⚠️ QUOTA ERROR DETECTED - Check Google Cloud Console for quota limits');
-        console.error('⚠️ Make sure billing is enabled and quota limits are set correctly');
+      // If 404, try alternative models/endpoints
+      if (response.status === 404) {
+        // Try gemini-2.5-flash in v1
+        console.log('⚠️ Model not found, trying gemini-2.5-flash...');
+        const altModel = 'gemini-2.5-flash';
+        apiUrl = `https://generativelanguage.googleapis.com/v1/models/${altModel}:generateContent?key=${GEMINI_API_KEY}`;
+        console.log('🔵 Trying alternative model:', altModel);
+        
+        response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: `${systemInstruction}\n\n${prompt}`
+                  }
+                ]
+              }
+            ],
+            generationConfig: {
+              temperature: 0.9,
+              maxOutputTokens: 800,
+              topP: 0.95,
+              topK: 50
+            }
+          })
+        });
+        
+        // If still 404, try v1beta with gemini-pro as last resort
+        if (!response.ok && response.status === 404) {
+          console.log('⚠️ Still 404, trying v1beta with gemini-pro...');
+          const fallbackModel = 'gemini-pro';
+          apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${fallbackModel}:generateContent?key=${GEMINI_API_KEY}`;
+          console.log('🔵 Trying fallback (v1beta):', fallbackModel);
+          
+          response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    {
+                      text: `${systemInstruction}\n\n${prompt}`
+                    }
+                  ]
+                }
+              ],
+              generationConfig: {
+                temperature: 0.9,
+                maxOutputTokens: 800,
+                topP: 0.95,
+                topK: 50
+              }
+            })
+          });
+        }
       }
       
-      // Return fallback if API fails
-      return res.status(200).json({
-        insights: generateFallbackInsights(userProfile, product, insightType, garmentDimensions),
-        source: 'fallback',
-        error: `Gemini API error: ${response.status}`,
-        errorDetails: errorJson || errorText.substring(0, 200),
-        isQuotaError: quotaError
-      });
+      // If still not ok after all retries, return fallback
+      if (!response.ok) {
+        const finalErrorText = await response.text();
+        let finalErrorJson = null;
+        try {
+          finalErrorJson = JSON.parse(finalErrorText);
+        } catch (e) {
+          // Not JSON
+        }
+        
+        // Check for specific quota errors
+        const quotaError = finalErrorText.includes('quota') || finalErrorText.includes('QUOTA') || 
+                          finalErrorText.includes('429') || finalErrorText.includes('rate limit');
+        
+        if (quotaError) {
+          console.error('⚠️ QUOTA ERROR DETECTED - Check Google Cloud Console for quota limits');
+          console.error('⚠️ Make sure billing is enabled and quota limits are set correctly');
+        }
+        
+        // Return fallback if API fails
+        return res.status(200).json({
+          insights: generateFallbackInsights(userProfile, product, insightType, garmentDimensions),
+          source: 'fallback',
+          error: `Gemini API error: ${response.status}`,
+          errorDetails: finalErrorJson || finalErrorText.substring(0, 200),
+          isQuotaError: quotaError
+        });
+      }
     }
 
     const data = await response.json();
@@ -181,9 +259,14 @@ Use conversational but professional tone. Be encouraging but honest.`;
     
     console.log('✅ Parsed insights:', JSON.stringify(insights, null, 2));
     
+    // Determine which model was used based on the final API URL
+    const usedModel = apiUrl.includes('gemini-2.0-flash-exp') ? 'gemini-2.0-flash-exp' :
+                     apiUrl.includes('gemini-2.5-flash') ? 'gemini-2.5-flash' :
+                     apiUrl.includes('gemini-pro') ? 'gemini-pro' : 'unknown';
+    
     return res.status(200).json({
       insights,
-      source: 'gemini-pro',
+      source: usedModel,
       rawResponse: aiResponse.substring(0, 100) // Include snippet for debugging
     });
 
