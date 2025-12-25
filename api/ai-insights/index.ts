@@ -91,12 +91,13 @@ Give specific, actionable advice based on the user's profile. Be direct and help
 Always explain WHY something works or doesn't work for their specific body type/coloring.
 Use conversational but professional tone. Be encouraging but honest.`;
     
-    // Gemini API endpoint - Production: Using Gemini 2.5 Flash Lite (stable production model)
-    // This is the production-ready 2.5 Flash Lite model
-    const model = 'gemini-2.5-flash-lite';
+    // Gemini API endpoint - Using Gemini 1.5 Flash (stable production model)
+    // Correct model names: gemini-pro, gemini-1.5-pro, gemini-1.5-flash, gemini-2.0-flash-exp
+    const model = 'gemini-1.5-flash'; // Changed from incorrect model name
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
     
-    console.log('🔵 Calling Gemini API (Production):', model);
+    console.log('🔵 Calling Gemini API:', model);
+    console.log('🔵 API Key present:', !!GEMINI_API_KEY, 'Length:', GEMINI_API_KEY?.length || 0);
     
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -123,16 +124,38 @@ Use conversational but professional tone. Be encouraging but honest.`;
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Gemini API error:', response.status, errorText);
-      console.error('❌ Full error response:', errorText.substring(0, 500));
+      let errorText = '';
+      let errorJson = null;
+      
+      try {
+        errorText = await response.text();
+        errorJson = JSON.parse(errorText);
+      } catch (e) {
+        // Not JSON, use text as is
+      }
+      
+      console.error('❌ Gemini API error:', response.status);
+      console.error('❌ Error response:', errorText.substring(0, 500));
+      if (errorJson) {
+        console.error('❌ Parsed error:', JSON.stringify(errorJson, null, 2));
+      }
+      
+      // Check for specific quota errors
+      const quotaError = errorText.includes('quota') || errorText.includes('QUOTA') || 
+                        errorText.includes('429') || errorText.includes('rate limit');
+      
+      if (quotaError) {
+        console.error('⚠️ QUOTA ERROR DETECTED - Check Google Cloud Console for quota limits');
+        console.error('⚠️ Make sure billing is enabled and quota limits are set correctly');
+      }
       
       // Return fallback if API fails
       return res.status(200).json({
         insights: generateFallbackInsights(userProfile, product, insightType, garmentDimensions),
         source: 'fallback',
         error: `Gemini API error: ${response.status}`,
-        errorDetails: errorText.substring(0, 200)
+        errorDetails: errorJson || errorText.substring(0, 200),
+        isQuotaError: quotaError
       });
     }
 
@@ -158,7 +181,7 @@ Use conversational but professional tone. Be encouraging but honest.`;
     
     return res.status(200).json({
       insights,
-      source: 'gemini-2.5-flash-lite',
+      source: 'gemini-1.5-flash',
       rawResponse: aiResponse.substring(0, 100) // Include snippet for debugging
     });
 
