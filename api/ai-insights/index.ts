@@ -170,10 +170,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const prompt = buildOptimizedPrompt(userProfile, product, insightType, garmentDimensions);
     const systemInstruction = `You are a professional fashion stylist. Give specific, actionable advice. Be direct and concise.`;
     
-    // Use single cheapest model: gemini-2.0-flash-lite first, then gemini-2.0-flash
+    // Use confirmed available models: gemini-2.5-flash (cheapest), then gemini-2.0-flash
     const models = [
-      'gemini-2.0-flash-lite',  // Cheapest + fastest
-      'gemini-2.0-flash',        // Fallback if lite not available
+      'gemini-2.5-flash',  // Confirmed available, cheapest
+      'gemini-2.0-flash',  // Fallback
     ];
     
     const requestBody = {
@@ -192,6 +192,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     
     console.log('🔵 Calling Gemini API with model:', models[0]);
     console.log('🔵 Prompt length:', prompt.length, 'chars');
+    console.log('🔵 API Key format check - starts with AIza:', GEMINI_API_KEY.startsWith('AIza'));
+    console.log('🔵 Full API URL (key hidden):', `https://generativelanguage.googleapis.com/v1beta/models/${models[0]}:generateContent?key=***`);
     
     let response: Response | null = null;
     let usedModel = models[0];
@@ -231,10 +233,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         console.log(`❌ Model ${model} failed: ${response.status}`);
         if (errorJson?.error?.message) {
-          console.log(`   Error: ${errorJson.error.message.substring(0, 150)}`);
+          console.log(`   Error: ${errorJson.error.message}`);
+        } else {
+          console.log(`   Error text: ${errorText.substring(0, 200)}`);
         }
         
         lastError = { status: response.status, error: errorJson || errorText, model };
+        
+        // Handle 400 - could be invalid API key or invalid model
+        if (response.status === 400) {
+          const errorMsg = errorJson?.error?.message || errorText || '';
+          if (errorMsg.includes('API Key') || errorMsg.includes('API key') || errorMsg.includes('key')) {
+            console.error('❌ API Key issue detected. Check:');
+            console.error('   1. Key is valid and not expired');
+            console.error('   2. Key has Gemini API enabled in Google Cloud Console');
+            console.error('   3. Key has correct permissions');
+            // Try next model in case it's a model-specific issue
+            if (modelIndex < models.length - 1) {
+              console.log(`⚠️ Trying next model in case it's model-specific...`);
+              modelIndex++;
+              retryCount = 0;
+              continue;
+            } else {
+              // All models failed with 400 - likely API key issue
+              break;
+            }
+          } else {
+            // 400 but not about API key - might be invalid model or request format
+            console.log(`⚠️ 400 error (not API key related), trying next model...`);
+            modelIndex++;
+            retryCount = 0;
+            continue;
+          }
+        }
         
         // Handle 429 with retry and backoff
         if (response.status === 429) {
@@ -261,7 +292,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
         
         // For other errors, stop trying
-        console.log(`⚠️ Non-404/429 error (${response.status}), stopping`);
+        console.log(`⚠️ Non-400/404/429 error (${response.status}), stopping`);
         break;
         
       } catch (fetchError) {
