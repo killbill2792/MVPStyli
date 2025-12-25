@@ -30,6 +30,9 @@ const AskAISheet = ({ visible, onClose, product }) => {
   const [fitAdvice, setFitAdvice] = useState(null);
   const [sizeAdvice, setSizeAdvice] = useState(null);
   const [styleAdvice, setStyleAdvice] = useState(null);
+  const [isCached, setIsCached] = useState(false);
+  const [isRequesting, setIsRequesting] = useState(false); // Client-side throttling
+  const requestInProgress = useRef(false); // Prevent multiple simultaneous requests
 
   // Pan responder for drag-to-dismiss - ONLY on the header area
   const panResponder = useRef(
@@ -102,8 +105,17 @@ const AskAISheet = ({ visible, onClose, product }) => {
     });
   };
 
-  const loadInsights = async () => {
+  const loadInsights = async (forceRefresh = false) => {
+    // Client-side throttling: prevent multiple simultaneous requests
+    if (requestInProgress.current && !forceRefresh) {
+      console.log('⏳ Request already in progress, please wait...');
+      return;
+    }
+    
+    requestInProgress.current = true;
     setLoading(true);
+    setIsRequesting(true);
+    setIsCached(false);
     
     try {
       // Load user's profile directly from Supabase to get latest measurements
@@ -144,7 +156,7 @@ const AskAISheet = ({ visible, onClose, product }) => {
       
       console.log('User profile for AI advice:', userProfile);
 
-      // Build product info
+      // Build product info with URL for caching
       const productInfo = {
         name: product?.name || 'Item',
         category: product?.category || inferCategory(product?.name),
@@ -154,6 +166,7 @@ const AskAISheet = ({ visible, onClose, product }) => {
         length: product?.length,
         price: product?.price,
         brand: product?.brand,
+        url: product?.url || product?.link || product?.product_link || product?.name, // For cache key
       };
 
       // Try to get AI-powered insights from API
@@ -161,63 +174,86 @@ const AskAISheet = ({ visible, onClose, product }) => {
       
       if (API_BASE) {
         try {
-          // Fetch fit advice from AI
-          const fitResponse = await fetch(`${API_BASE}/api/ai-insights`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userProfile, product: productInfo, insightType: 'fit' })
-          });
+          const requestBody = {
+            userProfile,
+            product: productInfo,
+            userId: user?.id, // Pass userId for rate limiting and caching
+            garment_id: product?.garment_id || product?.id, // If available
+          };
           
+          // Fetch all three insights in parallel
+          const [fitResponse, sizeResponse, styleResponse] = await Promise.all([
+            fetch(`${API_BASE}/api/ai-insights`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ...requestBody, insightType: 'fit' })
+            }),
+            fetch(`${API_BASE}/api/ai-insights`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ...requestBody, insightType: 'size' })
+            }),
+            fetch(`${API_BASE}/api/ai-insights`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ...requestBody, insightType: 'style' })
+            })
+          ]);
+          
+          // Handle fit response
           if (fitResponse.ok) {
             const fitData = await fitResponse.json();
-            console.log('📊 Fit response source:', fitData.source);
-            console.log('📊 Fit response error:', fitData.error);
+            console.log('📊 Fit response - cached:', fitData.cached, 'source:', fitData.source);
+            if (fitData.cached) setIsCached(true);
             if (fitData.insights) {
               setFitAdvice(fitData.insights);
-              console.log('✅ AI fit insights loaded from:', fitData.source);
-            } else {
-              console.warn('⚠️ No insights in fit response:', fitData);
+            } else if (fitData.error) {
+              console.warn('⚠️ Fit API error:', fitData.error);
+              if (fitData.errorCode === 'API_KEY_MISSING') {
+                // Show user-friendly error
+                setFitAdvice({ 
+                  verdict: 'good_with_tweaks', 
+                  verdictText: 'API key not configured', 
+                  bodyAdvice: ['Please configure GEMINI_API_KEY in Vercel'], 
+                  colorAdvice: [], 
+                  hasEnoughData: false 
+                });
+              }
             }
+          } else if (fitResponse.status === 429) {
+            const errorData = await fitResponse.json();
+            console.warn('⚠️ Rate limited:', errorData.message);
+            alert(errorData.message || 'Please wait a moment before trying again.');
           } else {
             const errorText = await fitResponse.text();
             console.error('❌ Fit API error:', fitResponse.status, errorText);
           }
           
-          // Fetch size advice from AI
-          const sizeResponse = await fetch(`${API_BASE}/api/ai-insights`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userProfile, product: productInfo, insightType: 'size' })
-          });
-          
+          // Handle size response
           if (sizeResponse.ok) {
             const sizeData = await sizeResponse.json();
-            console.log('📊 Size response source:', sizeData.source);
+            console.log('📊 Size response - cached:', sizeData.cached);
+            if (sizeData.cached) setIsCached(true);
             if (sizeData.insights) {
               setSizeAdvice(sizeData.insights);
-            } else {
-              console.warn('⚠️ No insights in size response:', sizeData);
             }
+          } else if (sizeResponse.status === 429) {
+            // Already handled above
           } else {
             const errorText = await sizeResponse.text();
             console.error('❌ Size API error:', sizeResponse.status, errorText);
           }
           
-          // Fetch style advice from AI
-          const styleResponse = await fetch(`${API_BASE}/api/ai-insights`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userProfile, product: productInfo, insightType: 'style' })
-          });
-          
+          // Handle style response
           if (styleResponse.ok) {
             const styleData = await styleResponse.json();
-            console.log('📊 Style response source:', styleData.source);
+            console.log('📊 Style response - cached:', styleData.cached);
+            if (styleData.cached) setIsCached(true);
             if (styleData.insights) {
               setStyleAdvice(styleData.insights);
-            } else {
-              console.warn('⚠️ No insights in style response:', styleData);
             }
+          } else if (styleResponse.status === 429) {
+            // Already handled above
           } else {
             const errorText = await styleResponse.text();
             console.error('❌ Style API error:', styleResponse.status, errorText);
@@ -241,6 +277,8 @@ const AskAISheet = ({ visible, onClose, product }) => {
       setStyleAdvice({ bestFor: ['Versatile'], stylingTips: ['Style as desired'], occasions: [] });
     } finally {
       setLoading(false);
+      setIsRequesting(false);
+      requestInProgress.current = false;
     }
   };
   
@@ -308,9 +346,25 @@ const AskAISheet = ({ visible, onClose, product }) => {
               <Text style={{ fontSize: 24 }}>✨</Text>
             </View>
             <Text style={styles.headerTitle}>AI Style Insights</Text>
-            <Pressable style={styles.closeBtn} onPress={closeSheet}>
-              <Text style={styles.closeBtnText}>✕</Text>
-            </Pressable>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {isCached && (
+                <>
+                  <Pressable 
+                    onPress={() => loadInsights(true)}
+                    style={{ padding: 4 }}
+                    disabled={isRequesting}
+                  >
+                    <Text style={{ fontSize: 16 }}>🔄</Text>
+                  </Pressable>
+                  <Text style={{ fontSize: 10, color: '#666', fontStyle: 'italic' }}>
+                    Cached
+                  </Text>
+                </>
+              )}
+              <Pressable style={styles.closeBtn} onPress={closeSheet}>
+                <Text style={styles.closeBtnText}>✕</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
 
@@ -325,7 +379,9 @@ const AskAISheet = ({ visible, onClose, product }) => {
           {loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#6366f1" />
-              <Text style={styles.loadingText}>Analyzing your perfect fit...</Text>
+              <Text style={styles.loadingText}>
+                {isRequesting ? 'Analyzing your perfect fit...' : 'Please wait...'}
+              </Text>
             </View>
           ) : (
             <>
