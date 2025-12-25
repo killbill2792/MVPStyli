@@ -218,3 +218,5 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 SELECT '✅ Style Engine Setup Complete' as status;
 
 
+
+

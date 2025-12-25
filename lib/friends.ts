@@ -44,12 +44,12 @@ export async function getUserFriends(userId: string): Promise<Friend[]> {
   if (!userId) return [];
   
   try {
-    // Query friends where THIS user is the user_id (to get their friends)
+    // Query friends where THIS user is EITHER user_id OR friend_id (bidirectional)
+    // This ensures we find friends regardless of who sent the request
     const { data, error } = await supabase
       .from('friends')
       .select('*')
-      .eq('user_id', userId)
-      .eq('status', 'accepted');
+      .or(`and(user_id.eq.${userId},status.eq.accepted),and(friend_id.eq.${userId},status.eq.accepted)`);
 
     if (error) {
       if (error.message?.includes('does not exist') || error.code === '42P01' || error.code === 'PGRST205') {
@@ -64,8 +64,10 @@ export async function getUserFriends(userId: string): Promise<Friend[]> {
       return [];
     }
 
-    // Get unique friend IDs
-    const friendIds = [...new Set(data.map((f: any) => f.friend_id))];
+    // Get unique friend IDs (handle bidirectional: friend could be user_id or friend_id)
+    const friendIds = [...new Set(data.map((f: any) => 
+      f.user_id === userId ? f.friend_id : f.user_id
+    ))];
 
     // Fetch friend profiles
     const { data: profiles } = await supabase
@@ -81,14 +83,19 @@ export async function getUserFriends(userId: string): Promise<Friend[]> {
     };
 
     // Transform to normalized friend data - deduplicated
+    // Handle bidirectional friendships: if user_id=userId, friend_id is the friend
+    // If friend_id=userId, user_id is the friend
     const seenIds = new Set<string>();
     const friends: Friend[] = [];
     
     for (const f of data) {
-      if (seenIds.has(f.friend_id)) continue;
-      seenIds.add(f.friend_id);
+      // Determine which ID is the friend
+      const friendId = f.user_id === userId ? f.friend_id : f.user_id;
       
-      const profile = profiles?.find((p: any) => p.id === f.friend_id);
+      if (seenIds.has(friendId)) continue;
+      seenIds.add(friendId);
+      
+      const profile = profiles?.find((p: any) => p.id === friendId);
       const email = profile?.email || '';
       
       // Try to get name from: 1) profile.name, 2) known users, 3) email prefix
@@ -100,8 +107,8 @@ export async function getUserFriends(userId: string): Promise<Friend[]> {
       
       friends.push({
         id: f.id,
-        user_id: f.user_id,
-        friend_id: f.friend_id,
+        user_id: userId, // Always set to current user for consistency
+        friend_id: friendId,
         friend_name: displayName || 'Friend',
         friend_email: email,
         friend_avatar: profile?.avatar_url || null,
@@ -270,6 +277,28 @@ export async function addFriend(userId: string, friendIdentifier: string, type: 
     return result.success;
   } catch (error) {
     console.error('Error adding friend:', error);
+    return false;
+  }
+}
+
+// Remove/unfriend a friend (deletes friendship from both sides)
+export async function unfriend(userId: string, friendId: string): Promise<boolean> {
+  try {
+    // Delete both directions of the friendship
+    // 1. Delete where user_id = userId and friend_id = friendId
+    const { error: error1 } = await supabase
+      .from('friends')
+      .delete()
+      .or(`and(user_id.eq.${userId},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${userId})`);
+    
+    if (error1) {
+      console.error('Error unfriending:', error1);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error unfriending:', error);
     return false;
   }
 }

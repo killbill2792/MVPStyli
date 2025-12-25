@@ -83,6 +83,11 @@ const PodRecap = ({ podId, onBack, onStyleCraft, onShopSimilar, onViewProduct, o
     }
   }, [podId]);
 
+  // Re-render when voterProfiles are updated to show names
+  useEffect(() => {
+    // Force re-render when profiles are loaded
+  }, [voterProfiles, votes.length]);
+
   const loadPodData = async () => {
     if (!podId || podId === 'undefined' || podId.length < 30) {
       console.error('Cannot load pod data - invalid podId:', podId);
@@ -100,25 +105,54 @@ const PodRecap = ({ podId, onBack, onStyleCraft, onShopSimilar, onViewProduct, o
 
     // For Friends pods, fetch voter and commenter profiles
     if (podData?.audience === 'friends') {
-      const voterIds = [...new Set(votesData.map(v => v.voter_id).filter(Boolean))];
-      const commenterIds = [...new Set(commentsData.map(c => c.author_id).filter(Boolean))];
-      const allUserIds = [...new Set([...voterIds, ...commenterIds])];
+      // Extract ONLY app user voter_ids (NOT guests)
+      // App users: have voter_id AND (guest_id is null/undefined AND guest_name is null/undefined)
+      const appVotes = votesData.filter(v => 
+        v.voter_id && 
+        (v.guest_id === null || v.guest_id === undefined) && 
+        (v.guest_name === null || v.guest_name === undefined)
+      );
+      const voterIds = [...new Set(appVotes.map(v => v.voter_id).filter(Boolean))];
       
-      if (allUserIds.length > 0) {
-        const { data: profiles } = await supabase
+      // Extract app user commenter IDs (NOT guest comments)
+      const appComments = commentsData.filter(c => 
+        c.author_id && 
+        !c.id?.startsWith('guest-') && 
+        !c.guest_name
+      );
+      const commenterIds = [...new Set(appComments.map(c => c.author_id).filter(Boolean))];
+      
+      // Combine app user IDs only (NO guest data)
+      const allAppUserIds = [...new Set([...voterIds, ...commenterIds])];
+      
+      if (allAppUserIds.length > 0) {
+        try {
+          const { data: profiles, error: profileError } = await supabase
           .from('profiles')
           .select('id, name, email, avatar_url')
-          .in('id', allUserIds);
+            .in('id', allAppUserIds);
+          
+          if (profileError) {
+            console.error('Error fetching profiles:', profileError);
+          }
         
         const profileMap = {};
         (profiles || []).forEach(p => {
-          profileMap[p.id] = {
-            name: p.name || p.email?.split('@')[0] || 'Friend',
+            const profileId = String(p.id);
+            const profileName = p.name || p.email?.split('@')[0] || 'Friend';
+            const profileData = {
+              name: profileName,
             avatar: p.avatar_url,
           };
+            profileMap[profileId] = profileData;
+            profileMap[p.id] = profileData; // Also store with UUID format
         });
+          
         setVoterProfiles(profileMap);
         setCommenterProfiles(profileMap);
+        } catch (error) {
+          console.error('Exception in profile query:', error);
+        }
       }
     }
   };
@@ -199,26 +233,48 @@ const PodRecap = ({ podId, onBack, onStyleCraft, onShopSimilar, onViewProduct, o
                 <Text style={styles.sectionTitle}>Who Voted What</Text>
                 <View style={styles.friendVotesGrid}>
                     {votes.slice(0, 10).map((vote, idx) => {
-                        const profile = voterProfiles[vote.voter_id] || {};
+                        // FIX: Handle both app votes (voter_id) and guest votes (guest_name)
+                        let displayName = 'Friend';
+                        let displayAvatar = null;
+                        let isGuest = false;
+                        
+                        if (vote.voter_id && !vote.guest_id) {
+                            // App user vote - Try multiple formats for lookup
+                            const voterIdStr = String(vote.voter_id);
+                            const profile = voterProfiles[voterIdStr] || 
+                                          voterProfiles[vote.voter_id] || 
+                                          voterProfiles[voterIdStr.trim()] ||
+                                          {};
+                            displayName = profile.name || 'Friend';
+                            displayAvatar = profile.avatar;
+                        } else if (vote.guest_name || vote.guest_id) {
+                            // Guest vote
+                            displayName = vote.guest_name;
+                            isGuest = true;
+                        }
+                        
                         const emoji = vote.choice === 'yes' ? '🔥' : vote.choice === 'maybe' ? '🤔' : '❌';
                         return (
                             <Pressable 
                                 key={vote.id || idx} 
                                 style={styles.friendVoteItem}
                                 onPress={() => {
-                                    if (vote.voter_id && onUserProfile) {
+                                    if (vote.voter_id && onUserProfile && !isGuest) {
                                         onUserProfile(vote.voter_id);
                                     }
                                 }}
                             >
-                                {profile.avatar ? (
-                                    <SafeImage source={{ uri: profile.avatar }} style={styles.friendAvatar} />
+                                {displayAvatar ? (
+                                    <SafeImage source={{ uri: displayAvatar }} style={styles.friendAvatar} />
                                 ) : (
                                     <View style={styles.friendAvatarPlaceholder}>
-                                        <Text style={styles.friendAvatarText}>{(profile.name || 'F')[0]}</Text>
+                                        <Text style={styles.friendAvatarText}>{(displayName || 'F')[0]}</Text>
                                     </View>
                                 )}
-                                <Text style={styles.friendName}>{profile.name || 'Friend'}</Text>
+                                <Text style={styles.friendName}>
+                                    {displayName}
+                                    {isGuest && <Text style={{ fontSize: 10, color: '#9ca3af' }}> (Guest)</Text>}
+                                </Text>
                                 <Text style={styles.friendVoteEmoji}>{emoji}</Text>
                             </Pressable>
                         );
@@ -232,26 +288,31 @@ const PodRecap = ({ podId, onBack, onStyleCraft, onShopSimilar, onViewProduct, o
             <View style={styles.commentsSection}>
                 <Text style={styles.sectionTitle}>Comments (Only you can see these)</Text>
                 {comments.slice(0, 5).map(c => {
-                    const profile = commenterProfiles[c.author_id] || {};
+                    // Try multiple formats for profile lookup
+                    const authorIdStr = c.author_id ? String(c.author_id) : null;
+                    const profile = authorIdStr ? (commenterProfiles[authorIdStr] || commenterProfiles[c.author_id] || {}) : {};
+                    const isGuestComment = c.id?.startsWith('guest-') || c.guest_name || !c.author_id;
+                    const displayName = isGuestComment ? (c.guest_name || 'Guest') : (profile.name || 'Friend');
+                    
                     return (
                         <View key={c.id} style={styles.commentCard}>
-                            <Pressable 
-                                style={styles.commentHeader}
-                                onPress={() => {
-                                    if (c.author_id && onUserProfile) {
-                                        onUserProfile(c.author_id);
-                                    }
-                                }}
-                            >
-                                {profile.avatar ? (
+                            <View style={styles.commentHeader}>
+                                {!isGuestComment && profile.avatar ? (
                                     <SafeImage source={{ uri: profile.avatar }} style={styles.commentAvatar} />
-                                ) : (
+                                ) : !isGuestComment ? (
                                     <View style={styles.commentAvatarPlaceholder}>
                                         <Text style={styles.commentAvatarText}>{(profile.name || 'F')[0]}</Text>
                                     </View>
+                                ) : (
+                                    <View style={styles.commentAvatarPlaceholder}>
+                                        <Text style={styles.commentAvatarText}>G</Text>
+                                    </View>
                                 )}
-                                <Text style={styles.commentAuthor}>{profile.name || 'Friend'}</Text>
-                            </Pressable>
+                                <Text style={styles.commentAuthor}>
+                                    {displayName}
+                                    {isGuestComment && <Text style={{ fontSize: 11, color: '#9ca3af', marginLeft: 4 }}>(Guest)</Text>}
+                                </Text>
+                            </View>
                             <Text style={styles.commentBody}>"{c.body}"</Text>
                         </View>
                     );

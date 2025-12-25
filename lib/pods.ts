@@ -40,6 +40,7 @@ export interface PodComment {
   author_id: string;
   body: string;
   created_at: string;
+  guest_name?: string; // For guest comments from web voting
 }
 
 export interface PodInvite {
@@ -221,6 +222,7 @@ export const submitVote = async (
 // Get comments for a pod
 // FIX: For friends pods, comments are private to pod owner only
 // For other audiences, comments are visible to all participants
+// Also includes guest comments from pod_votes for friends pods
 export const getPodComments = async (podId: string, viewerId?: string): Promise<PodComment[]> => {
   try {
     // First get the pod to check audience
@@ -237,15 +239,44 @@ export const getPodComments = async (podId: string, viewerId?: string): Promise<
       return [];
     }
     
-    // For other audiences or if viewer is owner, show all comments
-    const { data, error } = await supabase
+    // Get regular comments from pod_comments
+    const { data: comments, error } = await supabase
       .from('pod_comments')
       .select('*')
       .eq('pod_id', podId)
       .order('created_at', { ascending: true });
 
     if (error) throw error;
-    return data || [];
+    
+    // For friends pods, also get guest comments from pod_votes
+    if (pod.audience === 'friends' && viewerId === pod.owner_id) {
+      const { data: votes } = await supabase
+        .from('pod_votes')
+        .select('id, pod_id, guest_name, guest_comment, created_at, from_user_id')
+        .eq('pod_id', podId)
+        .not('guest_comment', 'is', null);
+      
+      // Convert guest votes with comments to comment format
+      const guestComments = (votes || [])
+        .filter(v => v.guest_comment && v.guest_comment.trim().length > 0)
+        .map(v => ({
+          id: `guest-${v.id}`,
+          pod_id: v.pod_id,
+          author_id: v.from_user_id || 'guest', // Use from_user_id if available
+          body: v.guest_comment,
+          created_at: v.created_at,
+          guest_name: v.guest_name, // Store guest name for display
+        }));
+      
+      // Combine regular comments and guest comments, sort by created_at
+      const allComments = [...(comments || []), ...guestComments].sort((a, b) => 
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
+      
+      return allComments;
+    }
+    
+    return comments || [];
   } catch (error) {
     console.error('Error fetching pod comments:', error);
     return [];
@@ -710,13 +741,13 @@ export const getFriendsTabPods = async (userId: string): Promise<Pod[]> => {
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     
     const { data: pods, error } = await supabase
-      .from('pods')
-      .select('*')
+        .from('pods')
+        .select('*')
       .in('id', allPodIds)
       .eq('audience', 'friends') // Only friends audience
-      .neq('owner_id', userId) // Don't show my own pods
+        .neq('owner_id', userId) // Don't show my own pods
       .or(`status.eq.live,ends_at.gte.${sevenDaysAgo.toISOString()}`) // Live or ended in last 7 days
-      .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false });
 
     if (error) throw error;
     return enrichPodsWithOwner(pods || []);

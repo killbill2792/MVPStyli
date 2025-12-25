@@ -363,7 +363,7 @@ const PodsScreen = ({ onBack, onCreatePod, userId, userName, params }) => {
         // Extract category
         productCategory = product.category || product.product_category || null;
       }
-      
+
       const podData = {
         owner_id: userId,
         image_url: imageData, // Can be single URL or JSON array

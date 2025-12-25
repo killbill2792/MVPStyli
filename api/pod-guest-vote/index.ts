@@ -137,6 +137,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(500).json({ error: 'Failed to record vote', details: insertError.message });
     }
 
+    // FIX: If guest_comment is provided for friends pods, store it in pod_comments
+    // Note: pod_comments requires author_id (UUID), so we'll use from_user_id if available
+    // Otherwise, guest comments will be accessible via pod_votes.guest_comment
+    if (guest_comment && typeof guest_comment === 'string' && guest_comment.trim().length > 0 && aud === 'friends') {
+      try {
+        // For friends pods, try to create a comment entry
+        // Use from_user_id as author_id if available (the person who shared the link)
+        // This makes the comment visible to the pod owner
+        if (from_user_id) {
+          const commentData = {
+            pod_id: podId,
+            author_id: from_user_id, // Use the sharer's ID as author
+            body: `[Guest: ${guest_name || 'Anonymous'}] ${guest_comment.trim()}`,
+          };
+          
+          const { error: commentError } = await supabase
+            .from('pod_comments')
+            .insert(commentData);
+          
+          if (commentError) {
+            console.log('Could not create comment entry (non-critical):', commentError);
+            // Non-critical - comment is already in vote record
+          }
+        }
+      } catch (commentError) {
+        // Non-critical - comment is already in vote record
+        console.log('Could not create separate comment entry (non-critical):', commentError);
+      }
+    }
+
     return res.status(200).json({ 
       success: true, 
       message: 'Vote recorded successfully',

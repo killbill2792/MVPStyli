@@ -13,7 +13,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../lib/supabase';
 import { useApp } from '../lib/AppContext';
-import { sendFriendRequest, areFriends, hasSentFriendRequest } from '../lib/friends';
+import { sendFriendRequest, areFriends, hasSentFriendRequest, unfriend } from '../lib/friends';
 
 const { width } = Dimensions.get('window');
 
@@ -27,6 +27,7 @@ const UserProfileScreen = ({ userId, onBack, onPodGuest, onViewTryOn }) => {
   const [loading, setLoading] = useState(true);
   const [friendStatus, setFriendStatus] = useState('none'); // 'none', 'sent', 'friends'
   const [isSendingRequest, setIsSendingRequest] = useState(false);
+  const [showUnfriendDropdown, setShowUnfriendDropdown] = useState(false);
 
   useEffect(() => {
     if (userId) {
@@ -183,28 +184,66 @@ const UserProfileScreen = ({ userId, onBack, onPodGuest, onViewTryOn }) => {
           <Text style={styles.profileName}>{profile.name || 'User'}</Text>
           <Text style={styles.profileBio}>Style enthusiast</Text>
           
-          {/* Add Friend Button - Only show if viewing someone else's profile */}
+          {/* Add Friend / Friends Button - Only show if viewing someone else's profile */}
           {currentUser?.id && currentUser.id !== userId && (
-            <Pressable 
-              style={[
-                styles.addFriendButton,
-                friendStatus === 'friends' && styles.addFriendButtonFriends,
-                friendStatus === 'sent' && styles.addFriendButtonSent,
-                isSendingRequest && styles.addFriendButtonDisabled
-              ]}
-              onPress={handleAddFriend}
-              disabled={isSendingRequest || friendStatus === 'friends'}
-            >
-              {isSendingRequest ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.addFriendButtonText}>
-                  {friendStatus === 'friends' ? '✓ Friends' : 
-                   friendStatus === 'sent' ? 'Request Sent' : 
-                   '+ Add Friend'}
-                </Text>
+            <View style={{ position: 'relative', marginTop: 16 }}>
+              <Pressable 
+                style={[
+                  styles.addFriendButton,
+                  friendStatus === 'friends' && styles.addFriendButtonFriends,
+                  friendStatus === 'sent' && styles.addFriendButtonSent,
+                  isSendingRequest && styles.addFriendButtonDisabled
+                ]}
+                onPress={() => {
+                  if (friendStatus === 'friends') {
+                    setShowUnfriendDropdown(!showUnfriendDropdown);
+                  } else {
+                    handleAddFriend();
+                  }
+                }}
+                disabled={isSendingRequest}
+              >
+                {isSendingRequest ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={styles.addFriendButtonText}>
+                      {friendStatus === 'friends' ? '✓ Friends' : 
+                       friendStatus === 'sent' ? 'Request Sent' : 
+                       '+ Add Friend'}
+                    </Text>
+                    {friendStatus === 'friends' && (
+                      <Text style={styles.addFriendButtonText}>▼</Text>
+                    )}
+                  </View>
+                )}
+              </Pressable>
+              
+              {/* Unfriend Dropdown */}
+              {showUnfriendDropdown && friendStatus === 'friends' && (
+                <View style={styles.unfriendDropdown}>
+                  <Pressable
+                    style={styles.unfriendOption}
+                    onPress={async () => {
+                      if (currentUser?.id && userId) {
+                        try {
+                          const success = await unfriend(currentUser.id, userId);
+                          if (success) {
+                            setFriendStatus('none');
+                            setShowUnfriendDropdown(false);
+                            // Optionally show a success message
+                          }
+                        } catch (error) {
+                          console.error('Error unfriending:', error);
+                        }
+                      }
+                    }}
+                  >
+                    <Text style={styles.unfriendOptionText}>Unfriend</Text>
+                  </Pressable>
+                </View>
               )}
-            </Pressable>
+            </View>
           )}
         </View>
 
@@ -444,6 +483,29 @@ const styles = StyleSheet.create({
     color: '#888',
     fontSize: 14,
     textAlign: 'center',
+  },
+  unfriendDropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    marginTop: 8,
+    backgroundColor: 'rgba(0,0,0,0.95)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    overflow: 'hidden',
+    zIndex: 1000,
+  },
+  unfriendOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  unfriendOptionText: {
+    color: '#ef4444',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 

@@ -15,6 +15,8 @@ import {
   Share,
   InteractionManager,
   Linking,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -80,6 +82,32 @@ const getValidImageUri = (imageField) => {
 
 const { width } = Dimensions.get('window');
 
+// Reusable RowItem component for consistent UI
+const RowItem = ({ icon, title, subtitle, onPress, showChevron = true, rightContent }) => (
+  <Pressable 
+    style={styles.rowItem}
+    onPress={onPress}
+    disabled={!onPress}
+  >
+    <View style={styles.rowItemLeft}>
+      {icon && <Text style={styles.rowItemIcon}>{icon}</Text>}
+      <View style={styles.rowItemContent}>
+        <Text style={styles.rowItemTitle}>{title}</Text>
+        {subtitle && <Text style={styles.rowItemSubtitle}>{subtitle}</Text>}
+      </View>
+    </View>
+    {rightContent || (showChevron && <Text style={styles.rowItemChevron}>›</Text>)}
+  </Pressable>
+);
+
+// Section Card wrapper
+const SectionCard = ({ title, children, style }) => (
+  <View style={[styles.sectionCard, style]}>
+    {title && <Text style={styles.sectionCardTitle}>{title}</Text>}
+    {children}
+  </View>
+);
+
 const StyleVaultScreen = () => {
   const appContext = useApp();
   const { state, setRoute, setProcessingResult, setSavedFits, setUser, setBannerMessage, setBannerType, setCurrentProduct, setTwinUrl, setTryOnHistory } = appContext;
@@ -90,6 +118,15 @@ const StyleVaultScreen = () => {
     return <View style={{ flex: 1, backgroundColor: '#000' }} />;
   }
   const insets = useSafeAreaInsets();
+  
+  // Check if user is admin - only admin@stylit.ai should see admin section
+  const isAdmin = user?.email === 'admin@stylit.ai';
+  
+  // Debug: Log user email and admin status
+  useEffect(() => {
+    console.log('🔐 StyleVaultScreen - User email:', user?.email);
+    console.log('🔐 StyleVaultScreen - Is Admin:', isAdmin);
+  }, [user?.email, isAdmin]);
   
   // State
   const [username, setUsername] = useState(user?.name || 'Fashionista');
@@ -142,6 +179,12 @@ const StyleVaultScreen = () => {
   const [showFacePhotoGuidelines, setShowFacePhotoGuidelines] = useState(false);
   const [showBodyMeasurements, setShowBodyMeasurements] = useState(false); // Collapsible body measurements section
   const [showPhotoGuidelinesScreen, setShowPhotoGuidelinesScreen] = useState(false); // Support section guidelines
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false); // Separate Edit Profile modal
+  const [friendSearchInput, setFriendSearchInput] = useState(''); // Search input for friends
+  const [friendSearchResults, setFriendSearchResults] = useState([]); // Search results for friend search
+  const [isSearchingFriends, setIsSearchingFriends] = useState(false); // Loading state for friend search
+  const [sentRequests, setSentRequests] = useState([]); // Friend requests sent by user
+  const [receivedRequests, setReceivedRequests] = useState([]); // Friend requests received by user
 
   // Generate style summary for Identity section
   const getStyleSummary = () => {
@@ -483,9 +526,130 @@ const StyleVaultScreen = () => {
     try {
       const friendsList = await getUserFriends(user.id);
       setFriends(friendsList);
+      
+      // Get list of friend IDs (already accepted friends)
+      const friendIds = new Set(friendsList.map(f => f.friend_id));
+      
+      // Load sent friend requests (only pending, exclude already accepted)
+      const { data: sentData } = await supabase
+        .from('friends')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('status', 'pending');
+      
+      if (sentData && sentData.length > 0) {
+        // Filter out requests that are already in friends list
+        const filteredSent = sentData.filter(req => !friendIds.has(req.friend_id));
+        
+        if (filteredSent.length > 0) {
+          // Batch check reverse friendships for all sent requests
+          const friendIdsToCheck = filteredSent.map(req => req.friend_id);
+          const { data: reverseFriendships } = await supabase
+            .from('friends')
+            .select('user_id, friend_id')
+            .in('user_id', friendIdsToCheck)
+            .eq('friend_id', user.id)
+            .eq('status', 'accepted');
+          
+          // Create a set of friend IDs that have accepted
+          const acceptedFriendIds = new Set(
+            reverseFriendships?.map(rf => rf.user_id) || []
+          );
+          
+          // Separate into pending and accepted
+          const pendingSent = [];
+          const updates = [];
+          
+          for (const req of filteredSent) {
+            if (acceptedFriendIds.has(req.friend_id)) {
+              // This request has been accepted, mark for update
+              updates.push(req.id);
+            } else {
+              // Still pending
+              pendingSent.push(req);
+            }
+          }
+          
+          // Batch update all accepted requests
+          if (updates.length > 0) {
+            await supabase
+              .from('friends')
+              .update({ status: 'accepted' })
+              .in('id', updates);
+          }
+          
+          if (pendingSent.length > 0) {
+            const friendIdsToFetch = pendingSent.map(req => req.friend_id);
+            const { data: profiles } = await supabase
+              .from('profiles')
+              .select('id, name, email, avatar_url')
+              .in('id', friendIdsToFetch);
+            
+            const sent = pendingSent.map(req => {
+              const profile = profiles?.find(p => p.id === req.friend_id);
+              return {
+                id: req.id,
+                friend_id: req.friend_id,
+                friend_name: profile?.name || profile?.email?.split('@')[0] || 'User',
+                friend_email: profile?.email,
+                friend_avatar: profile?.avatar_url,
+                status: req.status,
+                created_at: req.created_at
+              };
+            });
+            setSentRequests(sent);
+          } else {
+            setSentRequests([]);
+          }
+        } else {
+          setSentRequests([]);
+        }
+      } else {
+        setSentRequests([]);
+      }
+      
+      // Load received friend requests (only pending, exclude already accepted)
+      const { data: receivedData } = await supabase
+        .from('friends')
+        .select('*')
+        .eq('friend_id', user.id)
+        .eq('status', 'pending');
+      
+      if (receivedData && receivedData.length > 0) {
+        // Filter out requests where we're already friends
+        const pendingReceived = receivedData.filter(req => !friendIds.has(req.user_id));
+        
+        if (pendingReceived.length > 0) {
+          const userIdsToFetch = pendingReceived.map(req => req.user_id);
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, name, email, avatar_url')
+            .in('id', userIdsToFetch);
+          
+          const received = pendingReceived.map(req => {
+            const profile = profiles?.find(p => p.id === req.user_id);
+            return {
+              id: req.id,
+              user_id: req.user_id,
+              friend_name: profile?.name || profile?.email?.split('@')[0] || 'User',
+              friend_email: profile?.email,
+              friend_avatar: profile?.avatar_url,
+              status: req.status,
+              created_at: req.created_at
+            };
+          });
+          setReceivedRequests(received);
+        } else {
+          setReceivedRequests([]);
+        }
+      } else {
+        setReceivedRequests([]);
+      }
     } catch (error) {
       console.error('Error loading friends:', error);
       setFriends([]);
+      setSentRequests([]);
+      setReceivedRequests([]);
     }
   };
 
@@ -921,38 +1085,21 @@ const StyleVaultScreen = () => {
         contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 20 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
+        {/* SECTION 1: IDENTITY */}
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <View style={{ flex: 1 }} />
             <Pressable 
-              onPress={() => setIsEditingProfile(!isEditingProfile)}
+              onPress={() => setShowEditProfileModal(true)}
               style={styles.editButton}
             >
-              <Text style={styles.editButtonText}>Edit</Text>
+              <Text style={styles.editButtonText}>Edit Profile</Text>
             </Pressable>
           </View>
 
           <Pressable 
             style={styles.avatarContainer}
-            onPress={async () => {
-              if (!isEditingProfile) return;
-              const res = await ImagePicker.launchImageLibraryAsync({ 
-                mediaTypes: ['images'],
-                allowsEditing: true,
-                aspect: [1, 1],
-                quality: 0.8
-              });
-              if (!res.canceled && res.assets[0]) {
-                try {
-                  const uploadedUrl = await uploadImageAsync(res.assets[0].uri);
-                  setProfilePic(uploadedUrl);
-                } catch (error) {
-                  Alert.alert('Error', 'Failed to upload profile picture');
-                }
-              }
-            }}
-            disabled={!isEditingProfile}
+            onPress={() => setShowEditProfileModal(true)}
           >
             <LinearGradient
               colors={['#6366f1', '#8b5cf6', '#ec4899']}
@@ -966,25 +1113,9 @@ const StyleVaultScreen = () => {
                 )}
               </View>
             </LinearGradient>
-            {isEditingProfile && (
-              <View style={styles.editPhotoBadge}>
-                <Text style={styles.editPhotoText}>📷</Text>
-              </View>
-            )}
           </Pressable>
           
-          {isEditingProfile ? (
-            <TextInput
-              style={styles.nameInput}
-              value={username}
-              onChangeText={setUsername}
-              placeholder="Your name"
-              placeholderTextColor="#666"
-              autoFocus
-            />
-          ) : (
-            <Text style={styles.greeting}>Hey, {username} 👋</Text>
-          )}
+          <Text style={styles.greeting}>Hey, {username} 👋</Text>
           <Text style={styles.subtitle}>You're trending this week!</Text>
           {user?.email && (
             <Text style={[styles.subtitle, { fontSize: 12, marginTop: 4 }]}>{user.email}</Text>
@@ -1003,56 +1134,15 @@ const StyleVaultScreen = () => {
             </Pressable>
           )}
           
-          {isEditingProfile && (
-            <Pressable 
-              onPress={async () => {
-                try {
-                  setIsEditingProfile(false);
-                  
-                  if (user?.id) {
-                    // Save to Supabase
-                    const { error } = await supabase
-                      .from('profiles')
-                      .upsert({
-                        id: user.id,
-                        name: username,
-                        avatar_url: profilePic,
-                        email: user.email,
-                        updated_at: new Date().toISOString()
-                      });
-                      
-                    if (error) {
-                      console.log('Profile save error:', error);
-                      // Still update local state even if remote fails
-                    }
-                    
-                    // Update local user state so it persists in the session
-                    if (setUser) {
-                      setUser(prev => ({
-                        ...prev,
-                        name: username,
-                        avatar_url: profilePic
-                      }));
-                    }
-                    
-                    showBanner('✓ Profile updated!', 'success');
-                  }
-                } catch (error) {
-                  console.error('Error updating profile:', error);
-                  showBanner('Profile saved locally', 'success');
-                }
-              }}
-              style={styles.saveButton}
-            >
-              <Text style={styles.saveButtonText}>Save Changes</Text>
-            </Pressable>
+          {/* AI-generated style summary */}
+          {getStyleSummary() && (
+            <Text style={[styles.subtitle, { fontSize: 11, marginTop: 8, color: '#9ca3af', fontStyle: 'italic' }]}>
+              {getStyleSummary()}
+            </Text>
           )}
-
         </View>
 
-        {/* ============================================
-            SECTION 2: YOUR STYLE DNA
-            ============================================ */}
+        {/* SECTION 2: YOUR STYLE DNA */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { fontSize: 18, marginBottom: 16, color: '#6366f1' }]}>Your Style DNA</Text>
           
@@ -1130,151 +1220,49 @@ const StyleVaultScreen = () => {
               </View>
             </View>
           )}
-
-          {/* Fit Profile / Body Measurements */}
-          <View style={styles.section}>
-            <Pressable 
-              style={styles.sectionHeader}
-              onPress={() => setShowBodyMeasurements(!showBodyMeasurements)}
-            >
-              <Text style={styles.sectionTitle}>Fit Profile</Text>
-              <Text style={styles.addButton}>{showBodyMeasurements ? '▼' : '▶'}</Text>
-            </Pressable>
-            {showBodyMeasurements && (
-              <View style={styles.fitProfileCard}>
-                {/* Body Photo Section */}
-                <View style={styles.photoSection}>
-                  <View style={styles.photoInfo}>
-                    <Text style={styles.photoLabel}>📸 Body Photo</Text>
-                    <Text style={styles.photoHint}>Full body, front view, good lighting. Used for AI try-on.</Text>
-                  </View>
-                  <View style={styles.photoActions}>
-                    <Pressable 
-                      style={styles.photoThumb}
-                      onPress={() => {
-                        setShowBodyPhotoGuidelines(true);
-                      }}
-                    >
-                      {bodyImage ? (
-                         <SafeImage source={{ uri: bodyImage }} style={styles.photoThumbImg} resizeMode="cover" />
-                      ) : (
-                         <View style={styles.photoPlaceholder}>
-                             <Text style={{ fontSize: 20, color: '#666' }}>+</Text>
-                         </View>
-                      )}
-                    </Pressable>
-                    {bodyImage && (
-                      <Pressable 
-                        style={styles.removePhotoBtn}
-                        onPress={async () => {
-                          setBodyImage(null);
-                          if (setTwinUrl) setTwinUrl(null);
-                          if (user?.id) {
-                            await supabase.from('profiles').update({ body_image_url: null }).eq('id', user.id);
-                          }
-                          showBanner('Photo removed', 'success');
-                        }}
-                      >
-                        <Text style={styles.removePhotoText}>✕</Text>
-                      </Pressable>
-                    )}
-                  </View>
-                </View>
-
-                {/* Face Photo Section */}
-                <View style={styles.photoSection}>
-                  <View style={styles.photoInfo}>
-                    <Text style={styles.photoLabel}>🎨 Face Photo</Text>
-                    <Text style={styles.photoHint}>Clear face, natural light. Used to determine your best colors.</Text>
-                  </View>
-                  <View style={styles.photoActions}>
-                    <Pressable 
-                      style={styles.photoThumb}
-                      onPress={() => {
-                        setShowFacePhotoGuidelines(true);
-                      }}
-                    >
-                      {faceImage ? (
-                         <SafeImage source={{ uri: faceImage }} style={styles.photoThumbImg} resizeMode="cover" />
-                      ) : (
-                         <View style={styles.photoPlaceholder}>
-                             <Text style={{ fontSize: 20, color: '#666' }}>+</Text>
-                         </View>
-                      )}
-                    </Pressable>
-                    {faceImage && (
-                      <Pressable 
-                        style={styles.removePhotoBtn}
-                        onPress={async () => {
-                          setFaceImage(null);
-                          if (user?.id) {
-                            await supabase.from('profiles').update({ face_image_url: null }).eq('id', user.id);
-                          }
-                          showBanner('Photo removed', 'success');
-                        }}
-                      >
-                        <Text style={styles.removePhotoText}>✕</Text>
-                      </Pressable>
-                    )}
-                  </View>
-                </View>
-
-                {/* Body Measurements */}
-                <View style={styles.profileRow}>
-                  <Text style={styles.profileLabel}>Gender:</Text>
-                  <Text style={styles.profileValue}>{fitProfile.gender || 'Not set'}</Text>
-                </View>
-                <View style={styles.profileRow}>
-                  <Text style={styles.profileLabel}>Body Shape:</Text>
-                  <Text style={styles.profileValue}>{fitProfile.bodyShape || 'Not set'}</Text>
-                </View>
-                <View style={styles.divider} />
-                <View style={styles.profileRow}>
-                  <Text style={styles.profileLabel}>Height:</Text>
-                  <Text style={styles.profileValue}>{fitProfile.height || 'Not set'}</Text>
-                </View>
-                <View style={styles.profileRow}>
-                  <Text style={styles.profileLabel}>Weight:</Text>
-                  <Text style={styles.profileValue}>{fitProfile.weight || 'Not set'}</Text>
-                </View>
-                <View style={styles.profileRow}>
-                  <Text style={styles.profileLabel}>Bust/Chest:</Text>
-                  <Text style={styles.profileValue}>{fitProfile.chest || 'Not set'}</Text>
-                </View>
-                <View style={styles.profileRow}>
-                  <Text style={styles.profileLabel}>Waist:</Text>
-                  <Text style={styles.profileValue}>{fitProfile.waist || 'Not set'}</Text>
-                </View>
-                <View style={styles.profileRow}>
-                  <Text style={styles.profileLabel}>Hips:</Text>
-                  <Text style={styles.profileValue}>{fitProfile.hips || 'Not set'}</Text>
-                </View>
-                <View style={styles.profileRow}>
-                  <Text style={styles.profileLabel}>Top Size:</Text>
-                  <Text style={styles.profileValue}>{fitProfile.topSize || 'Not set'}</Text>
-                </View>
-                <View style={styles.profileRow}>
-                  <Text style={styles.profileLabel}>Bottom Size:</Text>
-                  <Text style={styles.profileValue}>{fitProfile.bottomSize || 'Not set'}</Text>
-                </View>
-                <View style={styles.profileRow}>
-                  <Text style={styles.profileLabel}>Shoe Size:</Text>
-                  <Text style={styles.profileValue}>{fitProfile.shoeSize || 'Not set'}</Text>
-                </View>
-                <Pressable 
-                  style={[styles.saveBtn, { marginTop: 12 }]}
-                  onPress={() => setShowFitProfile(true)}
-                >
-                  <Text style={styles.saveBtnText}>Edit Measurements</Text>
-                </Pressable>
-              </View>
-            )}
-          </View>
         </View>
 
-        {/* ============================================
-            SECTION 3: YOUR WORKSPACE
-            ============================================ */}
+        {/* SECTION 3: FIT PROFILE (Summary Card) */}
+        <SectionCard title="Fit Profile" style={{ marginBottom: 20 }}>
+          <View style={styles.fitProfileSummaryCard}>
+            <View style={styles.fitProfileSummaryRow}>
+              <Text style={styles.fitProfileSummaryLabel}>Gender:</Text>
+              <Text style={styles.fitProfileSummaryValue}>{fitProfile.gender || 'Not set'}</Text>
+            </View>
+            <View style={styles.fitProfileSummaryRow}>
+              <Text style={styles.fitProfileSummaryLabel}>Body Shape:</Text>
+              <Text style={styles.fitProfileSummaryValue}>{fitProfile.bodyShape || 'Not set'}</Text>
+            </View>
+            <View style={styles.fitProfileSummaryRow}>
+              <Text style={styles.fitProfileSummaryLabel}>Height:</Text>
+              <Text style={styles.fitProfileSummaryValue}>{fitProfile.height || 'Not set'}</Text>
+            </View>
+            <View style={styles.fitProfileSummaryRow}>
+              <Text style={styles.fitProfileSummaryLabel}>Weight:</Text>
+              <Text style={styles.fitProfileSummaryValue}>{fitProfile.weight || 'Not set'}</Text>
+            </View>
+            <View style={styles.fitProfileSummaryRow}>
+              <Text style={styles.fitProfileSummaryLabel}>Sizes:</Text>
+              <Text style={styles.fitProfileSummaryValue}>
+                {[fitProfile.topSize, fitProfile.bottomSize, fitProfile.shoeSize].filter(Boolean).join(' / ') || 'Not set'}
+              </Text>
+            </View>
+            <View style={styles.fitProfileSummaryRow}>
+              <Text style={styles.fitProfileSummaryLabel}>Photos:</Text>
+              <Text style={styles.fitProfileSummaryValue}>
+                {bodyImage ? '📸 Body' : ''} {faceImage ? '🎨 Face' : ''} {!bodyImage && !faceImage ? 'None' : ''}
+              </Text>
+            </View>
+            <Pressable 
+              style={styles.fitProfileEditBtn}
+              onPress={() => setShowFitProfile(true)}
+            >
+              <Text style={styles.fitProfileEditBtnText}>Edit Fit Profile</Text>
+            </Pressable>
+          </View>
+        </SectionCard>
+
+        {/* SECTION 4: YOUR WORKSPACE */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { fontSize: 18, marginBottom: 16, color: '#6366f1' }]}>Your Workspace</Text>
           
@@ -1299,31 +1287,6 @@ const StyleVaultScreen = () => {
               </View>
             )}
           </View>
-
-          {/* Try-On History */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Mood Boards</Text>
-            <Pressable onPress={() => Alert.alert('Create Board', 'Mood board creation coming soon!')}>
-              <Text style={styles.addButton}>+ Create</Text>
-            </Pressable>
-          </View>
-          {boards.length > 0 ? (
-            <FlatList
-              data={boards}
-              renderItem={({ item }) => <BoardCard board={item} />}
-              keyExtractor={item => item.id}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingRight: 20 }}
-            />
-          ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No mood boards yet</Text>
-              <Text style={styles.emptySubtext}>Create mood boards to organize your style inspiration</Text>
-            </View>
-          )}
-        </View>
 
           <View style={[styles.section, { marginBottom: 20 }]}>
             <View style={styles.sectionHeader}>
@@ -1556,8 +1519,8 @@ const StyleVaultScreen = () => {
           </View>
 
           {/* Mood Boards */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
+          <View style={[styles.section, { marginBottom: 20 }]}>
+            <View style={[styles.sectionHeader, { justifyContent: 'space-between', alignItems: 'center' }]}>
               <Text style={styles.sectionTitle}>Mood Boards</Text>
               <Pressable onPress={() => Alert.alert('Create Board', 'Mood board creation coming soon!')}>
                 <Text style={styles.addButton}>+ Create</Text>
@@ -1581,72 +1544,290 @@ const StyleVaultScreen = () => {
           </View>
         </View>
 
-        {/* ============================================
-            SECTION 4: SOCIAL (lightweight)
-            ============================================ */}
+        {/* SECTION 5: SOCIAL */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { fontSize: 18, marginBottom: 16, color: '#6366f1' }]}>Social</Text>
           
           {/* Friends */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
+          <SectionCard>
+            <View style={styles.friendsHeader}>
               <Text style={styles.sectionTitle}>Friends</Text>
-              <View style={{ flexDirection: 'row', gap: 12 }}>
-                <Pressable onPress={async () => {
+              <Pressable 
+                style={styles.friendInviteBtnSmall}
+                onPress={async () => {
                   if (!user?.id) return;
                   const shareUrl = buildShareUrl({ kind: 'install', fromUserId: user.id });
                   await Share.share({ 
                     message: `Join me on Stylit! Let's rate each other's outfits. Download: ${shareUrl}` 
                   });
-                }}>
-                  <Text style={styles.addButton}>+ Invite</Text>
-                </Pressable>
-                <Pressable onPress={() => setShowFriends(!showFriends)}>
-                  <Text style={styles.addButton}>{showFriends ? 'Hide' : 'Show'} ({friends.length})</Text>
-                </Pressable>
-              </View>
+                }}
+              >
+                <Text style={styles.friendInviteBtnText}>+ Invite</Text>
+              </Pressable>
             </View>
-            {showFriends && (
-              <View style={styles.friendsContainer}>
-                {friends.length > 0 ? (
-                  friends.map((friend) => (
-                    <Pressable
-                      key={friend.id}
-                      style={styles.friendItem}
-                      onPress={() => {
-                        if (friend.friend_id && setRoute) {
-                          setRoute('userprofile', { userId: friend.friend_id });
-                        }
-                      }}
-                    >
-                      {friend.friend_avatar ? (
-                        <SafeImage source={{ uri: friend.friend_avatar }} style={styles.friendItemAvatar} />
+            
+            {/* Search by User */}
+            <View style={styles.friendSearchContainer}>
+              <TextInput
+                style={styles.friendSearchInput}
+                placeholder="Search by User email id"
+                placeholderTextColor="#666"
+                value={friendSearchInput}
+                onChangeText={async (text) => {
+                  setFriendSearchInput(text);
+                  if (text && text.length > 2) {
+                    setIsSearchingFriends(true);
+                    try {
+                      const { data: profiles, error } = await supabase
+                        .from('profiles')
+                        .select('id, name, email, avatar_url')
+                        .or(`email.ilike.%${text}%,name.ilike.%${text}%`)
+                        .limit(10);
+                      
+                      if (!error && profiles) {
+                        setFriendSearchResults(profiles.filter(p => p.id !== user?.id));
+                      } else {
+                        setFriendSearchResults([]);
+                      }
+                    } catch (error) {
+                      console.error('Error searching friends:', error);
+                      setFriendSearchResults([]);
+                    } finally {
+                      setIsSearchingFriends(false);
+                    }
+                  } else {
+                    setFriendSearchResults([]);
+                  }
+                }}
+                autoCapitalize="none"
+              />
+            </View>
+
+            {/* Search Results */}
+            {friendSearchResults.length > 0 && (
+              <View style={styles.friendSearchResults}>
+                {friendSearchResults.map((profile) => {
+                  const isAlreadyFriend = friends.some(f => f.friend_id === profile.id);
+                  const sentRequest = sentRequests.find(r => r.friend_id === profile.id);
+                  const requestStatus = sentRequest?.status || (isAlreadyFriend ? 'accepted' : null);
+                  
+                  return (
+                    <View key={profile.id} style={styles.friendSearchResultItem}>
+                      {profile.avatar_url ? (
+                        <SafeImage source={{ uri: profile.avatar_url }} style={styles.friendSearchAvatar} />
                       ) : (
-                        <View style={[styles.friendItemAvatar, styles.friendItemAvatarPlaceholder]}>
+                        <View style={[styles.friendSearchAvatar, styles.friendItemAvatarPlaceholder]}>
                           <Text style={styles.friendItemAvatarText}>
-                            {friend.friend_name?.charAt(0)?.toUpperCase() || 'F'}
+                            {profile.name?.charAt(0)?.toUpperCase() || profile.email?.charAt(0)?.toUpperCase() || 'U'}
                           </Text>
                         </View>
                       )}
-                      <Text style={styles.friendItemName}>{friend.friend_name || 'Friend'}</Text>
-                      <Text style={styles.friendItemArrow}>→</Text>
-                    </Pressable>
-                  ))
-                ) : (
-                  <View style={styles.emptyState}>
-                    <Text style={styles.emptyText}>No friends yet</Text>
-                    <Text style={styles.emptySubtext}>Add friends to share pods with them</Text>
-                  </View>
-                )}
+                      <View style={{ flex: 1, marginLeft: 12 }}>
+                        <Text style={styles.friendItemName}>{profile.name || profile.email?.split('@')[0] || 'User'}</Text>
+                        <Text style={[styles.friendItemName, { fontSize: 12, color: '#9ca3af', marginTop: 2 }]}>{profile.email}</Text>
+                      </View>
+                      <Pressable
+                        style={[
+                          styles.friendAddBtn,
+                          requestStatus === 'pending' && styles.friendAddBtnPending,
+                          requestStatus === 'accepted' && styles.friendAddBtnAccepted
+                        ]}
+                        onPress={async () => {
+                          if (isAlreadyFriend || requestStatus === 'accepted') return;
+                          
+                          if (user?.id && profile.id) {
+                            try {
+                              const { sendFriendRequest } = await import('../lib/friends');
+                              const result = await sendFriendRequest(user.id, profile.id);
+                              if (result.success) {
+                                showBanner(result.isMutual ? '✓ Friend added!' : '✓ Friend request sent!', 'success');
+                                setFriendSearchInput('');
+                                setFriendSearchResults([]);
+                                loadFriends();
+                              } else {
+                                Alert.alert('Error', 'Could not add friend. They may already be your friend or you already sent a request.');
+                              }
+                            } catch (error) {
+                              console.error('Error adding friend:', error);
+                              Alert.alert('Error', 'Failed to add friend. Please try again.');
+                            }
+                          }
+                        }}
+                        disabled={requestStatus === 'pending' || isAlreadyFriend}
+                      >
+                        <Text style={[
+                          styles.friendAddBtnText,
+                          requestStatus === 'pending' && styles.friendAddBtnTextPending,
+                          requestStatus === 'accepted' && styles.friendAddBtnTextAccepted
+                        ]}>
+                          {requestStatus === 'pending' ? 'Pending' : requestStatus === 'accepted' ? 'Added' : 'Add'}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  );
+                })}
               </View>
             )}
-          </View>
+
+            {/* Friends List */}
+            {friends.length > 0 && (
+              <View style={styles.friendsList}>
+                <Text style={styles.friendsSectionTitle}>Friends ({friends.length})</Text>
+                {friends.map((friend) => (
+                  <Pressable
+                    key={friend.id}
+                    style={styles.friendItem}
+                    onPress={() => {
+                      if (friend.friend_id && setRoute) {
+                        setRoute('userprofile', { userId: friend.friend_id });
+                      }
+                    }}
+                  >
+                    {friend.friend_avatar ? (
+                      <SafeImage source={{ uri: friend.friend_avatar }} style={styles.friendItemAvatar} />
+                    ) : (
+                      <View style={[styles.friendItemAvatar, styles.friendItemAvatarPlaceholder]}>
+                        <Text style={styles.friendItemAvatarText}>
+                          {friend.friend_name?.charAt(0)?.toUpperCase() || 'F'}
+                        </Text>
+                      </View>
+                    )}
+                    <Text style={styles.friendItemName}>{friend.friend_name || 'Friend'}</Text>
+                    <Text style={styles.friendItemArrow}>→</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+
+            {/* Sent Requests */}
+            {sentRequests.length > 0 && (
+              <View style={styles.friendsList}>
+                <Text style={styles.friendsSectionTitle}>Sent ({sentRequests.length})</Text>
+                {sentRequests.map((request) => (
+                  <View key={request.id} style={styles.friendItem}>
+                    {request.friend_avatar ? (
+                      <SafeImage source={{ uri: request.friend_avatar }} style={styles.friendItemAvatar} />
+                    ) : (
+                      <View style={[styles.friendItemAvatar, styles.friendItemAvatarPlaceholder]}>
+                        <Text style={styles.friendItemAvatarText}>
+                          {request.friend_name?.charAt(0)?.toUpperCase() || 'U'}
+                        </Text>
+                      </View>
+                    )}
+                    <Text style={styles.friendItemName}>{request.friend_name || 'User'}</Text>
+                    <Text style={[styles.friendItemName, { fontSize: 12, color: '#fbbf24', marginLeft: 'auto', marginRight: 8 }]}>Pending</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Received Requests */}
+            {receivedRequests.length > 0 && (
+              <View style={styles.friendsList}>
+                <Text style={styles.friendsSectionTitle}>Received ({receivedRequests.length})</Text>
+                {receivedRequests.map((request) => (
+                  <View key={request.id} style={styles.friendItem}>
+                    {request.friend_avatar ? (
+                      <SafeImage source={{ uri: request.friend_avatar }} style={styles.friendItemAvatar} />
+                    ) : (
+                      <View style={[styles.friendItemAvatar, styles.friendItemAvatarPlaceholder]}>
+                        <Text style={styles.friendItemAvatarText}>
+                          {request.friend_name?.charAt(0)?.toUpperCase() || 'U'}
+                        </Text>
+                      </View>
+                    )}
+                    <Text style={styles.friendItemName}>{request.friend_name || 'User'}</Text>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <Pressable
+                        style={[styles.friendAddBtn, { backgroundColor: '#10b981', paddingHorizontal: 12, paddingVertical: 6 }]}
+                        onPress={async () => {
+                          if (user?.id && request.user_id) {
+                            try {
+                              // Accept the received request by updating status to accepted
+                              await supabase
+                                .from('friends')
+                                .update({ status: 'accepted' })
+                                .eq('id', request.id);
+                              
+                              // Check if reverse friendship exists (user sent request to this person)
+                              const { data: existingReverse } = await supabase
+                                .from('friends')
+                                .select('id, status')
+                                .eq('user_id', user.id)
+                                .eq('friend_id', request.user_id)
+                                .maybeSingle();
+                              
+                              if (existingReverse) {
+                                // Update existing reverse request to accepted
+                                await supabase
+                                  .from('friends')
+                                  .update({ status: 'accepted' })
+                                  .eq('id', existingReverse.id);
+                              } else {
+                                // Create reverse friendship
+                                await supabase
+                                  .from('friends')
+                                  .insert({
+                                    user_id: user.id,
+                                    friend_id: request.user_id,
+                                    status: 'accepted'
+                                  });
+                              }
+                              
+                              showBanner('✓ Friend request accepted!', 'success');
+                              // Reload to refresh all lists (this will remove from received and add to friends)
+                              await loadFriends();
+                            } catch (error) {
+                              console.error('Error accepting request:', error);
+                              Alert.alert('Error', 'Failed to accept friend request.');
+                            }
+                          }
+                        }}
+                      >
+                        <Text style={[styles.friendAddBtnText, { color: '#fff' }]}>Accept</Text>
+                      </Pressable>
+                      <Pressable
+                        style={[styles.friendAddBtn, { backgroundColor: '#ef4444', paddingHorizontal: 12, paddingVertical: 6 }]}
+                        onPress={async () => {
+                          if (user?.id && request.id) {
+                            try {
+                              // Delete the request (reject)
+                              await supabase
+                                .from('friends')
+                                .delete()
+                                .eq('id', request.id);
+                              
+                              showBanner('Friend request rejected', 'success');
+                              // Reload to refresh all lists
+                              await loadFriends();
+                            } catch (error) {
+                              console.error('Error rejecting request:', error);
+                              Alert.alert('Error', 'Failed to reject friend request.');
+                            }
+                          }
+                        }}
+                      >
+                        <Text style={[styles.friendAddBtnText, { color: '#fff' }]}>Reject</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {friends.length === 0 && sentRequests.length === 0 && receivedRequests.length === 0 && friendSearchResults.length === 0 && (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>No friends yet</Text>
+                <Text style={styles.emptySubtext}>Search for users above or share invite link</Text>
+              </View>
+            )}
+          </SectionCard>
         </View>
 
 
       {/* Support Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionHeader}>Support</Text>
+        <Text style={styles.supportSectionTitle}>Support</Text>
         
         <View style={styles.supportCard}>
           <Pressable
@@ -1725,6 +1906,22 @@ const StyleVaultScreen = () => {
           </Pressable>
         </View>
       </View>
+
+      {/* Admin Section - Only visible to admin@stylit.ai */}
+      {isAdmin && (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { fontSize: 18, marginBottom: 16, color: '#8b5cf6' }]}>Admin</Text>
+          <SectionCard>
+            <Pressable
+              style={styles.supportItem}
+              onPress={() => setRoute('admingarments')}
+            >
+              <Text style={styles.supportItemText}>⚙️ Admin: Garments</Text>
+              <Text style={styles.supportItemArrow}>→</Text>
+            </Pressable>
+          </SectionCard>
+        </View>
+      )}
 
       {/* Account Actions */}
       <View style={styles.section}>
@@ -1859,7 +2056,10 @@ const StyleVaultScreen = () => {
 
     {/* Fit Profile Modal */}
     <Modal visible={showFitProfile} transparent={true} animationType="slide">
-      <View style={styles.modalContainer}>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.modalContainer}
+      >
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Fit Profile</Text>
@@ -1868,7 +2068,11 @@ const StyleVaultScreen = () => {
             </Pressable>
           </View>
           
-          <ScrollView style={styles.modalScroll}>
+          <ScrollView 
+            style={styles.modalScroll}
+            contentContainerStyle={{ paddingBottom: 100 }}
+            keyboardShouldPersistTaps="handled"
+          >
             <Text style={styles.modalSubtitle}>Basic Info</Text>
             
             <View style={styles.inputGroup}>
@@ -1944,16 +2148,18 @@ const StyleVaultScreen = () => {
               />
             </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Underbust (Ribcage)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g., 30, 76cm"
-                placeholderTextColor="#666"
-                value={fitProfile.underbust}
-                onChangeText={(text) => setFitProfile(prev => ({ ...prev, underbust: text }))}
-              />
-            </View>
+            {(fitProfile.gender === 'Female' || fitProfile.gender === 'Non-binary' || !fitProfile.gender) && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Underbust (Ribcage)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g., 30, 76cm"
+                  placeholderTextColor="#666"
+                  value={fitProfile.underbust}
+                  onChangeText={(text) => setFitProfile(prev => ({ ...prev, underbust: text }))}
+                />
+              </View>
+            )}
 
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Waist (Natural)</Text>
@@ -2067,16 +2273,18 @@ const StyleVaultScreen = () => {
               />
             </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Bra Size (Optional)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g., 34B"
-                placeholderTextColor="#666"
-                value={fitProfile.braSize}
-                onChangeText={(text) => setFitProfile(prev => ({ ...prev, braSize: text }))}
-              />
-            </View>
+            {(fitProfile.gender === 'Female' || fitProfile.gender === 'Non-binary' || !fitProfile.gender) && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Bra Size (Optional)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g., 34B"
+                  placeholderTextColor="#666"
+                  value={fitProfile.braSize}
+                  onChangeText={(text) => setFitProfile(prev => ({ ...prev, braSize: text }))}
+                />
+              </View>
+            )}
             
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Notes (optional)</Text>
@@ -2141,7 +2349,7 @@ const StyleVaultScreen = () => {
             </Pressable>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
 
     {/* Season Picker Modal */}
@@ -2221,6 +2429,108 @@ const StyleVaultScreen = () => {
         visible={showPhotoGuidelinesScreen}
         onClose={() => setShowPhotoGuidelinesScreen(false)}
       />
+
+      {/* Edit Profile Modal (Name + Avatar only) */}
+      <Modal visible={showEditProfileModal} transparent={true} animationType="slide">
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Profile</Text>
+              <Pressable onPress={() => setShowEditProfileModal(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </Pressable>
+            </View>
+            
+            <ScrollView style={styles.modalScroll}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Profile Picture</Text>
+                <Pressable 
+                  style={styles.avatarContainer}
+                  onPress={async () => {
+                    const res = await ImagePicker.launchImageLibraryAsync({ 
+                      mediaTypes: ['images'],
+                      allowsEditing: true,
+                      aspect: [1, 1],
+                      quality: 0.8
+                    });
+                    if (!res.canceled && res.assets[0]) {
+                      try {
+                        const uploadedUrl = await uploadImageAsync(res.assets[0].uri);
+                        setProfilePic(uploadedUrl);
+                      } catch (error) {
+                        Alert.alert('Error', 'Failed to upload profile picture');
+                      }
+                    }
+                  }}
+                >
+                  <LinearGradient
+                    colors={['#6366f1', '#8b5cf6', '#ec4899']}
+                    style={styles.avatarGradient}
+                  >
+                    <View style={styles.avatar}>
+                      {profilePic && typeof profilePic === 'string' ? (
+                        <SafeImage source={{ uri: profilePic }} style={styles.avatarImage} resizeMode="cover" />
+                      ) : (
+                        <Text style={styles.avatarText}>{username ? username[0].toUpperCase() : 'U'}</Text>
+                      )}
+                    </View>
+                  </LinearGradient>
+                </Pressable>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Name</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Your name"
+                  placeholderTextColor="#666"
+                  value={username}
+                  onChangeText={setUsername}
+                />
+              </View>
+
+              <Pressable 
+                style={styles.saveBtn}
+                onPress={async () => {
+                  try {
+                    if (user?.id) {
+                      const { error } = await supabase
+                        .from('profiles')
+                        .upsert({
+                          id: user.id,
+                          name: username,
+                          avatar_url: profilePic,
+                          email: user.email,
+                          updated_at: new Date().toISOString()
+                        });
+                      
+                      if (error) {
+                        console.log('Profile save error:', error);
+                      }
+                      
+                      if (setUser) {
+                        setUser(prev => ({
+                          ...prev,
+                          name: username,
+                          avatar_url: profilePic
+                        }));
+                      }
+                      
+                      showBanner('✓ Profile updated!', 'success');
+                    }
+                    setShowEditProfileModal(false);
+                  } catch (error) {
+                    console.error('Error updating profile:', error);
+                    showBanner('Failed to save profile', 'error');
+                  }
+                }}
+              >
+                <Text style={styles.saveBtnText}>Save Changes</Text>
+              </Pressable>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {/* Full Screen Image Modal */}
       <Modal visible={!!fullScreenImage} transparent={true} animationType="fade">
@@ -3221,7 +3531,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   // Support Section Styles
-  sectionHeader: {
+  supportSectionTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#fff',
@@ -3255,6 +3565,199 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: 'rgba(255,255,255,0.08)',
     marginHorizontal: 16,
+  },
+  // Fit Profile Summary Card styles
+  fitProfileSummaryCard: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  fitProfileSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  fitProfileSummaryLabel: {
+    color: '#9ca3af',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  fitProfileSummaryValue: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  fitProfileEditBtn: {
+    backgroundColor: '#6366f1',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  fitProfileEditBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  // RowItem styles
+  rowItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  rowItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  rowItemIcon: {
+    fontSize: 20,
+    marginRight: 12,
+  },
+  rowItemContent: {
+    flex: 1,
+  },
+  rowItemTitle: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  rowItemSubtitle: {
+    color: '#9ca3af',
+    fontSize: 12,
+  },
+  rowItemChevron: {
+    color: '#9ca3af',
+    fontSize: 20,
+    fontWeight: '300',
+  },
+  // SectionCard styles
+  sectionCard: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  sectionCardTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  // Friend invite styles
+  friendInviteActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 12,
+  },
+  friendInviteBtn: {
+    flex: 1,
+    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.4)',
+  },
+  friendInviteBtnSmall: {
+    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.4)',
+  },
+  friendInviteBtnText: {
+    color: '#6366f1',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  friendSearchContainer: {
+    marginTop: 12,
+    marginBottom: 12,
+  },
+  friendSearchInput: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 12,
+    padding: 12,
+    color: '#fff',
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  friendsSectionTitle: {
+    color: '#9ca3af',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+    marginTop: 12,
+    textTransform: 'uppercase',
+  },
+  friendAddBtn: {
+    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.4)',
+  },
+  friendAddBtnPending: {
+    backgroundColor: 'rgba(251, 191, 36, 0.2)',
+    borderColor: 'rgba(251, 191, 36, 0.4)',
+  },
+  friendAddBtnAccepted: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+  },
+  friendAddBtnText: {
+    color: '#6366f1',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  friendAddBtnTextPending: {
+    color: '#fbbf24',
+  },
+  friendAddBtnTextAccepted: {
+    color: '#10b981',
+  },
+  friendsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  friendsList: {
+    marginTop: 8,
+  },
+  friendSearchResults: {
+    marginTop: 16,
+  },
+  friendSearchResultItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  friendSearchAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
 });
 

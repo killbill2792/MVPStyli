@@ -1,5 +1,15 @@
 // api/tryon/index.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase environment variables');
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -8,7 +18,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Log raw body for debugging
     console.log('🔵 Tryon API called - RAW BODY:', JSON.stringify(req.body));
     
-    const { human_img, garm_img, category, garment_des } = req.body || {};
+    const { human_img, garm_img, category, garment_des, garment_id } = req.body || {};
 
     console.log('📥 EXTRACTED VALUES:', {
       human_img: human_img ? 'present' : 'missing',
@@ -44,6 +54,55 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const replicateCategory = category; // Use as-is, already validated
     console.log('✅ CATEGORY TO SEND TO REPLICATE:', replicateCategory);
 
+    // Fetch garment dimensions from database if garment_id is provided
+    let garmentDimensions = null;
+    let enhancedGarmentDes = garment_des || "Garment item";
+    
+    if (garment_id) {
+      try {
+        const { data: garment, error: garmentError } = await supabase
+          .from('garments')
+          .select('*')
+          .eq('id', garment_id)
+          .single();
+
+        if (!garmentError && garment) {
+          garmentDimensions = garment;
+          
+          // Build enhanced garment description with dimensions
+          const dims = [];
+          if (garment.chest) dims.push(`Chest: ${garment.chest}cm`);
+          if (garment.waist) dims.push(`Waist: ${garment.waist}cm`);
+          if (garment.hip) dims.push(`Hip: ${garment.hip}cm`);
+          if (garment.front_length) dims.push(`Front Length: ${garment.front_length}cm`);
+          if (garment.back_length) dims.push(`Back Length: ${garment.back_length}cm`);
+          if (garment.sleeve_length) dims.push(`Sleeve Length: ${garment.sleeve_length}cm`);
+          if (garment.back_width) dims.push(`Back Width: ${garment.back_width}cm`);
+          if (garment.arm_width) dims.push(`Arm Width: ${garment.arm_width}cm`);
+          if (garment.shoulder_width) dims.push(`Shoulder Width: ${garment.shoulder_width}cm`);
+          if (garment.front_rise) dims.push(`Front Rise: ${garment.front_rise}cm`);
+          if (garment.back_rise) dims.push(`Back Rise: ${garment.back_rise}cm`);
+          if (garment.inseam) dims.push(`Inseam: ${garment.inseam}cm`);
+          if (garment.outseam) dims.push(`Outseam: ${garment.outseam}cm`);
+          
+          if (dims.length > 0) {
+            enhancedGarmentDes = `${garment.name || "Garment"} - ${dims.join(', ')}`;
+          } else {
+            enhancedGarmentDes = garment.name || garment_des || "Garment item";
+          }
+          
+          console.log('✅ Fetched garment dimensions:', {
+            name: garment.name,
+            category: garment.category,
+            dimensions: dims.length
+          });
+        }
+      } catch (error) {
+        console.warn('⚠️ Could not fetch garment dimensions:', error);
+        // Continue without dimensions - non-critical
+      }
+    }
+
     const REPLICATE_TOKEN = process.env.REPLICATE_API_TOKEN;
     const VERSION_ID = process.env.TRYON_MODEL_ID;
 
@@ -62,7 +121,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         human_img,
         garm_img,
         category: replicateCategory,
-        garment_des: garment_des || "Garment item"
+        garment_des: enhancedGarmentDes
       }
     };
     
@@ -85,10 +144,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(500).json({ error: 'replicate_start_failed', detail: json });
     }
 
-    // Return jobId AND the category that was sent (for client-side verification)
+    // Return jobId, category, and garment dimensions if available
     return res.status(200).json({ 
       jobId: (json as any).id,
-      categorySent: replicateCategory // So client can verify
+      categorySent: replicateCategory, // So client can verify
+      garmentDimensions: garmentDimensions ? {
+        chest: garmentDimensions.chest,
+        waist: garmentDimensions.waist,
+        hip: garmentDimensions.hip,
+        front_length: garmentDimensions.front_length,
+        back_length: garmentDimensions.back_length,
+        sleeve_length: garmentDimensions.sleeve_length,
+        back_width: garmentDimensions.back_width,
+        arm_width: garmentDimensions.arm_width,
+        shoulder_width: garmentDimensions.shoulder_width,
+        front_rise: garmentDimensions.front_rise,
+        back_rise: garmentDimensions.back_rise,
+        inseam: garmentDimensions.inseam,
+        outseam: garmentDimensions.outseam,
+      } : null
     });
   } catch (e: any) {
     console.error('Tryon API error:', e);

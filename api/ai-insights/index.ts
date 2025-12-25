@@ -2,6 +2,16 @@
 // Uses Google Gemini 2.5 Flash Lite to generate personalized outfit insights based on user profile and product
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase environment variables');
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 interface UserProfile {
   height?: string;
@@ -30,10 +40,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { userProfile, product, insightType } = req.body;
+    const { userProfile, product, insightType, garment_id } = req.body;
     
     if (!product) {
       return res.status(400).json({ error: 'Product info required' });
+    }
+
+    // Fetch garment dimensions from database if garment_id is provided
+    let garmentDimensions = null;
+    if (garment_id) {
+      try {
+        const { data: garment, error: garmentError } = await supabase
+          .from('garments')
+          .select('*')
+          .eq('id', garment_id)
+          .single();
+
+        if (!garmentError && garment) {
+          garmentDimensions = garment;
+          console.log('✅ Fetched garment dimensions for AI insights:', {
+            name: garment.name,
+            hasDimensions: !!(garment.chest || garment.waist || garment.hip)
+          });
+        }
+      } catch (error) {
+        console.warn('⚠️ Could not fetch garment dimensions:', error);
+        // Continue without dimensions - non-critical
+      }
     }
 
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -47,7 +80,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    const prompt = buildPrompt(userProfile, product, insightType);
+    const prompt = buildPrompt(userProfile, product, insightType, garmentDimensions);
     const systemInstruction = `You are a professional fashion stylist and personal shopper with expertise in body types, color analysis, and fit. 
 Give specific, actionable advice based on the user's profile. Be direct and helpful, not generic.
 Always explain WHY something works or doesn't work for their specific body type/coloring.
@@ -90,7 +123,7 @@ Use conversational but professional tone. Be encouraging but honest.`;
       
       // Return fallback if API fails
       return res.status(200).json({
-        insights: generateFallbackInsights(userProfile, product, insightType),
+        insights: generateFallbackInsights(userProfile, product, insightType, garmentDimensions),
         source: 'fallback',
         error: `Gemini API error: ${response.status}`
       });
@@ -115,9 +148,9 @@ Use conversational but professional tone. Be encouraging but honest.`;
   }
 }
 
-function buildPrompt(user: UserProfile, product: ProductInfo, type: string): string {
+function buildPrompt(user: UserProfile, product: ProductInfo, type: string, garmentDimensions?: any): string {
   const userDesc = buildUserDescription(user);
-  const productDesc = buildProductDescription(product);
+  const productDesc = buildProductDescription(product, garmentDimensions);
   
   if (type === 'fit') {
     return `${userDesc}
@@ -187,13 +220,36 @@ function getSeasonDescription(season: string): string {
   return descriptions[season.toLowerCase()] || 'balanced coloring';
 }
 
-function buildProductDescription(product: ProductInfo): string {
+function buildProductDescription(product: ProductInfo, garmentDimensions?: any): string {
   const parts = [product.name];
   if (product.brand) parts.push(`by ${product.brand}`);
   if (product.color) parts.push(`in ${product.color}`);
   if (product.fabric) parts.push(`made of ${product.fabric}`);
   if (product.fit) parts.push(`(${product.fit} fit)`);
   if (product.category) parts.push(`- Category: ${product.category}`);
+  
+  // Add garment dimensions if available
+  if (garmentDimensions) {
+    const dims = [];
+    if (garmentDimensions.chest) dims.push(`Chest: ${garmentDimensions.chest}cm`);
+    if (garmentDimensions.waist) dims.push(`Waist: ${garmentDimensions.waist}cm`);
+    if (garmentDimensions.hip) dims.push(`Hip: ${garmentDimensions.hip}cm`);
+    if (garmentDimensions.front_length) dims.push(`Front Length: ${garmentDimensions.front_length}cm`);
+    if (garmentDimensions.back_length) dims.push(`Back Length: ${garmentDimensions.back_length}cm`);
+    if (garmentDimensions.sleeve_length) dims.push(`Sleeve Length: ${garmentDimensions.sleeve_length}cm`);
+    if (garmentDimensions.back_width) dims.push(`Back Width: ${garmentDimensions.back_width}cm`);
+    if (garmentDimensions.arm_width) dims.push(`Arm Width: ${garmentDimensions.arm_width}cm`);
+    if (garmentDimensions.shoulder_width) dims.push(`Shoulder Width: ${garmentDimensions.shoulder_width}cm`);
+    if (garmentDimensions.front_rise) dims.push(`Front Rise: ${garmentDimensions.front_rise}cm`);
+    if (garmentDimensions.back_rise) dims.push(`Back Rise: ${garmentDimensions.back_rise}cm`);
+    if (garmentDimensions.inseam) dims.push(`Inseam: ${garmentDimensions.inseam}cm`);
+    if (garmentDimensions.outseam) dims.push(`Outseam: ${garmentDimensions.outseam}cm`);
+    
+    if (dims.length > 0) {
+      parts.push(`\nMeasurements: ${dims.join(', ')}`);
+    }
+  }
+  
   return parts.join(' ');
 }
 
@@ -252,7 +308,7 @@ function parseAIResponse(response: string, type: string): any {
   };
 }
 
-function generateFallbackInsights(user: UserProfile, product: ProductInfo, type: string): any {
+function generateFallbackInsights(user: UserProfile, product: ProductInfo, type: string, garmentDimensions?: any): any {
   // Rule-based fallback when Gemini API is not available
   if (type === 'fit') {
     const bodyAdvice: string[] = [];
@@ -289,12 +345,47 @@ function generateFallbackInsights(user: UserProfile, product: ProductInfo, type:
   }
   
   if (type === 'size') {
+    const reasoning: string[] = [];
+    
+    // Use garment dimensions if available
+    if (garmentDimensions) {
+      if (user?.chest && garmentDimensions.chest) {
+        const userChest = parseFloat(user.chest);
+        const garmentChest = parseFloat(garmentDimensions.chest);
+        if (Math.abs(userChest - garmentChest) <= 4) {
+          reasoning.push(`Chest measurement matches (${userChest}cm vs ${garmentChest}cm)`);
+        } else if (userChest < garmentChest) {
+          reasoning.push(`Garment chest is ${garmentChest - userChest}cm larger - may be loose`);
+        } else {
+          reasoning.push(`Garment chest is ${userChest - garmentChest}cm smaller - may be tight`);
+        }
+      }
+      if (user?.waist && garmentDimensions.waist) {
+        const userWaist = parseFloat(user.waist);
+        const garmentWaist = parseFloat(garmentDimensions.waist);
+        if (Math.abs(userWaist - garmentWaist) <= 4) {
+          reasoning.push(`Waist measurement matches (${userWaist}cm vs ${garmentWaist}cm)`);
+        }
+      }
+      if (user?.hips && garmentDimensions.hip) {
+        const userHips = parseFloat(user.hips);
+        const garmentHip = parseFloat(garmentDimensions.hip);
+        if (Math.abs(userHips - garmentHip) <= 4) {
+          reasoning.push(`Hip measurement matches (${userHips}cm vs ${garmentHip}cm)`);
+        }
+      }
+    }
+    
+    if (reasoning.length === 0 && user?.topSize) {
+      reasoning.push(`Based on your usual ${user.topSize}`);
+    }
+    
     return {
       recommendedSize: user?.topSize || 'M',
       backupSize: undefined,
-      reasoning: user?.topSize ? [`Based on your usual ${user.topSize}`] : ['Add measurements'],
-      returnRisk: 'medium' as const,
-      hasEnoughData: !!user?.topSize
+      reasoning: reasoning.length > 0 ? reasoning : ['Add measurements for accurate sizing'],
+      returnRisk: reasoning.length > 0 ? 'low' as const : 'medium' as const,
+      hasEnoughData: !!(user?.topSize || garmentDimensions)
     };
   }
   

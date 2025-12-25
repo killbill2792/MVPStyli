@@ -20,6 +20,7 @@ const { width, height } = Dimensions.get('window');
 
 const AccountScreen = ({ tryOnResults = [] }) => {
   const { state, setRoute, setProcessingResult } = useApp();
+  const { user } = state;
   const [username] = useState('Fashionista');
   const [showCustomColorPicker, setShowCustomColorPicker] = useState(false);
   const [customColorInput, setCustomColorInput] = useState('');
@@ -60,32 +61,42 @@ const AccountScreen = ({ tryOnResults = [] }) => {
     },
   ];
 
+  // Check if user is admin - only admin@stylit.ai should see admin section
+  const isAdmin = user?.email === 'admin@stylit.ai';
+  
+  // Debug: Log user email and admin status
+  useEffect(() => {
+    console.log('🔐 AccountScreen - User email:', user?.email);
+    console.log('🔐 AccountScreen - Is Admin:', isAdmin);
+  }, [user?.email, isAdmin]);
+  
+  // Build core sections array - conditionally include admin section
   const coreSections = [
     {
       id: 'tryons',
       title: 'My Try-Ons',
-      icon: '👕', // Relevant icon but will be styled like settings
+      icon: '👕',
       color: '#6366f1',
       count: tryOnResults.length,
     },
     {
       id: 'pods',
       title: 'Active Pods',
-      icon: '👥', // Relevant icon
+      icon: '👥',
       color: '#8b5cf6',
       count: 2,
     },
     {
       id: 'designs',
       title: 'StyleCraft Designs',
-      icon: '✂️', // Relevant icon
+      icon: '✂️',
       color: '#f59e0b',
       count: 1,
     },
     {
       id: 'favorites',
       title: 'Favorites',
-      icon: '❤️', // Relevant icon
+      icon: '❤️',
       color: '#ef4444',
       count: 12,
     },
@@ -106,10 +117,18 @@ const AccountScreen = ({ tryOnResults = [] }) => {
     {
       id: 'help',
       title: 'Help & Support',
-      icon: '❓', // Relevant icon
+      icon: '❓',
       color: '#10b981',
       count: null,
     },
+    // Only add admin section if user is admin@stylit.ai
+    ...(isAdmin ? [{
+      id: 'admin',
+      title: 'Admin: Garments',
+      icon: '⚙️',
+      color: '#8b5cf6',
+      count: null,
+    }] : []),
   ];
 
   const handleSignOut = () => {
@@ -163,6 +182,9 @@ const AccountScreen = ({ tryOnResults = [] }) => {
       } else if (section.id === 'help') {
         // Navigate to help
         Alert.alert('Help & Support', 'Help feature coming soon!');
+      } else if (section.id === 'admin') {
+        // Navigate to admin garments panel
+        setRoute('admingarments');
       }
     };
 

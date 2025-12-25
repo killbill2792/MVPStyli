@@ -37,7 +37,7 @@ const SafeImage = ({ source, style, resizeMode, ...props }) => {
   );
 };
 
-const ProductScreen = () => {
+const ProductScreen = ({ onBack }) => {
   const { state, setRoute, setPriceTracking, setCurrentProduct, setSavedFits, setBannerMessage, setBannerType } = useApp();
   const { currentProduct, priceTracking, user, routeParams, savedFits } = state;
   const insets = useSafeAreaInsets();
@@ -317,7 +317,13 @@ const ProductScreen = () => {
           )}
           
           {/* Back Button */}
-          <Pressable onPress={() => setRoute('shop')} style={styles.backButton}>
+          <Pressable onPress={() => {
+            if (onBack) {
+              onBack();
+            } else {
+              setRoute('shop');
+            }
+          }} style={styles.backButton}>
             <Text style={styles.backText}>←</Text>
           </Pressable>
 
@@ -410,7 +416,27 @@ const ProductScreen = () => {
             }}>
               <Text style={styles.actionBtnTextPrimary}>✨ Try On</Text>
             </Pressable>
-            <Pressable style={styles.actionBtnSecondary} onPress={() => setRoute('createpod')}>
+            <Pressable style={styles.actionBtnSecondary} onPress={() => {
+              // Pass product and product image to createpod
+              // Try multiple possible image fields
+              const productImage = product?.image || 
+                                  product?.images?.[0] || 
+                                  product?.image_url ||
+                                  (Array.isArray(product?.images) && product.images.length > 0 ? product.images[0] : null);
+              
+              if (productImage) {
+                setRoute('createpod', { 
+                  imageUrl: productImage, 
+                  product: product 
+                });
+              } else {
+                // If no image, still pass product but show alert
+                Alert.alert('No Image', 'This product doesn\'t have an image. Please add an image manually.');
+                setRoute('createpod', { 
+                  product: product 
+                });
+              }
+            }}>
               <Text style={styles.actionBtnTextSecondary}>💬 Ask Pod</Text>
             </Pressable>
             <Pressable style={styles.actionBtnGradient} onPress={() => setShowAISheet(true)}>

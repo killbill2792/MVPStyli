@@ -22,6 +22,7 @@ import ProductScreen from './screens/ProductScreen';
 import TryOnResultScreen from './screens/TryOnResultScreen';
 import AuthScreen from './screens/AuthScreen';
 import UserProfileScreen from './screens/UserProfileScreen';
+import AdminGarmentsScreen from './screens/AdminGarmentsScreen';
 import PhotoGuidelinesModal from './components/PhotoGuidelinesModal';
 import { startTryOn, pollTryOn } from './lib/tryon';
 import { setupStylitFriends } from './lib/setupFriends';
@@ -258,11 +259,23 @@ function Explore() {
       })
       .filter(item => item !== null) // Remove null items
       .sort((a, b) => {
-        // FIX: Sort pods - live pods first, then ended pods
+        // FIX: Sort by: 1) Live pods first (regardless of vote status), 2) Ended pods (latest first)
+        const aIsLive = a.isLive;
+        const bIsLive = b.isLive;
+        
         // Live pods come first
-        if (a.isLive && !b.isLive) return -1;
-        if (!a.isLive && b.isLive) return 1;
-        // If both are live or both are ended, keep original order (already sorted by created_at desc)
+        if (aIsLive && !bIsLive) return -1;
+        if (!aIsLive && bIsLive) return 1;
+        
+        // For ended pods, sort by latest first (ends_at descending)
+        if (!aIsLive && !bIsLive) {
+          const aPod = fetchedPods.find(p => p.id === a.podId);
+          const bPod = fetchedPods.find(p => p.id === b.podId);
+          if (aPod?.ends_at && bPod?.ends_at) {
+            return new Date(bPod.ends_at) - new Date(aPod.ends_at);
+          }
+        }
+        
         return 0;
       });
       
@@ -322,6 +335,7 @@ function Explore() {
     const { user } = state;
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [voted, setVoted] = useState(null);
+    const [userVoteChoice, setUserVoteChoice] = useState(null); // Store the actual vote choice (yes/maybe/no)
     const [commentText, setCommentText] = useState('');
     const [commentSubmitted, setCommentSubmitted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -331,8 +345,60 @@ function Explore() {
     const [hasVoted, setHasVoted] = useState(false);
     const [hasCommented, setHasCommented] = useState(false);
     
-    // FIX: Remove pod from feed only after both vote AND comment (if comments required)
+    // FIX: Check if user has already voted when component loads
     useEffect(() => {
+      const checkUserVote = async () => {
+        if (!user?.id || !item.podId) return;
+        
+        try {
+          const { getPodVotes } = await import('./lib/pods');
+          const votes = await getPodVotes(item.podId || item.id);
+          const userVote = votes.find(v => v.voter_id === user.id);
+          
+          if (userVote) {
+            setHasVoted(true);
+            // Map choice back to UI type
+            if (userVote.choice === 'yes') {
+              if (userVote.metadata?.selectedOption) {
+                // Multi-image vote
+                setVoted(userVote.metadata.selectedOption);
+              } else {
+                setVoted('fire');
+              }
+            } else if (userVote.choice === 'maybe') {
+              setVoted('maybe');
+            } else if (userVote.choice === 'no') {
+              setVoted('x');
+            }
+            setUserVoteChoice(userVote.choice);
+          }
+          
+          // Check if user has commented
+          if (showComments) {
+            const { getPodComments } = await import('./lib/pods');
+            const comments = await getPodComments(item.podId || item.id, user.id);
+            const userComment = comments.find(c => c.author_id === user.id);
+            if (userComment) {
+              setHasCommented(true);
+              setCommentSubmitted(true);
+            }
+          }
+        } catch (error) {
+          console.error('Error checking user vote:', error);
+        }
+      };
+      
+      checkUserVote();
+    }, [user?.id, item.podId, item.id, showComments]);
+    
+    // FIX: Remove pod from feed only after both vote AND comment (if comments required) AND only for live pods
+    // Ended pods should stay visible to show results
+    useEffect(() => {
+      // Don't remove ended pods - they should stay visible to show results
+      if (!item.isLive) {
+        return;
+      }
+      
       if (showComments) {
         // For friends tab: require both vote and comment
         if (hasVoted && hasCommented) {
@@ -378,7 +444,7 @@ function Explore() {
           }, 1500);
         }
       }
-    }, [hasVoted, hasCommented, showComments, item.podId, item.id, onVoteComplete]);
+    }, [hasVoted, hasCommented, showComments, item.isLive, item.podId, item.id, onVoteComplete]);
     
     const scaleAnims = {
         fire: useRef(new Animated.Value(1)).current,
@@ -640,7 +706,20 @@ function Explore() {
                 </>
               )}
             </View>
-          ) : (
+          ) : item.isLive && hasVoted && voted ? (
+            // FIX: Show user's vote after they've voted (live pod only)
+            <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 10 }}>
+              <View style={{ alignItems: 'center', backgroundColor: 'rgba(16, 185, 129, 0.2)', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.4)' }}>
+                {item.images.length > 1 ? (
+                  <Text style={{ fontSize: 24, color: '#10b981', fontWeight: 'bold' }}>You voted: {voted}</Text>
+                ) : (
+                  <Text style={{ fontSize: 18, color: '#10b981', fontWeight: '600' }}>
+                    You voted: {voted === 'fire' ? '🔥' : voted === 'maybe' ? '🤔' : '❌'}
+                  </Text>
+                )}
+              </View>
+            </View>
+          ) : item.isLive && !hasVoted ? (
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               {item.images.length > 1 ? (
                 // Multi-image voting (1, 2, 3...)
@@ -655,12 +734,12 @@ function Explore() {
                         <Pressable 
                           key={type}
                           onPress={() => handleVote(type)}
-                          disabled={Boolean(!item.isLive || Boolean(voted) || Boolean(isSubmitting))} // FIX: Ensure boolean type
+                          disabled={Boolean(!item.isLive || hasVoted || Boolean(voted) || Boolean(isSubmitting))} // FIX: Disable if already voted
                           style={{ 
                             alignItems: 'center', 
                             flex: voted ? 1 : 0,
                             marginHorizontal: voted ? 0 : 10,
-                            opacity: (!item.isLive || voted || isSubmitting) ? 0.5 : 1 // FIX: Visual feedback
+                            opacity: (!item.isLive || hasVoted || voted || isSubmitting) ? 0.5 : 1 // FIX: Visual feedback
                           }}
                         >
                           <Animated.View style={{ 
@@ -694,11 +773,11 @@ function Explore() {
                     <Pressable 
                       key={type}
                       onPress={() => handleVote(type)}
-                      disabled={Boolean(!item.isLive || Boolean(voted) || Boolean(isSubmitting))} // FIX: Ensure boolean type
+                      disabled={Boolean(!item.isLive || hasVoted || Boolean(voted) || Boolean(isSubmitting))} // FIX: Disable if already voted
                       style={{ 
                         alignItems: 'center', 
                         flex: voted ? 1 : 0,
-                        opacity: (!item.isLive || voted || isSubmitting) ? 0.5 : 1 // FIX: Visual feedback
+                        opacity: (!item.isLive || hasVoted || voted || isSubmitting) ? 0.5 : 1 // FIX: Visual feedback
                       }}
                     >
                       <Animated.View style={{ 
@@ -717,10 +796,10 @@ function Explore() {
                 })
               )}
             </View>
-          )}
+          ) : null}
           
-          {/* Comments for Friends - Only show for live pods */}
-          {activeTab === 'friends' && item.isLive && (
+          {/* Comments for Friends - Only show for live pods where user hasn't voted/commented yet */}
+          {activeTab === 'friends' && item.isLive && !hasVoted && !hasCommented && (
              <View style={{ marginTop: 20 }}>
                 {commentSubmitted ? (
                   <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.2)', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
@@ -734,7 +813,7 @@ function Explore() {
                       value={commentText}
                       onChangeText={setCommentText}
                       onSubmitEditing={handleSubmitComment}
-                      editable={Boolean(item.isLive)} // FIX: Disable commenting on ended pods
+                      editable={Boolean(item.isLive && !hasVoted)} // FIX: Disable commenting on ended pods or after voting
                       returnKeyType="send"
                       style={{ 
                         flex: 1,
@@ -748,7 +827,7 @@ function Explore() {
                     />
                     <Pressable
                       onPress={handleSubmitComment}
-                      disabled={Boolean(!item.isLive || !commentText.trim() || commentSubmitted)} // FIX: Disable on ended pods or if already submitted
+                      disabled={Boolean(!item.isLive || hasVoted || !commentText.trim() || commentSubmitted)} // FIX: Disable on ended pods, after voting, or if already submitted
                       style={{
                         backgroundColor: commentText.trim() ? '#fff' : 'rgba(255,255,255,0.2)',
                         paddingHorizontal: 16,
@@ -1593,6 +1672,7 @@ export default function App() {
   const [bannerType, setBannerType] = useState(null); // 'processing' or 'success'
   const [savedFits, setSavedFits] = useState([]); // Saved outfits
   const [pendingInvite, setPendingInvite] = useState(null); // Pending invite from deep link
+  const [routeStack, setRouteStack] = useState([]); // Navigation stack for back button
   
   // Check for existing Supabase session on startup
   useEffect(() => {
@@ -1956,10 +2036,38 @@ export default function App() {
   }, [user?.email, user?.id]);
 
   const handleSetRoute = (newRoute, params = {}) => {
-    console.log('Setting route:', newRoute, 'with params:', params);
+    // Push current route to stack if it exists and is not a main tab route
+    const mainTabRoutes = ['shop', 'feed', 'podshome', 'account'];
+    const isNewRouteMainTab = mainTabRoutes.includes(newRoute);
+    const isCurrentRouteMainTab = route && mainTabRoutes.includes(route);
+    
+    // Push to stack if:
+    // 1. We have a current route
+    // 2. We're navigating to a different route
+    // 3. Either current route is NOT a main tab, OR we're navigating FROM a main tab TO a non-main tab
+    if (route && route !== newRoute) {
+      // Always push if current route is not a main tab
+      // OR if navigating from main tab to non-main tab (e.g., shop -> product)
+      if (!isCurrentRouteMainTab || (isCurrentRouteMainTab && !isNewRouteMainTab)) {
+        setRouteStack(prev => [...prev, { route, params: routeParams || {} }]);
+      }
+    }
+    
     // Always set params - if empty, clear the params to avoid stale data
     setRouteParams(params);
     setRoute(newRoute);
+  };
+
+  const goBack = () => {
+    if (routeStack.length > 0) {
+      const previous = routeStack[routeStack.length - 1];
+      setRouteStack(prev => prev.slice(0, -1));
+      setRouteParams(previous.params || {});
+      setRoute(previous.route);
+    } else {
+      // Fallback: go to shop if no stack
+      setRoute('shop');
+    }
   };
 
   const appState = {
@@ -1974,7 +2082,8 @@ export default function App() {
     <SafeAreaProvider>
       <AppProvider value={{ 
         state: { ...appState, twinUrl, isProcessing, processingResult, priceTracking, savedFits }, 
-        setRoute: handleSetRoute, 
+        setRoute: handleSetRoute,
+        goBack, 
         setUser, 
         setTryOnHistory, 
         setCurrentProduct,
@@ -2069,7 +2178,7 @@ export default function App() {
             </>
           )}
 
-          {!isCheckingAuth && route === 'product' && <ProductScreen />}
+          {!isCheckingAuth && route === 'product' && <ProductScreen onBack={goBack} />}
 
           {!isCheckingAuth && route === 'tryonresult' && <TryOnResultScreen />}
 
@@ -2097,7 +2206,7 @@ export default function App() {
 
           {!isCheckingAuth && route === 'createpod' && (
             <PodsScreen 
-                onBack={() => setRoute('podshome')}
+                onBack={goBack}
                 onCreatePod={(id) => {
                   console.log('onCreatePod called with id:', id, 'type:', typeof id);
                   if (id && id !== 'undefined' && String(id).length >= 30) {
@@ -2118,10 +2227,7 @@ export default function App() {
             <>
               <PodLive 
                   podId={String(routeParams.id)}
-                  onBack={() => {
-                    // Keep routeParams when going back so we can return
-                    setRoute('podshome');
-                  }}
+                  onBack={goBack}
                   onRecap={(id) => {
                     if (id && id !== 'undefined') {
                       handleSetRoute('podrecap', { id: String(id) });
@@ -2143,7 +2249,7 @@ export default function App() {
           {!isCheckingAuth && route === 'podrecap' && routeParams?.id && (
             <PodRecap 
                 podId={String(routeParams.id)}
-                onBack={() => setRoute('podshome')}
+                onBack={goBack}
                 onViewProduct={(url) => {
                   setRoute('product', { url });
                 }}
@@ -2157,15 +2263,15 @@ export default function App() {
           {!isCheckingAuth && route === 'userprofile' && routeParams?.userId && (
             <UserProfileScreen
               userId={routeParams.userId}
-              onBack={() => setRoute('feed')}
+              onBack={goBack}
               onPodGuest={(id) => handleSetRoute('podguest', { id: String(id) })}
             />
           )}
 
           {!isCheckingAuth && route === 'podguest' && routeParams?.id && (
-            <PodGuest
+            <PodGuest 
               podId={String(routeParams.id)}
-              onBack={() => setRoute('podshome')}
+              onBack={goBack}
               onRecap={() => handleSetRoute('podrecap', { id: routeParams.id })}
               userId={user?.id}
             />
@@ -2173,7 +2279,7 @@ export default function App() {
 
           {!isCheckingAuth && route === 'inbox' && (
             <Inbox 
-                onBack={() => setRoute('podshome')}
+                onBack={goBack}
                 onPodLive={(id) => setRoute('podlive', { id })}
                 onPodRecap={(id) => setRoute('podrecap', { id })}
                 userId={user?.id}
@@ -2182,7 +2288,7 @@ export default function App() {
 
           {!isCheckingAuth && route === 'chat' && (
             <ChatScreen 
-                onBack={() => setRoute('shop')}
+                onBack={goBack}
                 onProductSelect={(p) => {
                     setCurrentProduct(p);
                     setRoute('product');
@@ -2202,6 +2308,10 @@ export default function App() {
               <StyleVaultScreen />
               <BottomBar route={route} go={setRoute} />
             </>
+          )}
+
+          {!isCheckingAuth && route === 'admingarments' && (
+            <AdminGarmentsScreen onBack={() => setRoute('account')} />
           )}
 
           {/* Global Banner Notification - Rendered LAST to be on top of everything */}
