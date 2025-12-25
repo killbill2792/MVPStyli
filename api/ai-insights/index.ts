@@ -1,5 +1,5 @@
 // api/ai-insights/index.ts
-// Uses Google Gemini 2.5 Flash Lite to generate personalized outfit insights based on user profile and product
+// Uses Google Gemini 1.5 Flash to generate personalized outfit insights based on user profile and product
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
