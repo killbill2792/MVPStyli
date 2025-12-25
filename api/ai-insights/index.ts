@@ -1,5 +1,5 @@
 // api/ai-insights/index.ts
-// Uses Google Gemini 1.5 Flash to generate personalized outfit insights based on user profile and product
+// Uses Google Gemini Pro to generate personalized outfit insights based on user profile and product
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
@@ -91,13 +91,15 @@ Give specific, actionable advice based on the user's profile. Be direct and help
 Always explain WHY something works or doesn't work for their specific body type/coloring.
 Use conversational but professional tone. Be encouraging but honest.`;
     
-    // Gemini API endpoint - Using Gemini 1.5 Flash (stable production model)
-    // Correct model names: gemini-pro, gemini-1.5-pro, gemini-1.5-flash, gemini-2.0-flash-exp
-    const model = 'gemini-1.5-flash'; // Changed from incorrect model name
+    // Gemini API endpoint - Using gemini-pro (stable production model)
+    // Available models: gemini-pro, gemini-1.5-pro, gemini-1.5-flash-latest
+    // For v1beta API, use: gemini-pro or gemini-1.5-pro
+    const model = 'gemini-pro'; // Standard stable model for v1beta API
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
     
     console.log('🔵 Calling Gemini API:', model);
     console.log('🔵 API Key present:', !!GEMINI_API_KEY, 'Length:', GEMINI_API_KEY?.length || 0);
+    console.log('🔵 API URL:', apiUrl.replace(GEMINI_API_KEY, 'KEY_HIDDEN'));
     
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -181,7 +183,7 @@ Use conversational but professional tone. Be encouraging but honest.`;
     
     return res.status(200).json({
       insights,
-      source: 'gemini-1.5-flash',
+      source: 'gemini-pro',
       rawResponse: aiResponse.substring(0, 100) // Include snippet for debugging
     });
 
