@@ -1062,6 +1062,25 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     marginBottom: 8,
   },
+  alternativesSection: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  alternativesTitle: {
+    color: '#9ca3af',
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  alternativeItem: {
+    color: '#fff',
+    fontSize: 14,
+    lineHeight: 22,
+    marginBottom: 6,
+  },
 });
 
 export default AskAISheet;
