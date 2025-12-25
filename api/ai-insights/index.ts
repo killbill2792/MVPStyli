@@ -22,6 +22,9 @@ interface UserProfile {
   skinTone?: string;
   colorSeason?: string;
   gender?: string;
+  chest?: string;
+  waist?: string;
+  hips?: string;
 }
 
 interface ProductInfo {
