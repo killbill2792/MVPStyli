@@ -15,6 +15,7 @@ import { useApp } from '../lib/AppContext';
 import { generateFitAdvice, generateSizeAdvice, generateStyleAdvice } from '../lib/askAI';
 import { loadColorProfile } from '../lib/colorAnalysis';
 import { supabase } from '../lib/supabase';
+import { recommendSizeAndFit, toCm } from '../lib/fitLogic';
 
 const { width, height } = Dimensions.get('window');
 const SHEET_HEIGHT = height * 0.75;
@@ -139,7 +140,7 @@ const AskAISheet = ({ visible, onClose, product }) => {
         colorProfile = await loadColorProfile(user.id);
       }
 
-      // Build user profile for API
+      // Build user profile for API (for fit/style)
       const userProfile = {
         height: userProfileData?.height || '',
         weight: userProfileData?.weight || '',
@@ -154,7 +155,21 @@ const AskAISheet = ({ visible, onClose, product }) => {
         colorSeason: colorProfile?.season || userProfileData?.color_season || '',
       };
       
+      // Build user profile for fitLogic (size recommendations) - needs Cm suffix
+      const userProfileForFitLogic = {
+        heightCm: toCm(userProfileData?.height),
+        weightKg: parseFloat(userProfileData?.weight) || null,
+        chestCm: toCm(userProfileData?.chest),
+        bustCm: toCm(userProfileData?.bust || userProfileData?.chest), // fallback
+        waistCm: toCm(userProfileData?.waist),
+        hipsCm: toCm(userProfileData?.hips),
+        shoulderCm: toCm(userProfileData?.shoulder),
+        inseamCm: toCm(userProfileData?.inseam),
+        gender: userProfileData?.gender || null,
+      };
+      
       console.log('User profile for AI advice:', userProfile);
+      console.log('User profile for fitLogic:', userProfileForFitLogic);
 
       // Build product info with URL for caching
       const productInfo = {
@@ -168,8 +183,65 @@ const AskAISheet = ({ visible, onClose, product }) => {
         brand: product?.brand,
         url: product?.url || product?.link || product?.product_link || product?.name, // For cache key
       };
+      
+      // Build product for fitLogic - needs category mapping and sizeChart
+      const category = product?.category || inferCategory(product?.name);
+      const fitLogicCategory = category === 'dress' || category === 'dresses' ? 'dresses' :
+                               category === 'lower' || category === 'pants' || category === 'jeans' ? 'lower_body' :
+                               'upper_body';
+      
+      // Convert sizeChart to fitLogic format if available
+      let sizeChart = [];
+      if (product?.sizeChart) {
+        if (Array.isArray(product.sizeChart)) {
+          sizeChart = product.sizeChart;
+        } else if (typeof product.sizeChart === 'object') {
+          // Convert object format to array format
+          sizeChart = Object.entries(product.sizeChart).map(([size, measurements]) => ({
+            size,
+            measurements: typeof measurements === 'object' ? measurements : {}
+          }));
+        }
+      }
+      
+      const productForFitLogic = {
+        category: fitLogicCategory,
+        name: product?.name || 'Item',
+        fitType: product?.fit || product?.fitType || null,
+        fabricStretch: product?.fabric?.toLowerCase().includes('stretch') || 
+                      product?.fabric?.toLowerCase().includes('elastic') || 
+                      product?.material?.toLowerCase().includes('stretch') || false,
+        sizeChart: sizeChart,
+      };
+      
+      // Use fitLogic for size recommendations (NO-AI)
+      console.log('📏 Using fitLogic for size recommendations');
+      const sizeRecommendation = recommendSizeAndFit(userProfileForFitLogic, productForFitLogic, {});
+      console.log('📏 Size recommendation result:', sizeRecommendation);
+      
+      // Convert fitLogic result to UI format
+      if (sizeRecommendation.status === 'OK') {
+        setSizeAdvice({
+          recommendedSize: sizeRecommendation.recommendedSize,
+          backupSize: sizeRecommendation.backupSize,
+          risk: sizeRecommendation.risk,
+          confidence: sizeRecommendation.confidence,
+          insights: sizeRecommendation.insights,
+          hasEnoughData: true,
+        });
+      } else {
+        setSizeAdvice({
+          recommendedSize: null,
+          backupSize: null,
+          risk: sizeRecommendation.risk,
+          confidence: sizeRecommendation.confidence,
+          insights: sizeRecommendation.insights,
+          hasEnoughData: false,
+          missingDataMessage: sizeRecommendation.insights.join(' '),
+        });
+      }
 
-      // Try to get AI-powered insights from API
+      // Try to get AI-powered insights from API for fit and style
       const API_BASE = process.env.EXPO_PUBLIC_API_BASE;
       
       if (API_BASE) {
@@ -181,17 +253,12 @@ const AskAISheet = ({ visible, onClose, product }) => {
             garment_id: product?.garment_id || product?.id, // If available
           };
           
-          // Fetch all three insights in parallel
-          const [fitResponse, sizeResponse, styleResponse] = await Promise.all([
+          // Fetch fit and style insights in parallel (size is now handled by fitLogic)
+          const [fitResponse, styleResponse] = await Promise.all([
             fetch(`${API_BASE}/api/ai-insights`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ ...requestBody, insightType: 'fit' })
-            }),
-            fetch(`${API_BASE}/api/ai-insights`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ ...requestBody, insightType: 'size' })
             }),
             fetch(`${API_BASE}/api/ai-insights`, {
               method: 'POST',
@@ -229,21 +296,6 @@ const AskAISheet = ({ visible, onClose, product }) => {
             console.error('❌ Fit API error:', fitResponse.status, errorText);
           }
           
-          // Handle size response
-          if (sizeResponse.ok) {
-            const sizeData = await sizeResponse.json();
-            console.log('📊 Size response - cached:', sizeData.cached);
-            if (sizeData.cached) setIsCached(true);
-            if (sizeData.insights) {
-              setSizeAdvice(sizeData.insights);
-            }
-          } else if (sizeResponse.status === 429) {
-            // Already handled above
-          } else {
-            const errorText = await sizeResponse.text();
-            console.error('❌ Size API error:', sizeResponse.status, errorText);
-          }
-          
           // Handle style response
           if (styleResponse.ok) {
             const styleData = await styleResponse.json();
@@ -261,12 +313,18 @@ const AskAISheet = ({ visible, onClose, product }) => {
           
         } catch (apiError) {
           console.log('AI API not available, using fallback:', apiError.message);
-          // Fallback to local generation
-          useFallbackAdvice(userProfile, productInfo);
+          // Fallback to local generation for fit/style
+          const fit = generateFitAdvice(userProfile, productInfo);
+          const style = generateStyleAdvice(userProfile, productInfo);
+          setFitAdvice(fit);
+          setStyleAdvice(style);
         }
       } else {
-        // No API configured, use local fallback
-        useFallbackAdvice(userProfile, productInfo);
+        // No API configured, use local fallback for fit/style
+        const fit = generateFitAdvice(userProfile, productInfo);
+        const style = generateStyleAdvice(userProfile, productInfo);
+        setFitAdvice(fit);
+        setStyleAdvice(style);
       }
       
     } catch (error) {
@@ -282,14 +340,13 @@ const AskAISheet = ({ visible, onClose, product }) => {
     }
   };
   
-  // Fallback to local rule-based advice
+  // Fallback to local rule-based advice (for fit/style only, size uses fitLogic)
   const useFallbackAdvice = (userProfile, productInfo) => {
     const fit = generateFitAdvice(userProfile, productInfo);
-    const size = generateSizeAdvice(userProfile, productInfo);
     const style = generateStyleAdvice(userProfile, productInfo);
     setFitAdvice(fit);
-    setSizeAdvice(size);
     setStyleAdvice(style);
+    // Size is already handled by fitLogic above
   };
 
   // Helper to infer category from product name
@@ -361,9 +418,9 @@ const AskAISheet = ({ visible, onClose, product }) => {
                   </Text>
                 </>
               )}
-              <Pressable style={styles.closeBtn} onPress={closeSheet}>
-                <Text style={styles.closeBtnText}>✕</Text>
-              </Pressable>
+            <Pressable style={styles.closeBtn} onPress={closeSheet}>
+              <Text style={styles.closeBtnText}>✕</Text>
+            </Pressable>
             </View>
           </View>
         </View>
@@ -446,7 +503,7 @@ const AskAISheet = ({ visible, onClose, product }) => {
 
                 {!sizeAdvice?.hasEnoughData ? (
                   <View style={styles.missingDataBox}>
-                    <Text style={styles.missingDataText}>{sizeAdvice?.missingDataMessage}</Text>
+                    <Text style={styles.missingDataText}>{sizeAdvice?.missingDataMessage || sizeAdvice?.insights?.join(' ') || 'Not enough data for size recommendation'}</Text>
                     <Pressable 
                       style={styles.addDataBtn}
                       onPress={() => {
@@ -460,36 +517,46 @@ const AskAISheet = ({ visible, onClose, product }) => {
                 ) : (
                   <>
                     <View style={styles.sizeRecommendation}>
-                      <Text style={styles.sizeLabel}>Recommended:</Text>
+                      <Text style={styles.sizeLabel}>Recommended Size:</Text>
                       <View style={styles.sizeBadge}>
-                        <Text style={styles.sizeText}>{sizeAdvice?.recommendedSize}</Text>
+                        <Text style={styles.sizeText}>{sizeAdvice?.recommendedSize || 'N/A'}</Text>
                       </View>
                       {sizeAdvice?.backupSize && (
-                        <Text style={styles.backupSize}>(Backup: {sizeAdvice.backupSize})</Text>
+                        <View style={{ marginTop: 8 }}>
+                          <Text style={styles.backupSize}>Backup Size: {sizeAdvice.backupSize}</Text>
+                        </View>
                       )}
                     </View>
 
-                    {sizeAdvice?.reasoning?.length > 0 && (
-                      <View style={styles.reasoningSection}>
-                        {sizeAdvice.reasoning.map((reason, idx) => (
-                          <Text key={idx} style={styles.reasoningItem}>• {reason}</Text>
-                        ))}
+                    {sizeAdvice?.confidence != null && (
+                      <View style={styles.confidenceBadge}>
+                        <Text style={styles.confidenceLabel}>Confidence:</Text>
+                        <Text style={styles.confidenceText}>{sizeAdvice.confidence}%</Text>
                       </View>
                     )}
 
                     <View style={[
                       styles.riskBadge,
-                      sizeAdvice?.returnRisk === 'low' && styles.riskLow,
-                      sizeAdvice?.returnRisk === 'medium' && styles.riskMedium,
-                      sizeAdvice?.returnRisk === 'high' && styles.riskHigh,
+                      sizeAdvice?.risk === 'low' && styles.riskLow,
+                      sizeAdvice?.risk === 'medium' && styles.riskMedium,
+                      sizeAdvice?.risk === 'high' && styles.riskHigh,
                     ]}>
-                      <Text style={styles.riskLabel}>Return Risk:</Text>
+                      <Text style={styles.riskLabel}>Risk:</Text>
                       <Text style={styles.riskText}>
-                        {sizeAdvice?.returnRisk === 'low' && '🟢 Low'}
-                        {sizeAdvice?.returnRisk === 'medium' && '🟡 Medium'}
-                        {sizeAdvice?.returnRisk === 'high' && '🔴 High'}
+                        {sizeAdvice?.risk === 'low' && '🟢 Low'}
+                        {sizeAdvice?.risk === 'medium' && '🟡 Medium'}
+                        {sizeAdvice?.risk === 'high' && '🔴 High'}
                       </Text>
                     </View>
+
+                    {sizeAdvice?.insights && sizeAdvice.insights.length > 0 && (
+                      <View style={styles.insightsSection}>
+                        <Text style={styles.insightsTitle}>Insights:</Text>
+                        {sizeAdvice.insights.map((insight, idx) => (
+                          <Text key={idx} style={styles.insightItem}>• {insight}</Text>
+                        ))}
+                      </View>
+                    )}
                   </>
                 )}
               </View>
@@ -736,17 +803,47 @@ const styles = StyleSheet.create({
   },
   backupSize: {
     color: '#9ca3af',
-    fontSize: 13,
-    marginLeft: 12,
+    fontSize: 14,
+    marginTop: 4,
   },
-  reasoningSection: {
-    marginBottom: 16,
+  confidenceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+    alignSelf: 'flex-start',
   },
-  reasoningItem: {
-    color: '#d4d4d8',
+  confidenceLabel: {
+    color: '#9ca3af',
+    fontSize: 12,
+    marginRight: 8,
+  },
+  confidenceText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  insightsSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  insightsTitle: {
+    color: '#9ca3af',
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  insightItem: {
+    color: '#fff',
     fontSize: 14,
     lineHeight: 22,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   riskBadge: {
     flexDirection: 'row',

@@ -1225,6 +1225,29 @@ const StyleVaultScreen = () => {
         {/* SECTION 3: FIT PROFILE (Summary Card) */}
         <SectionCard title="Fit Profile" style={{ marginBottom: 20 }}>
           <View style={styles.fitProfileSummaryCard}>
+            {/* Profile Name with Photos */}
+            <View style={styles.fitProfileHeaderRow}>
+              <Text style={styles.fitProfileName}>Fit Profile</Text>
+              <View style={styles.fitProfilePhotos}>
+                {bodyImage && (
+                  <Image 
+                    source={{ uri: bodyImage }} 
+                    style={styles.fitProfilePhotoThumbnail}
+                  />
+                )}
+                {faceImage && (
+                  <Image 
+                    source={{ uri: faceImage }} 
+                    style={styles.fitProfilePhotoThumbnail}
+                  />
+                )}
+                {!bodyImage && !faceImage && (
+                  <View style={[styles.fitProfilePhotoThumbnail, styles.fitProfilePhotoPlaceholder]}>
+                    <Text style={styles.fitProfilePhotoPlaceholderText}>📷</Text>
+                  </View>
+                )}
+              </View>
+            </View>
             <View style={styles.fitProfileSummaryRow}>
               <Text style={styles.fitProfileSummaryLabel}>Gender:</Text>
               <Text style={styles.fitProfileSummaryValue}>{fitProfile.gender || 'Not set'}</Text>
@@ -1244,13 +1267,7 @@ const StyleVaultScreen = () => {
             <View style={styles.fitProfileSummaryRow}>
               <Text style={styles.fitProfileSummaryLabel}>Sizes:</Text>
               <Text style={styles.fitProfileSummaryValue}>
-                {[fitProfile.topSize, fitProfile.bottomSize, fitProfile.shoeSize].filter(Boolean).join(' / ') || 'Not set'}
-              </Text>
-            </View>
-            <View style={styles.fitProfileSummaryRow}>
-              <Text style={styles.fitProfileSummaryLabel}>Photos:</Text>
-              <Text style={styles.fitProfileSummaryValue}>
-                {bodyImage ? '📸 Body' : ''} {faceImage ? '🎨 Face' : ''} {!bodyImage && !faceImage ? 'None' : ''}
+                {[fitProfile.topSize, fitProfile.bottomSize].filter(Boolean).join(' / ') || 'Not set'}
               </Text>
             </View>
             <Pressable 
@@ -2262,16 +2279,6 @@ const StyleVaultScreen = () => {
               />
             </View>
             
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Shoe Size</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g., 9, 42"
-                placeholderTextColor="#666"
-                value={fitProfile.shoeSize}
-                onChangeText={(text) => setFitProfile(prev => ({ ...prev, shoeSize: text }))}
-              />
-            </View>
 
             {(fitProfile.gender === 'Female' || fitProfile.gender === 'Non-binary' || !fitProfile.gender) && (
               <View style={styles.inputGroup}>
@@ -2322,7 +2329,6 @@ const StyleVaultScreen = () => {
                       weight: fitProfile.weight,
                       top_size: fitProfile.topSize,
                       bottom_size: fitProfile.bottomSize,
-                      shoe_size: fitProfile.shoeSize,
                       chest: fitProfile.chest,
                       underbust: fitProfile.underbust,
                       waist: fitProfile.waist,
@@ -3567,6 +3573,39 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
   },
   // Fit Profile Summary Card styles
+  fitProfileHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  fitProfileName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  fitProfilePhotos: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  fitProfilePhotoThumbnail: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#6366f1',
+  },
+  fitProfilePhotoPlaceholder: {
+    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fitProfilePhotoPlaceholderText: {
+    fontSize: 18,
+  },
   fitProfileSummaryCard: {
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderRadius: 12,
