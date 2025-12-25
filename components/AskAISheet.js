@@ -16,6 +16,7 @@ import { generateFitAdvice, generateSizeAdvice, generateStyleAdvice } from '../l
 import { loadColorProfile } from '../lib/colorAnalysis';
 import { supabase } from '../lib/supabase';
 import { recommendSizeAndFit, toCm } from '../lib/fitLogic';
+import { evaluateSuitability } from '../lib/styleSuitability';
 
 const { width, height } = Dimensions.get('window');
 const SHEET_HEIGHT = height * 0.75;
@@ -31,6 +32,8 @@ const AskAISheet = ({ visible, onClose, product }) => {
   const [fitAdvice, setFitAdvice] = useState(null);
   const [sizeAdvice, setSizeAdvice] = useState(null);
   const [styleAdvice, setStyleAdvice] = useState(null);
+  const [colorSuitability, setColorSuitability] = useState(null);
+  const [bodyShapeSuitability, setBodyShapeSuitability] = useState(null);
   const [isCached, setIsCached] = useState(false);
   const [isRequesting, setIsRequesting] = useState(false); // Client-side throttling
   const requestInProgress = useRef(false); // Prevent multiple simultaneous requests
@@ -240,6 +243,26 @@ const AskAISheet = ({ visible, onClose, product }) => {
           missingDataMessage: sizeRecommendation.insights.join(' '),
         });
       }
+      
+      // Use styleSuitability for color and body shape (NO-AI)
+      console.log('🎨 Using styleSuitability for color and body shape');
+      const userProfileForSuitability = {
+        undertone: colorProfile?.tone || userProfileData?.color_tone || null,
+        season: colorProfile?.season || userProfileData?.color_season || null,
+        bodyShape: userProfileData?.body_shape || null,
+      };
+      
+      const productForSuitability = {
+        primaryColor: product?.color || inferColor(product?.name) || null,
+        category: fitLogicCategory, // Use same category mapping
+        fitType: product?.fit || product?.fitType || null,
+      };
+      
+      const suitability = evaluateSuitability(userProfileForSuitability, productForSuitability);
+      console.log('🎨 Suitability result:', suitability);
+      
+      setColorSuitability(suitability.color);
+      setBodyShapeSuitability(suitability.body);
 
       // Try to get AI-powered insights from API for fit and style
       const API_BASE = process.env.EXPO_PUBLIC_API_BASE;
@@ -561,7 +584,119 @@ const AskAISheet = ({ visible, onClose, product }) => {
                 )}
               </View>
 
-              {/* Section 3: How should I wear this? */}
+              {/* Section 3: Color Suitability */}
+              <View style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <Text style={styles.cardEmoji}>🎨</Text>
+                  <Text style={styles.cardTitle}>Color</Text>
+                </View>
+
+                {colorSuitability?.status === 'INSUFFICIENT_DATA' ? (
+                  <View style={styles.missingDataBox}>
+                    <Text style={styles.missingDataText}>{colorSuitability.reasons?.[0] || 'Set your Color Profile'}</Text>
+                    <Pressable 
+                      style={styles.addDataBtn}
+                      onPress={() => {
+                        closeSheet();
+                        setRoute('account');
+                      }}
+                    >
+                      <Text style={styles.addDataBtnText}>Set Color Profile →</Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <>
+                    <View style={[
+                      styles.verdictBadge,
+                      colorSuitability?.verdict === 'great' && styles.verdictGood,
+                      colorSuitability?.verdict === 'ok' && styles.verdictNeutral,
+                      colorSuitability?.verdict === 'risky' && styles.verdictWarning,
+                    ]}>
+                      <Text style={styles.verdictText}>
+                        {colorSuitability?.verdict === 'great' && '✅ Great'}
+                        {colorSuitability?.verdict === 'ok' && '⚡ OK'}
+                        {colorSuitability?.verdict === 'risky' && '⚠️ Risky'}
+                      </Text>
+                    </View>
+
+                    {colorSuitability?.reasons && colorSuitability.reasons.length > 0 && (
+                      <View style={styles.adviceSection}>
+                        {colorSuitability.reasons.map((reason, idx) => (
+                          <Text key={idx} style={styles.adviceItem}>• {reason}</Text>
+                        ))}
+                      </View>
+                    )}
+
+                    {colorSuitability?.alternatives && colorSuitability.alternatives.length > 0 && (
+                      <View style={styles.alternativesSection}>
+                        <Text style={styles.alternativesTitle}>Alternatives:</Text>
+                        {colorSuitability.alternatives.map((alt, idx) => (
+                          <Text key={idx} style={styles.alternativeItem}>💡 {alt}</Text>
+                        ))}
+                      </View>
+                    )}
+                  </>
+                )}
+              </View>
+
+              {/* Section 4: Body Shape Suitability */}
+              <View style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <Text style={styles.cardEmoji}>👗</Text>
+                  <Text style={styles.cardTitle}>Body Shape</Text>
+                </View>
+
+                {bodyShapeSuitability?.status === 'INSUFFICIENT_DATA' ? (
+                  <View style={styles.missingDataBox}>
+                    <Text style={styles.missingDataText}>{bodyShapeSuitability.reasons?.[0] || 'Set your Body Shape'}</Text>
+                    <Pressable 
+                      style={styles.addDataBtn}
+                      onPress={() => {
+                        closeSheet();
+                        setRoute('account');
+                      }}
+                    >
+                      <Text style={styles.addDataBtnText}>Set Body Shape →</Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <>
+                    <View style={[
+                      styles.verdictBadge,
+                      bodyShapeSuitability?.verdict === 'flattering' && styles.verdictGood,
+                      bodyShapeSuitability?.verdict === 'ok' && styles.verdictNeutral,
+                      bodyShapeSuitability?.verdict === 'neutral' && styles.verdictNeutral,
+                      bodyShapeSuitability?.verdict === 'risky' && styles.verdictWarning,
+                    ]}>
+                      <Text style={styles.verdictText}>
+                        {bodyShapeSuitability?.verdict === 'flattering' && '✅ Flattering'}
+                        {bodyShapeSuitability?.verdict === 'ok' && '⚡ OK'}
+                        {bodyShapeSuitability?.verdict === 'neutral' && '⚡ Neutral'}
+                        {bodyShapeSuitability?.verdict === 'risky' && '⚠️ Risky'}
+                      </Text>
+                    </View>
+
+                    {bodyShapeSuitability?.reasons && bodyShapeSuitability.reasons.length > 0 && (
+                      <View style={styles.adviceSection}>
+                        {bodyShapeSuitability.reasons.map((reason, idx) => (
+                          <Text key={idx} style={styles.adviceItem}>• {reason}</Text>
+                        ))}
+                      </View>
+                    )}
+
+                    {bodyShapeSuitability?.alternatives && bodyShapeSuitability.alternatives.length > 0 && (
+                      <View style={styles.alternativesSection}>
+                        <Text style={styles.alternativesTitle}>Styling Tip:</Text>
+                        {bodyShapeSuitability.alternatives.map((alt, idx) => (
+                          <Text key={idx} style={styles.alternativeItem}>💡 {alt}</Text>
+                        ))}
+                      </View>
+                    )}
+                  </>
+                )}
+              </View>
+
+              {/* Section 5: How should I wear this? */}
               <View style={styles.card}>
                 <View style={styles.cardHeader}>
                   <Text style={styles.cardEmoji}>💡</Text>
