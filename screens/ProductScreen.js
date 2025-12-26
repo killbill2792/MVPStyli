@@ -592,17 +592,17 @@ const ProductScreen = ({ onBack }) => {
                       {/* Size Chart Grid */}
                       <Text style={styles.sizeChartTitle}>Size Chart (Circumference in inches)</Text>
                       <View style={styles.sizeChartGrid}>
-                    
-                    // Measurements are in inches, format them nicely
-                    const formatMeasurement = (value, label) => {
-                      if (!value || isNaN(value)) return null;
-                      const inches = Number(value);
-                      // Format as fraction for inches, or show cm if preferred
-                      const formatted = formatInchesAsFraction(inches);
-                      return `${label}: ${formatted}`;
-                    };
-                    
-                    return Object.entries(sizeChartObj || {}).slice(0, 6).map(([size, measurements]) => {
+                        {(() => {
+                          // Measurements are in inches, format them nicely
+                          const formatMeasurement = (value, label) => {
+                            if (!value || isNaN(value)) return null;
+                            const inches = Number(value);
+                            // Format as fraction for inches, or show cm if preferred
+                            const formatted = formatInchesAsFraction(inches);
+                            return `${label}: ${formatted}`;
+                          };
+                          
+                          return Object.entries(sizeChartObj || {}).slice(0, 6).map(([size, measurements]) => {
                       const measurementLines = [
                         formatMeasurement(measurements.chest || measurements.bust, 'Chest'),
                         formatMeasurement(measurements.waist, 'Waist'),
