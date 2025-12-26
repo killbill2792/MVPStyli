@@ -2,10 +2,17 @@
 -- This script fixes the RLS issue and restructures for multiple sizes per product
 
 -- Step 1: Fix RLS policies to allow service role and authenticated users
+-- Drop all existing policies first to avoid conflicts
 DROP POLICY IF EXISTS "Allow all users to read active garments" ON garments;
 DROP POLICY IF EXISTS "Allow authenticated users to insert garments" ON garments;
 DROP POLICY IF EXISTS "Allow authenticated users to update garments" ON garments;
 DROP POLICY IF EXISTS "Allow authenticated users to delete garments" ON garments;
+DROP POLICY IF EXISTS "Service role full access" ON garments;
+DROP POLICY IF EXISTS "Anon role full access" ON garments;
+DROP POLICY IF EXISTS "Anon role can read garments" ON garments;
+DROP POLICY IF EXISTS "Anon role can insert garments" ON garments;
+DROP POLICY IF EXISTS "Anon role can update garments" ON garments;
+DROP POLICY IF EXISTS "Anon role can delete garments" ON garments;
 
 -- Allow service role (used by API with service key) to do everything
 CREATE POLICY "Service role full access" ON garments
@@ -68,6 +75,18 @@ CREATE INDEX IF NOT EXISTS idx_garment_sizes_size_label ON garment_sizes(size_la
 ALTER TABLE garment_sizes ENABLE ROW LEVEL SECURITY;
 
 -- RLS policies for garment_sizes
+-- Drop existing policies first
+DROP POLICY IF EXISTS "Service role full access sizes" ON garment_sizes;
+DROP POLICY IF EXISTS "Anon role full access sizes" ON garment_sizes;
+DROP POLICY IF EXISTS "Anon role can read garment sizes" ON garment_sizes;
+DROP POLICY IF EXISTS "Anon role can insert garment sizes" ON garment_sizes;
+DROP POLICY IF EXISTS "Anon role can update garment sizes" ON garment_sizes;
+DROP POLICY IF EXISTS "Anon role can delete garment sizes" ON garment_sizes;
+DROP POLICY IF EXISTS "Allow all users to read garment sizes" ON garment_sizes;
+DROP POLICY IF EXISTS "Allow authenticated users to insert garment sizes" ON garment_sizes;
+DROP POLICY IF EXISTS "Allow authenticated users to update garment sizes" ON garment_sizes;
+DROP POLICY IF EXISTS "Allow authenticated users to delete garment sizes" ON garment_sizes;
+
 CREATE POLICY "Service role full access sizes" ON garment_sizes
   FOR ALL USING (auth.jwt() ->> 'role' = 'service_role');
 
