@@ -8,6 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import BottomBar from '../components/BottomBar';
 import AskAISheet from '../components/AskAISheet';
 import { supabase } from '../lib/supabase';
+import { formatInchesAsFraction } from '../lib/measurementUtils';
 
 const { width, height } = Dimensions.get('window');
 
