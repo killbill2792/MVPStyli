@@ -23,7 +23,7 @@ import { cmToInches } from '../lib/measurementUtils';
 const { width, height } = Dimensions.get('window');
 const SHEET_HEIGHT = height * 0.75;
 
-const AskAISheet = ({ visible, onClose, product }) => {
+const AskAISheet = ({ visible, onClose, product, selectedSize = null }) => {
   const { state, setRoute } = useApp();
   const { user } = state;
   

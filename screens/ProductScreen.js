@@ -49,6 +49,7 @@ const ProductScreen = ({ onBack }) => {
   const [showAISheet, setShowAISheet] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedSize, setSelectedSize] = useState(null); // Selected size label (S, M, L, etc.)
 
   // Use currentProduct as source of truth
   // Only fall back to routeParams if currentProduct is null
