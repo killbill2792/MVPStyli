@@ -1306,6 +1306,8 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                   style={[styles.saveButton, isDetectingColor && { opacity: 0.5 }]}
                   onPress={async () => {
                     if (isDetectingColor) return;
+                    // Clear cache to force fresh detection
+                    clearColorCache();
                     await autoDetectColor();
                   }}
                   disabled={isDetectingColor}
