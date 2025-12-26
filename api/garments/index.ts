@@ -64,19 +64,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(404).json({ error: 'Garment not found', details: garmentError.message });
         }
 
-        // Get sizes for this garment
-        const { data: sizes, error: sizesError } = await supabase
-          .from('garment_sizes')
-          .select('*')
-          .eq('garment_id', id)
-          .order('size_label');
+        // Get sizes for this garment (if table exists)
+        let sizes = [];
+        try {
+          const { data: sizesData, error: sizesError } = await supabase
+            .from('garment_sizes')
+            .select('*')
+            .eq('garment_id', id)
+            .order('size_label');
 
-        if (sizesError) {
-          console.warn('Error fetching sizes:', sizesError);
+          if (sizesError) {
+            // If table doesn't exist, that's OK - just return empty sizes array
+            if (sizesError.message?.includes('does not exist') || sizesError.code === '42P01') {
+              console.warn('garment_sizes table does not exist yet. Run SQL migration.');
+            } else {
+              console.warn('Error fetching sizes:', sizesError);
+            }
+          } else if (sizesData) {
+            sizes = sizesData;
+          }
+        } catch (err: any) {
+          // Table might not exist - that's OK
+          console.warn('Could not fetch sizes (table may not exist):', err.message);
         }
 
         return res.status(200).json({ 
-          garment: { ...garment, sizes: sizes || [] }
+          garment: { ...garment, sizes: sizes }
         });
       }
 
@@ -103,13 +116,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(500).json({ error: 'Failed to fetch garments', details: error.message });
       }
 
-      // Fetch sizes for all garments
+      // Fetch sizes for all garments (if garment_sizes table exists)
       if (garments && garments.length > 0) {
         const garmentIds = garments.map(g => g.id);
-        const { data: allSizes } = await supabase
-          .from('garment_sizes')
-          .select('*')
-          .in('garment_id', garmentIds);
+        let allSizes = null;
+        
+        try {
+          const { data, error } = await supabase
+            .from('garment_sizes')
+            .select('*')
+            .in('garment_id', garmentIds);
+          
+          if (error) {
+            // If table doesn't exist, just continue without sizes
+            if (error.message?.includes('does not exist') || error.code === '42P01') {
+              console.warn('garment_sizes table does not exist yet. Run SQL migration.');
+            } else {
+              console.error('Error fetching sizes:', error);
+            }
+          } else {
+            allSizes = data;
+          }
+        } catch (err: any) {
+          // Table might not exist - that's OK, just continue without sizes
+          console.warn('Could not fetch sizes (table may not exist):', err.message);
+        }
 
         // Group sizes by garment_id
         const sizesByGarment: { [key: string]: any[] } = {};
@@ -122,7 +153,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           });
         }
 
-        // Attach sizes to each garment
+        // Attach sizes to each garment (empty array if no sizes)
         const garmentsWithSizes = garments.map(garment => ({
           ...garment,
           sizes: sizesByGarment[garment.id] || []
