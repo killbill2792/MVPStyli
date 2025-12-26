@@ -626,7 +626,7 @@ const AskAISheet = ({ visible, onClose, product }) => {
                   <View style={styles.missingDataBox}>
                     <Text style={styles.missingDataText}>
                       {fitSizeData?.missingGarment
-                        ? 'Need garment measurements (size chart). Add product with size chart or input garment measurements in admin panel.'
+                        ? 'Failed to fetch garment measurements. Size chart not available for this product.'
                         : fitSizeData?.missingBody
                         ? 'Need body measurements. Add your measurements in Fit Profile.'
                         : fitSizeData?.missingData?.join(' ') || 'Need body measurements and garment size chart for accurate fit analysis.'}

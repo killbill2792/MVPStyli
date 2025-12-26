@@ -541,12 +541,28 @@ const ProductScreen = ({ onBack }) => {
           <View style={styles.divider} />
           <View style={styles.sizeFitSection}>
             <Text style={styles.sectionTitle}>Size & Fit</Text>
-            {product.sizeChart && Object.keys(product.sizeChart).length > 0 ? (
+            {(product.sizeChartDisplay && Object.keys(product.sizeChartDisplay).length > 0) || 
+              (product.sizeChart && (Array.isArray(product.sizeChart) ? product.sizeChart.length > 0 : Object.keys(product.sizeChart).length > 0)) ? (
               <View style={styles.sizeChartContainer}>
                 <Text style={styles.sizeChartTitle}>Size Chart (Circumference in inches)</Text>
                 {/* Render size chart if available */}
                 <View style={styles.sizeChartGrid}>
-                  {Object.entries(product.sizeChart).slice(0, 6).map(([size, measurements]) => {
+                  {(() => {
+                    // Use sizeChartDisplay if available (object format), otherwise convert sizeChart array to object
+                    let sizeChartObj = product.sizeChartDisplay;
+                    if (!sizeChartObj && product.sizeChart) {
+                      if (Array.isArray(product.sizeChart)) {
+                        sizeChartObj = {};
+                        product.sizeChart.forEach(item => {
+                          if (item.size && item.measurements) {
+                            sizeChartObj[item.size] = item.measurements;
+                          }
+                        });
+                      } else {
+                        sizeChartObj = product.sizeChart;
+                      }
+                    }
+                    return Object.entries(sizeChartObj || {}).slice(0, 6).map(([size, measurements]) => {
                     // Measurements are in inches, format them nicely
                     const formatMeasurement = (value, label) => {
                       if (!value || isNaN(value)) return null;
@@ -576,7 +592,7 @@ const ProductScreen = ({ onBack }) => {
                         )}
                       </View>
                     );
-                  })}
+                  })})}
                 </View>
               </View>
             ) : (
