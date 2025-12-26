@@ -46,20 +46,21 @@ CREATE TABLE IF NOT EXISTS garment_sizes (
   size_label TEXT NOT NULL, -- S, M, L, XL, etc.
   
   -- Universal measurements (flat, doubled in logic)
-  chest_width DECIMAL(6,2), -- Flat chest width in cm
-  waist_width DECIMAL(6,2), -- Flat waist width in cm
-  hip_width DECIMAL(6,2), -- Flat hip width in cm
-  garment_length DECIMAL(6,2), -- Total length in cm
+  -- Circumference measurements (in inches)
+  chest_circumference DECIMAL(6,2), -- Chest circumference in inches
+  waist_circumference DECIMAL(6,2), -- Waist circumference in inches
+  hip_circumference DECIMAL(6,2), -- Hip circumference in inches
+  garment_length_in DECIMAL(6,2), -- Total length in inches
   
-  -- Upper body measurements
-  shoulder_width DECIMAL(6,2), -- Shoulder width in cm
-  sleeve_length DECIMAL(6,2), -- Sleeve length in cm (only if sleeves exist)
+  -- Upper body measurements (in inches)
+  shoulder_width_in DECIMAL(6,2), -- Shoulder width in inches
+  sleeve_length_in DECIMAL(6,2), -- Sleeve length in inches (only if sleeves exist)
   
-  -- Lower body measurements
-  inseam DECIMAL(6,2), -- Inseam in cm
-  rise DECIMAL(6,2), -- Rise in cm (optional but recommended for jeans)
-  thigh_width DECIMAL(6,2), -- Thigh width in cm
-  leg_opening DECIMAL(6,2), -- Leg opening width in cm
+  -- Lower body measurements (circumference and lengths in inches)
+  inseam_in DECIMAL(6,2), -- Inseam in inches
+  rise_in DECIMAL(6,2), -- Rise in inches (optional but recommended for jeans)
+  thigh_circumference DECIMAL(6,2), -- Thigh circumference in inches
+  leg_opening_circumference DECIMAL(6,2), -- Leg opening circumference in inches
   
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

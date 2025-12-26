@@ -562,7 +562,7 @@ const ProductScreen = ({ onBack }) => {
                         sizeChartObj = product.sizeChart;
                       }
                     }
-                    return Object.entries(sizeChartObj || {}).slice(0, 6).map(([size, measurements]) => {
+                    
                     // Measurements are in inches, format them nicely
                     const formatMeasurement = (value, label) => {
                       if (!value || isNaN(value)) return null;
@@ -572,27 +572,29 @@ const ProductScreen = ({ onBack }) => {
                       return `${label}: ${formatted}`;
                     };
                     
-                    const measurementLines = [
-                      formatMeasurement(measurements.chest || measurements.bust, 'Chest'),
-                      formatMeasurement(measurements.waist, 'Waist'),
-                      formatMeasurement(measurements.hips, 'Hips'),
-                      formatMeasurement(measurements.shoulder, 'Shoulder'),
-                      formatMeasurement(measurements.inseam, 'Inseam'),
-                    ].filter(Boolean);
-                    
-                    return (
-                      <View key={size} style={styles.sizeChartItem}>
-                        <Text style={styles.sizeChartSize}>{size}</Text>
-                        {measurementLines.length > 0 ? (
-                          measurementLines.map((line, idx) => (
-                            <Text key={idx} style={styles.sizeChartMeasure}>{line}</Text>
-                          ))
-                        ) : (
-                          <Text style={styles.sizeChartMeasure}>No measurements</Text>
-                        )}
-                      </View>
-                    );
-                  })})}
+                    return Object.entries(sizeChartObj || {}).slice(0, 6).map(([size, measurements]) => {
+                      const measurementLines = [
+                        formatMeasurement(measurements.chest || measurements.bust, 'Chest'),
+                        formatMeasurement(measurements.waist, 'Waist'),
+                        formatMeasurement(measurements.hips, 'Hips'),
+                        formatMeasurement(measurements.shoulder, 'Shoulder'),
+                        formatMeasurement(measurements.inseam, 'Inseam'),
+                      ].filter(Boolean);
+                      
+                      return (
+                        <View key={size} style={styles.sizeChartItem}>
+                          <Text style={styles.sizeChartSize}>{size}</Text>
+                          {measurementLines.length > 0 ? (
+                            measurementLines.map((line, idx) => (
+                              <Text key={idx} style={styles.sizeChartMeasure}>{line}</Text>
+                            ))
+                          ) : (
+                            <Text style={styles.sizeChartMeasure}>No measurements</Text>
+                          )}
+                        </View>
+                      );
+                    });
+                  })()}
                 </View>
               </View>
             ) : (
