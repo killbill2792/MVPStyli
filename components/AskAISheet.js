@@ -472,10 +472,21 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       
       // Get color - check multiple possible fields
       // IMPORTANT: Check product.color first (this is what ProductScreen passes)
-      const productColorRaw = product?.color || product?.color_raw || product?.primaryColor || null;
+      // Also check detectedColor and userEnteredColor (from auto-detection or manual input)
+      const productColorRaw = product?.color || product?.color_raw || product?.primaryColor || detectedColor || userEnteredColor || null;
       const productColor = (productColorRaw && String(productColorRaw).trim() !== '' && String(productColorRaw).trim() !== 'null' && String(productColorRaw).trim() !== 'undefined')
         ? String(productColorRaw).trim()
         : (inferColor(product?.name) || null);
+      
+      // If we have a detected/entered color but product doesn't have it, update product
+      if ((detectedColor || userEnteredColor) && !product?.color && productColor) {
+        console.log('🎨 [FIT CHECK] Updating product color from detected/entered:', productColor);
+        const updatedProduct = {
+          ...product,
+          color: productColor,
+        };
+        setProduct(updatedProduct);
+      }
       
       // LOG: Color detection for debugging
       console.log('🎨 [FIT CHECK] Product color check:', {
@@ -488,6 +499,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         detectedColor: detectedColor,
         userEnteredColor: userEnteredColor,
         hasColor: !!productColor && productColor !== 'unknown',
+        productObjectColor: product?.color,
       });
       
       const productForSuitability = {
@@ -1287,24 +1299,28 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
               style={styles.modalScroll}
               contentContainerStyle={{ paddingBottom: 40 }}
             >
-              {/* Show detected color or allow manual entry */}
+              {/* Auto-detect button */}
               <View style={styles.modalSection}>
-                <Text style={styles.modalSectionTitle}>
-                  {detectedColor ? 'Detected Color' : 'Product Color'}
-                </Text>
-                {isDetectingColor ? (
-                  <View style={{ alignItems: 'center', padding: 20 }}>
-                    <ActivityIndicator color="#6366f1" size="large" />
-                    <Text style={{ color: '#9ca3af', marginTop: 10 }}>Detecting color...</Text>
-                  </View>
-                ) : (
-                  <>
-                    {detectedColor && (
-                      <Text style={styles.detectedColorText}>
-                        Auto-detected: {detectedColor}
-                      </Text>
-                    )}
-                  </>
+                <Text style={styles.modalSectionTitle}>Detect Color from Image</Text>
+                <Pressable
+                  style={[styles.saveButton, isDetectingColor && { opacity: 0.5 }]}
+                  onPress={async () => {
+                    if (isDetectingColor) return;
+                    await autoDetectColor();
+                  }}
+                  disabled={isDetectingColor}
+                >
+                  {isDetectingColor ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.saveButtonText}>🔍 Detect Color</Text>
+                  )}
+                </Pressable>
+                
+                {detectedColor && (
+                  <Text style={[styles.detectedColorText, { marginTop: 12 }]}>
+                    Detected: {detectedColor}
+                  </Text>
                 )}
               </View>
 
@@ -1315,22 +1331,35 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                   style={styles.colorInput}
                   placeholder="e.g., Navy, Black, Plum Purple"
                   placeholderTextColor="#666"
-                  value={userEnteredColor || detectedColor || ''}
-                  onChangeText={setUserEnteredColor}
+                  value={userEnteredColor || detectedColor || product?.color || ''}
+                  onChangeText={(text) => {
+                    setUserEnteredColor(text);
+                    // Clear detected color if user manually enters
+                    if (text && text !== detectedColor) {
+                      setDetectedColor(null);
+                    }
+                  }}
                 />
                 <Pressable
-                  style={styles.saveButton}
+                  style={[styles.saveButton, { marginTop: 12 }]}
                   onPress={() => {
-                    if (userEnteredColor || detectedColor) {
+                    const colorToSave = userEnteredColor || detectedColor || product?.color;
+                    if (colorToSave && colorToSave.trim() !== '') {
+                      console.log('🎨 [COLOR MODAL] Saving color:', colorToSave);
                       const updatedProduct = {
                         ...product,
-                        color: userEnteredColor || detectedColor,
+                        color: colorToSave.trim(),
                       };
                       setProduct(updatedProduct);
+                      setUserEnteredColor(colorToSave.trim());
+                      setDetectedColor(null); // Clear after saving
                       setShowColorInputModal(false);
                       setTimeout(() => {
+                        console.log('🎨 [COLOR MODAL] Reloading insights with saved color');
                         loadInsights(true);
                       }, 100);
+                    } else {
+                      Alert.alert('Error', 'Please enter a color or detect one from the image');
                     }
                   }}
                 >

@@ -60,13 +60,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         : null;
       
       if (base64Data) {
+        // OCR.space requires API key - use free demo key (limited requests)
+        // For production, get free API key from https://ocr.space/ocrapi/freekey
+        const ocrApiKey = process.env.OCR_SPACE_API_KEY || 'helloworld';
+        
         const ocrResponse = await fetch('https://api.ocr.space/parse/image', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'apikey': ocrApiKey,
           },
           body: JSON.stringify({
-            base64Image: base64Data,
+            base64Image: `data:image/jpeg;base64,${base64Data}`,
             language: 'eng',
             isOverlayRequired: false,
             iscreatesearchablepdf: false,
@@ -113,7 +118,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log('📊 [OCR] Extracted text length:', extractedText.length);
     console.log('📊 [OCR] Extracted text preview:', extractedText.substring(0, 300));
 
-    if (!text || text.trim().length === 0) {
+    if (!extractedText || extractedText.trim().length === 0) {
       console.warn('📊 [OCR] No text extracted from image');
       return res.status(200).json({
         success: false,
