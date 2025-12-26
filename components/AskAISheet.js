@@ -271,16 +271,30 @@ const AskAISheet = ({ visible, onClose, product, selectedSize = null }) => {
         }
       }
       
-      // Determine fabric stretch from garment data or material keywords
-      let fabricStretch = false;
+      // Normalize fabric stretch: single source of truth
+      // Check material keywords first, then fabricStretch field
+      let normalizedFabricStretch = false;
+      const materialStr = (product?.fabric || product?.material || '').toLowerCase();
+      const hasStretchKeywords = materialStr.includes('stretch') || 
+                                  materialStr.includes('elastic') || 
+                                  materialStr.includes('spandex') || 
+                                  materialStr.includes('elastane') ||
+                                  materialStr.includes('lycra');
+      
       if (product?.fabricStretch) {
         // Direct fabric_stretch field from garment (none, low, medium, high)
-        fabricStretch = product.fabricStretch !== 'none' && product.fabricStretch !== 'low';
-      } else if (product?.fabric || product?.material) {
+        normalizedFabricStretch = product.fabricStretch !== 'none' && product.fabricStretch !== 'low';
+      } else {
         // Fallback to keyword detection
-        const fabricStr = (product.fabric || product.material || '').toLowerCase();
-        fabricStretch = fabricStr.includes('stretch') || fabricStr.includes('elastic') || fabricStr.includes('spandex') || fabricStr.includes('elastane');
+        normalizedFabricStretch = hasStretchKeywords;
       }
+      
+      console.log('🧵 Fabric stretch normalization:', {
+        material: materialStr,
+        fabricStretch: product?.fabricStretch,
+        hasStretchKeywords,
+        normalizedFabricStretch,
+      });
       
       const productForFitLogic = {
         category: fitLogicCategory,
