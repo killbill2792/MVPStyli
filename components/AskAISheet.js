@@ -11,12 +11,14 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../lib/AppContext';
 import { generateFitAdvice, generateSizeAdvice, generateStyleAdvice } from '../lib/askAI';
 import { loadColorProfile } from '../lib/colorAnalysis';
 import { supabase } from '../lib/supabase';
 import { recommendSizeAndFit, toCm } from '../lib/fitLogic';
 import { evaluateSuitability } from '../lib/styleSuitability';
+import { analyzeFabricComfort } from '../lib/fabricComfort';
 
 const { width, height } = Dimensions.get('window');
 const SHEET_HEIGHT = height * 0.75;
@@ -266,92 +268,66 @@ const AskAISheet = ({ visible, onClose, product }) => {
       
       setColorSuitability(suitability.color);
       setBodyShapeSuitability(suitability.body);
-
-      // Try to get AI-powered insights from API for fit and style
-      const API_BASE = process.env.EXPO_PUBLIC_API_BASE;
       
-      if (API_BASE) {
-        try {
-          const requestBody = {
-            userProfile,
-            product: productInfo,
-            userId: user?.id, // Pass userId for rate limiting and caching
-            garment_id: product?.garment_id || product?.id, // If available
-          };
-          
-          // Fetch fit and style insights in parallel (size is now handled by fitLogic)
-          const [fitResponse, styleResponse] = await Promise.all([
-            fetch(`${API_BASE}/api/ai-insights`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ ...requestBody, insightType: 'fit' })
-            }),
-            fetch(`${API_BASE}/api/ai-insights`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ ...requestBody, insightType: 'style' })
-            })
-          ]);
-          
-          // Handle fit response
-          if (fitResponse.ok) {
-            const fitData = await fitResponse.json();
-            console.log('📊 Fit response - cached:', fitData.cached, 'source:', fitData.source);
-            if (fitData.cached) setIsCached(true);
-            if (fitData.insights) {
-              setFitAdvice(fitData.insights);
-            } else if (fitData.error) {
-              console.warn('⚠️ Fit API error:', fitData.error);
-              if (fitData.errorCode === 'API_KEY_MISSING') {
-                // Show user-friendly error
-                setFitAdvice({ 
-                  verdict: 'good_with_tweaks', 
-                  verdictText: 'API key not configured', 
-                  bodyAdvice: ['Please configure GEMINI_API_KEY in Vercel'], 
-                  colorAdvice: [], 
-                  hasEnoughData: false 
-                });
-              }
-            }
-          } else if (fitResponse.status === 429) {
-            const errorData = await fitResponse.json();
-            console.warn('⚠️ Rate limited:', errorData.message);
-            alert(errorData.message || 'Please wait a moment before trying again.');
-          } else {
-            const errorText = await fitResponse.text();
-            console.error('❌ Fit API error:', fitResponse.status, errorText);
-          }
-          
-          // Handle style response
-          if (styleResponse.ok) {
-            const styleData = await styleResponse.json();
-            console.log('📊 Style response - cached:', styleData.cached);
-            if (styleData.cached) setIsCached(true);
-            if (styleData.insights) {
-              setStyleAdvice(styleData.insights);
-            }
-          } else if (styleResponse.status === 429) {
-            // Already handled above
-          } else {
-            const errorText = await styleResponse.text();
-            console.error('❌ Style API error:', styleResponse.status, errorText);
-          }
-          
-        } catch (apiError) {
-          console.log('AI API not available, using fallback:', apiError.message);
-          // Fallback to local generation for fit/style
-          const fit = generateFitAdvice(userProfile, productInfo);
-          const style = generateStyleAdvice(userProfile, productInfo);
-          setFitAdvice(fit);
-          setStyleAdvice(style);
-        }
-      } else {
-        // No API configured, use local fallback for fit/style
-        const fit = generateFitAdvice(userProfile, productInfo);
-        const style = generateStyleAdvice(userProfile, productInfo);
-        setFitAdvice(fit);
-        setStyleAdvice(style);
-      }
+      // Use fabricComfort for fabric analysis (NO-AI)
+      console.log('🧵 Using fabricComfort for fabric analysis');
+      const fabricAnalysis = analyzeFabricComfort({
+        material: product?.material || product?.fabric || null,
+        fabric: product?.fabric || null,
+      });
+      console.log('🧵 Fabric analysis result:', fabricAnalysis);
+      setFabricComfort(fabricAnalysis);
+      
+      // Build FIT & SIZE combined data
+      const fitSizeStatus = sizeRecommendation.status === 'OK' 
+        ? (sizeRecommendation.risk === 'low' ? 'Perfect Fit' :
+           sizeRecommendation.risk === 'medium' ? 'Good Fit' :
+           'Good with Tweaks')
+        : 'High Risk';
+      
+      // Build measurement deltas from sizeRecommendation insights
+      const measurementDeltas = sizeRecommendation.insights?.filter(insight => 
+        insight.includes('cm') || insight.includes('in') || insight.includes('≈')
+      ) || [];
+      
+      // Build stylist translation (last insight or summary)
+      const stylistTranslation = sizeRecommendation.insights?.length > 0 
+        ? sizeRecommendation.insights[sizeRecommendation.insights.length - 1]
+        : 'Fit analysis based on your measurements and garment dimensions.';
+      
+      setFitSizeData({
+        status: fitSizeStatus,
+        recommendedSize: sizeRecommendation.status === 'OK' ? sizeRecommendation.recommendedSize : null,
+        backupSize: sizeRecommendation.backupSize,
+        risk: sizeRecommendation.risk,
+        confidence: sizeRecommendation.confidence,
+        measurementDeltas: measurementDeltas.slice(0, 5), // Max 5 bullets
+        stylistTranslation,
+        hasEnoughData: sizeRecommendation.status === 'OK',
+        missingData: sizeRecommendation.status !== 'OK' ? sizeRecommendation.insights : [],
+      });
+      
+      // Build HOW TO WEAR data (use basic rule-based for now, Gemini can enhance)
+      const occasions = product?.category === 'dress' || product?.category === 'dresses' 
+        ? ['Work', 'Date Night', 'Casual', 'Formal']
+        : product?.category === 'upper' || product?.category === 'upper_body'
+        ? ['Casual', 'Work', 'Weekend', 'Layering']
+        : ['Casual', 'Work', 'Weekend', 'Active'];
+      
+      const stylingTips = [
+        product?.fit === 'oversized' ? 'Pair with fitted bottoms for balance' : null,
+        product?.color ? `Works with neutral accessories` : null,
+        'Layer with basics for versatility',
+        'Add statement piece for interest',
+      ].filter(Boolean);
+      
+      setHowToWearData({
+        occasions: occasions.slice(0, 5),
+        stylingTips: stylingTips.slice(0, 4),
+      });
+      
+      // DO NOT call Gemini here - only when button is clicked
+      // Gemini will be called separately via callGeminiInsights function
       
     } catch (error) {
       console.error('Error loading AI insights:', error);
@@ -366,13 +342,105 @@ const AskAISheet = ({ visible, onClose, product }) => {
     }
   };
   
-  // Fallback to local rule-based advice (for fit/style only, size uses fitLogic)
-  const useFallbackAdvice = (userProfile, productInfo) => {
-    const fit = generateFitAdvice(userProfile, productInfo);
-    const style = generateStyleAdvice(userProfile, productInfo);
-    setFitAdvice(fit);
-    setStyleAdvice(style);
-    // Size is already handled by fitLogic above
+  // Call Gemini insights when button is clicked
+  const callGeminiInsights = async () => {
+    if (geminiLoading) return;
+    
+    setGeminiLoading(true);
+    try {
+      // Load user profile data
+      let userProfileData = null;
+      if (user?.id) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        if (profileData) userProfileData = profileData;
+      }
+      
+      const colorProfile = user?.id ? await loadColorProfile(user.id) : null;
+      
+      const userProfile = {
+        height: userProfileData?.height || '',
+        weight: userProfileData?.weight || '',
+        topSize: userProfileData?.top_size || '',
+        bottomSize: userProfileData?.bottom_size || '',
+        chest: userProfileData?.chest || '',
+        waist: userProfileData?.waist || '',
+        hips: userProfileData?.hips || '',
+        bodyShape: userProfileData?.body_shape || '',
+        gender: userProfileData?.gender || '',
+        skinTone: colorProfile?.tone || userProfileData?.color_tone || '',
+        colorSeason: colorProfile?.season || userProfileData?.color_season || '',
+      };
+      
+      const productInfo = {
+        name: product?.name || 'Item',
+        category: product?.category || inferCategory(product?.name),
+        color: product?.color || inferColor(product?.name),
+        fabric: product?.fabric,
+        fit: product?.fit,
+        length: product?.length,
+        price: product?.price,
+        brand: product?.brand,
+      };
+      
+      const API_BASE = process.env.EXPO_PUBLIC_API_BASE;
+      if (!API_BASE) {
+        alert('API not configured');
+        return;
+      }
+      
+      const requestBody = {
+        userProfile,
+        product: productInfo,
+        userId: user?.id,
+        garment_id: product?.garment_id || product?.id,
+      };
+      
+      // Call Gemini for enhanced insights
+      const [fitResponse, styleResponse] = await Promise.all([
+        fetch(`${API_BASE}/api/ai-insights`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...requestBody, insightType: 'fit' })
+        }),
+        fetch(`${API_BASE}/api/ai-insights`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...requestBody, insightType: 'style' })
+        })
+      ]);
+      
+      if (fitResponse.ok) {
+        const fitData = await fitResponse.json();
+        if (fitData.insights) {
+          setGeminiAdvice(prev => ({ ...prev, fit: fitData.insights }));
+        }
+      }
+      
+      if (styleResponse.ok) {
+        const styleData = await styleResponse.json();
+        if (styleData.insights) {
+          setGeminiAdvice(prev => ({ ...prev, style: styleData.insights }));
+          // Update how to wear with Gemini insights
+          if (styleData.insights.bestFor || styleData.insights.stylingTips) {
+            setHowToWearData(prev => ({
+              occasions: styleData.insights.bestFor || prev?.occasions || [],
+              stylingTips: styleData.insights.stylingTips || prev?.stylingTips || [],
+            }));
+          }
+        }
+      }
+      
+      setUseGemini(true);
+    } catch (error) {
+      console.error('Gemini error:', error);
+      alert('Failed to get AI insights. Please try again.');
+    } finally {
+      setGeminiLoading(false);
+    }
   };
 
   // Helper to infer category from product name
@@ -430,6 +498,22 @@ const AskAISheet = ({ visible, onClose, product }) => {
             </View>
             <Text style={styles.headerTitle}>Stylit Notes</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {!useGemini && (
+                <Pressable 
+                  onPress={callGeminiInsights}
+                  style={{ 
+                    paddingVertical: 6, 
+                    paddingHorizontal: 12, 
+                    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                    borderRadius: 8,
+                  }}
+                  disabled={geminiLoading}
+                >
+                  <Text style={{ fontSize: 12, color: '#6366f1', fontWeight: '600' }}>
+                    {geminiLoading ? '...' : 'Gemini'}
+                  </Text>
+                </Pressable>
+              )}
               {isCached && (
                 <>
                   <Pressable 
@@ -468,72 +552,24 @@ const AskAISheet = ({ visible, onClose, product }) => {
             </View>
           ) : (
             <>
-              {/* Section 1: Does this suit me? */}
-              <View style={styles.card}>
-                <View style={styles.cardHeader}>
-                  <Text style={styles.cardEmoji}>👗</Text>
-                  <Text style={styles.cardTitle}>Does this outfit suit me?</Text>
-                </View>
-
-                {!fitAdvice?.hasEnoughData ? (
-                  <View style={styles.missingDataBox}>
-                    <Text style={styles.missingDataText}>{fitAdvice?.missingDataMessage}</Text>
-                    <Pressable 
-                      style={styles.addDataBtn}
-                      onPress={() => {
-                        closeSheet();
-                        setRoute('account');
-                      }}
-                    >
-                      <Text style={styles.addDataBtnText}>Add Profile Info →</Text>
-                    </Pressable>
-                  </View>
-                ) : (
-                  <>
-                    <View style={[
-                      styles.verdictBadge,
-                      fitAdvice?.verdict === 'strong_match' && styles.verdictGood,
-                      fitAdvice?.verdict === 'good_with_tweaks' && styles.verdictNeutral,
-                      fitAdvice?.verdict === 'consider_alternatives' && styles.verdictWarning,
-                    ]}>
-                      <Text style={styles.verdictText}>{fitAdvice?.verdictText}</Text>
-                    </View>
-
-                    {fitAdvice?.bodyAdvice?.length > 0 && (
-                      <View style={styles.adviceSection}>
-                        <Text style={styles.adviceSectionTitle}>Body & Silhouette</Text>
-                        {fitAdvice.bodyAdvice.map((advice, idx) => (
-                          <Text key={idx} style={styles.adviceItem}>• {advice}</Text>
-                        ))}
-                      </View>
-                    )}
-
-                    {fitAdvice?.colorAdvice?.length > 0 && (
-                      <View style={styles.adviceSection}>
-                        <Text style={styles.adviceSectionTitle}>Color & Skin Tone</Text>
-                        {fitAdvice.colorAdvice.map((advice, idx) => (
-                          <Text key={idx} style={styles.adviceItem}>• {advice}</Text>
-                        ))}
-                      </View>
-                    )}
-                  </>
-                )}
-              </View>
-
-              {/* Section 2: What size should I buy? */}
+              {/* Section 1: FIT & SIZE (Primary) */}
               <View style={styles.card}>
                 <View style={styles.cardHeader}>
                   <Text style={styles.cardEmoji}>📏</Text>
-                  <Text style={styles.cardTitle}>What size should I buy?</Text>
+                  <Text style={styles.cardTitle}>FIT & SIZE</Text>
                 </View>
 
-                {!sizeAdvice?.hasEnoughData ? (
+                {!fitSizeData?.hasEnoughData ? (
                   <View style={styles.missingDataBox}>
-                    <Text style={styles.missingDataText}>{sizeAdvice?.missingDataMessage || sizeAdvice?.insights?.join(' ') || 'Not enough data for size recommendation'}</Text>
+                    <Text style={styles.missingDataText}>
+                      {fitSizeData?.missingData?.join(' ') || 'Need body measurements and garment size chart for accurate fit analysis.'}
+                    </Text>
                     <Pressable 
                       style={styles.addDataBtn}
                       onPress={() => {
                         closeSheet();
+                        // Navigate to account and set flag to open Edit Fit Profile
+                        AsyncStorage.setItem('openFitProfile', 'true');
                         setRoute('account');
                       }}
                     >
@@ -542,70 +578,76 @@ const AskAISheet = ({ visible, onClose, product }) => {
                   </View>
                 ) : (
                   <>
-                    <View style={styles.sizeRecommendation}>
-                      <Text style={styles.sizeLabel}>Recommended Size:</Text>
-                      <View style={styles.sizeBadge}>
-                        <Text style={styles.sizeText}>{sizeAdvice?.recommendedSize || 'N/A'}</Text>
-                      </View>
-                      {sizeAdvice?.backupSize && (
-                        <View style={{ marginTop: 8 }}>
-                          <Text style={styles.backupSize}>Backup Size: {sizeAdvice.backupSize}</Text>
-                        </View>
-                      )}
+                    {/* Status Label */}
+                    <View style={[
+                      styles.verdictBadge,
+                      fitSizeData?.status === 'Perfect Fit' && styles.verdictGood,
+                      fitSizeData?.status === 'Good Fit' && styles.verdictGood,
+                      fitSizeData?.status === 'Good with Tweaks' && styles.verdictNeutral,
+                      (fitSizeData?.status === 'Runs Small' || fitSizeData?.status === 'Runs Large' || fitSizeData?.status === 'High Risk') && styles.verdictWarning,
+                    ]}>
+                      <Text style={styles.verdictText}>{fitSizeData?.status || 'Analyzing...'}</Text>
                     </View>
 
-                    {sizeAdvice?.confidence != null && (
-                      <View style={styles.confidenceBadge}>
-                        <Text style={styles.confidenceLabel}>Confidence:</Text>
-                        <Text style={styles.confidenceText}>{sizeAdvice.confidence}%</Text>
+                    {/* Recommended Size */}
+                    {fitSizeData?.recommendedSize ? (
+                      <View style={styles.sizeRecommendation}>
+                        <Text style={styles.sizeLabel}>Recommended Size:</Text>
+                        <View style={styles.sizeBadge}>
+                          <Text style={styles.sizeText}>{fitSizeData.recommendedSize}</Text>
+                        </View>
+                        {fitSizeData?.backupSize && (
+                          <Text style={styles.backupSize}>Backup: {fitSizeData.backupSize}</Text>
+                        )}
+                      </View>
+                    ) : (
+                      <Text style={styles.missingDataText}>Need size chart</Text>
+                    )}
+
+                    {/* Measurement Deltas (2-5 bullets) */}
+                    {fitSizeData?.measurementDeltas && fitSizeData.measurementDeltas.length > 0 && (
+                      <View style={styles.adviceSection}>
+                        {fitSizeData.measurementDeltas.map((delta, idx) => (
+                          <Text key={idx} style={styles.adviceItem}>• {delta}</Text>
+                        ))}
                       </View>
                     )}
 
-                    <View style={[
-                      styles.riskBadge,
-                      sizeAdvice?.risk === 'low' && styles.riskLow,
-                      sizeAdvice?.risk === 'medium' && styles.riskMedium,
-                      sizeAdvice?.risk === 'high' && styles.riskHigh,
-                    ]}>
-                      <Text style={styles.riskLabel}>Risk:</Text>
-                      <Text style={styles.riskText}>
-                        {sizeAdvice?.risk === 'low' && '🟢 Low'}
-                        {sizeAdvice?.risk === 'medium' && '🟡 Medium'}
-                        {sizeAdvice?.risk === 'high' && '🔴 High'}
-                      </Text>
-                    </View>
-
-                    {sizeAdvice?.insights && sizeAdvice.insights.length > 0 && (
-                      <View style={styles.insightsSection}>
-                        <Text style={styles.insightsTitle}>Insights:</Text>
-                        {sizeAdvice.insights.map((insight, idx) => (
-                          <Text key={idx} style={styles.insightItem}>• {insight}</Text>
-                        ))}
+                    {/* Stylist Translation */}
+                    {fitSizeData?.stylistTranslation && (
+                      <View style={styles.stylistTranslationBox}>
+                        <Text style={styles.stylistTranslationText}>{fitSizeData.stylistTranslation}</Text>
                       </View>
                     )}
                   </>
                 )}
               </View>
 
-              {/* Section 3: Color Suitability */}
+              {/* Section 2: COLOR */}
               <View style={styles.card}>
                 <View style={styles.cardHeader}>
                   <Text style={styles.cardEmoji}>🎨</Text>
-                  <Text style={styles.cardTitle}>Color</Text>
+                  <Text style={styles.cardTitle}>COLOR</Text>
                 </View>
 
                 {colorSuitability?.status === 'INSUFFICIENT_DATA' ? (
                   <View style={styles.missingDataBox}>
-                    <Text style={styles.missingDataText}>{colorSuitability.reasons?.[0] || 'Set your Color Profile'}</Text>
-                    <Pressable 
-                      style={styles.addDataBtn}
-                      onPress={() => {
-                        closeSheet();
-                        setRoute('account');
-                      }}
-                    >
-                      <Text style={styles.addDataBtnText}>Set Color Profile →</Text>
-                    </Pressable>
+                    <Text style={styles.missingDataText}>
+                      {colorSuitability.reasons?.[0]?.includes('Color Profile') 
+                        ? 'Need Color Info: Set your Color Profile (undertone + depth)'
+                        : 'Need Color Info: Product color not detected'}
+                    </Text>
+                    {colorSuitability.reasons?.[0]?.includes('Color Profile') && (
+                      <Pressable 
+                        style={styles.addDataBtn}
+                        onPress={() => {
+                          closeSheet();
+                          setRoute('account');
+                        }}
+                      >
+                        <Text style={styles.addDataBtnText}>Set Color Profile →</Text>
+                      </Pressable>
+                    )}
                   </View>
                 ) : (
                   <>
@@ -624,7 +666,7 @@ const AskAISheet = ({ visible, onClose, product }) => {
 
                     {colorSuitability?.reasons && colorSuitability.reasons.length > 0 && (
                       <View style={styles.adviceSection}>
-                        {colorSuitability.reasons.map((reason, idx) => (
+                        {colorSuitability.reasons.slice(0, 4).map((reason, idx) => (
                           <Text key={idx} style={styles.adviceItem}>• {reason}</Text>
                         ))}
                       </View>
@@ -632,9 +674,9 @@ const AskAISheet = ({ visible, onClose, product }) => {
 
                     {colorSuitability?.alternatives && colorSuitability.alternatives.length > 0 && (
                       <View style={styles.alternativesSection}>
-                        <Text style={styles.alternativesTitle}>Alternatives:</Text>
-                        {colorSuitability.alternatives.map((alt, idx) => (
-                          <Text key={idx} style={styles.alternativeItem}>💡 {alt}</Text>
+                        <Text style={styles.alternativesTitle}>Alternate Colors:</Text>
+                        {colorSuitability.alternatives.slice(0, 3).map((alt, idx) => (
+                          <Text key={idx} style={styles.alternativeItem}>• {alt}</Text>
                         ))}
                       </View>
                     )}
@@ -642,16 +684,16 @@ const AskAISheet = ({ visible, onClose, product }) => {
                 )}
               </View>
 
-              {/* Section 4: Body Shape Suitability */}
+              {/* Section 3: BODY SHAPE */}
               <View style={styles.card}>
                 <View style={styles.cardHeader}>
                   <Text style={styles.cardEmoji}>👗</Text>
-                  <Text style={styles.cardTitle}>Body Shape</Text>
+                  <Text style={styles.cardTitle}>BODY SHAPE</Text>
                 </View>
 
                 {bodyShapeSuitability?.status === 'INSUFFICIENT_DATA' ? (
                   <View style={styles.missingDataBox}>
-                    <Text style={styles.missingDataText}>{bodyShapeSuitability.reasons?.[0] || 'Set your Body Shape'}</Text>
+                    <Text style={styles.missingDataText}>Generic safe advice: This fit should work for most body types; tweak with styling (tuck, belt, layering).</Text>
                     <Pressable 
                       style={styles.addDataBtn}
                       onPress={() => {
@@ -673,15 +715,14 @@ const AskAISheet = ({ visible, onClose, product }) => {
                     ]}>
                       <Text style={styles.verdictText}>
                         {bodyShapeSuitability?.verdict === 'flattering' && '✅ Flattering'}
-                        {bodyShapeSuitability?.verdict === 'ok' && '⚡ OK'}
-                        {bodyShapeSuitability?.verdict === 'neutral' && '⚡ Neutral'}
+                        {(bodyShapeSuitability?.verdict === 'ok' || bodyShapeSuitability?.verdict === 'neutral') && '⚡ Neutral'}
                         {bodyShapeSuitability?.verdict === 'risky' && '⚠️ Risky'}
                       </Text>
                     </View>
 
                     {bodyShapeSuitability?.reasons && bodyShapeSuitability.reasons.length > 0 && (
                       <View style={styles.adviceSection}>
-                        {bodyShapeSuitability.reasons.map((reason, idx) => (
+                        {bodyShapeSuitability.reasons.slice(0, 4).map((reason, idx) => (
                           <Text key={idx} style={styles.adviceItem}>• {reason}</Text>
                         ))}
                       </View>
@@ -689,9 +730,9 @@ const AskAISheet = ({ visible, onClose, product }) => {
 
                     {bodyShapeSuitability?.alternatives && bodyShapeSuitability.alternatives.length > 0 && (
                       <View style={styles.alternativesSection}>
-                        <Text style={styles.alternativesTitle}>Styling Tip:</Text>
-                        {bodyShapeSuitability.alternatives.map((alt, idx) => (
-                          <Text key={idx} style={styles.alternativeItem}>💡 {alt}</Text>
+                        <Text style={styles.alternativesTitle}>Tweak Tip:</Text>
+                        {bodyShapeSuitability.alternatives.slice(0, 1).map((alt, idx) => (
+                          <Text key={idx} style={styles.alternativeItem}>• {alt}</Text>
                         ))}
                       </View>
                     )}
@@ -699,18 +740,54 @@ const AskAISheet = ({ visible, onClose, product }) => {
                 )}
               </View>
 
-              {/* Section 5: How should I wear this? */}
+              {/* Section 4: FABRIC & COMFORT (New) */}
+              <View style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <Text style={styles.cardEmoji}>🧵</Text>
+                  <Text style={styles.cardTitle}>FABRIC & COMFORT</Text>
+                </View>
+
+                {fabricComfort?.status === 'INSUFFICIENT_DATA' ? (
+                  <View style={styles.missingDataBox}>
+                    <Text style={styles.missingDataText}>{fabricComfort.insights?.[0] || 'Need Fabric Info'}</Text>
+                  </View>
+                ) : (
+                  <>
+                    <View style={[
+                      styles.verdictBadge,
+                      fabricComfort?.verdict === 'comfortable' && styles.verdictGood,
+                      fabricComfort?.verdict === 'ok' && styles.verdictNeutral,
+                      fabricComfort?.verdict === 'risky' && styles.verdictWarning,
+                    ]}>
+                      <Text style={styles.verdictText}>
+                        {fabricComfort?.verdict === 'comfortable' && '✅ Comfortable'}
+                        {fabricComfort?.verdict === 'ok' && '⚡ Okay'}
+                        {fabricComfort?.verdict === 'risky' && '⚠️ Risky'}
+                      </Text>
+                    </View>
+
+                    {fabricComfort?.insights && fabricComfort.insights.length > 0 && (
+                      <View style={styles.adviceSection}>
+                        {fabricComfort.insights.slice(0, 4).map((insight, idx) => (
+                          <Text key={idx} style={styles.adviceItem}>• {insight}</Text>
+                        ))}
+                      </View>
+                    )}
+                  </>
+                )}
+              </View>
+
+              {/* Section 5: HOW TO WEAR / OCCASIONS */}
               <View style={styles.card}>
                 <View style={styles.cardHeader}>
                   <Text style={styles.cardEmoji}>💡</Text>
-                  <Text style={styles.cardTitle}>How should I wear this?</Text>
+                  <Text style={styles.cardTitle}>HOW TO WEAR / OCCASIONS</Text>
                 </View>
 
-                {styleAdvice?.bestFor?.length > 0 && (
+                {howToWearData?.occasions && howToWearData.occasions.length > 0 && (
                   <View style={styles.bestForSection}>
-                    <Text style={styles.bestForLabel}>Best for:</Text>
                     <View style={styles.tagRow}>
-                      {styleAdvice.bestFor.map((item, idx) => (
+                      {howToWearData.occasions.slice(0, 5).map((item, idx) => (
                         <View key={idx} style={styles.tag}>
                           <Text style={styles.tagText}>{item}</Text>
                         </View>
@@ -719,18 +796,10 @@ const AskAISheet = ({ visible, onClose, product }) => {
                   </View>
                 )}
 
-                {styleAdvice?.occasions?.length > 0 && (
-                  <View style={styles.occasionsSection}>
-                    <Text style={styles.occasionsLabel}>Occasions:</Text>
-                    <Text style={styles.occasionsText}>{styleAdvice.occasions.join(' • ')}</Text>
-                  </View>
-                )}
-
-                {styleAdvice?.stylingTips?.length > 0 && (
+                {howToWearData?.stylingTips && howToWearData.stylingTips.length > 0 && (
                   <View style={styles.tipsSection}>
-                    <Text style={styles.tipsTitle}>Styling Tips</Text>
-                    {styleAdvice.stylingTips.map((tip, idx) => (
-                      <Text key={idx} style={styles.tipItem}>💫 {tip}</Text>
+                    {howToWearData.stylingTips.slice(0, 4).map((tip, idx) => (
+                      <Text key={idx} style={styles.tipItem}>• {tip}</Text>
                     ))}
                   </View>
                 )}
@@ -1083,6 +1152,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
     marginBottom: 6,
+  },
+  stylistTranslationBox: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#6366f1',
+  },
+  stylistTranslationText: {
+    color: '#fff',
+    fontSize: 14,
+    lineHeight: 20,
+    fontStyle: 'italic',
   },
 });
 

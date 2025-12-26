@@ -32,6 +32,7 @@ import { getStyleProfile, refreshStyleProfile } from '../lib/styleEngine';
 import { loadColorProfile, saveColorProfile, getAllSeasons, getSeasonSwatches, analyzeFaceForColorProfile } from '../lib/colorAnalysis';
 import PhotoGuidelinesModal from '../components/PhotoGuidelinesModal';
 import PhotoGuidelinesScreen from '../components/PhotoGuidelinesScreen';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Safe Image Component to prevent crashes
 const SafeImage = ({ source, style, resizeMode, ...props }) => {
@@ -914,6 +915,18 @@ const StyleVaultScreen = () => {
         setStyleStatsUnlocked(false);
     }
   }, [twinUrl, fitProfile, tryOnHistory, savedFits, styleProfile]);
+  
+  // Check if we should open Edit Fit Profile modal (from AskAISheet)
+  useEffect(() => {
+    const checkOpenFitProfile = async () => {
+      const shouldOpen = await AsyncStorage.getItem('openFitProfile');
+      if (shouldOpen === 'true') {
+        setShowFitProfile(true);
+        await AsyncStorage.removeItem('openFitProfile');
+      }
+    };
+    checkOpenFitProfile();
+  }, []);
 
   // Load pods
   useEffect(() => {
