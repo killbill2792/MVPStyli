@@ -853,10 +853,16 @@ const StyleVaultScreen = () => {
         
         // Helper to convert inches to display unit
         // Default display unit is inches, but we'll convert based on current toggle
-        const convertForDisplay = (inchesValue, fallbackOldValue) => {
+        const convertForDisplay = (inchesValue, fallbackOldValue, isHeight = false) => {
           if (inchesValue != null && inchesValue !== '') {
             const inches = Number(inchesValue);
             if (!isNaN(inches)) {
+              // Special handling for height: convert to feet.inches format for display
+              if (isHeight) {
+                const feet = Math.floor(inches / 12);
+                const remainingInches = Math.round(inches % 12);
+                return `${feet}.${remainingInches}`; // e.g., "5.4" for 5'4"
+              }
               // Convert to cm for display if needed (default is inches)
               return measurementUnit === 'cm' ? (inches * 2.54).toFixed(1) : inches.toFixed(2);
             }
@@ -865,6 +871,15 @@ const StyleVaultScreen = () => {
           if (fallbackOldValue != null && fallbackOldValue !== '') {
             const oldValue = Number(fallbackOldValue);
             if (!isNaN(oldValue)) {
+              // For height fallback, try to parse it
+              if (isHeight) {
+                const parsed = parseHeightToInches(oldValue);
+                if (parsed != null) {
+                  const feet = Math.floor(parsed / 12);
+                  const remainingInches = Math.round(parsed % 12);
+                  return `${feet}.${remainingInches}`;
+                }
+              }
               // Old values were in cm, convert to inches then to display unit
               const inches = oldValue / 2.54;
               return measurementUnit === 'cm' ? oldValue.toFixed(1) : inches.toFixed(2);
@@ -882,7 +897,7 @@ const StyleVaultScreen = () => {
         }
         
         setFitProfile({
-          height: convertForDisplay(data.height_in, data.height),
+          height: convertForDisplay(data.height_in, data.height, true),
           gender: data.gender || '',
           topSize: data.top_size || '',
           bottomSize: data.bottom_size || '',
