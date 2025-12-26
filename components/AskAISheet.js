@@ -31,9 +31,7 @@ const AskAISheet = ({ visible, onClose, product }) => {
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   
   const [loading, setLoading] = useState(true);
-  const [fitAdvice, setFitAdvice] = useState(null);
-  const [sizeAdvice, setSizeAdvice] = useState(null);
-  const [styleAdvice, setStyleAdvice] = useState(null);
+  // Removed unused state: fitAdvice, sizeAdvice, styleAdvice (replaced by fitSizeData)
   const [colorSuitability, setColorSuitability] = useState(null);
   const [bodyShapeSuitability, setBodyShapeSuitability] = useState(null);
   const [fabricComfort, setFabricComfort] = useState(null);
