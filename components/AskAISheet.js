@@ -37,6 +37,8 @@ const AskAISheet = ({ visible, onClose, product }) => {
   const [colorSuitability, setColorSuitability] = useState(null);
   const [bodyShapeSuitability, setBodyShapeSuitability] = useState(null);
   const [fabricComfort, setFabricComfort] = useState(null);
+  const [fitSizeData, setFitSizeData] = useState(null); // Combined fit & size data
+  const [howToWearData, setHowToWearData] = useState(null); // Occasions and styling tips
   const [isCached, setIsCached] = useState(false);
   const [isRequesting, setIsRequesting] = useState(false); // Client-side throttling
   const [useGemini, setUseGemini] = useState(false); // Only use Gemini when button clicked

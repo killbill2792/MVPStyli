@@ -219,39 +219,68 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Create sizes if provided
       if (Array.isArray(sizes) && sizes.length > 0) {
-        const sizeData = sizes.map((size: any) => ({
-          garment_id: garment.id,
-          size_label: size.size_label,
-          // Universal measurements (flat widths, stored in cm)
-          chest_width: size.chest_width ? parseFloat(size.chest_width) : undefined,
-          waist_width: size.waist_width ? parseFloat(size.waist_width) : undefined,
-          hip_width: size.hip_width ? parseFloat(size.hip_width) : undefined,
-          garment_length: size.garment_length ? parseFloat(size.garment_length) : undefined,
-          // Upper body
-          shoulder_width: size.shoulder_width ? parseFloat(size.shoulder_width) : undefined,
-          sleeve_length: size.sleeve_length ? parseFloat(size.sleeve_length) : undefined,
-          // Lower body
-          inseam: size.inseam ? parseFloat(size.inseam) : undefined,
-          rise: size.rise ? parseFloat(size.rise) : undefined,
-          thigh_width: size.thigh_width ? parseFloat(size.thigh_width) : undefined,
-          leg_opening: size.leg_opening ? parseFloat(size.leg_opening) : undefined,
-        })).map((size: any) => {
-          // Remove undefined values
-          Object.keys(size).forEach((key) => {
-            if (size[key] === undefined || size[key] === null || size[key] === '') {
-              delete size[key];
+        const sizeData = sizes
+          .filter((size: any) => size.size_label && size.size_label.trim() !== '') // Only include sizes with labels
+          .map((size: any) => {
+            const sizeObj: any = {
+              garment_id: garment.id,
+              size_label: size.size_label.trim(),
+            };
+            
+            // Universal measurements (flat widths, stored in cm)
+            if (size.chest_width && !isNaN(size.chest_width)) {
+              sizeObj.chest_width = parseFloat(size.chest_width);
             }
+            if (size.waist_width && !isNaN(size.waist_width)) {
+              sizeObj.waist_width = parseFloat(size.waist_width);
+            }
+            if (size.hip_width && !isNaN(size.hip_width)) {
+              sizeObj.hip_width = parseFloat(size.hip_width);
+            }
+            if (size.garment_length && !isNaN(size.garment_length)) {
+              sizeObj.garment_length = parseFloat(size.garment_length);
+            }
+            // Upper body
+            if (size.shoulder_width && !isNaN(size.shoulder_width)) {
+              sizeObj.shoulder_width = parseFloat(size.shoulder_width);
+            }
+            if (size.sleeve_length && !isNaN(size.sleeve_length)) {
+              sizeObj.sleeve_length = parseFloat(size.sleeve_length);
+            }
+            // Lower body
+            if (size.inseam && !isNaN(size.inseam)) {
+              sizeObj.inseam = parseFloat(size.inseam);
+            }
+            if (size.rise && !isNaN(size.rise)) {
+              sizeObj.rise = parseFloat(size.rise);
+            }
+            if (size.thigh_width && !isNaN(size.thigh_width)) {
+              sizeObj.thigh_width = parseFloat(size.thigh_width);
+            }
+            if (size.leg_opening && !isNaN(size.leg_opening)) {
+              sizeObj.leg_opening = parseFloat(size.leg_opening);
+            }
+            
+            return sizeObj;
           });
-          return size;
-        });
 
-        const { error: sizesError } = await supabase
-          .from('garment_sizes')
-          .insert(sizeData);
+        if (sizeData.length > 0) {
+          const { error: sizesError } = await supabase
+            .from('garment_sizes')
+            .insert(sizeData);
 
-        if (sizesError) {
-          console.error('Error creating sizes:', sizesError);
-          // Don't fail the whole request, just log the error
+          if (sizesError) {
+            console.error('Error creating sizes:', sizesError);
+            // If sizes table doesn't exist, return a helpful error
+            if (sizesError.message?.includes('does not exist') || sizesError.code === '42P01') {
+              return res.status(500).json({ 
+                error: 'Database schema not ready', 
+                details: 'Please run the SQL migration script FIX_GARMENTS_RLS_AND_MULTI_SIZE.sql in Supabase to create the garment_sizes table.' 
+              });
+            }
+            // Don't fail the whole request for other size errors, just log
+            console.warn('Some sizes may not have been saved:', sizesError.message);
+          }
         }
       }
 

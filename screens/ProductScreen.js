@@ -446,7 +446,7 @@ const ProductScreen = ({ onBack }) => {
                 end={{ x: 1, y: 0 }}
                 style={styles.actionBtnGradientInner}
               >
-                <Text style={styles.actionBtnTextGradient}>✨ AI</Text>
+                <Text style={styles.actionBtnTextGradient}>📏 Fit Check</Text>
               </LinearGradient>
             </Pressable>
           </View>
