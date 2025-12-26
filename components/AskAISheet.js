@@ -45,18 +45,24 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
 
   // Auto-detect color when Fit Check opens (if product has image)
   useEffect(() => {
-    if (visible && product?.image && !product?.color) {
+    if (visible && product?.image) {
+      // Always try to detect color when Fit Check opens, even if color exists
+      // This ensures we have the latest detected color
       autoDetectColor();
     }
-  }, [visible, product?.image]);
+  }, [visible]);
 
   // Auto-detect color from product image
   const autoDetectColor = async () => {
     if (!product?.image) return;
     
+    // Don't re-detect if already detecting
+    if (isDetectingColor) return;
+    
     setIsDetectingColor(true);
     try {
       const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'https://mvpstyli-fresh.vercel.app';
+      console.log('🎨 Auto-detecting color from:', product.image);
       const response = await fetch(`${API_BASE}/api/fit-check-utils`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -64,19 +70,23 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       });
       
       const data = await response.json();
-      if (data.success) {
+      console.log('🎨 Color detection response:', data);
+      if (data.success && data.colorName) {
         setDetectedColor(data.colorName);
         setUserEnteredColor(data.colorName);
-        // Update product color and reload insights
+        // Update product color immediately
         const updatedProduct = {
           ...product,
           color: data.colorName,
         };
         setProduct(updatedProduct);
-        // Reload insights with new color
+        console.log('🎨 Color detected and updated:', data.colorName);
+        // Reload insights with new color after a short delay
         setTimeout(() => {
           loadInsights(true);
         }, 500);
+      } else {
+        console.log('🎨 Color detection failed or no color found');
       }
     } catch (error) {
       console.error('Error auto-detecting color:', error);
