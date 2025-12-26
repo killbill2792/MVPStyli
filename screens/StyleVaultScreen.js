@@ -33,6 +33,7 @@ import { loadColorProfile, saveColorProfile, getAllSeasons, getSeasonSwatches, a
 import PhotoGuidelinesModal from '../components/PhotoGuidelinesModal';
 import PhotoGuidelinesScreen from '../components/PhotoGuidelinesScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { cmToInches, inchesToCm, parseMeasurementToInches, formatInchesAsFraction } from '../lib/measurementUtils';
 
 // Safe Image Component to prevent crashes
 const SafeImage = ({ source, style, resizeMode, ...props }) => {
@@ -166,6 +167,7 @@ const StyleVaultScreen = () => {
   });
   const [isBodyShapeManuallySet, setIsBodyShapeManuallySet] = useState(false); // Track if user manually set body shape
   const [showFitProfile, setShowFitProfile] = useState(false);
+  const [measurementUnit, setMeasurementUnit] = useState('in'); // 'in' or 'cm' for input display (stored in inches)
   const [showVisibilitySettings, setShowVisibilitySettings] = useState(false);
   const [styleStatsUnlocked, setStyleStatsUnlocked] = useState(false);
   // For showing dropdown picker
@@ -849,21 +851,51 @@ const StyleVaultScreen = () => {
         setBodyImage(loadedBodyImage);
         setFaceImage(loadedFaceImage);
         
+        // Helper to convert inches to display unit
+        // Default display unit is inches, but we'll convert based on current toggle
+        const convertForDisplay = (inchesValue, fallbackOldValue) => {
+          if (inchesValue != null && inchesValue !== '') {
+            const inches = Number(inchesValue);
+            if (!isNaN(inches)) {
+              // Convert to cm for display if needed (default is inches)
+              return measurementUnit === 'cm' ? (inches * 2.54).toFixed(1) : inches.toFixed(2);
+            }
+          }
+          // Fallback to old field if new field doesn't exist
+          if (fallbackOldValue != null && fallbackOldValue !== '') {
+            const oldValue = Number(fallbackOldValue);
+            if (!isNaN(oldValue)) {
+              // Old values were in cm, convert to inches then to display unit
+              const inches = oldValue / 2.54;
+              return measurementUnit === 'cm' ? oldValue.toFixed(1) : inches.toFixed(2);
+            }
+          }
+          return '';
+        };
+        
+        // Set measurement unit based on what's in the database (default to inches)
+        // If old cm fields exist, user might prefer cm, but we'll default to inches
+        const hasOldFields = data.chest || data.waist || data.hips;
+        if (hasOldFields && !data.chest_circ_in) {
+          // Old data exists, might want to show in cm initially
+          // But we'll default to inches for consistency
+        }
+        
         setFitProfile({
-          height: data.height || '',
-          gender: data.gender || '', // Load gender
+          height: convertForDisplay(data.height_in, data.height),
+          gender: data.gender || '',
           topSize: data.top_size || '',
           bottomSize: data.bottom_size || '',
-          chest: data.chest || '',
-          waist: data.waist || '',
-          hips: data.hips || '',
-          shoulder: data.shoulder || '',
-          sleeve: data.sleeve || '',
-          inseam: data.inseam || '',
-          thigh: data.thigh || '',
+          chest: convertForDisplay(data.chest_circ_in, data.chest),
+          waist: convertForDisplay(data.waist_circ_in, data.waist),
+          hips: convertForDisplay(data.hip_circ_in, data.hips),
+          shoulder: convertForDisplay(data.shoulder_width_in, data.shoulder),
+          sleeve: convertForDisplay(data.sleeve_length_in, data.sleeve),
+          inseam: convertForDisplay(data.inseam_in, data.inseam),
+          thigh: convertForDisplay(data.thigh_circ_in, data.thigh),
           fit_preference: data.fit_preference || '',
           notes: data.notes || '',
-          bodyShape: data.body_shape || '' // Load body_shape
+          bodyShape: data.body_shape || ''
         });
         
         // If body_shape exists in DB, mark it as manually set (user may have set it before)
@@ -2159,57 +2191,62 @@ const StyleVaultScreen = () => {
             <Text style={styles.modalSubtitle}>Body Measurements (Required)</Text>
             
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Bust / Chest *</Text>
+              <Text style={styles.inputLabel}>Bust / Chest Circumference ({measurementUnit.toUpperCase()}) *</Text>
               <TextInput
                 style={styles.input}
-                placeholder="e.g., 34, 86cm"
+                placeholder={`e.g., ${measurementUnit === 'in' ? "34" : "86"}`}
                 placeholderTextColor="#666"
                 value={fitProfile.chest}
                 onChangeText={(text) => setFitProfile(prev => ({ ...prev, chest: text }))}
+                keyboardType="decimal-pad"
               />
             </View>
 
               <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Waist (Natural) *</Text>
+              <Text style={styles.inputLabel}>Waist Circumference ({measurementUnit.toUpperCase()}) *</Text>
               <TextInput
                 style={styles.input}
-                placeholder="e.g., 28, 71cm"
+                placeholder={`e.g., ${measurementUnit === 'in' ? "28" : "71"}`}
                 placeholderTextColor="#666"
                 value={fitProfile.waist}
                 onChangeText={(text) => setFitProfile(prev => ({ ...prev, waist: text }))}
+                keyboardType="decimal-pad"
               />
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Hips (Fullest part) *</Text>
+              <Text style={styles.inputLabel}>Hip Circumference ({measurementUnit.toUpperCase()}) *</Text>
               <TextInput
                 style={styles.input}
-                placeholder="e.g., 36, 91cm"
+                placeholder={`e.g., ${measurementUnit === 'in' ? "36" : "91"}`}
                 placeholderTextColor="#666"
                 value={fitProfile.hips}
                 onChangeText={(text) => setFitProfile(prev => ({ ...prev, hips: text }))}
+                keyboardType="decimal-pad"
               />
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Shoulder Width *</Text>
+              <Text style={styles.inputLabel}>Shoulder Width ({measurementUnit.toUpperCase()}) *</Text>
               <TextInput
                 style={styles.input}
-                placeholder="e.g., 16, 40cm"
+                placeholder={`e.g., ${measurementUnit === 'in' ? "16" : "40"}`}
                 placeholderTextColor="#666"
                 value={fitProfile.shoulder}
                 onChangeText={(text) => setFitProfile(prev => ({ ...prev, shoulder: text }))}
+                keyboardType="decimal-pad"
               />
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Inseam (Inner leg) *</Text>
+              <Text style={styles.inputLabel}>Inseam ({measurementUnit.toUpperCase()}) *</Text>
               <TextInput
                 style={styles.input}
-                placeholder="e.g., 30, 76cm"
+                placeholder={`e.g., ${measurementUnit === 'in' ? "30" : "76"}`}
                 placeholderTextColor="#666"
                 value={fitProfile.inseam}
                 onChangeText={(text) => setFitProfile(prev => ({ ...prev, inseam: text }))}
+                keyboardType="decimal-pad"
               />
             </View>
 
@@ -2241,24 +2278,26 @@ const StyleVaultScreen = () => {
             <Text style={styles.modalSubtitle}>Optional Measurements</Text>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Arm Length / Sleeve (Optional)</Text>
+              <Text style={styles.inputLabel}>Arm Length / Sleeve ({measurementUnit.toUpperCase()}) (Optional)</Text>
               <TextInput
                 style={styles.input}
-                placeholder="e.g., 24, 60cm"
+                placeholder={`e.g., ${measurementUnit === 'in' ? "24" : "60"}`}
                 placeholderTextColor="#666"
                 value={fitProfile.sleeve}
                 onChangeText={(text) => setFitProfile(prev => ({ ...prev, sleeve: text }))}
+                keyboardType="decimal-pad"
               />
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Thigh (Optional)</Text>
+              <Text style={styles.inputLabel}>Thigh Circumference ({measurementUnit.toUpperCase()}) (Optional)</Text>
               <TextInput
                 style={styles.input}
-                placeholder="e.g., 22, 56cm"
+                placeholder={`e.g., ${measurementUnit === 'in' ? "22" : "56"}`}
                 placeholderTextColor="#666"
                 value={fitProfile.thigh}
                 onChangeText={(text) => setFitProfile(prev => ({ ...prev, thigh: text }))}
+                keyboardType="decimal-pad"
               />
             </View>
 
@@ -2314,20 +2353,30 @@ const StyleVaultScreen = () => {
                       }
                     }
                     
+                    // Helper to convert input value to inches (stored in DB)
+                    const convertToInches = (value) => {
+                      if (!value || value === '') return null;
+                      const num = Number(value);
+                      if (isNaN(num)) return null;
+                      // If input is in cm, convert to inches; if in inches, use as-is
+                      return measurementUnit === 'cm' ? num / 2.54 : num;
+                    };
+                    
                     await supabase.from('profiles').upsert({
                       id: user.id,
                       gender: fitProfile.gender,
                       body_shape: fitProfile.bodyShape || finalBodyShape,
-                      height: fitProfile.height,
+                      // Store in new circumference fields (inches)
+                      height_in: convertToInches(fitProfile.height),
                       top_size: fitProfile.topSize,
                       bottom_size: fitProfile.bottomSize,
-                      chest: fitProfile.chest,
-                      waist: fitProfile.waist,
-                      hips: fitProfile.hips,
-                      shoulder: fitProfile.shoulder,
-                      sleeve: fitProfile.sleeve,
-                      inseam: fitProfile.inseam,
-                      thigh: fitProfile.thigh,
+                      chest_circ_in: convertToInches(fitProfile.chest),
+                      waist_circ_in: convertToInches(fitProfile.waist),
+                      hip_circ_in: convertToInches(fitProfile.hips),
+                      shoulder_width_in: convertToInches(fitProfile.shoulder),
+                      sleeve_length_in: convertToInches(fitProfile.sleeve),
+                      inseam_in: convertToInches(fitProfile.inseam),
+                      thigh_circ_in: convertToInches(fitProfile.thigh),
                       fit_preference: fitProfile.fit_preference,
                       notes: fitProfile.notes,
                       updated_at: new Date().toISOString()
