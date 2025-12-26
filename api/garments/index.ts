@@ -53,18 +53,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { id, category, gender, active_only } = req.query;
 
       if (id) {
-        // Get single garment
-        const { data, error } = await supabase
+        // Get single garment with sizes
+        const { data: garment, error: garmentError } = await supabase
           .from('garments')
           .select('*')
           .eq('id', id)
           .single();
 
-        if (error) {
-          return res.status(404).json({ error: 'Garment not found', details: error.message });
+        if (garmentError) {
+          return res.status(404).json({ error: 'Garment not found', details: garmentError.message });
         }
 
-        return res.status(200).json({ garment: data });
+        // Get sizes for this garment
+        const { data: sizes, error: sizesError } = await supabase
+          .from('garment_sizes')
+          .select('*')
+          .eq('garment_id', id)
+          .order('size_label');
+
+        if (sizesError) {
+          console.warn('Error fetching sizes:', sizesError);
+        }
+
+        return res.status(200).json({ 
+          garment: { ...garment, sizes: sizes || [] }
+        });
       }
 
       // List garments with optional filters
@@ -84,16 +97,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       query = query.order('created_at', { ascending: false });
 
-      const { data, error } = await query;
+      const { data: garments, error } = await query;
 
       if (error) {
         return res.status(500).json({ error: 'Failed to fetch garments', details: error.message });
       }
 
-      return res.status(200).json({ garments: data || [] });
+      // Fetch sizes for all garments
+      if (garments && garments.length > 0) {
+        const garmentIds = garments.map(g => g.id);
+        const { data: allSizes } = await supabase
+          .from('garment_sizes')
+          .select('*')
+          .in('garment_id', garmentIds);
+
+        // Group sizes by garment_id
+        const sizesByGarment: { [key: string]: any[] } = {};
+        if (allSizes) {
+          allSizes.forEach(size => {
+            if (!sizesByGarment[size.garment_id]) {
+              sizesByGarment[size.garment_id] = [];
+            }
+            sizesByGarment[size.garment_id].push(size);
+          });
+        }
+
+        // Attach sizes to each garment
+        const garmentsWithSizes = garments.map(garment => ({
+          ...garment,
+          sizes: sizesByGarment[garment.id] || []
+        }));
+
+        return res.status(200).json({ garments: garmentsWithSizes });
+      }
+
+      return res.status(200).json({ garments: garments || [] });
     }
 
-    // POST - Create new garment
+    // POST - Create new garment with multiple sizes
     if (req.method === 'POST') {
       const {
         name,
@@ -107,37 +148,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         price,
         material,
         color,
-        size,
-        measurement_unit,
-        // Upper body measurements
-        chest,
-        waist,
-        hip,
-        front_length,
-        back_length,
-        sleeve_length,
-        back_width,
-        arm_width,
-        shoulder_width,
-        collar_girth,
-        cuff_girth,
-        armscye_depth,
-        across_chest_width,
-        // Lower body measurements
-        front_rise,
-        back_rise,
-        inseam,
-        outseam,
-        thigh_girth,
-        knee_girth,
-        hem_girth,
-        // Dress measurements
-        side_neck_to_hem,
-        back_neck_to_hem,
-        // Metadata
+        fit_type, // slim | regular | relaxed | oversized
+        fabric_stretch, // none | low | medium | high
         tags,
         is_active,
         created_by,
+        sizes, // Array of size objects: [{ size_label: 'S', chest_width: 50, ... }, ...]
       } = req.body;
 
       // Validate required fields
@@ -153,7 +169,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'gender must be men, women, or unisex' });
       }
 
-      // Build garment data object (only include provided fields)
+      // Validate fit_type and fabric_stretch if provided
+      if (fit_type && !['slim', 'regular', 'relaxed', 'oversized'].includes(fit_type)) {
+        return res.status(400).json({ error: 'fit_type must be slim, regular, relaxed, or oversized' });
+      }
+
+      if (fabric_stretch && !['none', 'low', 'medium', 'high'].includes(fabric_stretch)) {
+        return res.status(400).json({ error: 'fabric_stretch must be none, low, medium, or high' });
+      }
+
+      // Build garment data object (simplified - no measurements on garment itself)
       const garmentData: any = {
         name,
         category,
@@ -166,58 +191,80 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         price: price ? parseFloat(price) : undefined,
         material,
         color,
-        size,
-        measurement_unit: measurement_unit || 'cm',
+        fit_type,
+        fabric_stretch,
         tags: Array.isArray(tags) ? tags : undefined,
         is_active: is_active !== undefined ? Boolean(is_active) : true,
         created_by,
       };
 
-      // Add measurements only if provided (all optional)
-      const measurements = {
-        chest: chest ? parseFloat(chest) : undefined,
-        waist: waist ? parseFloat(waist) : undefined,
-        hip: hip ? parseFloat(hip) : undefined,
-        front_length: front_length ? parseFloat(front_length) : undefined,
-        back_length: back_length ? parseFloat(back_length) : undefined,
-        sleeve_length: sleeve_length ? parseFloat(sleeve_length) : undefined,
-        back_width: back_width ? parseFloat(back_width) : undefined,
-        arm_width: arm_width ? parseFloat(arm_width) : undefined,
-        shoulder_width: shoulder_width ? parseFloat(shoulder_width) : undefined,
-        collar_girth: collar_girth ? parseFloat(collar_girth) : undefined,
-        cuff_girth: cuff_girth ? parseFloat(cuff_girth) : undefined,
-        armscye_depth: armscye_depth ? parseFloat(armscye_depth) : undefined,
-        across_chest_width: across_chest_width ? parseFloat(across_chest_width) : undefined,
-        front_rise: front_rise ? parseFloat(front_rise) : undefined,
-        back_rise: back_rise ? parseFloat(back_rise) : undefined,
-        inseam: inseam ? parseFloat(inseam) : undefined,
-        outseam: outseam ? parseFloat(outseam) : undefined,
-        thigh_girth: thigh_girth ? parseFloat(thigh_girth) : undefined,
-        knee_girth: knee_girth ? parseFloat(knee_girth) : undefined,
-        hem_girth: hem_girth ? parseFloat(hem_girth) : undefined,
-        side_neck_to_hem: side_neck_to_hem ? parseFloat(side_neck_to_hem) : undefined,
-        back_neck_to_hem: back_neck_to_hem ? parseFloat(back_neck_to_hem) : undefined,
-      };
-
-      // Only add defined measurements
-      Object.keys(measurements).forEach((key) => {
-        if (measurements[key as keyof typeof measurements] !== undefined) {
-          garmentData[key] = measurements[key as keyof typeof measurements];
+      // Remove undefined values
+      Object.keys(garmentData).forEach((key) => {
+        if (garmentData[key] === undefined || garmentData[key] === null || garmentData[key] === '') {
+          delete garmentData[key];
         }
       });
 
-      const { data, error } = await supabase
+      // Create the garment first
+      const { data: garment, error: garmentError } = await supabase
         .from('garments')
         .insert(garmentData)
         .select()
         .single();
 
-      if (error) {
-        console.error('Error creating garment:', error);
-        return res.status(500).json({ error: 'Failed to create garment', details: error.message });
+      if (garmentError) {
+        console.error('Error creating garment:', garmentError);
+        return res.status(500).json({ error: 'Failed to create garment', details: garmentError.message });
       }
 
-      return res.status(201).json({ garment: data });
+      // Create sizes if provided
+      if (Array.isArray(sizes) && sizes.length > 0) {
+        const sizeData = sizes.map((size: any) => ({
+          garment_id: garment.id,
+          size_label: size.size_label,
+          // Universal measurements (flat widths, stored in cm)
+          chest_width: size.chest_width ? parseFloat(size.chest_width) : undefined,
+          waist_width: size.waist_width ? parseFloat(size.waist_width) : undefined,
+          hip_width: size.hip_width ? parseFloat(size.hip_width) : undefined,
+          garment_length: size.garment_length ? parseFloat(size.garment_length) : undefined,
+          // Upper body
+          shoulder_width: size.shoulder_width ? parseFloat(size.shoulder_width) : undefined,
+          sleeve_length: size.sleeve_length ? parseFloat(size.sleeve_length) : undefined,
+          // Lower body
+          inseam: size.inseam ? parseFloat(size.inseam) : undefined,
+          rise: size.rise ? parseFloat(size.rise) : undefined,
+          thigh_width: size.thigh_width ? parseFloat(size.thigh_width) : undefined,
+          leg_opening: size.leg_opening ? parseFloat(size.leg_opening) : undefined,
+        })).map((size: any) => {
+          // Remove undefined values
+          Object.keys(size).forEach((key) => {
+            if (size[key] === undefined || size[key] === null || size[key] === '') {
+              delete size[key];
+            }
+          });
+          return size;
+        });
+
+        const { error: sizesError } = await supabase
+          .from('garment_sizes')
+          .insert(sizeData);
+
+        if (sizesError) {
+          console.error('Error creating sizes:', sizesError);
+          // Don't fail the whole request, just log the error
+        }
+      }
+
+      // Fetch the created garment with sizes
+      const { data: sizes } = await supabase
+        .from('garment_sizes')
+        .select('*')
+        .eq('garment_id', garment.id)
+        .order('size_label');
+
+      return res.status(201).json({ 
+        garment: { ...garment, sizes: sizes || [] }
+      });
     }
 
     // PUT - Update garment
