@@ -18,7 +18,7 @@ import { supabase } from '../lib/supabase';
 import { recommendSizeAndFit, toInches } from '../lib/fitLogic';
 import { evaluateSuitability } from '../lib/styleSuitability';
 import { analyzeFabricComfort } from '../lib/fabricComfort';
-import { toInches as convertToInches } from '../lib/measurementUtils';
+import { cmToInches } from '../lib/measurementUtils';
 
 const { width, height } = Dimensions.get('window');
 const SHEET_HEIGHT = height * 0.75;
