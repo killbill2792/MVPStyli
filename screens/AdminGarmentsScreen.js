@@ -371,9 +371,20 @@ const AdminGarmentsScreen = ({ onBack }) => {
       const inputUnit = payload.measurement_unit;
       payload.measurement_unit = inputUnit; // Keep for reference
 
-      // Remove empty strings and convert to appropriate types
+      // Remove empty strings, null, undefined and convert to appropriate types
       Object.keys(payload).forEach(key => {
-        if (payload[key] === '' || (Array.isArray(payload[key]) && payload[key].length === 0)) {
+        if (payload[key] === '' || payload[key] === null || payload[key] === undefined || 
+            (Array.isArray(payload[key]) && payload[key].length === 0)) {
+          delete payload[key];
+        }
+        // Convert empty measurement strings to undefined
+        const measurementFields = [
+          'chest', 'waist', 'hip', 'front_length', 'back_length', 'sleeve_length',
+          'back_width', 'arm_width', 'shoulder_width', 'collar_girth', 'cuff_girth',
+          'armscye_depth', 'across_chest_width', 'front_rise', 'back_rise', 'inseam',
+          'outseam', 'thigh_girth', 'knee_girth', 'hem_girth', 'side_neck_to_hem', 'back_neck_to_hem'
+        ];
+        if (measurementFields.includes(key) && (payload[key] === '' || isNaN(payload[key]))) {
           delete payload[key];
         }
       });

@@ -559,13 +559,13 @@ const ProductScreen = ({ onBack }) => {
             ) : (
               <View style={styles.sizeHelpBox}>
                 <Text style={styles.sizeHelpText}>
-                  📏 Not sure about your size? Tap "AI" above for personalized size recommendations based on your measurements.
+                  📏 Not sure about your size? Tap "Fit Check" above for personalized size recommendations based on your measurements.
                 </Text>
                 <Pressable 
                   style={styles.askAISizeBtn}
                   onPress={() => setShowAISheet(true)}
                 >
-                  <Text style={styles.askAISizeText}>Get My Size →</Text>
+                  <Text style={styles.askAISizeText}>Fit Check →</Text>
                 </Pressable>
               </View>
             )}

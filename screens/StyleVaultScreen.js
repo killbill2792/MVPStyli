@@ -1229,23 +1229,33 @@ const StyleVaultScreen = () => {
             <View style={styles.fitProfileHeaderRow}>
               <Text style={styles.fitProfileName}>Fit Profile</Text>
               <View style={styles.fitProfilePhotos}>
-                {bodyImage && (
-                  <Image 
-                    source={{ uri: bodyImage }} 
-                    style={styles.fitProfilePhotoThumbnail}
-                  />
-                )}
-                {faceImage && (
-                  <Image 
-                    source={{ uri: faceImage }} 
-                    style={styles.fitProfilePhotoThumbnail}
-                  />
-                )}
-                {!bodyImage && !faceImage && (
-                  <View style={[styles.fitProfilePhotoThumbnail, styles.fitProfilePhotoPlaceholder]}>
-                    <Text style={styles.fitProfilePhotoPlaceholderText}>📷</Text>
-                  </View>
-                )}
+                {/* Body Photo Thumbnail */}
+                <Pressable onPress={() => setShowBodyPhotoGuidelines(true)}>
+                  {bodyImage ? (
+                    <Image 
+                      source={{ uri: bodyImage }} 
+                      style={styles.fitProfilePhotoThumbnail}
+                    />
+                  ) : (
+                    <View style={[styles.fitProfilePhotoThumbnail, styles.fitProfilePhotoPlaceholder]}>
+                      <Text style={styles.fitProfilePhotoPlaceholderText}>📸</Text>
+                    </View>
+                  )}
+                </Pressable>
+                
+                {/* Face Photo Thumbnail */}
+                <Pressable onPress={() => setShowFacePhotoGuidelines(true)}>
+                  {faceImage ? (
+                    <Image 
+                      source={{ uri: faceImage }} 
+                      style={styles.fitProfilePhotoThumbnail}
+                    />
+                  ) : (
+                    <View style={[styles.fitProfilePhotoThumbnail, styles.fitProfilePhotoPlaceholder]}>
+                      <Text style={styles.fitProfilePhotoPlaceholderText}>🎨</Text>
+                    </View>
+                  )}
+                </Pressable>
               </View>
             </View>
             <View style={styles.fitProfileSummaryRow}>

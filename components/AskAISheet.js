@@ -34,8 +34,11 @@ const AskAISheet = ({ visible, onClose, product }) => {
   const [styleAdvice, setStyleAdvice] = useState(null);
   const [colorSuitability, setColorSuitability] = useState(null);
   const [bodyShapeSuitability, setBodyShapeSuitability] = useState(null);
+  const [fabricComfort, setFabricComfort] = useState(null);
   const [isCached, setIsCached] = useState(false);
   const [isRequesting, setIsRequesting] = useState(false); // Client-side throttling
+  const [showGemini, setShowGemini] = useState(false); // Gemini button state
+  const [geminiAdvice, setGeminiAdvice] = useState(null); // Gemini-generated advice
   const requestInProgress = useRef(false); // Prevent multiple simultaneous requests
 
   // Pan responder for drag-to-dismiss - ONLY on the header area
@@ -425,7 +428,7 @@ const AskAISheet = ({ visible, onClose, product }) => {
             <View style={styles.headerIcon}>
               <Text style={{ fontSize: 24 }}>✨</Text>
             </View>
-            <Text style={styles.headerTitle}>AI Style Insights</Text>
+            <Text style={styles.headerTitle}>Stylit Notes</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               {isCached && (
                 <>
