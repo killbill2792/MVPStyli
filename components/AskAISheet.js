@@ -47,42 +47,77 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
 
   // Auto-detect color from product image
   const autoDetectColor = async () => {
-    if (!product?.image) return;
+    if (!product?.image) {
+      console.log('🎨 [FRONTEND] No product image available for color detection');
+      return;
+    }
     
     // Don't re-detect if already detecting
-    if (isDetectingColor) return;
+    if (isDetectingColor) {
+      console.log('🎨 [FRONTEND] Color detection already in progress');
+      return;
+    }
     
     setIsDetectingColor(true);
     try {
       const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'https://mvpstyli-fresh.vercel.app';
-      console.log('🎨 Auto-detecting color from:', product.image);
+      console.log('🎨 [FRONTEND] Starting color detection from:', product.image.substring(0, 100));
+      console.log('🎨 [FRONTEND] API endpoint:', `${API_BASE}/api/fit-check-utils`);
+      
       const response = await fetch(`${API_BASE}/api/fit-check-utils`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'detect-color', imageUrl: product.image }),
       });
       
+      console.log('🎨 [FRONTEND] Color detection response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('🎨 [FRONTEND] Color detection API error:', response.status, errorText);
+        throw new Error(`API error: ${response.status}`);
+      }
+      
       const data = await response.json();
-      console.log('🎨 Color detection response:', data);
-      if (data.success && data.colorName) {
-        setDetectedColor(data.colorName);
-        setUserEnteredColor(data.colorName);
+      console.log('🎨 [FRONTEND] Color detection response data:', JSON.stringify(data, null, 2));
+      
+      // Handle both response formats: {success, colorName} or {color, name}
+      const colorName = data.colorName || data.name;
+      const colorHex = data.color || data.colorHex;
+      
+      if (data.success !== false && colorName && colorName !== 'unknown') {
+        console.log('🎨 [FRONTEND] Color detected successfully:', {
+          name: colorName,
+          hex: colorHex,
+          confidence: data.confidence,
+        });
+        
+        setDetectedColor(colorName);
+        setUserEnteredColor(colorName);
+        
         // Update product color immediately
         const updatedProduct = {
           ...product,
-          color: data.colorName,
+          color: colorName,
         };
         setProduct(updatedProduct);
-        console.log('🎨 Color detected and updated:', data.colorName);
+        console.log('🎨 [FRONTEND] Product color updated to:', colorName);
+        
         // Reload insights with new color after a short delay
         setTimeout(() => {
+          console.log('🎨 [FRONTEND] Reloading insights with new color');
           loadInsights(true);
         }, 500);
       } else {
-        console.log('🎨 Color detection failed or no color found');
+        console.warn('🎨 [FRONTEND] Color detection failed or returned unknown:', {
+          success: data.success,
+          colorName: colorName,
+          fullResponse: data,
+        });
       }
     } catch (error) {
-      console.error('Error auto-detecting color:', error);
+      console.error('🎨 [FRONTEND] Error auto-detecting color:', error);
+      console.error('🎨 [FRONTEND] Error stack:', error.stack);
       // Silent fail - user can manually enter color
     } finally {
       setIsDetectingColor(false);
@@ -101,9 +136,6 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
   const [howToWearData, setHowToWearData] = useState(null); // Occasions and styling tips
   const [isCached, setIsCached] = useState(false);
   const [isRequesting, setIsRequesting] = useState(false); // Client-side throttling
-  const [useGemini, setUseGemini] = useState(false); // Only use Gemini when button clicked
-  const [geminiLoading, setGeminiLoading] = useState(false);
-  const [geminiAdvice, setGeminiAdvice] = useState(null); // Gemini-generated advice
   const requestInProgress = useRef(false); // Prevent multiple simultaneous requests
   
   // New state for missing data inputs
@@ -544,7 +576,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         missingGarment: missingGarment.length > 0,
       });
       
-      // Build HOW TO WEAR data (use basic rule-based for now, Gemini can enhance)
+      // Build HOW TO WEAR data (rule-based)
       const occasions = product?.category === 'dress' || product?.category === 'dresses' 
         ? ['Work', 'Date Night', 'Casual', 'Formal']
         : product?.category === 'upper' || product?.category === 'upper_body'
@@ -563,8 +595,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         stylingTips: stylingTips.slice(0, 4),
       });
       
-      // DO NOT call Gemini here - only when button is clicked
-      // Gemini will be called separately via callGeminiInsights function
+      // All insights are rule-based (fitLogic, styleSuitability, fabricComfort)
       
     } catch (error) {
       console.error('Error loading Fit Check insights:', error);
@@ -592,106 +623,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
     }
   };
   
-  // Call Gemini insights when button is clicked
-  const callGeminiInsights = async () => {
-    if (geminiLoading) return;
-    
-    setGeminiLoading(true);
-    try {
-      // Load user profile data
-      let userProfileData = null;
-      if (user?.id) {
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-        if (profileData) userProfileData = profileData;
-      }
-      
-      const colorProfile = user?.id ? await loadColorProfile(user.id) : null;
-      
-      const userProfile = {
-        height: userProfileData?.height || '',
-        weight: userProfileData?.weight || '',
-        topSize: userProfileData?.top_size || '',
-        bottomSize: userProfileData?.bottom_size || '',
-        chest: userProfileData?.chest || '',
-        waist: userProfileData?.waist || '',
-        hips: userProfileData?.hips || '',
-        bodyShape: userProfileData?.body_shape || '',
-        gender: userProfileData?.gender || '',
-        skinTone: colorProfile?.tone || userProfileData?.color_tone || '',
-        colorSeason: colorProfile?.season || userProfileData?.color_season || '',
-      };
-      
-      const productInfo = {
-        name: product?.name || 'Item',
-        category: product?.category || inferCategory(product?.name),
-        color: product?.color || inferColor(product?.name),
-        fabric: product?.fabric,
-        fit: product?.fit,
-        length: product?.length,
-        price: product?.price,
-        brand: product?.brand,
-      };
-      
-      const API_BASE = process.env.EXPO_PUBLIC_API_BASE;
-      if (!API_BASE) {
-        alert('API not configured');
-        return;
-      }
-      
-      const requestBody = {
-        userProfile,
-        product: productInfo,
-        userId: user?.id,
-        garment_id: product?.garment_id || product?.id,
-      };
-      
-      // Call Gemini for enhanced insights
-      const [fitResponse, styleResponse] = await Promise.all([
-        fetch(`${API_BASE}/api/ai-insights`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...requestBody, insightType: 'fit' })
-        }),
-        fetch(`${API_BASE}/api/ai-insights`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...requestBody, insightType: 'style' })
-        })
-      ]);
-      
-      if (fitResponse.ok) {
-        const fitData = await fitResponse.json();
-        if (fitData.insights) {
-          setGeminiAdvice(prev => ({ ...prev, fit: fitData.insights }));
-        }
-      }
-      
-      if (styleResponse.ok) {
-        const styleData = await styleResponse.json();
-        if (styleData.insights) {
-          setGeminiAdvice(prev => ({ ...prev, style: styleData.insights }));
-          // Update how to wear with Gemini insights
-          if (styleData.insights.bestFor || styleData.insights.stylingTips) {
-            setHowToWearData(prev => ({
-              occasions: styleData.insights.bestFor || prev?.occasions || [],
-              stylingTips: styleData.insights.stylingTips || prev?.stylingTips || [],
-            }));
-          }
-        }
-      }
-      
-      setUseGemini(true);
-    } catch (error) {
-      console.error('Gemini error:', error);
-      alert('Failed to get AI insights. Please try again.');
-    } finally {
-      setGeminiLoading(false);
-    }
-  };
+  // Gemini removed - all insights are rule-based (fitLogic, styleSuitability, fabricComfort)
 
   // Helper to infer category from product name
   const inferCategory = (name) => {
@@ -748,22 +680,6 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
             </View>
             <Text style={styles.headerTitle}>Stylit Notes</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              {!useGemini && (
-                <Pressable 
-                  onPress={callGeminiInsights}
-                  style={{ 
-                    paddingVertical: 6, 
-                    paddingHorizontal: 12, 
-                    backgroundColor: 'rgba(99, 102, 241, 0.2)',
-                    borderRadius: 8,
-                  }}
-                  disabled={geminiLoading}
-                >
-                  <Text style={{ fontSize: 12, color: '#6366f1', fontWeight: '600' }}>
-                    {geminiLoading ? '...' : 'Gemini'}
-                  </Text>
-                </Pressable>
-              )}
               {isCached && (
                 <>
                   <Pressable 
