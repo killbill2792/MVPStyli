@@ -1125,7 +1125,8 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                           
                           // Call parse-size-chart API
                           try {
-                            const parseResponse = await fetch('/api/parse-size-chart', {
+                            const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://mvpstyli-fresh.vercel.app';
+                            const parseResponse = await fetch(`${apiUrl}/api/parse-size-chart`, {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ imageBase64: base64 }),
@@ -1227,7 +1228,8 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                     onPress={async () => {
                       setIsDetectingColor(true);
                       try {
-                        const response = await fetch('/api/detect-color', {
+                        const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://mvpstyli-fresh.vercel.app';
+                        const response = await fetch(`${apiUrl}/api/detect-color`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ imageUrl: product.image }),
