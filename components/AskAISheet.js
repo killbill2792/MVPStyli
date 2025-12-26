@@ -18,7 +18,7 @@ import { supabase } from '../lib/supabase';
 import { recommendSizeAndFit, toInches } from '../lib/fitLogic';
 import { evaluateSuitability } from '../lib/styleSuitability';
 import { analyzeFabricComfort } from '../lib/fabricComfort';
-import { cmToInches } from '../lib/measurementUtils';
+import { cmToInches, parseHeightToInches } from '../lib/measurementUtils';
 
 const { width, height } = Dimensions.get('window');
 const SHEET_HEIGHT = height * 0.75;
@@ -193,8 +193,10 @@ const AskAISheet = ({ visible, onClose, product, selectedSize = null }) => {
       };
       
       const userProfileForFitLogic = {
-        // Pass numbers directly - fitLogic's toInches() will handle them
-        heightIn: getNumericValue(userProfileData?.height_in) ?? getNumericValue(userProfileData?.height),
+        // Height needs special parsing for "5.4" = 5'4" = 64 inches
+        heightIn: (userProfileData?.height_in != null) 
+          ? parseHeightToInches(userProfileData.height_in) 
+          : (userProfileData?.height != null ? parseHeightToInches(userProfileData.height) : null),
         weightKg: getNumericValue(userProfileData?.weight_kg) ?? getNumericValue(userProfileData?.weight),
         // Check new circumference fields first (these are in inches already)
         chestIn: getNumericValue(userProfileData?.chest_circ_in) ?? getNumericValue(userProfileData?.chest_in) ?? getNumericValue(userProfileData?.chest),
@@ -284,7 +286,7 @@ const AskAISheet = ({ visible, onClose, product, selectedSize = null }) => {
         category: fitLogicCategory,
         name: product?.name || 'Item',
         fitType: product?.fit || product?.fitType || product?.fit_type || null,
-        fabricStretch: fabricStretch,
+        fabricStretch: normalizedFabricStretch, // Use normalized value
         sizeChart: sizeChart,
       };
       
@@ -340,6 +342,8 @@ const AskAISheet = ({ visible, onClose, product, selectedSize = null }) => {
         undertone: undertone,
         season: season,
         bodyShape: userProfileData?.body_shape || null,
+        bestColors: colorProfile?.bestColors || userProfileData?.best_colors || [],
+        avoidColors: colorProfile?.avoidColors || userProfileData?.avoid_colors || [],
       };
       
       console.log('🎨 Final suitability profile:', userProfileForSuitability);

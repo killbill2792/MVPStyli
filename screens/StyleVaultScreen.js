@@ -33,7 +33,7 @@ import { loadColorProfile, saveColorProfile, getAllSeasons, getSeasonSwatches, a
 import PhotoGuidelinesModal from '../components/PhotoGuidelinesModal';
 import PhotoGuidelinesScreen from '../components/PhotoGuidelinesScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { cmToInches, inchesToCm, parseMeasurementToInches, formatInchesAsFraction } from '../lib/measurementUtils';
+import { cmToInches, inchesToCm, parseMeasurementToInches, formatInchesAsFraction, parseHeightToInches } from '../lib/measurementUtils';
 
 // Safe Image Component to prevent crashes
 const SafeImage = ({ source, style, resizeMode, ...props }) => {
@@ -2354,8 +2354,16 @@ const StyleVaultScreen = () => {
                     }
                     
                     // Helper to convert input value to inches (stored in DB)
-                    const convertToInches = (value) => {
+                    const convertToInches = (value, isHeight = false) => {
                       if (!value || value === '') return null;
+                      
+                      // Special handling for height: parse feet.inches format
+                      if (isHeight) {
+                        const parsed = parseHeightToInches(value);
+                        if (parsed != null) return parsed;
+                        // Fallback to regular conversion
+                      }
+                      
                       const num = Number(value);
                       if (isNaN(num)) return null;
                       // If input is in cm, convert to inches; if in inches, use as-is
@@ -2367,7 +2375,8 @@ const StyleVaultScreen = () => {
                       gender: fitProfile.gender,
                       body_shape: fitProfile.bodyShape || finalBodyShape,
                       // Store in new circumference fields (inches)
-                      height_in: convertToInches(fitProfile.height),
+                      // Height needs special parsing for "5.4" = 5'4" = 64 inches
+                      height_in: convertToInches(fitProfile.height, true),
                       top_size: fitProfile.topSize,
                       bottom_size: fitProfile.bottomSize,
                       chest_circ_in: convertToInches(fitProfile.chest),
