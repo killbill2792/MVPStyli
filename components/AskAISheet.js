@@ -185,14 +185,30 @@ const AskAISheet = ({ visible, onClose, product, selectedSize = null }) => {
       const userProfileForFitLogic = {
         heightIn: toInchesValue(userProfileData?.height_in, userProfileData?.height),
         weightKg: parseFloat(userProfileData?.weight) || null,
-        chestIn: toInchesValue(userProfileData?.chest_in, userProfileData?.chest),
-        bustIn: toInchesValue(userProfileData?.bust_in, userProfileData?.bust) ?? toInchesValue(userProfileData?.chest_in, userProfileData?.chest), // fallback
-        waistIn: toInchesValue(userProfileData?.waist_in, userProfileData?.waist),
-        hipsIn: toInchesValue(userProfileData?.hips_in, userProfileData?.hips),
-        shoulderIn: toInchesValue(userProfileData?.shoulder_in, userProfileData?.shoulder),
-        inseamIn: toInchesValue(userProfileData?.inseam_in, userProfileData?.inseam),
+        // Check new circumference fields first, then old fields
+        chestIn: toInchesValue(userProfileData?.chest_circ_in, userProfileData?.chest_in) ?? toInchesValue(null, userProfileData?.chest),
+        bustIn: toInchesValue(userProfileData?.bust_circ_in, userProfileData?.bust_in) ?? toInchesValue(userProfileData?.chest_circ_in, userProfileData?.chest_in) ?? toInchesValue(null, userProfileData?.chest), // fallback
+        waistIn: toInchesValue(userProfileData?.waist_circ_in, userProfileData?.waist_in) ?? toInchesValue(null, userProfileData?.waist),
+        hipsIn: toInchesValue(userProfileData?.hip_circ_in, userProfileData?.hips_in) ?? toInchesValue(null, userProfileData?.hips),
+        shoulderIn: toInchesValue(userProfileData?.shoulder_width_in, userProfileData?.shoulder_in) ?? toInchesValue(null, userProfileData?.shoulder),
+        inseamIn: toInchesValue(userProfileData?.inseam_in, null) ?? toInchesValue(null, userProfileData?.inseam),
         gender: userProfileData?.gender || null,
       };
+      
+      console.log('📏 Body measurements check:', {
+        heightIn: userProfileForFitLogic.heightIn,
+        chestIn: userProfileForFitLogic.chestIn,
+        waistIn: userProfileForFitLogic.waistIn,
+        hipsIn: userProfileForFitLogic.hipsIn,
+        shoulderIn: userProfileForFitLogic.shoulderIn,
+        inseamIn: userProfileForFitLogic.inseamIn,
+        rawData: {
+          height_in: userProfileData?.height_in,
+          chest_circ_in: userProfileData?.chest_circ_in,
+          waist_circ_in: userProfileData?.waist_circ_in,
+          hip_circ_in: userProfileData?.hip_circ_in,
+        }
+      });
       
       console.log('User profile for AI advice:', userProfile);
       console.log('User profile for fitLogic:', userProfileForFitLogic);
@@ -266,16 +282,59 @@ const AskAISheet = ({ visible, onClose, product, selectedSize = null }) => {
           
       // Use styleSuitability for color and body shape (NO-AI)
       console.log('🎨 Using styleSuitability for color and body shape');
+      console.log('🎨 Color profile loaded:', colorProfile);
+      console.log('🎨 User profile data color fields:', {
+        color_tone: userProfileData?.color_tone,
+        color_season: userProfileData?.color_season,
+        color_depth: userProfileData?.color_depth,
+      });
+      
+      // Extract undertone from color_tone or colorProfile
+      // Handle cases like "warm deep" - extract just "warm"
+      let undertone = colorProfile?.tone || userProfileData?.color_tone || null;
+      if (undertone && typeof undertone === 'string') {
+        const toneStr = undertone.toLowerCase();
+        if (toneStr.includes('warm')) undertone = 'warm';
+        else if (toneStr.includes('cool')) undertone = 'cool';
+        else if (toneStr.includes('neutral')) undertone = 'neutral';
+      }
+      
+      // Extract season from color_season or colorProfile
+      // Handle cases like "autumn" or "deep autumn" - extract just "autumn"
+      let season = colorProfile?.season || userProfileData?.color_season || null;
+      if (season && typeof season === 'string') {
+        const seasonStr = season.toLowerCase();
+        if (seasonStr.includes('spring')) season = 'spring';
+        else if (seasonStr.includes('summer')) season = 'summer';
+        else if (seasonStr.includes('autumn') || seasonStr.includes('fall')) season = 'autumn';
+        else if (seasonStr.includes('winter')) season = 'winter';
+      }
+      
       const userProfileForSuitability = {
-        undertone: colorProfile?.tone || userProfileData?.color_tone || null,
-        season: colorProfile?.season || userProfileData?.color_season || null,
+        undertone: undertone,
+        season: season,
         bodyShape: userProfileData?.body_shape || null,
       };
       
-      // Get color - check for non-empty string
-      const productColor = product?.color && product.color.trim() !== '' 
+      console.log('🎨 Final suitability profile:', userProfileForSuitability);
+      
+      // Get color - check multiple possible fields
+      const productColor = (product?.color && product.color.trim() !== '') 
         ? product.color.trim() 
+        : (product?.color_raw && product.color_raw.trim() !== '')
+        ? product.color_raw.trim()
+        : (product?.primaryColor && product.primaryColor.trim() !== '')
+        ? product.primaryColor.trim()
         : (inferColor(product?.name) || null);
+      
+      console.log('🎨 Product color check:', {
+        productColor: productColor,
+        productColorRaw: product?.color,
+        productColor_raw: product?.color_raw,
+        productPrimaryColor: product?.primaryColor,
+        productName: product?.name,
+        inferred: inferColor(product?.name),
+      });
       
       const productForSuitability = {
         primaryColor: productColor,

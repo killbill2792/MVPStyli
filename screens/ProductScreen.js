@@ -505,11 +505,23 @@ const ProductScreen = ({ onBack }) => {
           </Text>
 
           {/* Product Details */}
-          {(product.fabric || product.fit || product.length || inferredFabric) && (
+          {(product.fabric || product.fit || product.length || product.color || inferredFabric || inferredColor || inferredCategory) && (
             <>
               <View style={styles.divider} />
               <Text style={styles.sectionTitle}>Product Details</Text>
               <View style={styles.detailsGrid}>
+                {inferredCategory && (
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailLabel}>Category</Text>
+                    <Text style={styles.detailValue}>{inferredCategory}</Text>
+                  </View>
+                )}
+                {(product.color || inferredColor) && (
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailLabel}>Color</Text>
+                    <Text style={styles.detailValue}>{product.color || inferredColor}</Text>
+                  </View>
+                )}
                 {(product.fabric || inferredFabric) && (
                   <View style={styles.detailItem}>
                     <Text style={styles.detailLabel}>Material</Text>
@@ -526,12 +538,6 @@ const ProductScreen = ({ onBack }) => {
                   <View style={styles.detailItem}>
                     <Text style={styles.detailLabel}>Length</Text>
                     <Text style={styles.detailValue}>{product.length}</Text>
-                  </View>
-                )}
-                {inferredCategory && (
-                  <View style={styles.detailItem}>
-                    <Text style={styles.detailLabel}>Category</Text>
-                    <Text style={styles.detailValue}>{inferredCategory}</Text>
                   </View>
                 )}
               </View>

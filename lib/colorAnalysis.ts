@@ -131,7 +131,13 @@ export async function loadColorProfile(userId: string): Promise<ColorProfile | n
       .eq('id', userId)
       .single();
 
-    if (error || !data || !data.color_season) {
+    if (error) {
+      console.error('Error loading color profile:', error);
+      return null;
+    }
+    
+    // If no color_season but we have color_tone, still return a partial profile
+    if (!data || (!data.color_season && !data.color_tone)) {
       return null;
     }
 
