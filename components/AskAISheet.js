@@ -59,6 +59,19 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
   const [geminiLoading, setGeminiLoading] = useState(false);
   const [geminiAdvice, setGeminiAdvice] = useState(null); // Gemini-generated advice
   const requestInProgress = useRef(false); // Prevent multiple simultaneous requests
+  
+  // New state for missing data inputs
+  const [showGarmentInputModal, setShowGarmentInputModal] = useState(false);
+  const [showColorInputModal, setShowColorInputModal] = useState(false);
+  const [showMaterialInputModal, setShowMaterialInputModal] = useState(false);
+  const [selectedBrand, setSelectedBrand] = useState(null);
+  const [detectedColor, setDetectedColor] = useState(null);
+  const [userEnteredColor, setUserEnteredColor] = useState(null);
+  const [userEnteredMaterial, setUserEnteredMaterial] = useState(null);
+  const [parsedSizeChart, setParsedSizeChart] = useState(null);
+  const [isDetectingColor, setIsDetectingColor] = useState(false);
+  const [isParsingSizeChart, setIsParsingSizeChart] = useState(false);
+  const [manualSizeChartInput, setManualSizeChartInput] = useState({});
 
   // Pan responder for drag-to-dismiss - ONLY on the header area
   const panResponder = useRef(
