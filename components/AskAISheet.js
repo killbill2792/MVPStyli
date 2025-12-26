@@ -42,6 +42,49 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
   useEffect(() => {
     setProduct(initialProduct);
   }, [initialProduct]);
+
+  // Auto-detect color when Fit Check opens (if product has image)
+  useEffect(() => {
+    if (visible && product?.image && !product?.color) {
+      autoDetectColor();
+    }
+  }, [visible, product?.image]);
+
+  // Auto-detect color from product image
+  const autoDetectColor = async () => {
+    if (!product?.image) return;
+    
+    setIsDetectingColor(true);
+    try {
+      const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'https://mvpstyli-fresh.vercel.app';
+      const response = await fetch(`${API_BASE}/api/fit-check-utils`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'detect-color', imageUrl: product.image }),
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        setDetectedColor(data.colorName);
+        setUserEnteredColor(data.colorName);
+        // Update product color and reload insights
+        const updatedProduct = {
+          ...product,
+          color: data.colorName,
+        };
+        setProduct(updatedProduct);
+        // Reload insights with new color
+        setTimeout(() => {
+          loadInsights(true);
+        }, 500);
+      }
+    } catch (error) {
+      console.error('Error auto-detecting color:', error);
+      // Silent fail - user can manually enter color
+    } finally {
+      setIsDetectingColor(false);
+    }
+  };
   
   const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
