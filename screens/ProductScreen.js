@@ -711,9 +711,10 @@ const ProductScreen = ({ onBack }) => {
         onClose={() => setShowAISheet(false)}
         product={{
           ...product,
-          category: inferredCategory,
-          color: inferredColor,
-          fabric: inferredFabric
+          category: product?.category || inferredCategory,
+          // Only use inferredColor if product.color is not already set
+          color: product?.color || inferredColor,
+          fabric: product?.fabric || product?.material || inferredFabric
         }}
         selectedSize={selectedSize}
       />

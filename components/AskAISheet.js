@@ -182,16 +182,23 @@ const AskAISheet = ({ visible, onClose, product, selectedSize = null }) => {
         return null;
       };
       
+      // Helper to safely get numeric value from database (handles both string and number)
+      const getNumericValue = (value) => {
+        if (value == null || value === '') return null;
+        const num = typeof value === 'string' ? parseFloat(value) : Number(value);
+        return isNaN(num) ? null : num;
+      };
+      
       const userProfileForFitLogic = {
-        heightIn: toInchesValue(userProfileData?.height_in, userProfileData?.height),
-        weightKg: parseFloat(userProfileData?.weight) || null,
-        // Check new circumference fields first, then old fields
-        chestIn: toInchesValue(userProfileData?.chest_circ_in, userProfileData?.chest_in) ?? toInchesValue(null, userProfileData?.chest),
-        bustIn: toInchesValue(userProfileData?.bust_circ_in, userProfileData?.bust_in) ?? toInchesValue(userProfileData?.chest_circ_in, userProfileData?.chest_in) ?? toInchesValue(null, userProfileData?.chest), // fallback
-        waistIn: toInchesValue(userProfileData?.waist_circ_in, userProfileData?.waist_in) ?? toInchesValue(null, userProfileData?.waist),
-        hipsIn: toInchesValue(userProfileData?.hip_circ_in, userProfileData?.hips_in) ?? toInchesValue(null, userProfileData?.hips),
-        shoulderIn: toInchesValue(userProfileData?.shoulder_width_in, userProfileData?.shoulder_in) ?? toInchesValue(null, userProfileData?.shoulder),
-        inseamIn: toInchesValue(userProfileData?.inseam_in, null) ?? toInchesValue(null, userProfileData?.inseam),
+        heightIn: getNumericValue(userProfileData?.height_in) ?? (userProfileData?.height ? cmToInches(parseFloat(userProfileData.height)) : null),
+        weightKg: getNumericValue(userProfileData?.weight) ?? getNumericValue(userProfileData?.weight_kg),
+        // Check new circumference fields first (these are in inches already)
+        chestIn: getNumericValue(userProfileData?.chest_circ_in) ?? getNumericValue(userProfileData?.chest_in) ?? (userProfileData?.chest ? cmToInches(parseFloat(userProfileData.chest)) : null),
+        bustIn: getNumericValue(userProfileData?.bust_circ_in) ?? getNumericValue(userProfileData?.bust_in) ?? getNumericValue(userProfileData?.chest_circ_in) ?? getNumericValue(userProfileData?.chest_in) ?? (userProfileData?.chest ? cmToInches(parseFloat(userProfileData.chest)) : null),
+        waistIn: getNumericValue(userProfileData?.waist_circ_in) ?? getNumericValue(userProfileData?.waist_in) ?? (userProfileData?.waist ? cmToInches(parseFloat(userProfileData.waist)) : null),
+        hipsIn: getNumericValue(userProfileData?.hip_circ_in) ?? getNumericValue(userProfileData?.hips_in) ?? (userProfileData?.hips ? cmToInches(parseFloat(userProfileData.hips)) : null),
+        shoulderIn: getNumericValue(userProfileData?.shoulder_width_in) ?? getNumericValue(userProfileData?.shoulder_in) ?? (userProfileData?.shoulder ? cmToInches(parseFloat(userProfileData.shoulder)) : null),
+        inseamIn: getNumericValue(userProfileData?.inseam_in) ?? (userProfileData?.inseam ? cmToInches(parseFloat(userProfileData.inseam)) : null),
         gender: userProfileData?.gender || null,
       };
       
