@@ -1110,7 +1110,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
               </Pressable>
             </View>
             
-            <ScrollView style={styles.modalScroll}>
+            <ScrollView 
+              style={styles.modalScroll}
+              contentContainerStyle={{ paddingBottom: 40 }}
+            >
               {/* Option 1: Select from Brand */}
               <View style={styles.modalSection}>
                 <Text style={styles.modalSectionTitle}>1. Select Brand (if available)</Text>
@@ -1352,7 +1355,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
               </Pressable>
             </View>
             
-            <ScrollView style={styles.modalScroll}>
+            <ScrollView 
+              style={styles.modalScroll}
+              contentContainerStyle={{ paddingBottom: 40 }}
+            >
               {/* Show detected color or allow manual entry */}
               <View style={styles.modalSection}>
                 <Text style={styles.modalSectionTitle}>
@@ -1424,7 +1430,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
               </Pressable>
             </View>
             
-            <ScrollView style={styles.modalScroll}>
+            <ScrollView 
+              style={styles.modalScroll}
+              contentContainerStyle={{ paddingBottom: 40 }}
+            >
               <View style={styles.modalSection}>
                 <Text style={styles.modalSectionTitle}>Material Composition</Text>
                 <Text style={styles.modalSectionSubtitle}>e.g., "Cotton, Spandex" or "100% Polyester"</Text>
@@ -1830,20 +1839,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.9)',
     justifyContent: 'flex-end',
-    zIndex: 2000,
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
   },
   modalContent: {
     backgroundColor: '#1a1a1a',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: height * 0.9,
-    paddingBottom: 40,
-    zIndex: 2001,
+    maxHeight: height * 0.85,
+    flex: 1,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1867,7 +1869,7 @@ const styles = StyleSheet.create({
     lineHeight: 32,
   },
   modalScroll: {
-    flex: 1,
+    flexGrow: 1,
   },
   modalSection: {
     padding: 20,
