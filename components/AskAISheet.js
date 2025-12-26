@@ -157,7 +157,15 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
   useEffect(() => {
     if (visible) {
       openSheet();
-      loadInsights();
+      // Auto-detect color first, then load insights
+      if (product?.image) {
+        autoDetectColor().then(() => {
+          // Load insights after color is detected
+          loadInsights();
+        });
+      } else {
+        loadInsights();
+      }
     } else {
       // Reset position when hidden
       translateY.setValue(SHEET_HEIGHT);
