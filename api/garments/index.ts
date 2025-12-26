@@ -351,7 +351,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (sizeData.length > 0) {
           const { error: sizesError } = await supabase
             .from('garment_sizes')
-            .insert(sizeData);
+            .insert(sizeData as any[]);
 
           if (sizesError) {
             console.error('Error creating sizes:', sizesError);
@@ -497,7 +497,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (sizeData.length > 0) {
           const { error: sizesError } = await supabase
             .from('garment_sizes')
-            .insert(sizeData);
+            .insert(sizeData as any[]);
 
           if (sizesError) {
             console.error('Error updating sizes:', sizesError);
