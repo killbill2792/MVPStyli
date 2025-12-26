@@ -1123,13 +1123,13 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                         reader.onloadend = async () => {
                           const base64 = reader.result;
                           
-                          // Call parse-size-chart API
+                          // Call fit-check-utils API for parsing size chart
                           try {
                             const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'https://mvpstyli-fresh.vercel.app';
-                            const parseResponse = await fetch(`${API_BASE}/api/parse-size-chart`, {
+                            const parseResponse = await fetch(`${API_BASE}/api/fit-check-utils`, {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ imageBase64: base64 }),
+                              body: JSON.stringify({ type: 'parse-size-chart', imageBase64: base64 }),
                             });
                             
                             const parseData = await parseResponse.json();
@@ -1229,10 +1229,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                       setIsDetectingColor(true);
                       try {
                         const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'https://mvpstyli-fresh.vercel.app';
-                        const response = await fetch(`${API_BASE}/api/detect-color`, {
+                        const response = await fetch(`${API_BASE}/api/fit-check-utils`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ imageUrl: product.image }),
+                          body: JSON.stringify({ type: 'detect-color', imageUrl: product.image }),
                         });
                         
                         const data = await response.json();
