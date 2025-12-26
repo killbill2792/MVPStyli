@@ -39,7 +39,8 @@ const AskAISheet = ({ visible, onClose, product }) => {
   const [fabricComfort, setFabricComfort] = useState(null);
   const [isCached, setIsCached] = useState(false);
   const [isRequesting, setIsRequesting] = useState(false); // Client-side throttling
-  const [showGemini, setShowGemini] = useState(false); // Gemini button state
+  const [useGemini, setUseGemini] = useState(false); // Only use Gemini when button clicked
+  const [geminiLoading, setGeminiLoading] = useState(false);
   const [geminiAdvice, setGeminiAdvice] = useState(null); // Gemini-generated advice
   const requestInProgress = useRef(false); // Prevent multiple simultaneous requests
 

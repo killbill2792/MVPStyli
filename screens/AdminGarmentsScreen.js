@@ -48,7 +48,7 @@ const AdminGarmentsScreen = ({ onBack }) => {
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterGender, setFilterGender] = useState('all');
 
-  // Form state
+  // Form state - simplified with multiple sizes support
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -61,36 +61,14 @@ const AdminGarmentsScreen = ({ onBack }) => {
     price: '',
     material: '',
     color: '',
-    size: '',
+    fit_type: 'regular', // slim | regular | relaxed | oversized
+    fabric_stretch: 'none', // none | low | medium | high
     is_active: true,
-    measurement_unit: 'cm', // 'cm' or 'in'
-    // Upper body measurements
-    chest: '',
-    waist: '',
-    hip: '',
-    front_length: '',
-    back_length: '',
-    sleeve_length: '',
-    back_width: '',
-    arm_width: '',
-    shoulder_width: '',
-    collar_girth: '',
-    cuff_girth: '',
-    armscye_depth: '',
-    across_chest_width: '',
-    // Lower body measurements
-    front_rise: '',
-    back_rise: '',
-    inseam: '',
-    outseam: '',
-    thigh_girth: '',
-    knee_girth: '',
-    hem_girth: '',
-    // Dress measurements
-    side_neck_to_hem: '',
-    back_neck_to_hem: '',
     tags: '',
+    sizes: [], // Array of size objects: [{ size_label: 'S', chest_width: 50, ... }, ...]
   });
+  
+  const [measurementUnit, setMeasurementUnit] = useState('cm'); // 'cm' or 'in' for input display
 
   useEffect(() => {
     loadGarments();
@@ -242,34 +220,60 @@ const AdminGarmentsScreen = ({ onBack }) => {
       price: '',
       material: '',
       color: '',
-      size: '',
+      fit_type: 'regular',
+      fabric_stretch: 'none',
       is_active: true,
-      measurement_unit: 'cm',
-      chest: '',
-      waist: '',
-      hip: '',
-      front_length: '',
-      back_length: '',
-      sleeve_length: '',
-      back_width: '',
-      arm_width: '',
-      shoulder_width: '',
-      collar_girth: '',
-      cuff_girth: '',
-      armscye_depth: '',
-      across_chest_width: '',
-      front_rise: '',
-      back_rise: '',
-      inseam: '',
-      outseam: '',
-      thigh_girth: '',
-      knee_girth: '',
-      hem_girth: '',
-      side_neck_to_hem: '',
-      back_neck_to_hem: '',
       tags: '',
+      sizes: [],
     });
+    setMeasurementUnit('cm');
     setEditingGarment(null);
+  };
+  
+  // Add a new size to the sizes array
+  const addSize = () => {
+    const newSize = {
+      size_label: '',
+      // Universal measurements (flat widths)
+      chest_width: '',
+      waist_width: '',
+      hip_width: '',
+      garment_length: '',
+      // Upper body
+      shoulder_width: '',
+      sleeve_length: '',
+      // Lower body
+      inseam: '',
+      rise: '',
+      thigh_width: '',
+      leg_opening: '',
+    };
+    setFormData({
+      ...formData,
+      sizes: [...formData.sizes, newSize],
+    });
+  };
+  
+  // Update a specific size in the sizes array
+  const updateSize = (index, field, value) => {
+    const updatedSizes = [...formData.sizes];
+    updatedSizes[index] = {
+      ...updatedSizes[index],
+      [field]: value,
+    };
+    setFormData({
+      ...formData,
+      sizes: updatedSizes,
+    });
+  };
+  
+  // Remove a size from the sizes array
+  const removeSize = (index) => {
+    const updatedSizes = formData.sizes.filter((_, i) => i !== index);
+    setFormData({
+      ...formData,
+      sizes: updatedSizes,
+    });
   };
 
   // Helper to convert measurements
@@ -284,8 +288,21 @@ const AdminGarmentsScreen = ({ onBack }) => {
 
   const handleEdit = (garment) => {
     setEditingGarment(garment);
-    // Determine measurement unit from stored data (default to cm)
-    const storedUnit = garment.measurement_unit || 'cm';
+    
+    // Convert sizes from garment_sizes table to form format
+    const sizes = (garment.sizes || []).map(size => ({
+      size_label: size.size_label || '',
+      chest_width: size.chest_width?.toString() || '',
+      waist_width: size.waist_width?.toString() || '',
+      hip_width: size.hip_width?.toString() || '',
+      garment_length: size.garment_length?.toString() || '',
+      shoulder_width: size.shoulder_width?.toString() || '',
+      sleeve_length: size.sleeve_length?.toString() || '',
+      inseam: size.inseam?.toString() || '',
+      rise: size.rise?.toString() || '',
+      thigh_width: size.thigh_width?.toString() || '',
+      leg_opening: size.leg_opening?.toString() || '',
+    }));
     
     setFormData({
       name: garment.name || '',
@@ -299,34 +316,13 @@ const AdminGarmentsScreen = ({ onBack }) => {
       price: garment.price?.toString() || '',
       material: garment.material || '',
       color: garment.color || '',
-      size: garment.size || '',
+      fit_type: garment.fit_type || 'regular',
+      fabric_stretch: garment.fabric_stretch || 'none',
       is_active: garment.is_active !== false,
-      measurement_unit: storedUnit,
-      // Measurements are stored in cm, convert to display unit if needed
-      chest: garment.chest ? convertMeasurement(garment.chest, 'cm', storedUnit).toString() : '',
-      waist: garment.waist ? convertMeasurement(garment.waist, 'cm', storedUnit).toString() : '',
-      hip: garment.hip ? convertMeasurement(garment.hip, 'cm', storedUnit).toString() : '',
-      front_length: garment.front_length ? convertMeasurement(garment.front_length, 'cm', storedUnit).toString() : '',
-      back_length: garment.back_length ? convertMeasurement(garment.back_length, 'cm', storedUnit).toString() : '',
-      sleeve_length: garment.sleeve_length ? convertMeasurement(garment.sleeve_length, 'cm', storedUnit).toString() : '',
-      back_width: garment.back_width ? convertMeasurement(garment.back_width, 'cm', storedUnit).toString() : '',
-      arm_width: garment.arm_width ? convertMeasurement(garment.arm_width, 'cm', storedUnit).toString() : '',
-      shoulder_width: garment.shoulder_width ? convertMeasurement(garment.shoulder_width, 'cm', storedUnit).toString() : '',
-      collar_girth: garment.collar_girth ? convertMeasurement(garment.collar_girth, 'cm', storedUnit).toString() : '',
-      cuff_girth: garment.cuff_girth ? convertMeasurement(garment.cuff_girth, 'cm', storedUnit).toString() : '',
-      armscye_depth: garment.armscye_depth ? convertMeasurement(garment.armscye_depth, 'cm', storedUnit).toString() : '',
-      across_chest_width: garment.across_chest_width ? convertMeasurement(garment.across_chest_width, 'cm', storedUnit).toString() : '',
-      front_rise: garment.front_rise ? convertMeasurement(garment.front_rise, 'cm', storedUnit).toString() : '',
-      back_rise: garment.back_rise ? convertMeasurement(garment.back_rise, 'cm', storedUnit).toString() : '',
-      inseam: garment.inseam ? convertMeasurement(garment.inseam, 'cm', storedUnit).toString() : '',
-      outseam: garment.outseam ? convertMeasurement(garment.outseam, 'cm', storedUnit).toString() : '',
-      thigh_girth: garment.thigh_girth ? convertMeasurement(garment.thigh_girth, 'cm', storedUnit).toString() : '',
-      knee_girth: garment.knee_girth ? convertMeasurement(garment.knee_girth, 'cm', storedUnit).toString() : '',
-      hem_girth: garment.hem_girth ? convertMeasurement(garment.hem_girth, 'cm', storedUnit).toString() : '',
-      side_neck_to_hem: garment.side_neck_to_hem ? convertMeasurement(garment.side_neck_to_hem, 'cm', storedUnit).toString() : '',
-      back_neck_to_hem: garment.back_neck_to_hem ? convertMeasurement(garment.back_neck_to_hem, 'cm', storedUnit).toString() : '',
       tags: Array.isArray(garment.tags) ? garment.tags.join(', ') : '',
+      sizes: sizes,
     });
+    setMeasurementUnit('cm');
     setShowForm(true);
   };
 
@@ -335,56 +331,66 @@ const AdminGarmentsScreen = ({ onBack }) => {
       Alert.alert('Validation Error', 'Name and category are required');
       return;
     }
+    
+    if (!formData.sizes || formData.sizes.length === 0) {
+      Alert.alert('Validation Error', 'Please add at least one size with measurements');
+      return;
+    }
+    
+    // Validate that all sizes have size_label
+    const invalidSizes = formData.sizes.filter(s => !s.size_label || s.size_label.trim() === '');
+    if (invalidSizes.length > 0) {
+      Alert.alert('Validation Error', 'All sizes must have a size label (S, M, L, etc.)');
+      return;
+    }
 
     try {
       setSaving(true);
       const payload = { ...formData };
       
       // Convert tags string to array
-      if (payload.tags) {
+      if (payload.tags && typeof payload.tags === 'string') {
         payload.tags = payload.tags.split(',').map(t => t.trim()).filter(t => t);
-      } else {
+      } else if (!payload.tags) {
         payload.tags = [];
       }
 
-      // Convert measurements to cm for storage (always store in cm)
-      const measurementFields = [
-        'chest', 'waist', 'hip', 'front_length', 'back_length', 'sleeve_length',
-        'back_width', 'arm_width', 'shoulder_width', 'collar_girth', 'cuff_girth',
-        'armscye_depth', 'across_chest_width', 'front_rise', 'back_rise', 'inseam',
-        'outseam', 'thigh_girth', 'knee_girth', 'hem_girth', 'side_neck_to_hem', 'back_neck_to_hem'
-      ];
-      
-      measurementFields.forEach(field => {
-        if (payload[field] && !isNaN(payload[field])) {
-          // Convert to cm if input is in inches
-          if (payload.measurement_unit === 'in') {
-            payload[field] = parseFloat(payload[field]) * 2.54;
-          } else {
-            payload[field] = parseFloat(payload[field]);
+      // Process sizes: convert measurements to cm and remove empty values
+      const processedSizes = formData.sizes.map(size => {
+        const processedSize: any = {
+          size_label: size.size_label,
+        };
+        
+        // List of measurement fields
+        const measurementFields = [
+          'chest_width', 'waist_width', 'hip_width', 'garment_length',
+          'shoulder_width', 'sleeve_length',
+          'inseam', 'rise', 'thigh_width', 'leg_opening'
+        ];
+        
+        measurementFields.forEach(field => {
+          if (size[field] && !isNaN(size[field])) {
+            let value = parseFloat(size[field]);
+            // Convert to cm if input is in inches
+            if (measurementUnit === 'in') {
+              value = value * 2.54;
+            }
+            processedSize[field] = value;
           }
-        }
+        });
+        
+        return processedSize;
       });
       
-      // Store measurement unit used for input (for display purposes)
-      // But always store measurements in cm
-      const inputUnit = payload.measurement_unit;
-      payload.measurement_unit = inputUnit; // Keep for reference
+      payload.sizes = processedSizes;
 
-      // Remove empty strings, null, undefined and convert to appropriate types
+      // Remove empty strings, null, undefined
       Object.keys(payload).forEach(key => {
-        if (payload[key] === '' || payload[key] === null || payload[key] === undefined || 
-            (Array.isArray(payload[key]) && payload[key].length === 0)) {
+        if (key === 'sizes') return; // Keep sizes array
+        if (payload[key] === '' || payload[key] === null || payload[key] === undefined) {
           delete payload[key];
         }
-        // Convert empty measurement strings to undefined
-        const measurementFields = [
-          'chest', 'waist', 'hip', 'front_length', 'back_length', 'sleeve_length',
-          'back_width', 'arm_width', 'shoulder_width', 'collar_girth', 'cuff_girth',
-          'armscye_depth', 'across_chest_width', 'front_rise', 'back_rise', 'inseam',
-          'outseam', 'thigh_girth', 'knee_girth', 'hem_girth', 'side_neck_to_hem', 'back_neck_to_hem'
-        ];
-        if (measurementFields.includes(key) && (payload[key] === '' || isNaN(payload[key]))) {
+        if (Array.isArray(payload[key]) && payload[key].length === 0 && key !== 'sizes') {
           delete payload[key];
         }
       });
@@ -471,74 +477,167 @@ const AdminGarmentsScreen = ({ onBack }) => {
     );
   };
 
-  const renderMeasurementInputs = () => {
+  // Render size inputs for a specific size
+  const renderSizeInputs = (size, sizeIndex) => {
     const category = formData.category;
+    const unitLabel = measurementUnit.toUpperCase();
     
-    // Common measurements for all categories
-    const common = [
-      { key: 'chest', label: 'Chest (cm)' },
-      { key: 'waist', label: 'Waist (cm)' },
-      { key: 'hip', label: 'Hip (cm)' },
-    ];
-
-    // Upper body measurements
-    const upper = [
-      { key: 'front_length', label: 'Front Length (cm)' },
-      { key: 'back_length', label: 'Back Length (cm)' },
-      { key: 'sleeve_length', label: 'Sleeve Length (cm)' },
-      { key: 'back_width', label: 'Back Width (cm)' },
-      { key: 'arm_width', label: 'Arm Width (cm)' },
-      { key: 'shoulder_width', label: 'Shoulder Width (cm)' },
-      { key: 'collar_girth', label: 'Collar Girth (cm)' },
-      { key: 'cuff_girth', label: 'Cuff Girth (cm)' },
-      { key: 'armscye_depth', label: 'Armscye Depth (cm)' },
-      { key: 'across_chest_width', label: 'Across Chest Width (cm)' },
-    ];
-
-    // Lower body measurements
-    const lower = [
-      { key: 'front_rise', label: 'Front Rise (cm)' },
-      { key: 'back_rise', label: 'Back Rise (cm)' },
-      { key: 'inseam', label: 'Inseam (cm)' },
-      { key: 'outseam', label: 'Outseam (cm)' },
-      { key: 'thigh_girth', label: 'Thigh Girth (cm)' },
-      { key: 'knee_girth', label: 'Knee Girth (cm)' },
-      { key: 'hem_girth', label: 'Hem Girth (cm)' },
-    ];
-
-    // Dress measurements
-    const dresses = [
-      { key: 'side_neck_to_hem', label: 'Side Neck to Hem (cm)' },
-      { key: 'back_neck_to_hem', label: 'Back Neck to Hem (cm)' },
-      { key: 'front_length', label: 'Front Length (cm)' },
-      { key: 'back_length', label: 'Back Length (cm)' },
-      { key: 'sleeve_length', label: 'Sleeve Length (cm)' },
-    ];
-
-    let measurements = [...common];
-    if (category === 'upper') {
-      measurements = [...measurements, ...upper];
-    } else if (category === 'lower') {
-      measurements = [...measurements, ...lower];
-    } else if (category === 'dresses') {
-      measurements = [...measurements, ...dresses];
-    }
-
-    return measurements.map((m) => (
-      <View key={m.key} style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>
-          {m.label.replace('(cm)', `(${formData.measurement_unit})`)}
-        </Text>
-        <TextInput
-          style={styles.input}
-          value={formData[m.key]}
-          onChangeText={(text) => setFormData({ ...formData, [m.key]: text })}
-          placeholder={`Optional (${formData.measurement_unit})`}
-          placeholderTextColor="#666"
-          keyboardType="decimal-pad"
-        />
+    return (
+      <View key={sizeIndex} style={styles.sizeCard}>
+        <View style={styles.sizeHeader}>
+          <Text style={styles.sizeTitle}>Size {sizeIndex + 1}</Text>
+          <Pressable
+            style={styles.removeSizeButton}
+            onPress={() => removeSize(sizeIndex)}
+          >
+            <Text style={styles.removeSizeButtonText}>Remove</Text>
+          </Pressable>
+        </View>
+        
+        {/* Size Label */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>Size Label * (e.g., S, M, L, XL)</Text>
+          <TextInput
+            style={styles.input}
+            value={size.size_label}
+            onChangeText={(text) => updateSize(sizeIndex, 'size_label', text)}
+            placeholder="S"
+            placeholderTextColor="#666"
+          />
+        </View>
+        
+        {/* Universal measurements */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>Chest Width ({unitLabel}) - Flat measurement</Text>
+          <TextInput
+            style={styles.input}
+            value={size.chest_width}
+            onChangeText={(text) => updateSize(sizeIndex, 'chest_width', text)}
+            placeholder="Optional"
+            placeholderTextColor="#666"
+            keyboardType="decimal-pad"
+          />
+        </View>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>Waist Width ({unitLabel}) - Flat measurement</Text>
+          <TextInput
+            style={styles.input}
+            value={size.waist_width}
+            onChangeText={(text) => updateSize(sizeIndex, 'waist_width', text)}
+            placeholder="Optional"
+            placeholderTextColor="#666"
+            keyboardType="decimal-pad"
+          />
+        </View>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>Hip Width ({unitLabel}) - Flat measurement</Text>
+          <TextInput
+            style={styles.input}
+            value={size.hip_width}
+            onChangeText={(text) => updateSize(sizeIndex, 'hip_width', text)}
+            placeholder="Optional"
+            placeholderTextColor="#666"
+            keyboardType="decimal-pad"
+          />
+        </View>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>Garment Length ({unitLabel})</Text>
+          <TextInput
+            style={styles.input}
+            value={size.garment_length}
+            onChangeText={(text) => updateSize(sizeIndex, 'garment_length', text)}
+            placeholder="Optional"
+            placeholderTextColor="#666"
+            keyboardType="decimal-pad"
+          />
+        </View>
+        
+        {/* Upper body measurements */}
+        {(category === 'upper' || category === 'dresses') && (
+          <>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Shoulder Width ({unitLabel})</Text>
+              <TextInput
+                style={styles.input}
+                value={size.shoulder_width}
+                onChangeText={(text) => updateSize(sizeIndex, 'shoulder_width', text)}
+                placeholder="Optional"
+                placeholderTextColor="#666"
+                keyboardType="decimal-pad"
+              />
+            </View>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Sleeve Length ({unitLabel}) - Only if sleeves exist</Text>
+              <TextInput
+                style={styles.input}
+                value={size.sleeve_length}
+                onChangeText={(text) => updateSize(sizeIndex, 'sleeve_length', text)}
+                placeholder="Optional"
+                placeholderTextColor="#666"
+                keyboardType="decimal-pad"
+              />
+            </View>
+          </>
+        )}
+        
+        {/* Lower body measurements */}
+        {(category === 'lower' || category === 'dresses') && (
+          <>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Inseam ({unitLabel})</Text>
+              <TextInput
+                style={styles.input}
+                value={size.inseam}
+                onChangeText={(text) => updateSize(sizeIndex, 'inseam', text)}
+                placeholder="Optional"
+                placeholderTextColor="#666"
+                keyboardType="decimal-pad"
+              />
+            </View>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Rise ({unitLabel}) - Optional but recommended for jeans</Text>
+              <TextInput
+                style={styles.input}
+                value={size.rise}
+                onChangeText={(text) => updateSize(sizeIndex, 'rise', text)}
+                placeholder="Optional"
+                placeholderTextColor="#666"
+                keyboardType="decimal-pad"
+              />
+            </View>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Thigh Width ({unitLabel})</Text>
+              <TextInput
+                style={styles.input}
+                value={size.thigh_width}
+                onChangeText={(text) => updateSize(sizeIndex, 'thigh_width', text)}
+                placeholder="Optional"
+                placeholderTextColor="#666"
+                keyboardType="decimal-pad"
+              />
+            </View>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Leg Opening ({unitLabel})</Text>
+              <TextInput
+                style={styles.input}
+                value={size.leg_opening}
+                onChangeText={(text) => updateSize(sizeIndex, 'leg_opening', text)}
+                placeholder="Optional"
+                placeholderTextColor="#666"
+                keyboardType="decimal-pad"
+              />
+            </View>
+          </>
+        )}
       </View>
-    ));
+    );
   };
 
   const renderGarmentCard = ({ item }) => (
@@ -943,60 +1042,94 @@ const AdminGarmentsScreen = ({ onBack }) => {
             {/* Measurements */}
             <View style={styles.formSection}>
               <Text style={styles.sectionTitle}>Measurements (Optional)</Text>
+              {/* Fit Type and Fabric Stretch */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Measurement Unit</Text>
+                <Text style={styles.inputLabel}>Fit Type</Text>
                 <View style={styles.radioGroup}>
-                  {['cm', 'in'].map((unit) => (
+                  {['slim', 'regular', 'relaxed', 'oversized'].map((fit) => (
                     <Pressable
-                      key={unit}
+                      key={fit}
                       style={[
                         styles.radioButton,
-                        formData.measurement_unit === unit && styles.radioButtonActive,
+                        formData.fit_type === fit && styles.radioButtonActive,
                       ]}
-                      onPress={() => {
-                        // Convert existing measurements when unit changes
-                        const currentUnit = formData.measurement_unit;
-                        const newUnit = unit;
-                        const updatedData = { ...formData, measurement_unit: newUnit };
-                        
-                        // Convert all measurement fields
-                        const measurementFields = [
-                          'chest', 'waist', 'hip', 'front_length', 'back_length', 'sleeve_length',
-                          'back_width', 'arm_width', 'shoulder_width', 'collar_girth', 'cuff_girth',
-                          'armscye_depth', 'across_chest_width', 'front_rise', 'back_rise', 'inseam',
-                          'outseam', 'thigh_girth', 'knee_girth', 'hem_girth', 'side_neck_to_hem', 'back_neck_to_hem'
-                        ];
-                        
-                        measurementFields.forEach(field => {
-                          if (updatedData[field] && !isNaN(updatedData[field])) {
-                            const value = parseFloat(updatedData[field]);
-                            if (currentUnit === 'cm' && newUnit === 'in') {
-                              updatedData[field] = (value / 2.54).toFixed(2);
-                            } else if (currentUnit === 'in' && newUnit === 'cm') {
-                              updatedData[field] = (value * 2.54).toFixed(2);
-                            }
-                          }
-                        });
-                        
-                        setFormData(updatedData);
-                      }}
+                      onPress={() => setFormData({ ...formData, fit_type: fit })}
                     >
                       <Text
                         style={[
                           styles.radioButtonText,
-                          formData.measurement_unit === unit && styles.radioButtonTextActive,
+                          formData.fit_type === fit && styles.radioButtonTextActive,
                         ]}
                       >
-                        {unit.toUpperCase()}
+                        {fit.charAt(0).toUpperCase() + fit.slice(1)}
                       </Text>
                     </Pressable>
                   ))}
                 </View>
-                <Text style={[styles.sectionSubtitle, { marginTop: Spacing.xs }]}>
-                  Measurements will be stored in cm. You can enter in {formData.measurement_unit === 'cm' ? 'centimeters' : 'inches'} and they will be converted automatically.
-                </Text>
               </View>
-              {renderMeasurementInputs()}
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Fabric Stretch</Text>
+                <View style={styles.radioGroup}>
+                  {['none', 'low', 'medium', 'high'].map((stretch) => (
+                    <Pressable
+                      key={stretch}
+                      style={[
+                        styles.radioButton,
+                        formData.fabric_stretch === stretch && styles.radioButtonActive,
+                      ]}
+                      onPress={() => setFormData({ ...formData, fabric_stretch: stretch })}
+                    >
+                      <Text
+                        style={[
+                          styles.radioButtonText,
+                          formData.fabric_stretch === stretch && styles.radioButtonTextActive,
+                        ]}
+                      >
+                        {stretch.charAt(0).toUpperCase() + stretch.slice(1)}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+
+              {/* Sizes Section */}
+              <View style={styles.formSection}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md }}>
+                  <Text style={styles.sectionTitle}>Sizes & Measurements</Text>
+                  <View style={{ flexDirection: 'row', gap: Spacing.sm, alignItems: 'center' }}>
+                    <Text style={styles.inputLabel}>Unit: </Text>
+                    {['cm', 'in'].map((unit) => (
+                      <Pressable
+                        key={unit}
+                        style={[
+                          styles.radioButton,
+                          measurementUnit === unit && styles.radioButtonActive,
+                        ]}
+                        onPress={() => setMeasurementUnit(unit)}
+                      >
+                        <Text
+                          style={[
+                            styles.radioButtonText,
+                            measurementUnit === unit && styles.radioButtonTextActive,
+                          ]}
+                        >
+                          {unit.toUpperCase()}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+                <Text style={[styles.sectionSubtitle, { marginBottom: Spacing.md }]}>
+                  Add multiple sizes (S, M, L, XL, etc.) with their measurements. Measurements will be stored in cm.
+                </Text>
+                
+                {formData.sizes.map((size, index) => renderSizeInputs(size, index))}
+                
+                <Pressable style={styles.addSizeButton} onPress={addSize}>
+                  <Text style={styles.addSizeButtonText}>+ Add Size</Text>
+                </Pressable>
+              </View>
             </View>
           </ScrollView>
         </SafeAreaView>
