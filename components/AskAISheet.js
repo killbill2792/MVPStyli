@@ -287,12 +287,26 @@ const AskAISheet = ({ visible, onClose, product }) => {
       console.log('🧵 Fabric analysis result:', fabricAnalysis);
       setFabricComfort(fabricAnalysis);
       
-      // Build FIT & SIZE combined data
-      const fitSizeStatus = sizeRecommendation.status === 'OK' 
-        ? (sizeRecommendation.risk === 'low' ? 'Perfect Fit' :
-           sizeRecommendation.risk === 'medium' ? 'Good Fit' :
-           'Good with Tweaks')
-        : 'High Risk';
+      // Build FIT & SIZE combined data with proper status labels
+      let fitSizeStatus = 'High Risk';
+      if (sizeRecommendation.status === 'OK') {
+        if (sizeRecommendation.risk === 'low') {
+          fitSizeStatus = 'Perfect Fit';
+        } else if (sizeRecommendation.risk === 'medium') {
+          fitSizeStatus = 'Good Fit';
+        } else {
+          fitSizeStatus = 'Good with Tweaks';
+        }
+        // Check insights for "runs small" or "runs large" indicators
+        const insightsText = sizeRecommendation.insights?.join(' ') || '';
+        if (insightsText.toLowerCase().includes('runs small') || insightsText.toLowerCase().includes('too small') || insightsText.toLowerCase().includes('smaller than')) {
+          fitSizeStatus = 'Runs Small';
+        } else if (insightsText.toLowerCase().includes('runs large') || insightsText.toLowerCase().includes('too large') || insightsText.toLowerCase().includes('larger than')) {
+          fitSizeStatus = 'Runs Large';
+        }
+      } else {
+        fitSizeStatus = 'High Risk';
+      }
       
       // Build measurement deltas from sizeRecommendation insights
       const measurementDeltas = sizeRecommendation.insights?.filter(insight => 
