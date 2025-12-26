@@ -1352,6 +1352,47 @@ const styles = StyleSheet.create({
     color: Colors.textWhite,
     fontWeight: Typography.semibold,
   },
+  sizeCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  sizeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  sizeTitle: {
+    ...TextStyles.h4,
+    fontWeight: Typography.semibold,
+  },
+  removeSizeButton: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    backgroundColor: Colors.error,
+    borderRadius: BorderRadius.sm,
+  },
+  removeSizeButtonText: {
+    ...TextStyles.caption,
+    color: Colors.textWhite,
+    fontWeight: Typography.semibold,
+  },
+  addSizeButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    alignItems: 'center',
+    marginTop: Spacing.sm,
+  },
+  addSizeButtonText: {
+    ...TextStyles.body,
+    color: Colors.textWhite,
+    fontWeight: Typography.semibold,
+  },
   uploadButton: {
     ...CardStyles.container,
     padding: Spacing.lg,
