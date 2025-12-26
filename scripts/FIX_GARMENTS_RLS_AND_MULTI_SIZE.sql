@@ -11,9 +11,18 @@ DROP POLICY IF EXISTS "Allow authenticated users to delete garments" ON garments
 CREATE POLICY "Service role full access" ON garments
   FOR ALL USING (auth.jwt() ->> 'role' = 'service_role');
 
--- Allow anon role (used by API with anon key) to do everything (admin check is done in API)
-CREATE POLICY "Anon role full access" ON garments
-  FOR ALL USING (auth.role() = 'anon');
+-- Allow anon role (used by API with anon key) to read and write (admin check is done in API)
+CREATE POLICY "Anon role can read garments" ON garments
+  FOR SELECT USING (auth.role() = 'anon' OR true);
+
+CREATE POLICY "Anon role can insert garments" ON garments
+  FOR INSERT WITH CHECK (auth.role() = 'anon' OR true);
+
+CREATE POLICY "Anon role can update garments" ON garments
+  FOR UPDATE USING (auth.role() = 'anon' OR true);
+
+CREATE POLICY "Anon role can delete garments" ON garments
+  FOR DELETE USING (auth.role() = 'anon' OR true);
 
 -- Allow authenticated users to read active garments
 CREATE POLICY "Allow all users to read active garments" ON garments
@@ -62,8 +71,17 @@ ALTER TABLE garment_sizes ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Service role full access sizes" ON garment_sizes
   FOR ALL USING (auth.jwt() ->> 'role' = 'service_role');
 
-CREATE POLICY "Anon role full access sizes" ON garment_sizes
-  FOR ALL USING (auth.role() = 'anon');
+CREATE POLICY "Anon role can read garment sizes" ON garment_sizes
+  FOR SELECT USING (auth.role() = 'anon' OR true);
+
+CREATE POLICY "Anon role can insert garment sizes" ON garment_sizes
+  FOR INSERT WITH CHECK (auth.role() = 'anon' OR true);
+
+CREATE POLICY "Anon role can update garment sizes" ON garment_sizes
+  FOR UPDATE USING (auth.role() = 'anon' OR true);
+
+CREATE POLICY "Anon role can delete garment sizes" ON garment_sizes
+  FOR DELETE USING (auth.role() = 'anon' OR true);
 
 CREATE POLICY "Allow all users to read garment sizes" ON garment_sizes
   FOR SELECT USING (true);

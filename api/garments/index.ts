@@ -113,6 +113,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { data: garments, error } = await query;
 
       if (error) {
+        console.error('Error fetching garments:', error);
+        // Check if it's an RLS error
+        if (error.message?.includes('row-level security') || error.message?.includes('RLS')) {
+          return res.status(500).json({ 
+            error: 'Database permission error', 
+            details: 'Please run the SQL migration script FIX_GARMENTS_RLS_AND_MULTI_SIZE.sql in Supabase to fix RLS policies.',
+            hint: error.message 
+          });
+        }
         return res.status(500).json({ error: 'Failed to fetch garments', details: error.message });
       }
 
