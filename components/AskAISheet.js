@@ -13,6 +13,7 @@ import {
   TextInput,
   FlatList,
   Image,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -744,19 +745,29 @@ const AskAISheet = ({ visible, onClose, product, selectedSize = null }) => {
                         ? 'Need body measurements. Add your measurements in Fit Profile.'
                         : fitSizeData?.missingData?.join(' ') || 'Need body measurements and garment size chart for accurate fit analysis.'}
                     </Text>
-                    {fitSizeData?.missingBody && (
-                    <Pressable 
-                      style={styles.addDataBtn}
-                      onPress={() => {
-                        closeSheet();
-                          // Navigate to account and set flag to open Edit Fit Profile
-                          AsyncStorage.setItem('openFitProfile', 'true');
-                        setRoute('account');
-                      }}
-                    >
-                        <Text style={styles.addDataBtnText}>Add Measurements →</Text>
-                    </Pressable>
-                    )}
+                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                      {fitSizeData?.missingBody && (
+                        <Pressable 
+                          style={styles.addDataBtn}
+                          onPress={() => {
+                            closeSheet();
+                            // Navigate to account and set flag to open Edit Fit Profile
+                            AsyncStorage.setItem('openFitProfile', 'true');
+                            setRoute('account');
+                          }}
+                        >
+                          <Text style={styles.addDataBtnText}>📏 Add Body Measurements →</Text>
+                        </Pressable>
+                      )}
+                      {fitSizeData?.missingGarment && (
+                        <Pressable 
+                          style={styles.addDataBtn}
+                          onPress={() => setShowGarmentInputModal(true)}
+                        >
+                          <Text style={styles.addDataBtnText}>📐 Add Garment Measurements →</Text>
+                        </Pressable>
+                      )}
+                    </View>
                   </View>
                 ) : (
                   <>
@@ -819,17 +830,26 @@ const AskAISheet = ({ visible, onClose, product, selectedSize = null }) => {
                         ? 'Need Color Info: Set your Color Profile (undertone + depth)'
                         : 'Need Color Info: Product color not detected'}
                     </Text>
-                    {colorSuitability.reasons?.[0]?.includes('Color Profile') && (
-                      <Pressable 
-                        style={styles.addDataBtn}
-                        onPress={() => {
-                          closeSheet();
-                          setRoute('account');
-                        }}
-                      >
-                        <Text style={styles.addDataBtnText}>Set Color Profile →</Text>
-                      </Pressable>
-                    )}
+                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                      {colorSuitability.reasons?.[0]?.includes('Color Profile') ? (
+                        <Pressable 
+                          style={styles.addDataBtn}
+                          onPress={() => {
+                            closeSheet();
+                            setRoute('account');
+                          }}
+                        >
+                          <Text style={styles.addDataBtnText}>Set Color Profile →</Text>
+                        </Pressable>
+                      ) : (
+                        <Pressable 
+                          style={styles.addDataBtn}
+                          onPress={() => setShowColorInputModal(true)}
+                        >
+                          <Text style={styles.addDataBtnText}>🎨 Detect/Enter Color →</Text>
+                        </Pressable>
+                      )}
+                    </View>
                   </View>
                 ) : (
                   <>
@@ -932,6 +952,12 @@ const AskAISheet = ({ visible, onClose, product, selectedSize = null }) => {
                 {fabricComfort?.status === 'INSUFFICIENT_DATA' ? (
                   <View style={styles.missingDataBox}>
                     <Text style={styles.missingDataText}>{fabricComfort.insights?.[0] || 'Need Fabric Info'}</Text>
+                    <Pressable 
+                      style={styles.addDataBtn}
+                      onPress={() => setShowMaterialInputModal(true)}
+                    >
+                      <Text style={styles.addDataBtnText}>🧵 Enter Material →</Text>
+                    </Pressable>
                   </View>
                 ) : (
                   <>
