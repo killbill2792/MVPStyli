@@ -31,9 +31,17 @@ import * as ImagePicker from 'expo-image-picker';
 const { width, height } = Dimensions.get('window');
 const SHEET_HEIGHT = height * 0.75;
 
-const AskAISheet = ({ visible, onClose, product, selectedSize = null }) => {
+const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = null }) => {
   const { state, setRoute } = useApp();
   const { user } = state;
+  
+  // Use local state for product so we can update it with user inputs
+  const [product, setProduct] = useState(initialProduct);
+  
+  // Update product when initialProduct changes
+  useEffect(() => {
+    setProduct(initialProduct);
+  }, [initialProduct]);
   
   const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -1132,6 +1140,8 @@ const AskAISheet = ({ visible, onClose, product, selectedSize = null }) => {
                                 ...product,
                                 sizeChart: parseData.data,
                               };
+                              setProduct(updatedProduct);
+                              setShowGarmentInputModal(false);
                               setTimeout(() => {
                                 loadInsights(true);
                               }, 100);
@@ -1232,6 +1242,7 @@ const AskAISheet = ({ visible, onClose, product, selectedSize = null }) => {
                             ...product,
                             color: data.colorName,
                           };
+                          setProduct(updatedProduct);
                           setTimeout(() => {
                             loadInsights(true);
                           }, 100);
@@ -1274,6 +1285,7 @@ const AskAISheet = ({ visible, onClose, product, selectedSize = null }) => {
                         ...product,
                         color: userEnteredColor || detectedColor,
                       };
+                      setProduct(updatedProduct);
                       setShowColorInputModal(false);
                       setTimeout(() => {
                         loadInsights(true);
@@ -1335,6 +1347,7 @@ const AskAISheet = ({ visible, onClose, product, selectedSize = null }) => {
                         fabric: userEnteredMaterial,
                         fabricStretch: hasStretch(userEnteredMaterial) ? 'medium' : 'none',
                       };
+                      setProduct(updatedProduct);
                       setShowMaterialInputModal(false);
                       setTimeout(() => {
                         loadInsights(true);
