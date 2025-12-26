@@ -68,7 +68,7 @@ const AdminGarmentsScreen = ({ onBack }) => {
     sizes: [], // Array of size objects: [{ size_label: 'S', chest_width: 50, ... }, ...]
   });
   
-  const [measurementUnit, setMeasurementUnit] = useState('cm'); // 'cm' or 'in' for input display
+  const [measurementUnit, setMeasurementUnit] = useState('in'); // 'cm' or 'in' for input display (stored in inches)
 
   useEffect(() => {
     loadGarments();
@@ -252,7 +252,7 @@ const AdminGarmentsScreen = ({ onBack }) => {
       tags: '',
       sizes: [],
     });
-    setMeasurementUnit('cm');
+    setMeasurementUnit('in'); // Default to inches since we store in inches
     setEditingGarment(null);
   };
   
@@ -260,19 +260,19 @@ const AdminGarmentsScreen = ({ onBack }) => {
   const addSize = () => {
     const newSize = {
       size_label: '',
-      // Universal measurements (flat widths)
-      chest_width: '',
-      waist_width: '',
-      hip_width: '',
-      garment_length: '',
-      // Upper body
-      shoulder_width: '',
-      sleeve_length: '',
-      // Lower body
-      inseam: '',
-      rise: '',
-      thigh_width: '',
-      leg_opening: '',
+      // Universal measurements (circumference in inches)
+      chest_circumference: '',
+      waist_circumference: '',
+      hip_circumference: '',
+      garment_length_in: '',
+      // Upper body measurements (in inches)
+      shoulder_width_in: '',
+      sleeve_length_in: '',
+      // Lower body measurements (circumference in inches)
+      inseam_in: '',
+      rise_in: '',
+      thigh_circumference: '',
+      leg_opening_circumference: '',
     };
     setFormData({
       ...formData,
@@ -316,19 +316,43 @@ const AdminGarmentsScreen = ({ onBack }) => {
     setEditingGarment(garment);
     
     // Convert sizes from garment_sizes table to form format
-    const sizes = (garment.sizes || []).map(size => ({
-      size_label: size.size_label || '',
-      chest_width: size.chest_width?.toString() || '',
-      waist_width: size.waist_width?.toString() || '',
-      hip_width: size.hip_width?.toString() || '',
-      garment_length: size.garment_length?.toString() || '',
-      shoulder_width: size.shoulder_width?.toString() || '',
-      sleeve_length: size.sleeve_length?.toString() || '',
-      inseam: size.inseam?.toString() || '',
-      rise: size.rise?.toString() || '',
-      thigh_width: size.thigh_width?.toString() || '',
-      leg_opening: size.leg_opening?.toString() || '',
-    }));
+    // Support both old (flat) and new (circumference) field names
+    const sizes = (garment.sizes || []).map(size => {
+      // Helper to get value, converting old flat cm to circumference inches if needed
+      const getCircumference = (circField, widthField) => {
+        if (size[circField] != null) return size[circField].toString();
+        // Convert old flat width (cm) to circumference (inches): flat * 2 / 2.54
+        if (size[widthField] != null) {
+          const flatCm = Number(size[widthField]);
+          return ((flatCm * 2) / 2.54).toString();
+        }
+        return '';
+      };
+      
+      const getLength = (newField, oldField) => {
+        if (size[newField] != null) return size[newField].toString();
+        // Convert old cm to inches
+        if (size[oldField] != null) {
+          const cm = Number(size[oldField]);
+          return (cm / 2.54).toString();
+        }
+        return '';
+      };
+      
+      return {
+        size_label: size.size_label || '',
+        chest_circumference: getCircumference('chest_circumference', 'chest_width'),
+        waist_circumference: getCircumference('waist_circumference', 'waist_width'),
+        hip_circumference: getCircumference('hip_circumference', 'hip_width'),
+        garment_length_in: getLength('garment_length_in', 'garment_length'),
+        shoulder_width_in: getLength('shoulder_width_in', 'shoulder_width'),
+        sleeve_length_in: getLength('sleeve_length_in', 'sleeve_length'),
+        inseam_in: getLength('inseam_in', 'inseam'),
+        rise_in: getLength('rise_in', 'rise'),
+        thigh_circumference: getCircumference('thigh_circumference', 'thigh_width'),
+        leg_opening_circumference: getCircumference('leg_opening_circumference', 'leg_opening'),
+      };
+    });
     
     setFormData({
       name: garment.name || '',
@@ -348,7 +372,7 @@ const AdminGarmentsScreen = ({ onBack }) => {
       tags: Array.isArray(garment.tags) ? garment.tags.join(', ') : '',
       sizes: sizes,
     });
-    setMeasurementUnit('cm');
+    setMeasurementUnit('in'); // Default to inches since we store in inches
     setShowForm(true);
   };
 
@@ -381,26 +405,46 @@ const AdminGarmentsScreen = ({ onBack }) => {
         payload.tags = [];
       }
 
-      // Process sizes: convert measurements to cm and remove empty values
+      // Process sizes: convert to inches and store (all measurements stored in inches)
       const processedSizes = formData.sizes.map(size => {
         const processedSize: any = {
           size_label: size.size_label,
         };
         
-        // List of measurement fields
-        const measurementFields = [
-          'chest_width', 'waist_width', 'hip_width', 'garment_length',
-          'shoulder_width', 'sleeve_length',
-          'inseam', 'rise', 'thigh_width', 'leg_opening'
+        // List of measurement fields (circumference in inches)
+        const circumferenceFields = [
+          'chest_circumference', 'waist_circumference', 'hip_circumference',
+          'thigh_circumference', 'leg_opening_circumference'
         ];
         
-        measurementFields.forEach(field => {
-          if (size[field] && !isNaN(size[field])) {
+        // Length fields (in inches)
+        const lengthFields = [
+          'garment_length_in', 'shoulder_width_in', 'sleeve_length_in',
+          'inseam_in', 'rise_in'
+        ];
+        
+        // Process circumference fields - convert to inches if input is cm
+        circumferenceFields.forEach(field => {
+          if (size[field] && size[field].trim() !== '' && !isNaN(size[field])) {
             let value = parseFloat(size[field]);
-            // Convert to cm if input is in inches
-            if (measurementUnit === 'in') {
-              value = value * 2.54;
+            // Convert to inches if input is in cm
+            if (measurementUnit === 'cm') {
+              value = value / 2.54; // cm to inches
             }
+            // Store in inches
+            processedSize[field] = value;
+          }
+        });
+        
+        // Process length fields - convert to inches if input is cm
+        lengthFields.forEach(field => {
+          if (size[field] && size[field].trim() !== '' && !isNaN(size[field])) {
+            let value = parseFloat(size[field]);
+            // Convert to inches if input is in cm
+            if (measurementUnit === 'cm') {
+              value = value / 2.54; // cm to inches
+            }
+            // Store in inches
             processedSize[field] = value;
           }
         });
@@ -532,38 +576,38 @@ const AdminGarmentsScreen = ({ onBack }) => {
           />
         </View>
         
-        {/* Universal measurements */}
+        {/* Universal measurements - Circumference only */}
         <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Chest Width ({unitLabel}) - Flat measurement</Text>
+          <Text style={styles.inputLabel}>Chest Circumference ({unitLabel}) *</Text>
           <TextInput
             style={styles.input}
-            value={size.chest_width}
-            onChangeText={(text) => updateSize(sizeIndex, 'chest_width', text)}
-            placeholder="Optional"
+            value={size.chest_circumference}
+            onChangeText={(text) => updateSize(sizeIndex, 'chest_circumference', text)}
+            placeholder="e.g., 38"
             placeholderTextColor="#666"
             keyboardType="decimal-pad"
           />
         </View>
         
         <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Waist Width ({unitLabel}) - Flat measurement</Text>
+          <Text style={styles.inputLabel}>Waist Circumference ({unitLabel}) *</Text>
           <TextInput
             style={styles.input}
-            value={size.waist_width}
-            onChangeText={(text) => updateSize(sizeIndex, 'waist_width', text)}
-            placeholder="Optional"
+            value={size.waist_circumference}
+            onChangeText={(text) => updateSize(sizeIndex, 'waist_circumference', text)}
+            placeholder="e.g., 32"
             placeholderTextColor="#666"
             keyboardType="decimal-pad"
           />
         </View>
         
         <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Hip Width ({unitLabel}) - Flat measurement</Text>
+          <Text style={styles.inputLabel}>Hip Circumference ({unitLabel}) *</Text>
           <TextInput
             style={styles.input}
-            value={size.hip_width}
-            onChangeText={(text) => updateSize(sizeIndex, 'hip_width', text)}
-            placeholder="Optional"
+            value={size.hip_circumference}
+            onChangeText={(text) => updateSize(sizeIndex, 'hip_circumference', text)}
+            placeholder="e.g., 40"
             placeholderTextColor="#666"
             keyboardType="decimal-pad"
           />
@@ -573,8 +617,8 @@ const AdminGarmentsScreen = ({ onBack }) => {
           <Text style={styles.inputLabel}>Garment Length ({unitLabel})</Text>
           <TextInput
             style={styles.input}
-            value={size.garment_length}
-            onChangeText={(text) => updateSize(sizeIndex, 'garment_length', text)}
+            value={size.garment_length_in}
+            onChangeText={(text) => updateSize(sizeIndex, 'garment_length_in', text)}
             placeholder="Optional"
             placeholderTextColor="#666"
             keyboardType="decimal-pad"
@@ -588,8 +632,8 @@ const AdminGarmentsScreen = ({ onBack }) => {
               <Text style={styles.inputLabel}>Shoulder Width ({unitLabel})</Text>
               <TextInput
                 style={styles.input}
-                value={size.shoulder_width}
-                onChangeText={(text) => updateSize(sizeIndex, 'shoulder_width', text)}
+                value={size.shoulder_width_in}
+                onChangeText={(text) => updateSize(sizeIndex, 'shoulder_width_in', text)}
                 placeholder="Optional"
                 placeholderTextColor="#666"
                 keyboardType="decimal-pad"
@@ -600,8 +644,8 @@ const AdminGarmentsScreen = ({ onBack }) => {
               <Text style={styles.inputLabel}>Sleeve Length ({unitLabel}) - Only if sleeves exist</Text>
               <TextInput
                 style={styles.input}
-                value={size.sleeve_length}
-                onChangeText={(text) => updateSize(sizeIndex, 'sleeve_length', text)}
+                value={size.sleeve_length_in}
+                onChangeText={(text) => updateSize(sizeIndex, 'sleeve_length_in', text)}
                 placeholder="Optional"
                 placeholderTextColor="#666"
                 keyboardType="decimal-pad"
@@ -617,8 +661,8 @@ const AdminGarmentsScreen = ({ onBack }) => {
               <Text style={styles.inputLabel}>Inseam ({unitLabel})</Text>
               <TextInput
                 style={styles.input}
-                value={size.inseam}
-                onChangeText={(text) => updateSize(sizeIndex, 'inseam', text)}
+                value={size.inseam_in}
+                onChangeText={(text) => updateSize(sizeIndex, 'inseam_in', text)}
                 placeholder="Optional"
                 placeholderTextColor="#666"
                 keyboardType="decimal-pad"
@@ -629,8 +673,8 @@ const AdminGarmentsScreen = ({ onBack }) => {
               <Text style={styles.inputLabel}>Rise ({unitLabel}) - Optional but recommended for jeans</Text>
               <TextInput
                 style={styles.input}
-                value={size.rise}
-                onChangeText={(text) => updateSize(sizeIndex, 'rise', text)}
+                value={size.rise_in}
+                onChangeText={(text) => updateSize(sizeIndex, 'rise_in', text)}
                 placeholder="Optional"
                 placeholderTextColor="#666"
                 keyboardType="decimal-pad"
@@ -638,11 +682,11 @@ const AdminGarmentsScreen = ({ onBack }) => {
             </View>
             
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Thigh Width ({unitLabel})</Text>
+              <Text style={styles.inputLabel}>Thigh Circumference ({unitLabel})</Text>
               <TextInput
                 style={styles.input}
-                value={size.thigh_width}
-                onChangeText={(text) => updateSize(sizeIndex, 'thigh_width', text)}
+                value={size.thigh_circumference}
+                onChangeText={(text) => updateSize(sizeIndex, 'thigh_circumference', text)}
                 placeholder="Optional"
                 placeholderTextColor="#666"
                 keyboardType="decimal-pad"
@@ -650,11 +694,11 @@ const AdminGarmentsScreen = ({ onBack }) => {
             </View>
             
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Leg Opening ({unitLabel})</Text>
+              <Text style={styles.inputLabel}>Leg Opening Circumference ({unitLabel})</Text>
               <TextInput
                 style={styles.input}
-                value={size.leg_opening}
-                onChangeText={(text) => updateSize(sizeIndex, 'leg_opening', text)}
+                value={size.leg_opening_circumference}
+                onChangeText={(text) => updateSize(sizeIndex, 'leg_opening_circumference', text)}
                 placeholder="Optional"
                 placeholderTextColor="#666"
                 keyboardType="decimal-pad"
@@ -1147,7 +1191,7 @@ const AdminGarmentsScreen = ({ onBack }) => {
                   </View>
                 </View>
                 <Text style={[styles.sectionSubtitle, { marginBottom: Spacing.md }]}>
-                  Add multiple sizes (S, M, L, XL, etc.) with their measurements. Measurements will be stored in cm.
+                  Add multiple sizes (S, M, L, XL, etc.) with their measurements. All measurements are circumference (not flat). Values will be stored in inches.
                 </Text>
                 
                 {formData.sizes.map((size, index) => renderSizeInputs(size, index))}

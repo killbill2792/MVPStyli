@@ -303,38 +303,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               size_label: size.size_label.trim(),
             };
             
-            // Universal measurements (flat widths, stored in cm)
-            if (size.chest_width && !isNaN(size.chest_width)) {
-              sizeObj.chest_width = parseFloat(size.chest_width);
+            // Universal measurements (circumference, stored in inches)
+            if (size.chest_circumference && !isNaN(size.chest_circumference)) {
+              sizeObj.chest_circumference = parseFloat(size.chest_circumference);
             }
-            if (size.waist_width && !isNaN(size.waist_width)) {
-              sizeObj.waist_width = parseFloat(size.waist_width);
+            if (size.waist_circumference && !isNaN(size.waist_circumference)) {
+              sizeObj.waist_circumference = parseFloat(size.waist_circumference);
             }
-            if (size.hip_width && !isNaN(size.hip_width)) {
-              sizeObj.hip_width = parseFloat(size.hip_width);
+            if (size.hip_circumference && !isNaN(size.hip_circumference)) {
+              sizeObj.hip_circumference = parseFloat(size.hip_circumference);
             }
-            if (size.garment_length && !isNaN(size.garment_length)) {
-              sizeObj.garment_length = parseFloat(size.garment_length);
+            if (size.garment_length_in && !isNaN(size.garment_length_in)) {
+              sizeObj.garment_length_in = parseFloat(size.garment_length_in);
             }
-            // Upper body
-            if (size.shoulder_width && !isNaN(size.shoulder_width)) {
-              sizeObj.shoulder_width = parseFloat(size.shoulder_width);
+            // Upper body (lengths in inches)
+            if (size.shoulder_width_in && !isNaN(size.shoulder_width_in)) {
+              sizeObj.shoulder_width_in = parseFloat(size.shoulder_width_in);
             }
-            if (size.sleeve_length && !isNaN(size.sleeve_length)) {
-              sizeObj.sleeve_length = parseFloat(size.sleeve_length);
+            if (size.sleeve_length_in && !isNaN(size.sleeve_length_in)) {
+              sizeObj.sleeve_length_in = parseFloat(size.sleeve_length_in);
             }
-            // Lower body
-            if (size.inseam && !isNaN(size.inseam)) {
-              sizeObj.inseam = parseFloat(size.inseam);
+            // Lower body (circumference and lengths in inches)
+            if (size.inseam_in && !isNaN(size.inseam_in)) {
+              sizeObj.inseam_in = parseFloat(size.inseam_in);
             }
-            if (size.rise && !isNaN(size.rise)) {
-              sizeObj.rise = parseFloat(size.rise);
+            if (size.rise_in && !isNaN(size.rise_in)) {
+              sizeObj.rise_in = parseFloat(size.rise_in);
             }
-            if (size.thigh_width && !isNaN(size.thigh_width)) {
-              sizeObj.thigh_width = parseFloat(size.thigh_width);
+            if (size.thigh_circumference && !isNaN(size.thigh_circumference)) {
+              sizeObj.thigh_circumference = parseFloat(size.thigh_circumference);
             }
-            if (size.leg_opening && !isNaN(size.leg_opening)) {
-              sizeObj.leg_opening = parseFloat(size.leg_opening);
+            if (size.leg_opening_circumference && !isNaN(size.leg_opening_circumference)) {
+              sizeObj.leg_opening_circumference = parseFloat(size.leg_opening_circumference);
             }
             
             return sizeObj;
@@ -449,38 +449,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               size_label: size.size_label.trim(),
             };
             
-            // Universal measurements (flat widths, stored in cm)
-            if (size.chest_width && !isNaN(size.chest_width)) {
-              sizeObj.chest_width = parseFloat(size.chest_width);
+            // Universal measurements (circumference, stored in inches)
+            if (size.chest_circumference && !isNaN(size.chest_circumference)) {
+              sizeObj.chest_circumference = parseFloat(size.chest_circumference);
             }
-            if (size.waist_width && !isNaN(size.waist_width)) {
-              sizeObj.waist_width = parseFloat(size.waist_width);
+            if (size.waist_circumference && !isNaN(size.waist_circumference)) {
+              sizeObj.waist_circumference = parseFloat(size.waist_circumference);
             }
-            if (size.hip_width && !isNaN(size.hip_width)) {
-              sizeObj.hip_width = parseFloat(size.hip_width);
+            if (size.hip_circumference && !isNaN(size.hip_circumference)) {
+              sizeObj.hip_circumference = parseFloat(size.hip_circumference);
             }
-            if (size.garment_length && !isNaN(size.garment_length)) {
-              sizeObj.garment_length = parseFloat(size.garment_length);
+            if (size.garment_length_in && !isNaN(size.garment_length_in)) {
+              sizeObj.garment_length_in = parseFloat(size.garment_length_in);
             }
-            // Upper body
-            if (size.shoulder_width && !isNaN(size.shoulder_width)) {
-              sizeObj.shoulder_width = parseFloat(size.shoulder_width);
+            // Upper body (lengths in inches)
+            if (size.shoulder_width_in && !isNaN(size.shoulder_width_in)) {
+              sizeObj.shoulder_width_in = parseFloat(size.shoulder_width_in);
             }
-            if (size.sleeve_length && !isNaN(size.sleeve_length)) {
-              sizeObj.sleeve_length = parseFloat(size.sleeve_length);
+            if (size.sleeve_length_in && !isNaN(size.sleeve_length_in)) {
+              sizeObj.sleeve_length_in = parseFloat(size.sleeve_length_in);
             }
-            // Lower body
-            if (size.inseam && !isNaN(size.inseam)) {
-              sizeObj.inseam = parseFloat(size.inseam);
+            // Lower body (circumference and lengths in inches)
+            if (size.inseam_in && !isNaN(size.inseam_in)) {
+              sizeObj.inseam_in = parseFloat(size.inseam_in);
             }
-            if (size.rise && !isNaN(size.rise)) {
-              sizeObj.rise = parseFloat(size.rise);
+            if (size.rise_in && !isNaN(size.rise_in)) {
+              sizeObj.rise_in = parseFloat(size.rise_in);
             }
-            if (size.thigh_width && !isNaN(size.thigh_width)) {
-              sizeObj.thigh_width = parseFloat(size.thigh_width);
+            if (size.thigh_circumference && !isNaN(size.thigh_circumference)) {
+              sizeObj.thigh_circumference = parseFloat(size.thigh_circumference);
             }
-            if (size.leg_opening && !isNaN(size.leg_opening)) {
-              sizeObj.leg_opening = parseFloat(size.leg_opening);
+            if (size.leg_opening_circumference && !isNaN(size.leg_opening_circumference)) {
+              sizeObj.leg_opening_circumference = parseFloat(size.leg_opening_circumference);
             }
             
             return sizeObj;
