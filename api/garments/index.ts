@@ -361,14 +361,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       // Fetch the created garment with sizes
-      const { data: sizes } = await supabase
+      const { data: garmentSizes } = await supabase
         .from('garment_sizes')
         .select('*')
         .eq('garment_id', garment.id)
         .order('size_label');
 
       return res.status(201).json({ 
-        garment: { ...garment, sizes: sizes || [] }
+        garment: { ...garment, sizes: garmentSizes || [] }
       });
     }
 
