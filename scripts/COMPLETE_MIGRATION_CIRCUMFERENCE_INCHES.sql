@@ -146,7 +146,18 @@ CREATE POLICY "Allow authenticated users to insert garment sizes" ON garment_siz
   FOR INSERT WITH CHECK (auth.role() = 'authenticated' OR auth.role() = 'anon');
 
 -- ============================================
--- PART 5: Create trigger for updated_at
+-- PART 5: Create function for updated_at trigger (if it doesn't exist)
+-- ============================================
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================
+-- PART 6: Create trigger for updated_at
 -- ============================================
 DROP TRIGGER IF EXISTS update_garment_sizes_updated_at ON garment_sizes;
 
@@ -156,7 +167,7 @@ CREATE TRIGGER update_garment_sizes_updated_at
   EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================
--- PART 6: Verify migration (optional - can be run separately)
+-- PART 7: Verify migration (optional - can be run separately)
 -- ============================================
 -- Uncomment to check migration results:
 -- SELECT 
