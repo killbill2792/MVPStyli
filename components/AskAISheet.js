@@ -205,9 +205,21 @@ const AskAISheet = ({ visible, onClose, product, selectedSize = null }) => {
         rawData: {
           height_in: userProfileData?.height_in,
           chest_circ_in: userProfileData?.chest_circ_in,
+          chest_in: userProfileData?.chest_in,
+          chest: userProfileData?.chest,
           waist_circ_in: userProfileData?.waist_circ_in,
+          waist_in: userProfileData?.waist_in,
+          waist: userProfileData?.waist,
           hip_circ_in: userProfileData?.hip_circ_in,
-        }
+          hips_in: userProfileData?.hips_in,
+          hips: userProfileData?.hips,
+          shoulder_width_in: userProfileData?.shoulder_width_in,
+          shoulder_in: userProfileData?.shoulder_in,
+          shoulder: userProfileData?.shoulder,
+          inseam_in: userProfileData?.inseam_in,
+          inseam: userProfileData?.inseam,
+        },
+        allProfileKeys: Object.keys(userProfileData || {})
       });
       
       console.log('User profile for AI advice:', userProfile);
