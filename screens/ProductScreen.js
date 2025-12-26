@@ -709,6 +709,7 @@ const ProductScreen = ({ onBack }) => {
           color: inferredColor,
           fabric: inferredFabric
         }}
+        selectedSize={selectedSize}
       />
     </View>
   );
