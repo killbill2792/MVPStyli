@@ -1204,14 +1204,11 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                               }, 100);
                             } else {
                               // Show manual input with pre-filled structure
-                              Alert.alert(
-                                'Could not parse automatically',
-                                'Please enter measurements manually',
-                                [{ text: 'OK', onPress: () => {
-                                  // Show manual input UI
-                                  setManualSizeChartInput(parseData.structure || {});
-                                }}]
-                              );
+                              setManualSizeChartInput(parseData.structure || {
+                                sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
+                                measurements: ['chest', 'waist', 'hips', 'length', 'sleeve', 'shoulder', 'inseam', 'rise'],
+                              });
+                              // Don't close modal - show manual input form
                             }
                           } catch (error) {
                             console.error('Error parsing size chart:', error);
@@ -1247,12 +1244,83 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                   style={styles.uploadButton}
                   onPress={() => {
                     // Show manual input form
-                    Alert.alert('Manual Input', 'Manual input form coming soon');
+                    setManualSizeChartInput({
+                      sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
+                      measurements: ['chest', 'waist', 'hips', 'length', 'sleeve', 'shoulder', 'inseam', 'rise'],
+                    });
                   }}
                 >
                   <Text style={styles.uploadButtonText}>✏️ Enter Measurements</Text>
                 </Pressable>
               </View>
+
+              {/* Manual Input Form */}
+              {Object.keys(manualSizeChartInput).length > 0 && manualSizeChartInput.sizes && (
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalSectionTitle}>Manual Size Chart Entry</Text>
+                  <ScrollView style={{ maxHeight: 400 }}>
+                    {manualSizeChartInput.sizes.map((size) => (
+                      <View key={size} style={styles.manualSizeRow}>
+                        <Text style={styles.manualSizeLabel}>{size}:</Text>
+                        <View style={styles.manualMeasurementsRow}>
+                          {manualSizeChartInput.measurements?.map((measure) => (
+                            <View key={measure} style={styles.manualMeasurementInput}>
+                              <Text style={styles.manualMeasurementLabel}>{measure}</Text>
+                              <TextInput
+                                style={styles.manualMeasurementTextInput}
+                                placeholder="0"
+                                placeholderTextColor="#666"
+                                keyboardType="numeric"
+                                value={manualSizeChartInput[`${size}_${measure}`] || ''}
+                                onChangeText={(text) => {
+                                  setManualSizeChartInput({
+                                    ...manualSizeChartInput,
+                                    [`${size}_${measure}`]: text,
+                                  });
+                                }}
+                              />
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    ))}
+                  </ScrollView>
+                  <Pressable
+                    style={styles.saveButton}
+                    onPress={() => {
+                      // Convert manual input to size chart format
+                      const sizeChart = manualSizeChartInput.sizes.map((size) => {
+                        const measurements = {};
+                        manualSizeChartInput.measurements.forEach((measure) => {
+                          const value = parseFloat(manualSizeChartInput[`${size}_${measure}`]);
+                          if (!isNaN(value)) {
+                            measurements[measure] = value;
+                          }
+                        });
+                        return { size, measurements };
+                      }).filter(item => Object.keys(item.measurements).length > 0);
+
+                      if (sizeChart.length > 0) {
+                        setParsedSizeChart(sizeChart);
+                        const updatedProduct = {
+                          ...product,
+                          sizeChart: sizeChart,
+                        };
+                        setProduct(updatedProduct);
+                        setShowGarmentInputModal(false);
+                        setManualSizeChartInput({});
+                        setTimeout(() => {
+                          loadInsights(true);
+                        }, 100);
+                      } else {
+                        Alert.alert('Error', 'Please enter at least one measurement');
+                      }
+                    }}
+                  >
+                    <Text style={styles.saveButtonText}>Save Size Chart</Text>
+                  </Pressable>
+                </View>
+              )}
             </ScrollView>
           </View>
         </View>
@@ -1275,55 +1343,26 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
             </View>
             
             <ScrollView style={styles.modalScroll}>
-              {/* Auto-detect from image */}
-              {product?.image && (
-                <View style={styles.modalSection}>
-                  <Text style={styles.modalSectionTitle}>Auto-detect from Image</Text>
-                  <Pressable
-                    style={styles.uploadButton}
-                    onPress={async () => {
-                      setIsDetectingColor(true);
-                      try {
-                        const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'https://mvpstyli-fresh.vercel.app';
-                        const response = await fetch(`${API_BASE}/api/fit-check-utils`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ type: 'detect-color', imageUrl: product.image }),
-                        });
-                        
-                        const data = await response.json();
-                        if (data.success) {
-                          setDetectedColor(data.colorName);
-                          setUserEnteredColor(data.colorName);
-                          // Update product color and reload
-                          const updatedProduct = {
-                            ...product,
-                            color: data.colorName,
-                          };
-                          setProduct(updatedProduct);
-                          setTimeout(() => {
-                            loadInsights(true);
-                          }, 100);
-                        }
-                      } catch (error) {
-                        console.error('Error detecting color:', error);
-                        Alert.alert('Error', 'Failed to detect color. Please enter manually.');
-                      } finally {
-                        setIsDetectingColor(false);
-                      }
-                    }}
-                  >
-                    {isDetectingColor ? (
-                      <ActivityIndicator color="#6366f1" />
-                    ) : (
-                      <Text style={styles.uploadButtonText}>🎨 Detect Color</Text>
+              {/* Show detected color or allow manual entry */}
+              <View style={styles.modalSection}>
+                <Text style={styles.modalSectionTitle}>
+                  {detectedColor ? 'Detected Color' : 'Product Color'}
+                </Text>
+                {isDetectingColor ? (
+                  <View style={{ alignItems: 'center', padding: 20 }}>
+                    <ActivityIndicator color="#6366f1" size="large" />
+                    <Text style={{ color: '#9ca3af', marginTop: 10 }}>Detecting color...</Text>
+                  </View>
+                ) : (
+                  <>
+                    {detectedColor && (
+                      <Text style={styles.detectedColorText}>
+                        Auto-detected: {detectedColor}
+                      </Text>
                     )}
-                  </Pressable>
-                  {detectedColor && (
-                    <Text style={styles.detectedColorText}>Detected: {detectedColor}</Text>
-                  )}
-                </View>
-              )}
+                  </>
+                )}
+              </View>
 
               {/* Manual input */}
               <View style={styles.modalSection}>
