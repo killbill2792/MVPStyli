@@ -1110,13 +1110,29 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                           // Call fit-check-utils API for parsing size chart
                           try {
                             const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'https://mvpstyli-fresh.vercel.app';
+                            console.log('📊 [FRONTEND] Uploading size chart image...');
+                            console.log('📊 [FRONTEND] Image size:', blob.size, 'bytes');
+                            console.log('📊 [FRONTEND] API endpoint:', `${API_BASE}/api/fit-check-utils`);
+                            
                             const parseResponse = await fetch(`${API_BASE}/api/fit-check-utils`, {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ type: 'parse-size-chart', imageBase64: base64 }),
                             });
                             
+                            console.log('📊 [FRONTEND] OCR response status:', parseResponse.status);
+                            
+                            if (!parseResponse.ok) {
+                              const errorText = await parseResponse.text();
+                              console.error('📊 [FRONTEND] OCR API error:', parseResponse.status, errorText);
+                              throw new Error(`OCR API error: ${parseResponse.status}`);
+                            }
+                            
                             const parseData = await parseResponse.json();
+                            console.log('📊 [FRONTEND] Size chart parse result:', JSON.stringify(parseData, null, 2));
+                            console.log('📊 [FRONTEND] Parse success:', parseData.success);
+                            console.log('📊 [FRONTEND] Parsed data:', parseData.data);
+                            console.log('📊 [FRONTEND] Raw text length:', parseData.rawText?.length || 0);
                             
                             if (parseData.success && parseData.data) {
                               setParsedSizeChart(parseData.data);
