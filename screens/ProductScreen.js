@@ -540,20 +540,42 @@ const ProductScreen = ({ onBack }) => {
           <View style={styles.divider} />
           <View style={styles.sizeFitSection}>
             <Text style={styles.sectionTitle}>Size & Fit</Text>
-            {product.sizeChart ? (
+            {product.sizeChart && Object.keys(product.sizeChart).length > 0 ? (
               <View style={styles.sizeChartContainer}>
-                <Text style={styles.sizeChartTitle}>Size Chart</Text>
+                <Text style={styles.sizeChartTitle}>Size Chart (Circumference in inches)</Text>
                 {/* Render size chart if available */}
                 <View style={styles.sizeChartGrid}>
-                  {Object.entries(product.sizeChart).slice(0, 4).map(([size, measurements]) => (
-                    <View key={size} style={styles.sizeChartItem}>
-                      <Text style={styles.sizeChartSize}>{size}</Text>
-                      <Text style={styles.sizeChartMeasure}>
-                        {measurements.bust && `B: ${measurements.bust}`}
-                        {measurements.waist && ` W: ${measurements.waist}`}
-                      </Text>
-                    </View>
-                  ))}
+                  {Object.entries(product.sizeChart).slice(0, 6).map(([size, measurements]) => {
+                    // Measurements are in inches, format them nicely
+                    const formatMeasurement = (value, label) => {
+                      if (!value || isNaN(value)) return null;
+                      const inches = Number(value);
+                      // Format as fraction for inches, or show cm if preferred
+                      const formatted = formatInchesAsFraction(inches);
+                      return `${label}: ${formatted}`;
+                    };
+                    
+                    const measurementLines = [
+                      formatMeasurement(measurements.chest || measurements.bust, 'Chest'),
+                      formatMeasurement(measurements.waist, 'Waist'),
+                      formatMeasurement(measurements.hips, 'Hips'),
+                      formatMeasurement(measurements.shoulder, 'Shoulder'),
+                      formatMeasurement(measurements.inseam, 'Inseam'),
+                    ].filter(Boolean);
+                    
+                    return (
+                      <View key={size} style={styles.sizeChartItem}>
+                        <Text style={styles.sizeChartSize}>{size}</Text>
+                        {measurementLines.length > 0 ? (
+                          measurementLines.map((line, idx) => (
+                            <Text key={idx} style={styles.sizeChartMeasure}>{line}</Text>
+                          ))
+                        ) : (
+                          <Text style={styles.sizeChartMeasure}>No measurements</Text>
+                        )}
+                      </View>
+                    );
+                  })}
                 </View>
               </View>
             ) : (
