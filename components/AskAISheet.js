@@ -9,6 +9,10 @@ import {
   Animated,
   PanResponder,
   ActivityIndicator,
+  Modal,
+  TextInput,
+  FlatList,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -19,6 +23,9 @@ import { recommendSizeAndFit, toInches } from '../lib/fitLogic';
 import { evaluateSuitability } from '../lib/styleSuitability';
 import { analyzeFabricComfort } from '../lib/fabricComfort';
 import { cmToInches, parseHeightToInches } from '../lib/measurementUtils';
+import { getAvailableBrands, getBrandSizeChart, convertBrandChartToFitLogic } from '../lib/brandSizeCharts';
+import { hasStretch, getStretchLevel } from '../lib/materialElasticity';
+import * as ImagePicker from 'expo-image-picker';
 
 const { width, height } = Dimensions.get('window');
 const SHEET_HEIGHT = height * 0.75;
@@ -986,6 +993,336 @@ const AskAISheet = ({ visible, onClose, product, selectedSize = null }) => {
           )}
         </ScrollView>
       </Animated.View>
+
+      {/* Garment Measurements Input Modal */}
+      <Modal
+        visible={showGarmentInputModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowGarmentInputModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add Garment Measurements</Text>
+              <Pressable onPress={() => setShowGarmentInputModal(false)}>
+                <Text style={styles.modalCloseBtn}>✕</Text>
+              </Pressable>
+            </View>
+            
+            <ScrollView style={styles.modalScroll}>
+              {/* Option 1: Select from Brand */}
+              <View style={styles.modalSection}>
+                <Text style={styles.modalSectionTitle}>1. Select Brand (if available)</Text>
+                <Text style={styles.modalSectionSubtitle}>Choose from brands with consistent size charts</Text>
+                <FlatList
+                  data={getAvailableBrands()}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  keyExtractor={(item) => item}
+                  renderItem={({ item }) => (
+                    <Pressable
+                      style={[
+                        styles.brandButton,
+                        selectedBrand === item && styles.brandButtonActive
+                      ]}
+                      onPress={() => {
+                        setSelectedBrand(item);
+                        // Auto-apply brand size chart
+                        const category = product?.category || 'upper_body';
+                        const brandChart = getBrandSizeChart(item, category);
+                        if (brandChart) {
+                          const sizeChart = convertBrandChartToFitLogic(brandChart);
+                          setParsedSizeChart(sizeChart);
+                          // Update product with size chart and reload insights
+                          const updatedProduct = {
+                            ...product,
+                            sizeChart: sizeChart,
+                            brand: item,
+                          };
+                          // Trigger reload with new data
+                          setTimeout(() => {
+                            loadInsights(true);
+                          }, 100);
+                        }
+                      }}
+                    >
+                      <Text style={[
+                        styles.brandButtonText,
+                        selectedBrand === item && styles.brandButtonTextActive
+                      ]}>
+                        {item}
+                      </Text>
+                    </Pressable>
+                  )}
+                />
+              </View>
+
+              {/* Option 2: Upload Screenshot */}
+              <View style={styles.modalSection}>
+                <Text style={styles.modalSectionTitle}>2. Upload Size Chart Screenshot</Text>
+                <Text style={styles.modalSectionSubtitle}>Take a photo of the size chart from the product page</Text>
+                <Pressable
+                  style={styles.uploadButton}
+                  onPress={async () => {
+                    try {
+                      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                      if (!permissionResult.granted) {
+                        Alert.alert('Permission needed', 'Please allow access to your photos');
+                        return;
+                      }
+
+                      const result = await ImagePicker.launchImageLibraryAsync({
+                        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                        allowsEditing: false,
+                        quality: 1,
+                      });
+
+                      if (!result.canceled && result.assets[0]) {
+                        setIsParsingSizeChart(true);
+                        const imageUri = result.assets[0].uri;
+                        
+                        // Convert image to base64
+                        const response = await fetch(imageUri);
+                        const blob = await response.blob();
+                        const reader = new FileReader();
+                        reader.onloadend = async () => {
+                          const base64 = reader.result;
+                          
+                          // Call parse-size-chart API
+                          try {
+                            const parseResponse = await fetch('/api/parse-size-chart', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ imageBase64: base64 }),
+                            });
+                            
+                            const parseData = await parseResponse.json();
+                            
+                            if (parseData.success && parseData.data) {
+                              setParsedSizeChart(parseData.data);
+                              // Update product and reload
+                              const updatedProduct = {
+                                ...product,
+                                sizeChart: parseData.data,
+                              };
+                              setTimeout(() => {
+                                loadInsights(true);
+                              }, 100);
+                            } else {
+                              // Show manual input with pre-filled structure
+                              Alert.alert(
+                                'Could not parse automatically',
+                                'Please enter measurements manually',
+                                [{ text: 'OK', onPress: () => {
+                                  // Show manual input UI
+                                  setManualSizeChartInput(parseData.structure || {});
+                                }}]
+                              );
+                            }
+                          } catch (error) {
+                            console.error('Error parsing size chart:', error);
+                            Alert.alert('Error', 'Failed to parse size chart. Please try manual input.');
+                          } finally {
+                            setIsParsingSizeChart(false);
+                          }
+                        };
+                        reader.readAsDataURL(blob);
+                      }
+                    } catch (error) {
+                      console.error('Error picking image:', error);
+                      Alert.alert('Error', 'Failed to pick image');
+                      setIsParsingSizeChart(false);
+                    }
+                  }}
+                >
+                  {isParsingSizeChart ? (
+                    <ActivityIndicator color="#6366f1" />
+                  ) : (
+                    <>
+                      <Text style={styles.uploadButtonText}>📷 Upload Screenshot</Text>
+                    </>
+                  )}
+                </Pressable>
+              </View>
+
+              {/* Option 3: Manual Input */}
+              <View style={styles.modalSection}>
+                <Text style={styles.modalSectionTitle}>3. Enter Manually</Text>
+                <Text style={styles.modalSectionSubtitle}>If brand is not available or screenshot parsing failed</Text>
+                <Pressable
+                  style={styles.uploadButton}
+                  onPress={() => {
+                    // Show manual input form
+                    Alert.alert('Manual Input', 'Manual input form coming soon');
+                  }}
+                >
+                  <Text style={styles.uploadButtonText}>✏️ Enter Measurements</Text>
+                </Pressable>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Color Input Modal */}
+      <Modal
+        visible={showColorInputModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowColorInputModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Detect/Enter Product Color</Text>
+              <Pressable onPress={() => setShowColorInputModal(false)}>
+                <Text style={styles.modalCloseBtn}>✕</Text>
+              </Pressable>
+            </View>
+            
+            <ScrollView style={styles.modalScroll}>
+              {/* Auto-detect from image */}
+              {product?.image && (
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalSectionTitle}>Auto-detect from Image</Text>
+                  <Pressable
+                    style={styles.uploadButton}
+                    onPress={async () => {
+                      setIsDetectingColor(true);
+                      try {
+                        const response = await fetch('/api/detect-color', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ imageUrl: product.image }),
+                        });
+                        
+                        const data = await response.json();
+                        if (data.success) {
+                          setDetectedColor(data.colorName);
+                          setUserEnteredColor(data.colorName);
+                          // Update product color and reload
+                          const updatedProduct = {
+                            ...product,
+                            color: data.colorName,
+                          };
+                          setTimeout(() => {
+                            loadInsights(true);
+                          }, 100);
+                        }
+                      } catch (error) {
+                        console.error('Error detecting color:', error);
+                        Alert.alert('Error', 'Failed to detect color. Please enter manually.');
+                      } finally {
+                        setIsDetectingColor(false);
+                      }
+                    }}
+                  >
+                    {isDetectingColor ? (
+                      <ActivityIndicator color="#6366f1" />
+                    ) : (
+                      <Text style={styles.uploadButtonText}>🎨 Detect Color</Text>
+                    )}
+                  </Pressable>
+                  {detectedColor && (
+                    <Text style={styles.detectedColorText}>Detected: {detectedColor}</Text>
+                  )}
+                </View>
+              )}
+
+              {/* Manual input */}
+              <View style={styles.modalSection}>
+                <Text style={styles.modalSectionTitle}>Or Enter Manually</Text>
+                <TextInput
+                  style={styles.colorInput}
+                  placeholder="e.g., Navy, Black, Plum Purple"
+                  placeholderTextColor="#666"
+                  value={userEnteredColor || detectedColor || ''}
+                  onChangeText={setUserEnteredColor}
+                />
+                <Pressable
+                  style={styles.saveButton}
+                  onPress={() => {
+                    if (userEnteredColor || detectedColor) {
+                      const updatedProduct = {
+                        ...product,
+                        color: userEnteredColor || detectedColor,
+                      };
+                      setShowColorInputModal(false);
+                      setTimeout(() => {
+                        loadInsights(true);
+                      }, 100);
+                    }
+                  }}
+                >
+                  <Text style={styles.saveButtonText}>Save Color</Text>
+                </Pressable>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Material Input Modal */}
+      <Modal
+        visible={showMaterialInputModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowMaterialInputModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Enter Material</Text>
+              <Pressable onPress={() => setShowMaterialInputModal(false)}>
+                <Text style={styles.modalCloseBtn}>✕</Text>
+              </Pressable>
+            </View>
+            
+            <ScrollView style={styles.modalScroll}>
+              <View style={styles.modalSection}>
+                <Text style={styles.modalSectionTitle}>Material Composition</Text>
+                <Text style={styles.modalSectionSubtitle}>e.g., "Cotton, Spandex" or "100% Polyester"</Text>
+                <TextInput
+                  style={styles.materialInput}
+                  placeholder="Enter material..."
+                  placeholderTextColor="#666"
+                  value={userEnteredMaterial || ''}
+                  onChangeText={setUserEnteredMaterial}
+                  multiline
+                />
+                {userEnteredMaterial && (
+                  <View style={styles.materialInfo}>
+                    <Text style={styles.materialInfoLabel}>Stretch detected:</Text>
+                    <Text style={styles.materialInfoValue}>
+                      {hasStretch(userEnteredMaterial) ? 'Yes' : 'No'} ({getStretchLevel(userEnteredMaterial)})
+                    </Text>
+                  </View>
+                )}
+                <Pressable
+                  style={styles.saveButton}
+                  onPress={() => {
+                    if (userEnteredMaterial) {
+                      const updatedProduct = {
+                        ...product,
+                        material: userEnteredMaterial,
+                        fabric: userEnteredMaterial,
+                        fabricStretch: hasStretch(userEnteredMaterial) ? 'medium' : 'none',
+                      };
+                      setShowMaterialInputModal(false);
+                      setTimeout(() => {
+                        loadInsights(true);
+                      }, 100);
+                    }
+                  }}
+                >
+                  <Text style={styles.saveButtonText}>Save Material</Text>
+                </Pressable>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
