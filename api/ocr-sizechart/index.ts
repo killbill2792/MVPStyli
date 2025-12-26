@@ -71,7 +71,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             'apikey': ocrApiKey,
           },
           body: JSON.stringify({
-            base64Image: `data:image/jpeg;base64,${base64Data}`,
+            base64Image: base64Data, // Send raw base64 without data URL prefix
+            filetype: 'JPG', // Specify file type explicitly
             language: 'eng',
             isOverlayRequired: false,
             iscreatesearchablepdf: false,
@@ -150,7 +151,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       parsed: parsedData.success,
       confidence: parsedData.confidence,
       data: parsedData.data,
-      rawText: text,
+      rawText: extractedText,
       message: parsedData.success 
         ? 'Size chart parsed successfully' 
         : 'Could not parse size chart automatically. Please enter measurements manually.',
@@ -254,7 +255,9 @@ function parseSizeChartText(text: string, ocrConfidence: number) {
   } else {
     // Heuristic: if values are 60-120 range, likely cm; if 20-60, likely inches
     const allNumbers = text.match(/\b(\d{2,3})\b/g) || [];
-    const avgValue = allNumbers.reduce((sum, n) => sum + parseInt(n), 0) / allNumbers.length;
+    const avgValue = allNumbers.length > 0 
+      ? allNumbers.reduce((sum: number, n: string) => sum + parseInt(n, 10), 0) / allNumbers.length 
+      : 0;
     if (avgValue > 60) {
       unitSystem = 'cm';
       console.log('📊 [PARSE TEXT] Inferred unit system: CM (avg value:', avgValue, ')');

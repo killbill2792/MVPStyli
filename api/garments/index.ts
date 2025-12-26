@@ -102,6 +102,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           console.warn('Could not fetch sizes (table may not exist):', err.message);
         }
 
+        if (!garment) {
+          return res.status(404).json({ error: 'Garment not found' });
+        }
+
         return res.status(200).json({ 
           garment: { ...garment, sizes: sizes }
         });
@@ -162,8 +166,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       // Fetch sizes for all garments (if garment_sizes table exists)
-      if (garments && garments.length > 0) {
-        const garmentIds = garments.map(g => g.id);
+      if (garments && Array.isArray(garments) && garments.length > 0) {
+        const garmentIds = garments.map((g: any) => g.id).filter((id: any) => id != null);
         let allSizes = null;
         
         try {
@@ -199,7 +203,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // Attach sizes to each garment (empty array if no sizes)
-        const garmentsWithSizes = garments.map(garment => ({
+        const garmentsWithSizes = garments.map((garment: any) => ({
           ...garment,
           sizes: sizesByGarment[garment.id] || []
         }));
@@ -298,6 +302,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const sizeData = sizes
           .filter((size: any) => size.size_label && size.size_label.trim() !== '') // Only include sizes with labels
           .map((size: any) => {
+            if (!garment || !garment.id) {
+              throw new Error('Garment ID is required to create sizes');
+            }
+            
             const sizeObj: any = {
               garment_id: garment.id,
               size_label: size.size_label.trim(),
@@ -505,20 +513,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .eq('garment_id', id)
         .order('size_label');
 
-      return res.status(200).json({ 
-        garment: { ...garment, sizes: garmentSizes || [] }
-      });
-
-      if (error) {
-        console.error('Error updating garment:', error);
-        return res.status(500).json({ error: 'Failed to update garment', details: error.message });
-      }
-
-      if (!data) {
+      if (!garment) {
         return res.status(404).json({ error: 'Garment not found' });
       }
 
-      return res.status(200).json({ garment: data });
+      return res.status(200).json({ 
+        garment: { ...garment, sizes: garmentSizes || [] }
+      });
     }
 
     // DELETE - Delete garment (soft delete by setting is_active to false)
@@ -545,7 +546,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Soft delete
         const { data, error } = await supabase
           .from('garments')
-          .update({ is_active: false })
+          .update({ is_active: false } as any)
           .eq('id', id)
           .select()
           .single();
