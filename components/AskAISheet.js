@@ -215,13 +215,22 @@ const AskAISheet = ({ visible, onClose, product }) => {
         }
       }
       
+      // Determine fabric stretch from garment data or material keywords
+      let fabricStretch = false;
+      if (product?.fabricStretch) {
+        // Direct fabric_stretch field from garment (none, low, medium, high)
+        fabricStretch = product.fabricStretch !== 'none' && product.fabricStretch !== 'low';
+      } else if (product?.fabric || product?.material) {
+        // Fallback to keyword detection
+        const fabricStr = (product.fabric || product.material || '').toLowerCase();
+        fabricStretch = fabricStr.includes('stretch') || fabricStr.includes('elastic') || fabricStr.includes('spandex') || fabricStr.includes('elastane');
+      }
+      
       const productForFitLogic = {
         category: fitLogicCategory,
         name: product?.name || 'Item',
-        fitType: product?.fit || product?.fitType || null,
-        fabricStretch: product?.fabric?.toLowerCase().includes('stretch') || 
-                      product?.fabric?.toLowerCase().includes('elastic') || 
-                      product?.material?.toLowerCase().includes('stretch') || false,
+        fitType: product?.fit || product?.fitType || product?.fit_type || null,
+        fabricStretch: fabricStretch,
         sizeChart: sizeChart,
       };
       
