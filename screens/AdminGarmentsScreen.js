@@ -81,29 +81,50 @@ const AdminGarmentsScreen = ({ onBack }) => {
       if (filterCategory !== 'all') url += `&category=${filterCategory}`;
       if (filterGender !== 'all') url += `&gender=${filterGender}`;
 
+      console.log('Fetching garments from:', url);
       const response = await fetch(url);
+      
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+      
+      // Always try to get text first to see what we're dealing with
+      const text = await response.text();
+      console.log('Response text (first 500 chars):', text.substring(0, 500));
       
       // Handle different response types
       let data;
       const contentType = response.headers.get('content-type') || '';
       
       if (contentType.includes('application/json')) {
-        data = await response.json();
+        try {
+          data = JSON.parse(text);
+        } catch (parseError) {
+          console.error('Failed to parse JSON response:', parseError);
+          console.error('Response text:', text);
+          throw new Error(`API returned invalid JSON (Status: ${response.status}). Response: ${text.substring(0, 200)}`);
+        }
       } else {
         // Try to parse as JSON anyway, might be missing content-type header
         try {
-          const text = await response.text();
           data = JSON.parse(text);
         } catch (parseError) {
-          console.error('Failed to parse response:', parseError);
+          console.error('Failed to parse response as JSON:', parseError);
           console.error('Response status:', response.status);
-          console.error('Response headers:', Object.fromEntries(response.headers.entries()));
-          throw new Error(`API returned non-JSON response (Status: ${response.status}). Make sure the API endpoint is deployed.`);
+          console.error('Response text:', text);
+          
+          // Check if it's an HTML error page (common with Vercel deployment issues)
+          if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+            throw new Error(`API endpoint returned HTML instead of JSON (Status: ${response.status}). This usually means the API is not deployed or there's a deployment error. Check Vercel logs.`);
+          }
+          
+          throw new Error(`API returned non-JSON response (Status: ${response.status}). Response: ${text.substring(0, 200)}`);
         }
       }
       
       if (!response.ok) {
-        throw new Error(data?.error || data?.message || `HTTP ${response.status}: ${JSON.stringify(data)}`);
+        const errorMsg = data?.error || data?.message || data?.details || `HTTP ${response.status}`;
+        const errorDetails = data?.details || data?.hint || '';
+        throw new Error(`${errorMsg}${errorDetails ? `: ${errorDetails}` : ''}`);
       }
       
       if (data.garments) {
@@ -115,7 +136,12 @@ const AdminGarmentsScreen = ({ onBack }) => {
       }
     } catch (error) {
       console.error('Error loading garments:', error);
-      Alert.alert('Error', error.message || 'Failed to load garments. Check console for details.');
+      console.error('Error stack:', error.stack);
+      Alert.alert(
+        'Error Loading Garments', 
+        error.message || 'Failed to load garments. Check console for details.',
+        [{ text: 'OK' }]
+      );
     } finally {
       setLoading(false);
     }

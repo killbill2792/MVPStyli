@@ -6,14 +6,22 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
+// Initialize Supabase client (will be checked in handler)
+let supabase: ReturnType<typeof createClient> | null = null;
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Missing Supabase environment variables');
+function getSupabaseClient() {
+  if (!supabase) {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Missing Supabase environment variables: SUPABASE_URL or SUPABASE_ANON_KEY');
+    }
+
+    supabase = createClient(supabaseUrl, supabaseKey);
+  }
+  return supabase;
 }
-
-const supabase = createClient(supabaseUrl, supabaseKey);
 
 // CORS helper
 function setCors(res: VercelResponse) {
@@ -32,13 +40,19 @@ function isAdminUser(req: VercelRequest): boolean {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Set CORS headers first
   setCors(res);
+  
+  // Set Content-Type to JSON for all responses
+  res.setHeader('Content-Type', 'application/json');
 
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return res.status(200).json({ message: 'OK' });
   }
 
   try {
+    // Initialize Supabase client
+    const supabase = getSupabaseClient();
     // Check admin access for write operations (POST, PUT, DELETE)
     if (['POST', 'PUT', 'DELETE'].includes(req.method)) {
       if (!isAdminUser(req)) {
@@ -456,7 +470,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (error: any) {
     console.error('Error in garments API:', error);
-    return res.status(500).json({ error: 'Internal server error', message: error.message });
+    console.error('Error stack:', error.stack);
+    
+    // Ensure we always return JSON, even for unexpected errors
+    const errorMessage = error?.message || 'Unknown error occurred';
+    const errorDetails = {
+      error: 'Internal server error',
+      message: errorMessage,
+      type: error?.name || 'Error',
+      ...(process.env.NODE_ENV === 'development' && { stack: error?.stack })
+    };
+    
+    return res.status(500).json(errorDetails);
   }
 }
 
