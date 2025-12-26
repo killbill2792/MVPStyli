@@ -194,7 +194,7 @@ const AskAISheet = ({ visible, onClose, product }) => {
         brand: product?.brand,
         url: product?.url || product?.link || product?.product_link || product?.name, // For cache key
       };
-      
+
       // Build product for fitLogic - needs category mapping and sizeChart
       const category = product?.category || inferCategory(product?.name);
       const fitLogicCategory = category === 'dress' || category === 'dresses' ? 'dresses' :
@@ -246,7 +246,7 @@ const AskAISheet = ({ visible, onClose, product }) => {
       const missingGarment = sizeRecommendation.missing?.filter(m => 
         m.includes('sizeChart') || m.includes('size chart')
       ) || [];
-      
+          
       if (sizeRecommendation.status === 'OK') {
         setSizeAdvice({
           recommendedSize: sizeRecommendation.recommendedSize,
@@ -268,8 +268,8 @@ const AskAISheet = ({ visible, onClose, product }) => {
           missingBody: missingBody.length > 0,
           missingGarment: missingGarment.length > 0,
         });
-      }
-      
+          }
+          
       // Use styleSuitability for color and body shape (NO-AI)
       console.log('🎨 Using styleSuitability for color and body shape');
       const userProfileForSuitability = {
@@ -278,8 +278,13 @@ const AskAISheet = ({ visible, onClose, product }) => {
         bodyShape: userProfileData?.body_shape || null,
       };
       
+      // Get color - check for non-empty string
+      const productColor = product?.color && product.color.trim() !== '' 
+        ? product.color.trim() 
+        : (inferColor(product?.name) || null);
+      
       const productForSuitability = {
-        primaryColor: product?.color || inferColor(product?.name) || null,
+        primaryColor: productColor,
         category: fitLogicCategory, // Use same category mapping
         fitType: product?.fit || product?.fitType || null,
       };
@@ -620,17 +625,17 @@ const AskAISheet = ({ visible, onClose, product }) => {
                         : fitSizeData?.missingData?.join(' ') || 'Need body measurements and garment size chart for accurate fit analysis.'}
                     </Text>
                     {fitSizeData?.missingBody && (
-                      <Pressable 
-                        style={styles.addDataBtn}
-                        onPress={() => {
-                          closeSheet();
+                    <Pressable 
+                      style={styles.addDataBtn}
+                      onPress={() => {
+                        closeSheet();
                           // Navigate to account and set flag to open Edit Fit Profile
                           AsyncStorage.setItem('openFitProfile', 'true');
-                          setRoute('account');
-                        }}
-                      >
+                        setRoute('account');
+                      }}
+                    >
                         <Text style={styles.addDataBtnText}>Add Measurements →</Text>
-                      </Pressable>
+                    </Pressable>
                     )}
                   </View>
                 ) : (
@@ -775,14 +780,14 @@ const AskAISheet = ({ visible, onClose, product }) => {
                         {(bodyShapeSuitability?.verdict === 'ok' || bodyShapeSuitability?.verdict === 'neutral') && '⚡ Neutral'}
                         {bodyShapeSuitability?.verdict === 'risky' && '⚠️ Risky'}
                       </Text>
-                    </View>
+                      </View>
 
                     {bodyShapeSuitability?.reasons && bodyShapeSuitability.reasons.length > 0 && (
                       <View style={styles.adviceSection}>
                         {bodyShapeSuitability.reasons.slice(0, 4).map((reason, idx) => (
                           <Text key={idx} style={styles.adviceItem}>• {reason}</Text>
                         ))}
-                      </View>
+                    </View>
                     )}
 
                     {bodyShapeSuitability?.alternatives && bodyShapeSuitability.alternatives.length > 0 && (

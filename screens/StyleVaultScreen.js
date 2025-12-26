@@ -2169,7 +2169,7 @@ const StyleVaultScreen = () => {
               />
             </View>
 
-            <View style={styles.inputGroup}>
+              <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Waist (Natural) *</Text>
               <TextInput
                 style={styles.input}

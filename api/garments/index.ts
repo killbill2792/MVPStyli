@@ -374,11 +374,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // PUT - Update garment
     if (req.method === 'PUT') {
-      const { id, ...updateData } = req.body;
+      const { id, admin_email, sizes, ...updateData } = req.body;
 
       if (!id) {
         return res.status(400).json({ error: 'id is required for updates' });
       }
+
+      // Remove admin_email and sizes from updateData (they're not columns in garments table)
+      // admin_email is only used for authentication check
+      // sizes are handled separately in garment_sizes table
 
       // Validate category if provided
       if (updateData.category && !['upper', 'lower', 'dresses'].includes(updateData.category)) {
@@ -411,12 +415,99 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       });
 
-      const { data, error } = await supabase
+      // Update the garment
+      const { data: garment, error: garmentError } = await supabase
         .from('garments')
         .update(updateData)
         .eq('id', id)
         .select()
         .single();
+
+      if (garmentError) {
+        console.error('Error updating garment:', garmentError);
+        return res.status(500).json({ error: 'Failed to update garment', details: garmentError.message });
+      }
+
+      if (!garment) {
+        return res.status(404).json({ error: 'Garment not found' });
+      }
+
+      // Update sizes if provided
+      if (Array.isArray(sizes) && sizes.length > 0) {
+        // First, delete existing sizes for this garment
+        await supabase
+          .from('garment_sizes')
+          .delete()
+          .eq('garment_id', id);
+
+        // Then insert new sizes
+        const sizeData = sizes
+          .filter((size: any) => size.size_label && size.size_label.trim() !== '')
+          .map((size: any) => {
+            const sizeObj: any = {
+              garment_id: id,
+              size_label: size.size_label.trim(),
+            };
+            
+            // Universal measurements (flat widths, stored in cm)
+            if (size.chest_width && !isNaN(size.chest_width)) {
+              sizeObj.chest_width = parseFloat(size.chest_width);
+            }
+            if (size.waist_width && !isNaN(size.waist_width)) {
+              sizeObj.waist_width = parseFloat(size.waist_width);
+            }
+            if (size.hip_width && !isNaN(size.hip_width)) {
+              sizeObj.hip_width = parseFloat(size.hip_width);
+            }
+            if (size.garment_length && !isNaN(size.garment_length)) {
+              sizeObj.garment_length = parseFloat(size.garment_length);
+            }
+            // Upper body
+            if (size.shoulder_width && !isNaN(size.shoulder_width)) {
+              sizeObj.shoulder_width = parseFloat(size.shoulder_width);
+            }
+            if (size.sleeve_length && !isNaN(size.sleeve_length)) {
+              sizeObj.sleeve_length = parseFloat(size.sleeve_length);
+            }
+            // Lower body
+            if (size.inseam && !isNaN(size.inseam)) {
+              sizeObj.inseam = parseFloat(size.inseam);
+            }
+            if (size.rise && !isNaN(size.rise)) {
+              sizeObj.rise = parseFloat(size.rise);
+            }
+            if (size.thigh_width && !isNaN(size.thigh_width)) {
+              sizeObj.thigh_width = parseFloat(size.thigh_width);
+            }
+            if (size.leg_opening && !isNaN(size.leg_opening)) {
+              sizeObj.leg_opening = parseFloat(size.leg_opening);
+            }
+            
+            return sizeObj;
+          });
+
+        if (sizeData.length > 0) {
+          const { error: sizesError } = await supabase
+            .from('garment_sizes')
+            .insert(sizeData);
+
+          if (sizesError) {
+            console.error('Error updating sizes:', sizesError);
+            // Don't fail the whole request, just log the error
+          }
+        }
+      }
+
+      // Fetch the updated garment with sizes
+      const { data: garmentSizes } = await supabase
+        .from('garment_sizes')
+        .select('*')
+        .eq('garment_id', id)
+        .order('size_label');
+
+      return res.status(200).json({ 
+        garment: { ...garment, sizes: garmentSizes || [] }
+      });
 
       if (error) {
         console.error('Error updating garment:', error);
