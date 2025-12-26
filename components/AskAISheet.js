@@ -13,12 +13,12 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../lib/AppContext';
-import { generateFitAdvice, generateSizeAdvice, generateStyleAdvice } from '../lib/askAI';
 import { loadColorProfile } from '../lib/colorAnalysis';
 import { supabase } from '../lib/supabase';
-import { recommendSizeAndFit, toCm } from '../lib/fitLogic';
+import { recommendSizeAndFit, toInches } from '../lib/fitLogic';
 import { evaluateSuitability } from '../lib/styleSuitability';
 import { analyzeFabricComfort } from '../lib/fabricComfort';
+import { toInches as convertToInches } from '../lib/measurementUtils';
 
 const { width, height } = Dimensions.get('window');
 const SHEET_HEIGHT = height * 0.75;
@@ -166,16 +166,33 @@ const AskAISheet = ({ visible, onClose, product }) => {
         colorSeason: colorProfile?.season || userProfileData?.color_season || '',
       };
       
-      // Build user profile for fitLogic (size recommendations) - needs Cm suffix
+      // Build user profile for fitLogic (size recommendations) - needs In suffix (inches)
+      // Database stores in inches, but may have old cm values - convert if needed
+      // Accept both old (chest, waist, etc.) and new (chest_in, waist_in, etc.) field names
+      // Helper to convert value to inches (handles both cm and inches)
+      const toInchesValue = (valueIn, valueCm) => {
+        // Prefer new _in fields (already in inches)
+        if (valueIn != null && valueIn !== '') {
+          const num = Number(valueIn);
+          return isNaN(num) ? null : num;
+        }
+        // Fallback to old cm fields (convert to inches)
+        if (valueCm != null && valueCm !== '') {
+          const num = Number(valueCm);
+          return isNaN(num) ? null : cmToInches(num);
+        }
+        return null;
+      };
+      
       const userProfileForFitLogic = {
-        heightCm: toCm(userProfileData?.height),
+        heightIn: toInchesValue(userProfileData?.height_in, userProfileData?.height),
         weightKg: parseFloat(userProfileData?.weight) || null,
-        chestCm: toCm(userProfileData?.chest),
-        bustCm: toCm(userProfileData?.bust || userProfileData?.chest), // fallback
-        waistCm: toCm(userProfileData?.waist),
-        hipsCm: toCm(userProfileData?.hips),
-        shoulderCm: toCm(userProfileData?.shoulder),
-        inseamCm: toCm(userProfileData?.inseam),
+        chestIn: toInchesValue(userProfileData?.chest_in, userProfileData?.chest),
+        bustIn: toInchesValue(userProfileData?.bust_in, userProfileData?.bust) ?? toInchesValue(userProfileData?.chest_in, userProfileData?.chest), // fallback
+        waistIn: toInchesValue(userProfileData?.waist_in, userProfileData?.waist),
+        hipsIn: toInchesValue(userProfileData?.hips_in, userProfileData?.hips),
+        shoulderIn: toInchesValue(userProfileData?.shoulder_in, userProfileData?.shoulder),
+        inseamIn: toInchesValue(userProfileData?.inseam_in, userProfileData?.inseam),
         gender: userProfileData?.gender || null,
       };
       
@@ -241,34 +258,13 @@ const AskAISheet = ({ visible, onClose, product }) => {
       
       // Convert fitLogic result to UI format
       const missingBody = sizeRecommendation.missing?.filter(m => 
-        m.includes('Cm') || m.includes('height') || m.includes('waist') || m.includes('chest') || m.includes('hips') || m.includes('shoulder') || m.includes('inseam')
+        m.includes('In') || m.includes('height') || m.includes('waist') || m.includes('chest') || m.includes('hips') || m.includes('shoulder') || m.includes('inseam')
       ) || [];
       const missingGarment = sizeRecommendation.missing?.filter(m => 
         m.includes('sizeChart') || m.includes('size chart')
       ) || [];
           
-      if (sizeRecommendation.status === 'OK') {
-        setSizeAdvice({
-          recommendedSize: sizeRecommendation.recommendedSize,
-          backupSize: sizeRecommendation.backupSize,
-          risk: sizeRecommendation.risk,
-          confidence: sizeRecommendation.confidence,
-          insights: sizeRecommendation.insights,
-          hasEnoughData: true,
-        });
-      } else {
-        setSizeAdvice({
-          recommendedSize: null,
-          backupSize: null,
-          risk: sizeRecommendation.risk,
-          confidence: sizeRecommendation.confidence,
-          insights: sizeRecommendation.insights,
-          hasEnoughData: false,
-          missingDataMessage: sizeRecommendation.insights.join(' '),
-          missingBody: missingBody.length > 0,
-          missingGarment: missingGarment.length > 0,
-        });
-          }
+      // Size advice is now part of fitSizeData, so we don't need separate setSizeAdvice calls
           
       // Use styleSuitability for color and body shape (NO-AI)
       console.log('🎨 Using styleSuitability for color and body shape');
@@ -386,11 +382,24 @@ const AskAISheet = ({ visible, onClose, product }) => {
       // Gemini will be called separately via callGeminiInsights function
       
     } catch (error) {
-      console.error('Error loading AI insights:', error);
+      console.error('Error loading Fit Check insights:', error);
       // Set empty fallback
-      setFitAdvice({ verdict: 'good_with_tweaks', verdictText: 'Unable to analyze', bodyAdvice: [], colorAdvice: [], hasEnoughData: false });
-      setSizeAdvice({ recommendedSize: 'M', reasoning: ['Unable to determine'], returnRisk: 'medium', hasEnoughData: false });
-      setStyleAdvice({ bestFor: ['Versatile'], stylingTips: ['Style as desired'], occasions: [] });
+      setFitSizeData({
+        status: 'High Risk',
+        recommendedSize: null,
+        backupSize: null,
+        risk: 'high',
+        confidence: 0,
+        measurementDeltas: [],
+        stylistTranslation: 'Unable to analyze fit. Please check your measurements and product details.',
+        hasEnoughData: false,
+        missingData: ['Unable to load fit analysis'],
+        missingBody: true,
+        missingGarment: false,
+      });
+      setColorSuitability({ status: 'INSUFFICIENT_DATA', verdict: null, reasons: ['Unable to analyze color'], alternatives: [] });
+      setBodyShapeSuitability({ status: 'INSUFFICIENT_DATA', verdict: null, reasons: ['Unable to analyze body shape'], alternatives: [] });
+      setFabricComfort({ verdict: 'Need Fabric Info', insights: ['Unable to analyze fabric'], hasEnoughData: false });
     } finally {
       setLoading(false);
       setIsRequesting(false);
