@@ -1,18 +1,10 @@
 /**
- * OCR Size Chart Parser (Free, Open-Source)
- * Uses Tesseract.js for text extraction
- * Parses size chart images and extracts measurements
+ * OCR Size Chart Parser (Free, No Heavy Dependencies)
+ * Uses OCR.space free API (no API key required for basic usage)
+ * Falls back to manual input structure if OCR fails
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-
-// Dynamic import for Tesseract (works better with Vercel serverless)
-let Tesseract: any;
-try {
-  Tesseract = require('tesseract.js');
-} catch (e) {
-  console.error('📊 [OCR] Failed to load Tesseract.js:', e);
-}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Set CORS headers
@@ -53,28 +45,73 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Missing image data' });
     }
 
-    // Use Tesseract to extract text
-    if (!Tesseract) {
-      throw new Error('Tesseract.js not available. Please install: npm install tesseract.js');
-    }
+    // Use OCR.space free API (no API key required for basic usage)
+    // Alternative: Use a lightweight OCR solution
+    console.log('📊 [OCR] Using OCR.space free API...');
     
-    console.log('📊 [OCR] Calling Tesseract...');
-    const { data: { text, confidence } } = await Tesseract.recognize(
-      imageSource,
-      'eng',
-      {
-        logger: (m) => {
-          if (m.status === 'recognizing text') {
-            console.log('📊 [OCR] Progress:', Math.round(m.progress * 100) + '%');
+    let extractedText = '';
+    let ocrConfidence = 0;
+    
+    try {
+      // OCR.space free API (no key required, but limited requests)
+      // Format: base64 image data
+      const base64Data = imageBase64 
+        ? (imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64)
+        : null;
+      
+      if (base64Data) {
+        const ocrResponse = await fetch('https://api.ocr.space/parse/image', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            base64Image: base64Data,
+            language: 'eng',
+            isOverlayRequired: false,
+            iscreatesearchablepdf: false,
+            issearchablepdfhidetextlayer: false,
+          }),
+        });
+        
+        if (ocrResponse.ok) {
+          const ocrData = await ocrResponse.json();
+          console.log('📊 [OCR] OCR.space response:', JSON.stringify(ocrData, null, 2));
+          
+          if (ocrData.ParsedResults && ocrData.ParsedResults.length > 0) {
+            extractedText = ocrData.ParsedResults[0].ParsedText || '';
+            ocrConfidence = ocrData.ParsedResults[0].TextOverlay?.HasOverlay ? 80 : 60;
+            console.log('📊 [OCR] Text extracted successfully');
+          } else if (ocrData.ErrorMessage) {
+            console.warn('📊 [OCR] OCR.space error:', ocrData.ErrorMessage);
+            // Fall through to manual input
           }
-        },
+        } else {
+          const errorText = await ocrResponse.text();
+          console.warn('📊 [OCR] OCR.space API error:', ocrResponse.status, errorText);
+          // Fall through to manual input
+        }
+      } else if (imageUrl) {
+        // Try with image URL
+        const ocrResponse = await fetch(`https://api.ocr.space/parse/imageurl?apikey=helloworld&url=${encodeURIComponent(imageUrl)}&language=eng`);
+        
+        if (ocrResponse.ok) {
+          const ocrData = await ocrResponse.json();
+          if (ocrData.ParsedResults && ocrData.ParsedResults.length > 0) {
+            extractedText = ocrData.ParsedResults[0].ParsedText || '';
+            ocrConfidence = 70;
+          }
+        }
       }
-    );
+    } catch (ocrError: any) {
+      console.error('📊 [OCR] OCR.space API failed:', ocrError.message);
+      // Continue to return manual input structure
+    }
 
     console.log('📊 [OCR] Text extraction complete');
-    console.log('📊 [OCR] Confidence:', confidence);
-    console.log('📊 [OCR] Extracted text length:', text.length);
-    console.log('📊 [OCR] Extracted text preview:', text.substring(0, 300));
+    console.log('📊 [OCR] Confidence:', ocrConfidence);
+    console.log('📊 [OCR] Extracted text length:', extractedText.length);
+    console.log('📊 [OCR] Extracted text preview:', extractedText.substring(0, 300));
 
     if (!text || text.trim().length === 0) {
       console.warn('📊 [OCR] No text extracted from image');
@@ -94,7 +131,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Parse the extracted text to find size chart data
     console.log('📊 [OCR] Parsing size chart text...');
-    const parsedData = parseSizeChartText(text, confidence);
+    const parsedData = parseSizeChartText(extractedText, ocrConfidence);
 
     console.log('📊 [OCR] Parse result:', {
       success: parsedData.success,
