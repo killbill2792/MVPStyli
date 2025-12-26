@@ -150,15 +150,13 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
   useEffect(() => {
     if (visible) {
       openSheet();
-      // Auto-detect color first, then load insights
+      // Auto-detect color immediately when Fit Check opens
       if (product?.image) {
-        autoDetectColor().then(() => {
-          // Load insights after color is detected
-          loadInsights();
-        });
-      } else {
-        loadInsights();
+        // Start color detection (non-blocking)
+        autoDetectColor();
       }
+      // Load insights (will use detected color if available, or reload when color is detected)
+      loadInsights();
     } else {
       // Reset position when hidden
       translateY.setValue(SHEET_HEIGHT);
