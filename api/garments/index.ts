@@ -114,15 +114,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (error) {
         console.error('Error fetching garments:', error);
+        console.error('Error code:', error.code);
+        console.error('Error message:', error.message);
+        console.error('Error details:', error.details);
+        console.error('Error hint:', error.hint);
+        
         // Check if it's an RLS error
-        if (error.message?.includes('row-level security') || error.message?.includes('RLS')) {
+        if (error.message?.includes('row-level security') || error.message?.includes('RLS') || error.code === '42501') {
           return res.status(500).json({ 
             error: 'Database permission error', 
             details: 'Please run the SQL migration script FIX_GARMENTS_RLS_AND_MULTI_SIZE.sql in Supabase to fix RLS policies.',
-            hint: error.message 
+            hint: error.message,
+            code: error.code
           });
         }
-        return res.status(500).json({ error: 'Failed to fetch garments', details: error.message });
+        
+        // Check if table doesn't exist
+        if (error.message?.includes('does not exist') || error.code === '42P01') {
+          return res.status(500).json({ 
+            error: 'Table not found', 
+            details: 'The garments table does not exist. Please run the SQL migration script CREATE_GARMENTS_TABLE.sql in Supabase.',
+            hint: error.message,
+            code: error.code
+          });
+        }
+        
+        return res.status(500).json({ 
+          error: 'Failed to fetch garments', 
+          details: error.message,
+          code: error.code,
+          hint: error.hint
+        });
       }
 
       // Fetch sizes for all garments (if garment_sizes table exists)

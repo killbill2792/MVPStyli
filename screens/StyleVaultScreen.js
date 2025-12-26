@@ -150,21 +150,17 @@ const StyleVaultScreen = () => {
   const [podsVisibility, setPodsVisibility] = useState('private');
   const [fitProfile, setFitProfile] = useState({
     height: '',
-    weight: '',
     gender: '', // Added gender
     topSize: '',
     bottomSize: '',
-    shoeSize: '',
     chest: '',
-    underbust: '',
     waist: '',
     hips: '',
     shoulder: '',
-    sleeve: '',
+    sleeve: '', // Optional: arm_length
     inseam: '',
-    thigh: '',
-    neck: '',
-    braSize: '',
+    thigh: '', // Optional
+    fit_preference: '', // Required: snug, regular, relaxed, oversized
     notes: '',
     bodyShape: '' // Body shape (Hourglass, Pear, Apple, Rectangle, Inverted Triangle)
   });
@@ -855,21 +851,17 @@ const StyleVaultScreen = () => {
         
         setFitProfile({
           height: data.height || '',
-          weight: data.weight || '',
           gender: data.gender || '', // Load gender
           topSize: data.top_size || '',
           bottomSize: data.bottom_size || '',
-          shoeSize: data.shoe_size || '',
           chest: data.chest || '',
-          underbust: data.underbust || '',
           waist: data.waist || '',
           hips: data.hips || '',
           shoulder: data.shoulder || '',
           sleeve: data.sleeve || '',
           inseam: data.inseam || '',
           thigh: data.thigh || '',
-          neck: data.neck || '',
-          braSize: data.bra_size || '',
+          fit_preference: data.fit_preference || '',
           notes: data.notes || '',
           bodyShape: data.body_shape || '' // Load body_shape
         });
@@ -1284,8 +1276,8 @@ const StyleVaultScreen = () => {
               <Text style={styles.fitProfileSummaryValue}>{fitProfile.height || 'Not set'}</Text>
             </View>
             <View style={styles.fitProfileSummaryRow}>
-              <Text style={styles.fitProfileSummaryLabel}>Weight:</Text>
-              <Text style={styles.fitProfileSummaryValue}>{fitProfile.weight || 'Not set'}</Text>
+              <Text style={styles.fitProfileSummaryLabel}>Fit Preference:</Text>
+              <Text style={styles.fitProfileSummaryValue}>{fitProfile.fit_preference ? fitProfile.fit_preference.charAt(0).toUpperCase() + fitProfile.fit_preference.slice(1) : 'Not set'}</Text>
             </View>
             <View style={styles.fitProfileSummaryRow}>
               <Text style={styles.fitProfileSummaryLabel}>Sizes:</Text>
@@ -2164,21 +2156,10 @@ const StyleVaultScreen = () => {
               />
             </View>
             
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Weight</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g., 140lbs or 65kg"
-                placeholderTextColor="#666"
-                value={fitProfile.weight}
-                onChangeText={(text) => setFitProfile(prev => ({ ...prev, weight: text }))}
-              />
-            </View>
-
-            <Text style={styles.modalSubtitle}>Body Measurements</Text>
+            <Text style={styles.modalSubtitle}>Body Measurements (Required)</Text>
             
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Bust / Chest</Text>
+              <Text style={styles.inputLabel}>Bust / Chest *</Text>
               <TextInput
                 style={styles.input}
                 placeholder="e.g., 34, 86cm"
@@ -2188,21 +2169,8 @@ const StyleVaultScreen = () => {
               />
             </View>
 
-            {(fitProfile.gender === 'Female' || fitProfile.gender === 'Non-binary' || !fitProfile.gender) && (
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Underbust (Ribcage)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g., 30, 76cm"
-                  placeholderTextColor="#666"
-                  value={fitProfile.underbust}
-                  onChangeText={(text) => setFitProfile(prev => ({ ...prev, underbust: text }))}
-                />
-              </View>
-            )}
-
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Waist (Natural)</Text>
+              <Text style={styles.inputLabel}>Waist (Natural) *</Text>
               <TextInput
                 style={styles.input}
                 placeholder="e.g., 28, 71cm"
@@ -2213,7 +2181,7 @@ const StyleVaultScreen = () => {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Hips (Fullest part)</Text>
+              <Text style={styles.inputLabel}>Hips (Fullest part) *</Text>
               <TextInput
                 style={styles.input}
                 placeholder="e.g., 36, 91cm"
@@ -2224,7 +2192,7 @@ const StyleVaultScreen = () => {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Shoulder Width</Text>
+              <Text style={styles.inputLabel}>Shoulder Width *</Text>
               <TextInput
                 style={styles.input}
                 placeholder="e.g., 16, 40cm"
@@ -2235,18 +2203,7 @@ const StyleVaultScreen = () => {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Arm Length / Sleeve</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g., 24, 60cm"
-                placeholderTextColor="#666"
-                value={fitProfile.sleeve}
-                onChangeText={(text) => setFitProfile(prev => ({ ...prev, sleeve: text }))}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Inseam (Inner leg)</Text>
+              <Text style={styles.inputLabel}>Inseam (Inner leg) *</Text>
               <TextInput
                 style={styles.input}
                 placeholder="e.g., 30, 76cm"
@@ -2257,24 +2214,51 @@ const StyleVaultScreen = () => {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Thigh</Text>
+              <Text style={styles.inputLabel}>Fit Preference *</Text>
+              <View style={styles.radioGroup}>
+                {['snug', 'regular', 'relaxed', 'oversized'].map((fit) => (
+                  <Pressable
+                    key={fit}
+                    style={[
+                      styles.radioButton,
+                      fitProfile.fit_preference === fit && styles.radioButtonActive,
+                    ]}
+                    onPress={() => setFitProfile(prev => ({ ...prev, fit_preference: fit }))}
+                  >
+                    <Text
+                      style={[
+                        styles.radioButtonText,
+                        fitProfile.fit_preference === fit && styles.radioButtonTextActive,
+                      ]}
+                    >
+                      {fit.charAt(0).toUpperCase() + fit.slice(1)}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            <Text style={styles.modalSubtitle}>Optional Measurements</Text>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Arm Length / Sleeve (Optional)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., 24, 60cm"
+                placeholderTextColor="#666"
+                value={fitProfile.sleeve}
+                onChangeText={(text) => setFitProfile(prev => ({ ...prev, sleeve: text }))}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Thigh (Optional)</Text>
               <TextInput
                 style={styles.input}
                 placeholder="e.g., 22, 56cm"
                 placeholderTextColor="#666"
                 value={fitProfile.thigh}
                 onChangeText={(text) => setFitProfile(prev => ({ ...prev, thigh: text }))}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Neck</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g., 15, 38cm"
-                placeholderTextColor="#666"
-                value={fitProfile.neck}
-                onChangeText={(text) => setFitProfile(prev => ({ ...prev, neck: text }))}
               />
             </View>
 
@@ -2301,20 +2285,6 @@ const StyleVaultScreen = () => {
                 onChangeText={(text) => setFitProfile(prev => ({ ...prev, bottomSize: text }))}
               />
             </View>
-            
-
-            {(fitProfile.gender === 'Female' || fitProfile.gender === 'Non-binary' || !fitProfile.gender) && (
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Bra Size (Optional)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g., 34B"
-                  placeholderTextColor="#666"
-                  value={fitProfile.braSize}
-                  onChangeText={(text) => setFitProfile(prev => ({ ...prev, braSize: text }))}
-                />
-              </View>
-            )}
             
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Notes (optional)</Text>
@@ -2349,19 +2319,16 @@ const StyleVaultScreen = () => {
                       gender: fitProfile.gender,
                       body_shape: fitProfile.bodyShape || finalBodyShape,
                       height: fitProfile.height,
-                      weight: fitProfile.weight,
                       top_size: fitProfile.topSize,
                       bottom_size: fitProfile.bottomSize,
                       chest: fitProfile.chest,
-                      underbust: fitProfile.underbust,
                       waist: fitProfile.waist,
                       hips: fitProfile.hips,
                       shoulder: fitProfile.shoulder,
                       sleeve: fitProfile.sleeve,
                       inseam: fitProfile.inseam,
                       thigh: fitProfile.thigh,
-                      neck: fitProfile.neck,
-                      bra_size: fitProfile.braSize,
+                      fit_preference: fitProfile.fit_preference,
                       notes: fitProfile.notes,
                       updated_at: new Date().toISOString()
                     });
@@ -3820,6 +3787,32 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
+  },
+  radioGroup: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  radioButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  radioButtonActive: {
+    backgroundColor: '#6366f1',
+    borderColor: '#6366f1',
+  },
+  radioButtonText: {
+    color: '#9ca3af',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  radioButtonTextActive: {
+    color: '#fff',
+    fontWeight: '600',
   },
 });
 
