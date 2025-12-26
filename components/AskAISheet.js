@@ -43,14 +43,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
     setProduct(initialProduct);
   }, [initialProduct]);
 
-  // Auto-detect color when Fit Check opens (if product has image)
-  useEffect(() => {
-    if (visible && product?.image) {
-      // Always try to detect color when Fit Check opens, even if color exists
-      // This ensures we have the latest detected color
-      autoDetectColor();
-    }
-  }, [visible]);
+  // Auto-detect color is now handled in the main visible useEffect below
 
   // Auto-detect color from product image
   const autoDetectColor = async () => {
