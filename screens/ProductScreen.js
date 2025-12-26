@@ -545,24 +545,53 @@ const ProductScreen = ({ onBack }) => {
             {(product.sizeChartDisplay && Object.keys(product.sizeChartDisplay).length > 0) || 
               (product.sizeChart && (Array.isArray(product.sizeChart) ? product.sizeChart.length > 0 : Object.keys(product.sizeChart).length > 0)) ? (
               <View style={styles.sizeChartContainer}>
-                <Text style={styles.sizeChartTitle}>Size Chart (Circumference in inches)</Text>
-                {/* Render size chart if available */}
-                <View style={styles.sizeChartGrid}>
-                  {(() => {
-                    // Use sizeChartDisplay if available (object format), otherwise convert sizeChart array to object
-                    let sizeChartObj = product.sizeChartDisplay;
-                    if (!sizeChartObj && product.sizeChart) {
-                      if (Array.isArray(product.sizeChart)) {
-                        sizeChartObj = {};
-                        product.sizeChart.forEach(item => {
-                          if (item.size && item.measurements) {
-                            sizeChartObj[item.size] = item.measurements;
-                          }
-                        });
-                      } else {
-                        sizeChartObj = product.sizeChart;
-                      }
+                {(() => {
+                  // Use sizeChartDisplay if available (object format), otherwise convert sizeChart array to object
+                  let sizeChartObj = product.sizeChartDisplay;
+                  if (!sizeChartObj && product.sizeChart) {
+                    if (Array.isArray(product.sizeChart)) {
+                      sizeChartObj = {};
+                      product.sizeChart.forEach(item => {
+                        if (item.size && item.measurements) {
+                          sizeChartObj[item.size] = item.measurements;
+                        }
+                      });
+                    } else {
+                      sizeChartObj = product.sizeChart;
                     }
+                  }
+                  
+                  const availableSizes = Object.keys(sizeChartObj || {});
+                  
+                  return (
+                    <>
+                      {/* Size Selector Buttons */}
+                      <View style={styles.sizeSelectorContainer}>
+                        <Text style={styles.sizeSelectorLabel}>Select Size:</Text>
+                        <View style={styles.sizeSelectorButtons}>
+                          {availableSizes.map((size) => (
+                            <Pressable
+                              key={size}
+                              style={[
+                                styles.sizeSelectorButton,
+                                selectedSize === size && styles.sizeSelectorButtonActive
+                              ]}
+                              onPress={() => setSelectedSize(size)}
+                            >
+                              <Text style={[
+                                styles.sizeSelectorButtonText,
+                                selectedSize === size && styles.sizeSelectorButtonTextActive
+                              ]}>
+                                {size}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </View>
+                      
+                      {/* Size Chart Grid */}
+                      <Text style={styles.sizeChartTitle}>Size Chart (Circumference in inches)</Text>
+                      <View style={styles.sizeChartGrid}>
                     
                     // Measurements are in inches, format them nicely
                     const formatMeasurement = (value, label) => {
@@ -596,7 +625,10 @@ const ProductScreen = ({ onBack }) => {
                       );
                     });
                   })()}
-                </View>
+                      </View>
+                    </>
+                  );
+                })()}
               </View>
             ) : (
               <View style={styles.sizeHelpBox}>
