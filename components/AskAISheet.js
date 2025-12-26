@@ -286,8 +286,11 @@ const AskAISheet = ({ visible, onClose, product, selectedSize = null }) => {
       
       // Use fitLogic for size recommendations (NO-AI)
       console.log('📏 Using fitLogic for size recommendations');
+      console.log('📏 Input to fitLogic - userProfileForFitLogic:', JSON.stringify(userProfileForFitLogic, null, 2));
+      console.log('📏 Input to fitLogic - productForFitLogic:', JSON.stringify(productForFitLogic, null, 2));
       const sizeRecommendation = recommendSizeAndFit(userProfileForFitLogic, productForFitLogic, {});
-      console.log('📏 Size recommendation result:', sizeRecommendation);
+      console.log('📏 Size recommendation result:', JSON.stringify(sizeRecommendation, null, 2));
+      console.log('📏 Missing measurements:', sizeRecommendation.missing);
       
       // Convert fitLogic result to UI format
       const missingBody = sizeRecommendation.missing?.filter(m => 
@@ -338,12 +341,10 @@ const AskAISheet = ({ visible, onClose, product, selectedSize = null }) => {
       console.log('🎨 Final suitability profile:', userProfileForSuitability);
       
       // Get color - check multiple possible fields
-      const productColor = (product?.color && product.color.trim() !== '') 
-        ? product.color.trim() 
-        : (product?.color_raw && product.color_raw.trim() !== '')
-        ? product.color_raw.trim()
-        : (product?.primaryColor && product.primaryColor.trim() !== '')
-        ? product.primaryColor.trim()
+      // IMPORTANT: Check product.color first (this is what ProductScreen passes)
+      const productColorRaw = product?.color || product?.color_raw || product?.primaryColor || null;
+      const productColor = (productColorRaw && String(productColorRaw).trim() !== '' && String(productColorRaw).trim() !== 'null' && String(productColorRaw).trim() !== 'undefined')
+        ? String(productColorRaw).trim()
         : (inferColor(product?.name) || null);
       
       console.log('🎨 Product color check:', {
@@ -353,6 +354,8 @@ const AskAISheet = ({ visible, onClose, product, selectedSize = null }) => {
         productPrimaryColor: product?.primaryColor,
         productName: product?.name,
         inferred: inferColor(product?.name),
+        fullProduct: product,
+        productKeys: Object.keys(product || {}),
       });
       
       const productForSuitability = {
