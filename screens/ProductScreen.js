@@ -1169,6 +1169,41 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
     fontSize: 10,
   },
+  sizeSelectorContainer: {
+    marginBottom: 16,
+  },
+  sizeSelectorLabel: {
+    color: '#9ca3af',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  sizeSelectorButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  sizeSelectorButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  sizeSelectorButtonActive: {
+    backgroundColor: '#6366f1',
+    borderColor: '#6366f1',
+  },
+  sizeSelectorButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  sizeSelectorButtonTextActive: {
+    color: '#fff',
+  },
   sizeHelpBox: {
     backgroundColor: 'rgba(99, 102, 241, 0.1)',
     borderRadius: 12,
