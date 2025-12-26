@@ -123,6 +123,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Drop trigger if it exists
+DROP TRIGGER IF EXISTS update_garment_sizes_updated_at ON garment_sizes;
+
 CREATE TRIGGER update_garment_sizes_updated_at
   BEFORE UPDATE ON garment_sizes
   FOR EACH ROW
