@@ -1,7 +1,10 @@
 /**
  * Fit Check Utilities API
- * Merged endpoint for detect-color and parse-size-chart
- * Reduces serverless function count from 2 to 1
+ * NOTE: This endpoint is deprecated
+ * - Color detection is now client-side (lib/colorDetection.js)
+ * - OCR parsing is now at /api/ocr-sizechart
+ * 
+ * Kept for backward compatibility - redirects to new endpoints
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -20,182 +23,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  try {
-    const { type, imageUrl, imageBase64 } = req.body;
+  const { type } = req.body;
 
-    if (!type || (type !== 'detect-color' && type !== 'parse-size-chart')) {
-      return res.status(400).json({ error: 'Invalid type. Must be "detect-color" or "parse-size-chart"' });
-    }
-
-    if (type === 'detect-color') {
-      return await handleDetectColor(req, res);
-    } else if (type === 'parse-size-chart') {
-      return await handleParseSizeChart(req, res);
-    }
-  } catch (error: any) {
-    console.error('Error in fit-check-utils:', error);
-    return res.status(500).json({
-      error: 'Failed to process request',
-      message: error.message,
+  if (type === 'detect-color') {
+    return res.status(400).json({ 
+      error: 'Color detection is now client-side only',
+      message: 'Use detectDominantColor() from lib/colorDetection.js instead of this API endpoint'
     });
-  }
-}
-
-/**
- * Handle color detection
- */
-async function handleDetectColor(req: VercelRequest, res: VercelResponse) {
-  const { imageUrl, imageBase64 } = req.body;
-
-  if (!imageUrl && !imageBase64) {
-    return res.status(400).json({ error: 'Missing imageUrl or imageBase64' });
-  }
-
-  // Use a color extraction service or library
-  // For MVP, we'll use a simple approach with a color extraction API
-  // You can use services like:
-  // - Google Vision API (color detection)
-  // - Cloudinary (image analysis)
-  // - Or implement a simple color extraction algorithm
-
-  // For now, return a placeholder that the frontend can use
-  // In production, you'd implement actual color detection
-  
-  // Simple color detection using image processing
-  const dominantColor = await extractDominantColor(imageUrl || imageBase64);
-
-  // Return in format expected by frontend
-  const response = {
-    success: dominantColor.name !== 'unknown' && dominantColor.confidence > 0,
-    color: dominantColor.color,
-    colorName: dominantColor.name,
-    colorHex: dominantColor.color,
-    name: dominantColor.name, // Also include for compatibility
-    confidence: dominantColor.confidence,
-  };
-  
-  console.log('🎨 [COLOR DETECTION] Returning response:', response);
-  return res.status(200).json(response);
-}
-
-/**
- * Handle size chart parsing
- */
-async function handleParseSizeChart(req: VercelRequest, res: VercelResponse) {
-  const { imageUrl, imageBase64 } = req.body;
-
-  console.log('📊 [OCR PARSING] Starting size chart parsing');
-  console.log('📊 [OCR PARSING] Has imageUrl:', !!imageUrl);
-  console.log('📊 [OCR PARSING] Has imageBase64:', !!imageBase64);
-
-  if (!imageUrl && !imageBase64) {
-    console.error('📊 [OCR PARSING] Missing image data');
-    return res.status(400).json({ error: 'Missing imageUrl or imageBase64' });
-  }
-
-  const visionApiKey = process.env.GOOGLE_VISION_API_KEY || process.env.GEMINI_API_KEY;
-  
-  if (!visionApiKey) {
-    console.warn('📊 [OCR PARSING] No API key found, returning manual input structure');
-    return res.status(200).json({
-      success: false,
-      parsed: false,
-      message: 'OCR service not configured. Please enter measurements manually.',
-      structure: {
-        sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
-        measurements: ['chest', 'waist', 'hips', 'length', 'sleeve', 'shoulder', 'inseam', 'rise'],
-      },
+  } else if (type === 'parse-size-chart') {
+    return res.status(301).json({
+      error: 'This endpoint has moved',
+      message: 'Please use /api/ocr-sizechart for size chart OCR parsing',
+      redirect: '/api/ocr-sizechart'
     });
-  }
-
-  try {
-    // Prepare image data
-    let imageContent: { content?: string; source?: { imageUri: string } } = {};
-    
-    if (imageBase64) {
-      // Base64 image - remove data URL prefix if present
-      const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
-      imageContent = { content: base64Data };
-      console.log('📊 [OCR PARSING] Using base64 image (length:', base64Data.length, ')');
-    } else if (imageUrl) {
-      imageContent = { source: { imageUri: imageUrl } };
-      console.log('📊 [OCR PARSING] Using image URL:', imageUrl);
-    }
-
-    // Use Google Vision API to extract text
-    const visionUrl = `https://vision.googleapis.com/v1/images:annotate?key=${visionApiKey}`;
-    
-    console.log('📊 [OCR PARSING] Calling Vision API...');
-    const visionResponse = await fetch(visionUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        requests: [{
-          image: imageContent,
-          features: [{ type: 'TEXT_DETECTION', maxResults: 10 }],
-        }],
-      }),
-    });
-
-    if (!visionResponse.ok) {
-      const errorText = await visionResponse.text();
-      console.error('📊 [OCR PARSING] Vision API error:', visionResponse.status, errorText);
-      throw new Error(`Vision API error: ${visionResponse.statusText}`);
-    }
-
-    const visionData = await visionResponse.json();
-    console.log('📊 [OCR PARSING] Vision API response received');
-    
-    const extractedText = visionData.responses?.[0]?.fullTextAnnotation?.text || '';
-    console.log('📊 [OCR PARSING] Extracted text length:', extractedText.length);
-    console.log('📊 [OCR PARSING] Extracted text preview:', extractedText.substring(0, 200));
-
-    if (!extractedText || extractedText.trim().length === 0) {
-      console.warn('📊 [OCR PARSING] No text extracted from image');
-      return res.status(200).json({
-        success: false,
-        parsed: false,
-        message: 'Could not extract text from image. Please enter measurements manually.',
-        rawText: '',
-        structure: {
-          sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
-          measurements: ['chest', 'waist', 'hips', 'length', 'sleeve', 'shoulder', 'inseam', 'rise'],
-        },
-      });
-    }
-
-    // Parse the extracted text to find size chart data
-    console.log('📊 [OCR PARSING] Parsing size chart text...');
-    const parsedData = parseSizeChartText(extractedText);
-    console.log('📊 [OCR PARSING] Parse result:', {
-      success: parsedData.success,
-      sizesFound: parsedData.data?.length || 0,
-      structure: parsedData.structure,
-    });
-
-    return res.status(200).json({
-      success: true,
-      parsed: parsedData.success,
-      data: parsedData.data,
-      rawText: extractedText,
-      message: parsedData.success 
-        ? 'Size chart parsed successfully' 
-        : 'Could not parse size chart automatically. Please enter measurements manually.',
-      structure: parsedData.structure,
-    });
-  } catch (error: any) {
-    console.error('📊 [OCR PARSING] Error:', error.message);
-    return res.status(500).json({
-      success: false,
-      parsed: false,
-      error: error.message,
-      message: 'Failed to parse size chart. Please enter measurements manually.',
-      structure: {
-        sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
-        measurements: ['chest', 'waist', 'hips', 'length', 'sleeve', 'shoulder', 'inseam', 'rise'],
-      },
+  } else {
+    return res.status(400).json({ 
+      error: 'Invalid or missing type',
+      message: 'This endpoint is deprecated. Use client-side color detection or /api/ocr-sizechart'
     });
   }
 }

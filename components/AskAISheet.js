@@ -26,6 +26,7 @@ import { analyzeFabricComfort } from '../lib/fabricComfort';
 import { cmToInches, parseHeightToInches } from '../lib/measurementUtils';
 import { getAvailableBrands, getBrandSizeChart, convertBrandChartToFitLogic } from '../lib/brandSizeCharts';
 import { hasStretch, getStretchLevel } from '../lib/materialElasticity';
+import { detectDominantColor } from '../lib/colorDetection';
 import * as ImagePicker from 'expo-image-picker';
 
 const { width, height } = Dimensions.get('window');
@@ -45,79 +46,62 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
 
   // Auto-detect color is now handled in the main visible useEffect below
 
-  // Auto-detect color from product image
+  // Auto-detect color from product image (client-side, no API)
   const autoDetectColor = async () => {
     if (!product?.image) {
-      console.log('🎨 [FRONTEND] No product image available for color detection');
+      console.log('🎨 [CLIENT COLOR] No product image available for color detection');
       return;
     }
     
     // Don't re-detect if already detecting
     if (isDetectingColor) {
-      console.log('🎨 [FRONTEND] Color detection already in progress');
+      console.log('🎨 [CLIENT COLOR] Color detection already in progress');
       return;
     }
     
     setIsDetectingColor(true);
     try {
-      const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'https://mvpstyli-fresh.vercel.app';
-      console.log('🎨 [FRONTEND] Starting color detection from:', product.image.substring(0, 100));
-      console.log('🎨 [FRONTEND] API endpoint:', `${API_BASE}/api/fit-check-utils`);
+      console.log('🎨 [CLIENT COLOR] Starting client-side color detection from:', product.image.substring(0, 100));
       
-      const response = await fetch(`${API_BASE}/api/fit-check-utils`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'detect-color', imageUrl: product.image }),
-      });
+      // Use client-side color detection (no API call)
+      const colorResult = await detectDominantColor(product.image);
       
-      console.log('🎨 [FRONTEND] Color detection response status:', response.status);
+      console.log('🎨 [CLIENT COLOR] Color detection result:', JSON.stringify(colorResult, null, 2));
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('🎨 [FRONTEND] Color detection API error:', response.status, errorText);
-        throw new Error(`API error: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log('🎨 [FRONTEND] Color detection response data:', JSON.stringify(data, null, 2));
-      
-      // Handle both response formats: {success, colorName} or {color, name}
-      const colorName = data.colorName || data.name;
-      const colorHex = data.color || data.colorHex;
-      
-      if (data.success !== false && colorName && colorName !== 'unknown') {
-        console.log('🎨 [FRONTEND] Color detected successfully:', {
-          name: colorName,
-          hex: colorHex,
-          confidence: data.confidence,
+      if (colorResult && colorResult.name && colorResult.name !== 'unknown' && colorResult.confidence > 0) {
+        console.log('🎨 [CLIENT COLOR] Color detected successfully:', {
+          name: colorResult.name,
+          hex: colorResult.color,
+          rgb: colorResult.rgb || 'N/A',
+          confidence: colorResult.confidence,
         });
         
-        setDetectedColor(colorName);
-        setUserEnteredColor(colorName);
+        setDetectedColor(colorResult.name);
+        setUserEnteredColor(colorResult.name);
         
         // Update product color immediately
         const updatedProduct = {
           ...product,
-          color: colorName,
+          color: colorResult.name,
         };
         setProduct(updatedProduct);
-        console.log('🎨 [FRONTEND] Product color updated to:', colorName);
+        console.log('🎨 [CLIENT COLOR] Product color updated to:', colorResult.name);
         
         // Reload insights with new color after a short delay
         setTimeout(() => {
-          console.log('🎨 [FRONTEND] Reloading insights with new color');
+          console.log('🎨 [CLIENT COLOR] Reloading insights with new color');
           loadInsights(true);
         }, 500);
       } else {
-        console.warn('🎨 [FRONTEND] Color detection failed or returned unknown:', {
-          success: data.success,
-          colorName: colorName,
-          fullResponse: data,
+        console.warn('🎨 [CLIENT COLOR] Color detection failed or returned unknown:', {
+          name: colorResult?.name,
+          confidence: colorResult?.confidence,
+          fullResult: colorResult,
         });
       }
     } catch (error) {
-      console.error('🎨 [FRONTEND] Error auto-detecting color:', error);
-      console.error('🎨 [FRONTEND] Error stack:', error.stack);
+      console.error('🎨 [CLIENT COLOR] Error auto-detecting color:', error);
+      console.error('🎨 [CLIENT COLOR] Error stack:', error.stack);
       // Silent fail - user can manually enter color
     } finally {
       setIsDetectingColor(false);
@@ -418,12 +402,23 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       };
       
       // Use fitLogic for size recommendations (NO-AI)
-      console.log('📏 Using fitLogic for size recommendations');
-      console.log('📏 Input to fitLogic - userProfileForFitLogic:', JSON.stringify(userProfileForFitLogic, null, 2));
-      console.log('📏 Input to fitLogic - productForFitLogic:', JSON.stringify(productForFitLogic, null, 2));
+      console.log('📏 [FIT CHECK] Using fitLogic for size recommendations');
+      console.log('📏 [FIT CHECK] Input to fitLogic - userProfileForFitLogic:', JSON.stringify(userProfileForFitLogic, null, 2));
+      console.log('📏 [FIT CHECK] Input to fitLogic - productForFitLogic:', JSON.stringify(productForFitLogic, null, 2));
+      console.log('📏 [FIT CHECK] Size chart data:', {
+        hasSizeChart: !!productForFitLogic.sizeChart && productForFitLogic.sizeChart.length > 0,
+        sizeCount: productForFitLogic.sizeChart?.length || 0,
+        sizes: productForFitLogic.sizeChart?.map(s => s.size) || [],
+        firstSizeMeasurements: productForFitLogic.sizeChart?.[0]?.measurements || null,
+      });
+      
       const sizeRecommendation = recommendSizeAndFit(userProfileForFitLogic, productForFitLogic, {});
-      console.log('📏 Size recommendation result:', JSON.stringify(sizeRecommendation, null, 2));
-      console.log('📏 Missing measurements:', sizeRecommendation.missing);
+      
+      console.log('📏 [FIT CHECK] Size recommendation result:', JSON.stringify(sizeRecommendation, null, 2));
+      console.log('📏 [FIT CHECK] Missing measurements:', sizeRecommendation.missing);
+      console.log('📏 [FIT CHECK] Recommended size:', sizeRecommendation.recommendedSize);
+      console.log('📏 [FIT CHECK] Risk level:', sizeRecommendation.risk);
+      console.log('📏 [FIT CHECK] Confidence:', sizeRecommendation.confidence);
       
       // Convert fitLogic result to UI format
       const missingBody = sizeRecommendation.missing?.filter(m => 
@@ -482,15 +477,17 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         ? String(productColorRaw).trim()
         : (inferColor(product?.name) || null);
       
-      console.log('🎨 Product color check:', {
+      // LOG: Color detection for debugging
+      console.log('🎨 [FIT CHECK] Product color check:', {
         productColor: productColor,
         productColorRaw: product?.color,
         productColor_raw: product?.color_raw,
         productPrimaryColor: product?.primaryColor,
         productName: product?.name,
         inferred: inferColor(product?.name),
-        fullProduct: product,
-        productKeys: Object.keys(product || {}),
+        detectedColor: detectedColor,
+        userEnteredColor: userEnteredColor,
+        hasColor: !!productColor && productColor !== 'unknown',
       });
       
       const productForSuitability = {
@@ -1112,12 +1109,12 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                             const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'https://mvpstyli-fresh.vercel.app';
                             console.log('📊 [FRONTEND] Uploading size chart image...');
                             console.log('📊 [FRONTEND] Image size:', blob.size, 'bytes');
-                            console.log('📊 [FRONTEND] API endpoint:', `${API_BASE}/api/fit-check-utils`);
+                            console.log('📊 [FRONTEND] API endpoint:', `${API_BASE}/api/ocr-sizechart`);
                             
-                            const parseResponse = await fetch(`${API_BASE}/api/fit-check-utils`, {
+                            const parseResponse = await fetch(`${API_BASE}/api/ocr-sizechart`, {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ type: 'parse-size-chart', imageBase64: base64 }),
+                              body: JSON.stringify({ imageBase64: base64 }),
                             });
                             
                             console.log('📊 [FRONTEND] OCR response status:', parseResponse.status);
@@ -1376,14 +1373,89 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                   onChangeText={setUserEnteredMaterial}
                   multiline
                 />
-                {userEnteredMaterial && (
-                  <View style={styles.materialInfo}>
-                    <Text style={styles.materialInfoLabel}>Stretch detected:</Text>
-                    <Text style={styles.materialInfoValue}>
-                      {hasStretch(userEnteredMaterial) ? 'Yes' : 'No'} ({getStretchLevel(userEnteredMaterial)})
-                    </Text>
-                  </View>
-                )}
+                
+                {/* Show material analysis if material entered */}
+                {userEnteredMaterial && (() => {
+                  const materialLower = (userEnteredMaterial || '').toLowerCase();
+                  const detectedStretch = hasStretch(userEnteredMaterial);
+                  const stretchLevel = getStretchLevel(userEnteredMaterial);
+                  
+                  // Check if we have high confidence in stretch detection
+                  const hasStretchKeywords = materialLower.includes('stretch') || 
+                                            materialLower.includes('elastic') || 
+                                            materialLower.includes('spandex') || 
+                                            materialLower.includes('elastane') ||
+                                            materialLower.includes('lycra');
+                  
+                  const hasKnownMaterial = materialLower.includes('cotton') || 
+                                         materialLower.includes('polyester') ||
+                                         materialLower.includes('silk') ||
+                                         materialLower.includes('wool') ||
+                                         materialLower.includes('linen') ||
+                                         materialLower.includes('denim');
+                  
+                  const confidence = (hasStretchKeywords || hasKnownMaterial) ? 'high' : 'low';
+                  
+                  return (
+                    <View style={styles.materialInfo}>
+                      <Text style={styles.materialInfoLabel}>Analysis:</Text>
+                      <Text style={styles.materialInfoValue}>
+                        Stretch: {detectedStretch ? 'Yes' : 'No'} ({stretchLevel})
+                      </Text>
+                      {confidence === 'low' && (
+                        <View style={{ marginTop: 12, padding: 12, backgroundColor: '#FEF3C7', borderRadius: 8 }}>
+                          <Text style={{ color: '#92400E', fontSize: 12, fontWeight: '600', marginBottom: 4 }}>
+                            ⚠️ Low Confidence
+                          </Text>
+                          <Text style={{ color: '#92400E', fontSize: 11 }}>
+                            We couldn't determine elasticity with high confidence. Is this material stretchy?
+                          </Text>
+                          <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                            <Pressable
+                              style={[styles.materialToggle, detectedStretch && styles.materialToggleActive]}
+                              onPress={() => {
+                                // User confirms stretch
+                                const updated = {
+                                  ...product,
+                                  material: userEnteredMaterial,
+                                  fabric: userEnteredMaterial,
+                                  fabricStretch: 'medium',
+                                };
+                                setProduct(updated);
+                                setShowMaterialInputModal(false);
+                                setTimeout(() => loadInsights(true), 100);
+                              }}
+                            >
+                              <Text style={[styles.materialToggleText, detectedStretch && styles.materialToggleTextActive]}>
+                                Yes, Stretchy
+                              </Text>
+                            </Pressable>
+                            <Pressable
+                              style={[styles.materialToggle, !detectedStretch && styles.materialToggleActive]}
+                              onPress={() => {
+                                // User confirms no stretch
+                                const updated = {
+                                  ...product,
+                                  material: userEnteredMaterial,
+                                  fabric: userEnteredMaterial,
+                                  fabricStretch: 'none',
+                                };
+                                setProduct(updated);
+                                setShowMaterialInputModal(false);
+                                setTimeout(() => loadInsights(true), 100);
+                              }}
+                            >
+                              <Text style={[styles.materialToggleText, !detectedStretch && styles.materialToggleTextActive]}>
+                                No Stretch
+                              </Text>
+                            </Pressable>
+                          </View>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })()}
+                
                 <Pressable
                   style={styles.saveButton}
                   onPress={() => {
@@ -1392,7 +1464,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                         ...product,
                         material: userEnteredMaterial,
                         fabric: userEnteredMaterial,
-                        fabricStretch: hasStretch(userEnteredMaterial) ? 'medium' : 'none',
+                        fabricStretch: hasStretch(userEnteredMaterial) ? getStretchLevel(userEnteredMaterial) : 'none',
                       };
                       setProduct(updatedProduct);
                       setShowMaterialInputModal(false);
@@ -1889,6 +1961,29 @@ const styles = StyleSheet.create({
   materialInfoValue: {
     color: '#fff',
     fontSize: 14,
+    fontWeight: '600',
+  },
+  materialToggle: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+  },
+  materialToggleActive: {
+    backgroundColor: '#6366f1',
+    borderColor: '#6366f1',
+  },
+  materialToggleText: {
+    color: '#9ca3af',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  materialToggleTextActive: {
+    color: '#fff',
     fontWeight: '600',
   },
   detectedColorText: {
