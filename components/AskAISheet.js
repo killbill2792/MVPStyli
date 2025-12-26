@@ -308,23 +308,30 @@ const AskAISheet = ({ visible, onClose, product }) => {
         fitSizeStatus = 'High Risk';
       }
       
-      // Build measurement deltas from sizeRecommendation insights
-      const measurementDeltas = sizeRecommendation.insights?.filter(insight => 
-        insight.includes('cm') || insight.includes('in') || insight.includes('≈')
-      ) || [];
+      // Build measurement deltas from sizeRecommendation insights (2-5 bullets)
+      // Extract insights that contain measurement information
+      const measurementDeltas = sizeRecommendation.insights?.filter(insight => {
+        const lower = insight.toLowerCase();
+        return lower.includes('cm') || lower.includes('in') || lower.includes('≈') || 
+               lower.includes('chest') || lower.includes('waist') || lower.includes('hip') ||
+               lower.includes('shoulder') || lower.includes('inseam') || lower.includes('length') ||
+               lower.includes('ease') || lower.includes('room') || lower.includes('tight');
+      }).slice(0, 5) || []; // Max 5 bullets
       
-      // Build stylist translation (last insight or summary)
-      const stylistTranslation = sizeRecommendation.insights?.length > 0 
+      // Build stylist translation (human-readable summary sentence)
+      // Use the last insight that's not a measurement delta, or create a summary
+      const nonMeasurementInsights = sizeRecommendation.insights?.filter(insight => {
+        const lower = insight.toLowerCase();
+        return !(lower.includes('cm') || lower.includes('in') || lower.includes('≈'));
+      }) || [];
+      
+      const stylistTranslation = nonMeasurementInsights.length > 0
+        ? nonMeasurementInsights[nonMeasurementInsights.length - 1]
+        : sizeRecommendation.insights?.length > 0
         ? sizeRecommendation.insights[sizeRecommendation.insights.length - 1]
         : 'Fit analysis based on your measurements and garment dimensions.';
       
-      const missingBody = sizeRecommendation.missing?.filter(m => 
-        m.includes('Cm') || m.includes('height') || m.includes('waist') || m.includes('chest') || m.includes('hips') || m.includes('shoulder') || m.includes('inseam')
-      ) || [];
-      const missingGarment = sizeRecommendation.missing?.filter(m => 
-        m.includes('sizeChart') || m.includes('size chart')
-      ) || [];
-      
+      // Reuse missingBody and missingGarment from above (already declared at line 231-236)
       setFitSizeData({
         status: fitSizeStatus,
         recommendedSize: sizeRecommendation.status === 'OK' ? sizeRecommendation.recommendedSize : null,
