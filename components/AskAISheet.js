@@ -228,6 +228,13 @@ const AskAISheet = ({ visible, onClose, product }) => {
       console.log('📏 Size recommendation result:', sizeRecommendation);
       
       // Convert fitLogic result to UI format
+      const missingBody = sizeRecommendation.missing?.filter(m => 
+        m.includes('Cm') || m.includes('height') || m.includes('waist') || m.includes('chest') || m.includes('hips') || m.includes('shoulder') || m.includes('inseam')
+      ) || [];
+      const missingGarment = sizeRecommendation.missing?.filter(m => 
+        m.includes('sizeChart') || m.includes('size chart')
+      ) || [];
+      
       if (sizeRecommendation.status === 'OK') {
         setSizeAdvice({
           recommendedSize: sizeRecommendation.recommendedSize,
@@ -246,6 +253,8 @@ const AskAISheet = ({ visible, onClose, product }) => {
           insights: sizeRecommendation.insights,
           hasEnoughData: false,
           missingDataMessage: sizeRecommendation.insights.join(' '),
+          missingBody: missingBody.length > 0,
+          missingGarment: missingGarment.length > 0,
         });
       }
       
@@ -295,6 +304,13 @@ const AskAISheet = ({ visible, onClose, product }) => {
         ? sizeRecommendation.insights[sizeRecommendation.insights.length - 1]
         : 'Fit analysis based on your measurements and garment dimensions.';
       
+      const missingBody = sizeRecommendation.missing?.filter(m => 
+        m.includes('Cm') || m.includes('height') || m.includes('waist') || m.includes('chest') || m.includes('hips') || m.includes('shoulder') || m.includes('inseam')
+      ) || [];
+      const missingGarment = sizeRecommendation.missing?.filter(m => 
+        m.includes('sizeChart') || m.includes('size chart')
+      ) || [];
+      
       setFitSizeData({
         status: fitSizeStatus,
         recommendedSize: sizeRecommendation.status === 'OK' ? sizeRecommendation.recommendedSize : null,
@@ -305,6 +321,8 @@ const AskAISheet = ({ visible, onClose, product }) => {
         stylistTranslation,
         hasEnoughData: sizeRecommendation.status === 'OK',
         missingData: sizeRecommendation.status !== 'OK' ? sizeRecommendation.insights : [],
+        missingBody: missingBody.length > 0,
+        missingGarment: missingGarment.length > 0,
       });
       
       // Build HOW TO WEAR data (use basic rule-based for now, Gemini can enhance)
@@ -562,19 +580,25 @@ const AskAISheet = ({ visible, onClose, product }) => {
                 {!fitSizeData?.hasEnoughData ? (
                   <View style={styles.missingDataBox}>
                     <Text style={styles.missingDataText}>
-                      {fitSizeData?.missingData?.join(' ') || 'Need body measurements and garment size chart for accurate fit analysis.'}
+                      {fitSizeData?.missingGarment
+                        ? 'Need garment measurements (size chart). Add product with size chart or input garment measurements in admin panel.'
+                        : fitSizeData?.missingBody
+                        ? 'Need body measurements. Add your measurements in Fit Profile.'
+                        : fitSizeData?.missingData?.join(' ') || 'Need body measurements and garment size chart for accurate fit analysis.'}
                     </Text>
-                    <Pressable 
-                      style={styles.addDataBtn}
-                      onPress={() => {
-                        closeSheet();
-                        // Navigate to account and set flag to open Edit Fit Profile
-                        AsyncStorage.setItem('openFitProfile', 'true');
-                        setRoute('account');
-                      }}
-                    >
-                      <Text style={styles.addDataBtnText}>Add Measurements →</Text>
-                    </Pressable>
+                    {fitSizeData?.missingBody && (
+                      <Pressable 
+                        style={styles.addDataBtn}
+                        onPress={() => {
+                          closeSheet();
+                          // Navigate to account and set flag to open Edit Fit Profile
+                          AsyncStorage.setItem('openFitProfile', 'true');
+                          setRoute('account');
+                        }}
+                      >
+                        <Text style={styles.addDataBtnText}>Add Measurements →</Text>
+                      </Pressable>
+                    )}
                   </View>
                 ) : (
                   <>
