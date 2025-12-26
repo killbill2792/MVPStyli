@@ -7,6 +7,7 @@ import { AppProvider, useApp } from './lib/AppContext';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadImageAsync, uploadRemoteImage } from './lib/upload';
 import productsData from './data/products.json';
+import { fetchGarmentsAsProducts } from './lib/garmentUtils';
 import BottomBar from './components/BottomBar';
 import PodsScreen from './screens/PodsScreen';
 import StyleCraftScreen from './screens/StyleCraftScreen';
@@ -1673,6 +1674,33 @@ export default function App() {
   const [savedFits, setSavedFits] = useState([]); // Saved outfits
   const [pendingInvite, setPendingInvite] = useState(null); // Pending invite from deep link
   const [routeStack, setRouteStack] = useState([]); // Navigation stack for back button
+  const [allProducts, setAllProducts] = useState(productsData); // Combined static + garment products
+  
+  // Fetch garments and merge with static products
+  useEffect(() => {
+    const loadGarments = async () => {
+      try {
+        console.log('🛍️ Loading garments from admin panel...');
+        const garmentProducts = await fetchGarmentsAsProducts();
+        
+        // Merge static products with garment products
+        // Garment products come first (newer/admin-added items)
+        const merged = [...garmentProducts, ...productsData];
+        
+        console.log(`🛍️ Total products: ${merged.length} (${garmentProducts.length} garments + ${productsData.length} static)`);
+        setAllProducts(merged);
+      } catch (error) {
+        console.error('Error loading garments:', error);
+        // Fallback to static products only
+        setAllProducts(productsData);
+      }
+    };
+    
+    // Load garments when app starts or when route changes to shop
+    if (route === 'shop' || route === null) {
+      loadGarments();
+    }
+  }, [route]);
   
   // Check for existing Supabase session on startup
   useEffect(() => {
@@ -2120,7 +2148,7 @@ export default function App() {
                 
                 {/* Product Grid */}
                 <View style={styles.productGrid}>
-                    {(productsData || []).map((p) => (
+                    {(allProducts || []).map((p) => (
                         <Pressable 
                             key={p.id} 
                             style={styles.productCard}
