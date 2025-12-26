@@ -183,22 +183,26 @@ const AskAISheet = ({ visible, onClose, product, selectedSize = null }) => {
       };
       
       // Helper to safely get numeric value from database (handles both string and number)
+      // fitLogic's toInches() accepts numbers directly (returns as-is if finite)
+      // So we should pass numbers, not strings
       const getNumericValue = (value) => {
         if (value == null || value === '') return null;
-        const num = typeof value === 'string' ? parseFloat(value) : Number(value);
+        if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+        const num = parseFloat(String(value));
         return isNaN(num) ? null : num;
       };
       
       const userProfileForFitLogic = {
-        heightIn: getNumericValue(userProfileData?.height_in) ?? (userProfileData?.height ? cmToInches(parseFloat(userProfileData.height)) : null),
-        weightKg: getNumericValue(userProfileData?.weight) ?? getNumericValue(userProfileData?.weight_kg),
+        // Pass numbers directly - fitLogic's toInches() will handle them
+        heightIn: getNumericValue(userProfileData?.height_in) ?? getNumericValue(userProfileData?.height),
+        weightKg: getNumericValue(userProfileData?.weight_kg) ?? getNumericValue(userProfileData?.weight),
         // Check new circumference fields first (these are in inches already)
-        chestIn: getNumericValue(userProfileData?.chest_circ_in) ?? getNumericValue(userProfileData?.chest_in) ?? (userProfileData?.chest ? cmToInches(parseFloat(userProfileData.chest)) : null),
-        bustIn: getNumericValue(userProfileData?.bust_circ_in) ?? getNumericValue(userProfileData?.bust_in) ?? getNumericValue(userProfileData?.chest_circ_in) ?? getNumericValue(userProfileData?.chest_in) ?? (userProfileData?.chest ? cmToInches(parseFloat(userProfileData.chest)) : null),
-        waistIn: getNumericValue(userProfileData?.waist_circ_in) ?? getNumericValue(userProfileData?.waist_in) ?? (userProfileData?.waist ? cmToInches(parseFloat(userProfileData.waist)) : null),
-        hipsIn: getNumericValue(userProfileData?.hip_circ_in) ?? getNumericValue(userProfileData?.hips_in) ?? (userProfileData?.hips ? cmToInches(parseFloat(userProfileData.hips)) : null),
-        shoulderIn: getNumericValue(userProfileData?.shoulder_width_in) ?? getNumericValue(userProfileData?.shoulder_in) ?? (userProfileData?.shoulder ? cmToInches(parseFloat(userProfileData.shoulder)) : null),
-        inseamIn: getNumericValue(userProfileData?.inseam_in) ?? (userProfileData?.inseam ? cmToInches(parseFloat(userProfileData.inseam)) : null),
+        chestIn: getNumericValue(userProfileData?.chest_circ_in) ?? getNumericValue(userProfileData?.chest_in) ?? getNumericValue(userProfileData?.chest),
+        bustIn: getNumericValue(userProfileData?.bust_circ_in) ?? getNumericValue(userProfileData?.bust_in) ?? getNumericValue(userProfileData?.chest_circ_in) ?? getNumericValue(userProfileData?.chest_in) ?? getNumericValue(userProfileData?.chest),
+        waistIn: getNumericValue(userProfileData?.waist_circ_in) ?? getNumericValue(userProfileData?.waist_in) ?? getNumericValue(userProfileData?.waist),
+        hipsIn: getNumericValue(userProfileData?.hip_circ_in) ?? getNumericValue(userProfileData?.hips_in) ?? getNumericValue(userProfileData?.hips),
+        shoulderIn: getNumericValue(userProfileData?.shoulder_width_in) ?? getNumericValue(userProfileData?.shoulder_in) ?? getNumericValue(userProfileData?.shoulder),
+        inseamIn: getNumericValue(userProfileData?.inseam_in) ?? getNumericValue(userProfileData?.inseam),
         gender: userProfileData?.gender || null,
       };
       
@@ -364,8 +368,11 @@ const AskAISheet = ({ visible, onClose, product, selectedSize = null }) => {
         fitType: product?.fit || product?.fitType || null,
       };
       
+      console.log('🎨 Input to styleSuitability - productForSuitability:', JSON.stringify(productForSuitability, null, 2));
+      console.log('🎨 Input to styleSuitability - userProfileForSuitability:', JSON.stringify(userProfileForSuitability, null, 2));
+      
       const suitability = evaluateSuitability(userProfileForSuitability, productForSuitability);
-      console.log('🎨 Suitability result:', suitability);
+      console.log('🎨 Suitability result:', JSON.stringify(suitability, null, 2));
       
       setColorSuitability(suitability.color);
       setBodyShapeSuitability(suitability.body);
