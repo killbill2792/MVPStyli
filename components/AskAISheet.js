@@ -134,7 +134,8 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
   const [pickerTouchPosition, setPickerTouchPosition] = useState(null);
   const [magnifierPosition, setMagnifierPosition] = useState(null);
   const [livePickedColor, setLivePickedColor] = useState(null);
-  const colorPickerThrottleRef = useRef(null);
+  const [isSamplingColor, setIsSamplingColor] = useState(false);
+  const colorPickerImageUrlRef = useRef(null); // Pre-loaded image URL for API
   const colorPickerApiInProgress = useRef(false);
   
   // Convert touch coordinates to image pixel coordinates (accounts for resizeMode: contain letterboxing)
@@ -193,11 +194,8 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
   };
   
   // Manual color picker - CLIENT-SIDE ONLY, never calls auto-detect
-  // Live preview handler - called as user moves finger (throttled)
-  const handleManualColorPickerMove = async (touchX, touchY) => {
-    const imageToUse = originalProductImage.current || product?.image;
-    if (!imageToUse || !imageLayout.width || !imageLayout.height) return;
-
+  // Live preview handler - NO API CALLS, just UI updates for instant feedback
+  const handleManualColorPickerMove = (touchX, touchY) => {
     // Convert touch coordinates to image coordinates (accounts for letterboxing)
     const coords = convertTouchToImageCoords(touchX, touchY);
     if (!coords) {
@@ -205,220 +203,144 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       return;
     }
 
-    // Update touch position for magnifier/crosshair (live preview) - immediate UI update
+    // Update touch position for magnifier/crosshair (live preview) - immediate UI update (0ms latency)
     setPickerTouchPosition({ x: touchX, y: touchY });
     setMagnifierPosition({ x: touchX, y: Math.max(10, touchY - 150) }); // Position above finger
     
-    // Throttle API calls for live preview (only call every 150ms)
-    if (colorPickerThrottleRef.current) {
-      clearTimeout(colorPickerThrottleRef.current);
-    }
-    
-    if (colorPickerApiInProgress.current) return; // Don't spam API
-    
-    colorPickerThrottleRef.current = setTimeout(async () => {
-      if (colorPickerApiInProgress.current) return;
-      colorPickerApiInProgress.current = true;
-      
-      try {
-        // Fetch image and convert to base64
-        const response = await fetch(imageToUse);
-        const blob = await response.blob();
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-          const base64 = reader.result;
-          
-          // Call SEPARATE pixel-pick API (not the auto-detect endpoint)
-          // Pass actual image coordinates, not display coordinates
-          const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://mvp-styli.vercel.app';
-          const apiUrl = `${API_BASE}/api/pick-pixel-color`;
-          
-          try {
-            const apiResponse = await fetch(apiUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                imageBase64: base64,
-                x: coords.imageX, // Use actual image coordinates
-                y: coords.imageY,
-                imageWidth: imageNaturalSize.width,
-                imageHeight: imageNaturalSize.height,
-              }),
-            });
-
-            if (apiResponse.ok) {
-              const result = await apiResponse.json();
-              
-              if (result.color) {
-                const hex = result.color;
-                const { r, g, b } = result.rgb || { r: 0, g: 0, b: 0 };
-                
-                // Import color name helper (for UI display only)
-                const { colorNameFromHex } = require('../lib/colorAttributes');
-                const colorName = colorNameFromHex(hex);
-                
-                // Update live preview (don't update product color yet - wait for tap)
-                setLivePickedColor({ hex, rgb: { r, g, b }, name: colorName });
-              }
-            }
-          } catch (apiError) {
-            console.error('🎨 [MANUAL PICKER] API error:', apiError);
-          } finally {
-            colorPickerApiInProgress.current = false;
-          }
-        };
-        reader.readAsDataURL(blob);
-      } catch (fetchError) {
-        console.error('🎨 [MANUAL PICKER] Fetch error:', fetchError);
-        colorPickerApiInProgress.current = false;
-      }
-    }, 150); // Throttle to 150ms
+    // NO API CALLS during move - only visual feedback
   };
+  
+  // Pick color at coordinates - called only on release
+  const pickColorAtCoordinates = async (touchX, touchY) => {
+    const imageUrl = colorPickerImageUrlRef.current;
+    if (!imageUrl || !imageLayout.width || !imageLayout.height) {
+      console.error('🎨 [MANUAL PICKER] No pre-loaded image available');
+      return null;
+    }
 
-  // Final tap handler - confirms color selection
-  const handleManualColorPickerTap = async (event) => {
+    // Convert touch coordinates to image coordinates (accounts for letterboxing)
+    const coords = convertTouchToImageCoords(touchX, touchY);
+    if (!coords) {
+      console.warn('🎨 [MANUAL PICKER] Touch outside image bounds');
+      return null;
+    }
+
+    const startTime = Date.now();
+    setIsSamplingColor(true);
+    colorPickerApiInProgress.current = true;
+
     try {
-      const imageToUse = originalProductImage.current || product?.image;
-      if (!imageToUse) {
-        Alert.alert('Error', 'No product image available');
-        return;
-      }
+      const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://mvp-styli.vercel.app';
+      const apiUrl = `${API_BASE}/api/pick-pixel-color`;
+      
+      const apiResponse = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageUrl: imageUrl, // Use pre-loaded URL (much faster than base64)
+          x: coords.imageX, // Use actual image coordinates
+          y: coords.imageY,
+          imageWidth: imageNaturalSize.width,
+          imageHeight: imageNaturalSize.height,
+        }),
+      });
 
-      // Get tap coordinates relative to the image
-      const { locationX, locationY } = event.nativeEvent;
-      const touchX = locationX;
-      const touchY = locationY;
-      
-      // Convert touch coordinates to image coordinates (accounts for letterboxing)
-      const coords = convertTouchToImageCoords(touchX, touchY);
-      if (!coords) {
-        // Touch outside image - ignore
-        return;
-      }
-      
-      console.log('🎨 [MANUAL PICKER] Final tap at:', { touchX, touchY, imageCoords: coords });
+      const timeTaken = Date.now() - startTime;
 
-      // If we already have a live preview color, use it
-      if (livePickedColor) {
-        const { colorNameFromHex } = require('../lib/colorAttributes');
-        const colorName = colorNameFromHex(livePickedColor.hex);
+      if (apiResponse.ok) {
+        const result = await apiResponse.json();
         
-        setPickedColorHex(livePickedColor.hex);
-        setPickedColorName(colorName);
-        setDetectedColor(colorName);
-        setDetectedColorHex(livePickedColor.hex);
-        setUserEnteredColor(colorName);
-        setColorSource('manual');
-        
-        // Update product - store hex as source of truth, name for UI
-        const updatedProduct = {
-          ...product,
-          color: colorName, // For UI display
-          colorHex: livePickedColor.hex, // Source of truth for logic
-        };
-        setProduct(updatedProduct);
-        
-        console.log('🎨 [MANUAL PICKER] Color confirmed (EXACT PIXEL):', {
-          name: colorName,
-          hex: livePickedColor.hex,
-          rgb: livePickedColor.rgb,
-        });
-        
-        // Re-run fit analysis with new color
-        setTimeout(() => {
-          loadInsights(true);
-        }, 100);
-        return;
-      }
-      
-      // Fallback: call API if no live preview
-      setIsDetectingColor(true);
-      
-      try {
-        const response = await fetch(imageToUse);
-        const blob = await response.blob();
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-          const base64 = reader.result;
+        if (result.color) {
+          const hex = result.color;
+          const { r, g, b } = result.rgb || { r: 0, g: 0, b: 0 };
           
-          const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://mvp-styli.vercel.app';
-          const apiUrl = `${API_BASE}/api/pick-pixel-color`;
+          // Import color name helper (for UI display only)
+          const { colorNameFromHex } = require('../lib/colorAttributes');
+          const colorName = colorNameFromHex(hex);
           
-          try {
-            const apiResponse = await fetch(apiUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                imageBase64: base64,
-                x: coords.imageX, // Use actual image coordinates
-                y: coords.imageY,
-                imageWidth: imageNaturalSize.width,
-                imageHeight: imageNaturalSize.height,
-              }),
-            });
-
-            if (apiResponse.ok) {
-              const result = await apiResponse.json();
-              
-              if (result.color) {
-                const hex = result.color;
-                const { r, g, b } = result.rgb || { r: 0, g: 0, b: 0 };
-                
-                const { colorNameFromHex } = require('../lib/colorAttributes');
-                const colorName = colorNameFromHex(hex);
-                
-                setPickedColorHex(hex);
-                setPickedColorName(colorName);
-                setDetectedColor(colorName);
-                setDetectedColorHex(hex);
-                setUserEnteredColor(colorName);
-                setColorSource('manual');
-                setLivePickedColor({ hex, rgb: { r, g, b }, name: colorName });
-                
-                // Store hex as source of truth, name for UI
-                const updatedProduct = {
-                  ...product,
-                  color: colorName, // For UI display
-                  colorHex: hex, // Source of truth for logic
-                };
-                setProduct(updatedProduct);
-                
-                // Re-run fit analysis
-                setTimeout(() => {
-                  loadInsights(true);
-                }, 100);
-              }
-            } else {
-              const errorText = await apiResponse.text();
-              console.warn('🎨 [MANUAL PICKER] Pixel-pick API error:', apiResponse.status, errorText);
-              
-              if (apiResponse.status === 404) {
-                Alert.alert(
-                  'API Endpoint Not Deployed',
-                  'The pixel color picker endpoint needs to be deployed. Please wait a moment and try again.',
-                  [{ text: 'OK' }]
-                );
-              } else {
-                Alert.alert('Error', `Failed to pick color: ${apiResponse.status}`);
-              }
-            }
-          } catch (apiError) {
-            console.error('🎨 [MANUAL PICKER] API error:', apiError);
-            Alert.alert('Error', 'Failed to pick color. Please try again.');
-          } finally {
-            setIsDetectingColor(false);
-          }
-        };
-        reader.readAsDataURL(blob);
-      } catch (fetchError) {
-        console.error('🎨 [MANUAL PICKER] Fetch error:', fetchError);
-        setIsDetectingColor(false);
+          console.log('🎨 [MANUAL PICKER] Color picked successfully:', {
+            hex: hex,
+            rgb: { r, g, b },
+            name: colorName,
+            imageCoords: { x: coords.imageX, y: coords.imageY },
+            displayCoords: { x: touchX, y: touchY },
+            imageSize: { width: imageNaturalSize.width, height: imageNaturalSize.height },
+            timeTaken: `${timeTaken}ms`,
+          });
+          
+          return { hex, rgb: { r, g, b }, name: colorName };
+        }
+      } else {
+        const errorText = await apiResponse.text();
+        console.error('🎨 [MANUAL PICKER] API error:', apiResponse.status, errorText);
       }
-    } catch (error) {
-      console.error('🎨 [MANUAL PICKER] Error:', error);
-      setIsDetectingColor(false);
+    } catch (apiError) {
+      console.error('🎨 [MANUAL PICKER] API error:', apiError);
+    } finally {
+      setIsSamplingColor(false);
+      colorPickerApiInProgress.current = false;
     }
+    
+    return null;
   };
+
+  // Final tap handler - confirms color selection (receives colorResult from pickColorAtCoordinates)
+  const handleManualColorPickerTap = async (event) => {
+    const colorResult = event.colorResult;
+    
+    if (!colorResult) {
+      console.warn('🎨 [MANUAL PICKER] No color result available');
+      return;
+    }
+
+    const { colorNameFromHex } = require('../lib/colorAttributes');
+    const colorName = colorNameFromHex(colorResult.hex);
+    
+    setPickedColorHex(colorResult.hex);
+    setPickedColorName(colorName);
+    setDetectedColor(colorName);
+    setDetectedColorHex(colorResult.hex);
+    setUserEnteredColor(colorName);
+    setColorSource('manual');
+    setLivePickedColor({ hex: colorResult.hex, rgb: colorResult.rgb, name: colorName });
+    
+    // Update product - store hex as source of truth, name for UI
+    const updatedProduct = {
+      ...product,
+      color: colorName, // For UI display
+      colorHex: colorResult.hex, // Source of truth for logic
+    };
+    setProduct(updatedProduct);
+    
+    console.log('🎨 [MANUAL PICKER] Color confirmed and product updated:', {
+      name: colorName,
+      hex: colorResult.hex,
+      rgb: colorResult.rgb,
+      source: 'manual-pick',
+    });
+    
+    // Re-run fit analysis with new color
+    setTimeout(() => {
+      loadInsights(true);
+    }, 100);
+  };
+  
+  // Pre-load image when color picker modal opens
+  useEffect(() => {
+    if (showColorPicker) {
+      const imageToUse = originalProductImage.current || product?.image;
+      if (imageToUse) {
+        console.log('🎨 [MANUAL PICKER] Pre-loading image for picker:', imageToUse.substring(0, 100));
+        colorPickerImageUrlRef.current = imageToUse;
+      }
+    } else {
+      // Cleanup when modal closes
+      colorPickerImageUrlRef.current = null;
+      setLivePickedColor(null);
+      setPickerTouchPosition(null);
+      setMagnifierPosition(null);
+    }
+  }, [showColorPicker]);
   
   // Simple RGB to color name (client-side, for manual picker only)
   const rgbToColorNameSimple = (r, g, b) => {
@@ -2000,6 +1922,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
           setPickerTouchPosition(null);
           setMagnifierPosition(null);
           setLivePickedColor(null);
+          colorPickerImageUrlRef.current = null;
         }}
       >
         <View style={styles.modalOverlay}>
@@ -2071,32 +1994,27 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                           }}
                         />
                         
-                        {/* Color Picker Cursor Icon */}
-                        {pickerTouchPosition && (
-                          <View
-                            style={[
-                              styles.colorPickerCursor,
-                              {
-                                left: pickerTouchPosition.x - 15,
-                                top: pickerTouchPosition.y - 15,
-                              }
-                            ]}
-                          >
-                            <Text style={styles.colorPickerCursorIcon}>🎯</Text>
-                          </View>
-                        )}
-                        
-                        {/* Crosshair at tap position */}
+                        {/* Crosshair at tap position - crisp, professional design */}
                         {pickerTouchPosition && (
                           <View
                             style={[
                               styles.crosshair,
                               {
-                                left: pickerTouchPosition.x - 10,
-                                top: pickerTouchPosition.y - 10,
+                                left: pickerTouchPosition.x - 12,
+                                top: pickerTouchPosition.y - 12,
                               }
                             ]}
-                          />
+                            pointerEvents="none"
+                          >
+                            {/* Outer ring */}
+                            <View style={styles.crosshairRing} />
+                            {/* Center dot */}
+                            <View style={styles.crosshairDot} />
+                            {/* Horizontal line */}
+                            <View style={[styles.crosshairLine, { width: 24, height: 1, top: 11 }]} />
+                            {/* Vertical line */}
+                            <View style={[styles.crosshairLine, { width: 1, height: 24, left: 11 }]} />
+                          </View>
                         )}
                         
                         {/* Magnifier/Loupe above finger - shows zoomed view */}
@@ -2958,17 +2876,46 @@ const styles = StyleSheet.create({
   },
   crosshair: {
     position: 'absolute',
-    width: 20,
-    height: 20,
+    width: 24,
+    height: 24,
+    zIndex: 1000,
+    pointerEvents: 'none',
+  },
+  crosshairRing: {
+    position: 'absolute',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     borderWidth: 2,
     borderColor: '#fff',
-    borderRadius: 10,
     backgroundColor: 'transparent',
-    zIndex: 1000,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 2,
+    elevation: 10,
+  },
+  crosshairDot: {
+    position: 'absolute',
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#fff',
+    left: 10,
+    top: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 1,
+    elevation: 10,
+  },
+  crosshairLine: {
+    position: 'absolute',
+    backgroundColor: '#fff',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
-    shadowRadius: 4,
+    shadowRadius: 1,
     elevation: 10,
   },
   magnifier: {
