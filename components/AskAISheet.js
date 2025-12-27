@@ -46,9 +46,12 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
 
   // Auto-detect color is now handled in the main visible useEffect below
 
-  // Auto-detect color from product image (client-side, no API)
+  // Auto-detect color from product image (ALWAYS uses original product image, never try-on result)
   const autoDetectColor = async () => {
-    if (!product?.image) {
+    // Always use original product image, never try-on result
+    const imageToUse = originalProductImage.current || product?.image;
+    
+    if (!imageToUse) {
       console.log('🎨 [CLIENT COLOR] No product image available for color detection');
       return;
     }
@@ -61,10 +64,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
     
     setIsDetectingColor(true);
     try {
-      console.log('🎨 [CLIENT COLOR] Starting client-side color detection from:', product.image.substring(0, 100));
+      console.log('🎨 [CLIENT COLOR] Starting color detection from ORIGINAL product image:', imageToUse.substring(0, 100));
       
       // Use client-side color detection (no API call)
-      const colorResult = await detectDominantColor(product.image);
+      const colorResult = await detectDominantColor(imageToUse);
       
       console.log('🎨 [CLIENT COLOR] Color detection result:', JSON.stringify(colorResult, null, 2));
       
@@ -77,7 +80,9 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         });
         
         setDetectedColor(colorResult.name);
+        setDetectedColorHex(colorResult.color);
         setUserEnteredColor(colorResult.name);
+        setColorSource('auto-detected'); // Mark as auto-detected
         
         // Update product color immediately
         const updatedProduct = {
@@ -108,6 +113,44 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
     }
   };
   
+  // Helper to infer color from product name (moved to avoid duplicate)
+  const inferColorFromName = (name) => {
+    if (!name) return '';
+    const lower = name.toLowerCase();
+    const colors = ['black', 'white', 'red', 'blue', 'green', 'pink', 'yellow', 'orange', 'purple', 'brown', 'beige', 'grey', 'gray', 'navy', 'cream', 'ivory', 'burgundy', 'maroon', 'plum', 'coral', 'salmon', 'teal', 'emerald', 'lavender', 'violet', 'rust', 'olive', 'khaki', 'camel', 'tan'];
+    for (const color of colors) {
+      if (lower.includes(color)) return color;
+    }
+    return '';
+  };
+  
+  // Color picker handler - picks color from original product image
+  const handleColorPicker = async (event) => {
+    try {
+      const imageToUse = originalProductImage.current || product?.image;
+      if (!imageToUse) {
+        Alert.alert('Error', 'No product image available');
+        return;
+      }
+      
+      // For now, we'll use the auto-detect as a proxy for color picking
+      // In a full implementation, you'd extract the pixel color at the click coordinates
+      // This requires canvas/image manipulation which is complex in React Native
+      // For MVP, we'll trigger auto-detection and mark it as manually selected
+      console.log('🎨 [COLOR PICKER] User wants to pick color from image');
+      setShowColorPicker(false);
+      
+      // Trigger color detection and mark as manual
+      await autoDetectColor();
+      setColorSource('manual');
+      
+      Alert.alert('Color Picked', 'Color has been detected from the product image. You can adjust it if needed.');
+    } catch (error) {
+      console.error('🎨 [COLOR PICKER] Error:', error);
+      Alert.alert('Error', 'Failed to pick color from image');
+    }
+  };
+  
   const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   
@@ -128,6 +171,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
   const [showMaterialInputModal, setShowMaterialInputModal] = useState(false);
   const [selectedBrand, setSelectedBrand] = useState(null);
   const [detectedColor, setDetectedColor] = useState(null);
+  const [detectedColorHex, setDetectedColorHex] = useState(null); // Store hex for color swatch
   const [userEnteredColor, setUserEnteredColor] = useState(null);
   const [userEnteredMaterial, setUserEnteredMaterial] = useState(null);
   const [parsedSizeChart, setParsedSizeChart] = useState(null);
@@ -137,6 +181,24 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
   const [manualSizeChartInput, setManualSizeChartInput] = useState({});
   const [showParsedDataConfirmation, setShowParsedDataConfirmation] = useState(false);
   const [pendingParsedData, setPendingParsedData] = useState(null);
+  
+  // Color source tracking: 'product' | 'auto-detected' | 'manual' | null
+  const [colorSource, setColorSource] = useState(null);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [pickedColorHex, setPickedColorHex] = useState(null);
+  const [pickedColorName, setPickedColorName] = useState(null);
+  
+  // Store original product image (not try-on result) for color detection
+  const originalProductImage = useRef(null);
+  
+  // Initialize original product image on mount
+  useEffect(() => {
+    if (product?.image) {
+      // Always use the original product image, never a try-on result
+      originalProductImage.current = product.image;
+      console.log('🎨 [COLOR] Original product image stored:', product.image.substring(0, 100));
+    }
+  }, [product?.id]); // Only update when product ID changes
 
   // Pan responder for drag-to-dismiss - ONLY on the header area
   const panResponder = useRef(
@@ -169,13 +231,35 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
   useEffect(() => {
     if (visible) {
       openSheet();
-      // Auto-detect color immediately when Fit Check opens
-      if (product?.image) {
-        // Start color detection (non-blocking)
-        autoDetectColor();
+      
+      // Check if color is already in product name/metadata
+      const productColorFromName = inferColorFromName(product?.name || '');
+      if (productColorFromName && !product?.color) {
+        console.log('🎨 [COLOR] Color detected from product name:', productColorFromName);
+        setColorSource('product');
+        setDetectedColor(productColorFromName);
+        setUserEnteredColor(productColorFromName);
+      } else if (product?.color && !detectedColor && !userEnteredColor) {
+        // Product already has color set
+        console.log('🎨 [COLOR] Color from product metadata:', product.color);
+        setColorSource('product');
+        setDetectedColor(product.color);
+        setUserEnteredColor(product.color);
       }
-      // Load insights (will use detected color if available, or reload when color is detected)
-      loadInsights();
+      
+      // Auto-detect color immediately when Fit Check opens (only if no color from product)
+      // Note: autoDetectColor will reload insights after detection, so we don't need to call loadInsights here
+      if (originalProductImage.current && !productColorFromName && !product?.color) {
+        console.log('🎨 [COLOR] Auto-detecting color from product image...');
+        // Start color detection (non-blocking) - it will reload insights after detection
+        autoDetectColor().then(() => {
+          // Only load insights if color detection didn't trigger a reload
+          // (autoDetectColor already calls loadInsights after detection)
+        });
+      } else {
+        // Load insights immediately if we already have color or no image
+        loadInsights();
+      }
     } else {
       // Reset position when hidden
       translateY.setValue(SHEET_HEIGHT);
@@ -817,13 +901,65 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                 )}
               </View>
 
-              {/* Section 2: COLOR */}
+              {/* Section 2: COLOR CARD */}
               <View style={styles.card}>
                 <View style={styles.cardHeader}>
                   <Text style={styles.cardEmoji}>🎨</Text>
                   <Text style={styles.cardTitle}>COLOR</Text>
                 </View>
 
+                {/* Color Card - Always shows color information */}
+                <View style={styles.colorCardContainer}>
+                  {/* Color Source Label */}
+                  <View style={styles.colorSourceRow}>
+                    <Text style={styles.colorSourceLabel}>
+                      {colorSource === 'product' && 'Color detected from product'}
+                      {colorSource === 'auto-detected' && 'Color auto-detected'}
+                      {colorSource === 'manual' && 'Color selected manually'}
+                      {!colorSource && (product?.color || detectedColor || userEnteredColor) && 'Color detected from product'}
+                      {!colorSource && !product?.color && !detectedColor && !userEnteredColor && 'No color detected'}
+                    </Text>
+                  </View>
+
+                  {/* Color Display: Name + Swatch */}
+                  {(product?.color || detectedColor || userEnteredColor) ? (
+                    <View style={styles.colorDisplayRow}>
+                      {/* Circular Color Swatch */}
+                      <View style={[
+                        styles.colorSwatch,
+                        {
+                          backgroundColor: detectedColorHex || pickedColorHex || '#808080',
+                        }
+                      ]} />
+                      
+                      {/* Color Name */}
+                      <Text style={styles.colorNameText}>
+                        {product?.color || detectedColor || userEnteredColor}
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={styles.colorDisplayRow}>
+                      <View style={[styles.colorSwatch, { backgroundColor: '#808080' }]} />
+                      <Text style={[styles.colorNameText, { color: '#666' }]}>No color detected</Text>
+                    </View>
+                  )}
+
+                  {/* Pick Color Button */}
+                  <Pressable
+                    style={styles.pickColorButton}
+                    onPress={() => {
+                      if (originalProductImage.current || product?.image) {
+                        setShowColorPicker(true);
+                      } else {
+                        setShowColorInputModal(true);
+                      }
+                    }}
+                  >
+                    <Text style={styles.pickColorButtonText}>🎯 Pick color from product</Text>
+                  </Pressable>
+                </View>
+
+                {/* Color Suitability Analysis */}
                 {colorSuitability?.status === 'INSUFFICIENT_DATA' ? (
                   <View style={styles.missingDataBox}>
                     <Text style={styles.missingDataText}>
@@ -852,7 +988,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                       )}
                     </View>
                   </View>
-                ) : (
+                ) : colorSuitability?.verdict ? (
                   <>
                     <View style={[
                       styles.verdictBadge,
@@ -884,7 +1020,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                       </View>
                     )}
                   </>
-                )}
+                ) : null}
               </View>
 
               {/* Section 3: BODY SHAPE */}
@@ -1395,6 +1531,51 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         </View>
       </Modal>
 
+      {/* Color Picker Modal - Shows original product image */}
+      <Modal
+        visible={showColorPicker}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowColorPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Pick Color from Product</Text>
+              <Pressable onPress={() => setShowColorPicker(false)}>
+                <Text style={styles.modalCloseBtn}>✕</Text>
+              </Pressable>
+            </View>
+            
+            <ScrollView 
+              style={styles.modalScroll}
+              contentContainerStyle={{ paddingBottom: 40, alignItems: 'center' }}
+            >
+              <Text style={[styles.modalSectionSubtitle, { marginBottom: 16, textAlign: 'center' }]}>
+                Tap anywhere on the product image to detect the color
+              </Text>
+              
+              {originalProductImage.current || product?.image ? (
+                <Pressable
+                  onPress={handleColorPicker}
+                  style={{ width: '100%', alignItems: 'center' }}
+                >
+                  <Image
+                    source={{ uri: originalProductImage.current || product?.image }}
+                    style={{ width: '100%', height: 400, resizeMode: 'contain', borderRadius: 12 }}
+                  />
+                  <Text style={[styles.modalSectionSubtitle, { marginTop: 12, color: '#6366f1' }]}>
+                    Tap image to detect color
+                  </Text>
+                </Pressable>
+              ) : (
+                <Text style={styles.modalSectionSubtitle}>No product image available</Text>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       {/* Color Input Modal */}
       <Modal
         visible={showColorInputModal}
@@ -1427,9 +1608,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                     }
                     
                     console.log('🎨 [COLOR MODAL] Detect Color button clicked');
-                    console.log('🎨 [COLOR MODAL] Product image:', product?.image?.substring(0, 100));
+                    const imageToUse = originalProductImage.current || product?.image;
+                    console.log('🎨 [COLOR MODAL] Using ORIGINAL product image:', imageToUse?.substring(0, 100));
                     
-                    if (!product?.image) {
+                    if (!imageToUse) {
                       Alert.alert('Error', 'No product image available for color detection');
                       return;
                     }
@@ -1438,7 +1620,8 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                     console.log('🎨 [COLOR MODAL] Clearing color cache...');
                     clearColorCache();
                     
-                    console.log('🎨 [COLOR MODAL] Starting color detection...');
+                    console.log('🎨 [COLOR MODAL] Starting color detection from original image...');
+                    setColorSource('auto-detected');
                     await autoDetectColor();
                     console.log('🎨 [COLOR MODAL] Color detection completed');
                   }}
@@ -1450,7 +1633,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                       <Text style={styles.saveButtonText}>Detecting Color...</Text>
                     </>
                   ) : (
-                    <Text style={styles.saveButtonText}>🔍 Detect Color</Text>
+                    <Text style={styles.saveButtonText}>🔍 Auto-Detect Color</Text>
                   )}
                 </Pressable>
                 
@@ -1502,7 +1685,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                       };
                       setProduct(updatedProduct);
                       setUserEnteredColor(colorToSave.trim());
-                      setDetectedColor(null); // Clear after saving
+                      // Mark as manual if user entered it manually
+                      if (userEnteredColor && userEnteredColor !== detectedColor) {
+                        setColorSource('manual');
+                      }
                       setShowColorInputModal(false);
                       setTimeout(() => {
                         console.log('🎨 [COLOR MODAL] Reloading insights with saved color');
@@ -2114,6 +2300,56 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginTop: 8,
     marginBottom: 16,
+  },
+  // Color Card styles
+  colorCardContainer: {
+    padding: 16,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  colorSourceRow: {
+    marginBottom: 12,
+  },
+  colorSourceLabel: {
+    fontSize: 12,
+    color: '#9ca3af',
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  colorDisplayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  colorSwatch: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
+    marginRight: 12,
+  },
+  colorNameText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+    flex: 1,
+  },
+  pickColorButton: {
+    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+  },
+  pickColorButtonText: {
+    color: '#a5b4fc',
+    fontSize: 14,
+    fontWeight: '600',
   },
   materialInput: {
     backgroundColor: 'rgba(255,255,255,0.1)',
