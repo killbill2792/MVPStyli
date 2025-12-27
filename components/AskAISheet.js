@@ -139,57 +139,66 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
   const colorPickerApiInProgress = useRef(false);
   
   // Convert touch coordinates to image pixel coordinates (accounts for resizeMode: contain letterboxing)
+  // Follows exact specification: scale = min(containerW / naturalW, containerH / naturalH)
   const convertTouchToImageCoords = (touchX, touchY) => {
     if (!imageLayout.width || !imageLayout.height || !imageNaturalSize.width || !imageNaturalSize.height) {
+      console.warn('🎨 [MANUAL PICKER] Missing layout or natural size:', {
+        layout: imageLayout,
+        natural: imageNaturalSize,
+      });
       return null;
     }
     
-    // Calculate the displayed image rect (accounting for letterboxing with resizeMode: contain)
-    const containerAspect = imageLayout.width / imageLayout.height;
-    const imageAspect = imageNaturalSize.width / imageNaturalSize.height;
+    const containerW = imageLayout.width;
+    const containerH = imageLayout.height;
+    const naturalW = imageNaturalSize.width;
+    const naturalH = imageNaturalSize.height;
     
-    let displayedWidth, displayedHeight, offsetX, offsetY;
+    // Calculate scale: min(containerW / naturalW, containerH / naturalH)
+    const scale = Math.min(containerW / naturalW, containerH / naturalH);
     
-    if (imageAspect > containerAspect) {
-      // Image is wider - letterboxing on top/bottom
-      displayedWidth = imageLayout.width;
-      displayedHeight = imageLayout.width / imageAspect;
-      offsetX = 0;
-      offsetY = (imageLayout.height - displayedHeight) / 2;
-    } else {
-      // Image is taller - letterboxing on left/right
-      displayedWidth = imageLayout.height * imageAspect;
-      displayedHeight = imageLayout.height;
-      offsetX = (imageLayout.width - displayedWidth) / 2;
-      offsetY = 0;
-    }
+    // Calculate displayed image dimensions
+    const displayW = naturalW * scale;
+    const displayH = naturalH * scale;
     
-    // Check if touch is outside the displayed image rect
-    if (touchX < offsetX || touchX > offsetX + displayedWidth ||
-        touchY < offsetY || touchY > offsetY + displayedHeight) {
+    // Calculate offsets (centering)
+    const offsetX = (containerW - displayW) / 2;
+    const offsetY = (containerH - displayH) / 2;
+    
+    // Convert touch coordinates to coordinates relative to displayed image
+    const ix = touchX - offsetX;
+    const iy = touchY - offsetY;
+    
+    // Check if touch is outside displayed image rect
+    if (ix < 0 || ix > displayW || iy < 0 || iy > displayH) {
+      console.warn('🎨 [MANUAL PICKER] Touch outside image bounds:', {
+        touchX, touchY,
+        ix, iy,
+        displayW, displayH,
+        offsetX, offsetY,
+      });
       return null; // Touch outside image
     }
     
-    // Convert touch coordinates to coordinates relative to displayed image
-    const relativeX = touchX - offsetX;
-    const relativeY = touchY - offsetY;
+    // Clamp to displayed image bounds
+    const clampedIx = Math.max(0, Math.min(ix, displayW));
+    const clampedIy = Math.max(0, Math.min(iy, displayH));
     
-    // Scale to actual image coordinates
-    const scaleX = imageNaturalSize.width / displayedWidth;
-    const scaleY = imageNaturalSize.height / displayedHeight;
+    // Convert displayed image coordinates to actual image pixel coordinates
+    const pixelX = Math.floor((clampedIx / displayW) * naturalW);
+    const pixelY = Math.floor((clampedIy / displayH) * naturalH);
     
-    const imageX = Math.floor(relativeX * scaleX);
-    const imageY = Math.floor(relativeY * scaleY);
-    
-    // Clamp to image bounds
-    const clampedX = Math.max(0, Math.min(imageX, imageNaturalSize.width - 1));
-    const clampedY = Math.max(0, Math.min(imageY, imageNaturalSize.height - 1));
+    // Final clamp to image bounds
+    const finalX = Math.max(0, Math.min(pixelX, naturalW - 1));
+    const finalY = Math.max(0, Math.min(pixelY, naturalH - 1));
     
     return {
-      imageX: clampedX,
-      imageY: clampedY,
-      displayX: touchX,
-      displayY: touchY,
+      imageX: finalX,
+      imageY: finalY,
+      displayX: clampedIx,
+      displayY: clampedIy,
+      displayWidth: displayW,
+      displayHeight: displayH,
     };
   };
   
@@ -212,9 +221,31 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
   
   // Pick color at coordinates - called only on release
   const pickColorAtCoordinates = async (touchX, touchY) => {
-    const imageUrl = colorPickerImageUrlRef.current;
-    if (!imageUrl || !imageLayout.width || !imageLayout.height) {
-      console.error('🎨 [MANUAL PICKER] No pre-loaded image available');
+    // Try to get image URL from multiple sources
+    let imageUrl = colorPickerImageUrlRef.current;
+    if (!imageUrl) {
+      // Fallback: try to get from current state
+      imageUrl = originalProductImage.current || product?.image;
+      if (imageUrl) {
+        console.log('🎨 [MANUAL PICKER] Using fallback image URL');
+        colorPickerImageUrlRef.current = imageUrl;
+      }
+    }
+    
+    if (!imageUrl) {
+      console.error('🎨 [MANUAL PICKER] No image available:', {
+        ref: colorPickerImageUrlRef.current,
+        original: originalProductImage.current,
+        product: product?.image,
+      });
+      return null;
+    }
+
+    if (!imageLayout.width || !imageLayout.height || !imageNaturalSize.width || !imageNaturalSize.height) {
+      console.error('🎨 [MANUAL PICKER] Missing layout or natural size:', {
+        layout: imageLayout,
+        natural: imageNaturalSize,
+      });
       return null;
     }
 
@@ -233,15 +264,19 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://mvp-styli.vercel.app';
       const apiUrl = `${API_BASE}/api/pick-pixel-color`;
       
+      // Send display coordinates (ix, iy) and display dimensions (displayW, displayH) as specified
       const apiResponse = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageUrl: imageUrl, // Use pre-loaded URL (much faster than base64)
-          x: coords.imageX, // Use actual image coordinates
-          y: coords.imageY,
-          imageWidth: imageNaturalSize.width,
-          imageHeight: imageNaturalSize.height,
+          x: coords.imageX, // Actual pixel X in natural image
+          y: coords.imageY, // Actual pixel Y in natural image
+          imageWidth: imageNaturalSize.width, // Natural image width
+          imageHeight: imageNaturalSize.height, // Natural image height
+          // Also send display dimensions for verification
+          displayWidth: coords.displayWidth,
+          displayHeight: coords.displayHeight,
         }),
       });
 
@@ -328,10 +363,16 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
   // Pre-load image when color picker modal opens
   useEffect(() => {
     if (showColorPicker) {
+      // Try multiple sources for the image
       const imageToUse = originalProductImage.current || product?.image;
       if (imageToUse) {
         console.log('🎨 [MANUAL PICKER] Pre-loading image for picker:', imageToUse.substring(0, 100));
         colorPickerImageUrlRef.current = imageToUse;
+      } else {
+        console.warn('🎨 [MANUAL PICKER] No image available for pre-loading:', {
+          originalProductImage: originalProductImage.current,
+          productImage: product?.image,
+        });
       }
     } else {
       // Cleanup when modal closes
@@ -340,7 +381,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       setPickerTouchPosition(null);
       setMagnifierPosition(null);
     }
-  }, [showColorPicker]);
+  }, [showColorPicker, product?.image]);
   
   // Simple RGB to color name (client-side, for manual picker only)
   const rgbToColorNameSimple = (r, g, b) => {
