@@ -79,51 +79,87 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
     
-    // Sample pixels from center region (avoid edges which might be background/watermarks)
-    const centerX = Math.floor(width / 2);
-    const centerY = Math.floor(height / 2);
-    const sampleRadius = Math.min(30, Math.floor(Math.min(width, height) / 2));
+    // Strategy: Sample multiple regions and filter out background colors
+    // Product images often have white/light backgrounds, so we need to:
+    // 1. Sample from multiple regions (center, upper-center, lower-center)
+    // 2. Filter out common background colors (white, very light colors, grays)
+    // 3. Prefer more saturated/vibrant colors (likely the product)
     
-    // Collect colors from center region with quantization
-    const colorCounts = new Map<string, number>();
+    const colorCounts = new Map<string, { count: number; saturation: number }>();
     let sampleCount = 0;
     
-    for (let y = centerY - sampleRadius; y < centerY + sampleRadius; y++) {
-      for (let x = centerX - sampleRadius; x < centerX + sampleRadius; x++) {
-        if (x >= 0 && x < width && y >= 0 && y < height) {
-          const idx = (y * width + x) * channels;
-          const r = pixels[idx];
-          const g = pixels[idx + 1];
-          const b = pixels[idx + 2];
-          
-          // Quantize colors to reduce noise (round to nearest 15 for better grouping)
-          const qr = Math.round(r / 15) * 15;
-          const qg = Math.round(g / 15) * 15;
-          const qb = Math.round(b / 15) * 15;
-          const colorKey = `${qr},${qg},${qb}`;
-          
-          colorCounts.set(colorKey, (colorCounts.get(colorKey) || 0) + 1);
-          sampleCount++;
+    // Sample from multiple regions to avoid missing the product
+    const regions = [
+      { x: Math.floor(width * 0.5), y: Math.floor(height * 0.3), radius: Math.min(20, Math.floor(width * 0.2)) }, // Upper center
+      { x: Math.floor(width * 0.5), y: Math.floor(height * 0.5), radius: Math.min(25, Math.floor(width * 0.25)) }, // Center
+      { x: Math.floor(width * 0.5), y: Math.floor(height * 0.7), radius: Math.min(20, Math.floor(width * 0.2)) }, // Lower center
+    ];
+    
+    for (const region of regions) {
+      for (let y = region.y - region.radius; y < region.y + region.radius; y++) {
+        for (let x = region.x - region.radius; x < region.x + region.radius; x++) {
+          if (x >= 0 && x < width && y >= 0 && y < height) {
+            const idx = (y * width + x) * channels;
+            const r = pixels[idx];
+            const g = pixels[idx + 1];
+            const b = pixels[idx + 2];
+            
+            // Calculate saturation to filter out grays/backgrounds
+            const max = Math.max(r, g, b);
+            const min = Math.min(r, g, b);
+            const saturation = max === 0 ? 0 : (max - min) / max;
+            const brightness = (r + g + b) / 3;
+            
+            // Filter out background colors:
+            // - Very bright colors (likely white/light background): brightness > 240
+            // - Very dark colors (likely shadows/background): brightness < 30
+            // - Low saturation grays (likely background): saturation < 0.1 and brightness between 200-255
+            if (brightness > 240 || brightness < 30) continue;
+            if (saturation < 0.1 && brightness > 200) continue; // Light gray backgrounds
+            
+            // Quantize colors to reduce noise (round to nearest 20 for better grouping)
+            const qr = Math.round(r / 20) * 20;
+            const qg = Math.round(g / 20) * 20;
+            const qb = Math.round(b / 20) * 20;
+            const colorKey = `${qr},${qg},${qb}`;
+            
+            const existing = colorCounts.get(colorKey);
+            if (existing) {
+              existing.count += 1;
+              existing.saturation = Math.max(existing.saturation, saturation); // Keep highest saturation
+            } else {
+              colorCounts.set(colorKey, { count: 1, saturation });
+            }
+            sampleCount++;
+          }
         }
       }
     }
     
-    // Find most common color (dominant color)
-    let maxCount = 0;
-    let dominantColor = { r: 128, g: 128, b: 128 }; // Default to grey
+    // Find most common color, but prefer more saturated colors if counts are similar
+    let bestColor = { r: 128, g: 128, b: 128 }; // Default to grey
+    let bestScore = 0;
     
-    for (const [colorKey, count] of colorCounts.entries()) {
-      if (count > maxCount) {
-        maxCount = count;
+    for (const [colorKey, data] of colorCounts.entries()) {
+      // Score = count * (1 + saturation bonus)
+      // This favors colors that are both common AND vibrant
+      const saturationBonus = data.saturation * 0.5; // Give bonus for saturation
+      const score = data.count * (1 + saturationBonus);
+      
+      if (score > bestScore) {
+        bestScore = score;
         const [r, g, b] = colorKey.split(',').map(Number);
-        dominantColor = { r, g, b };
+        bestColor = { r, g, b };
       }
     }
+    
+    const dominantColor = bestColor;
     
     const { r, g, b } = dominantColor;
     const hexColor = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
     
-    console.log('🎨 [COLOR API] Sampled', sampleCount, 'pixels, dominant color:', { r, g, b, hex: hexColor, dominance: (maxCount / sampleCount * 100).toFixed(1) + '%' });
+    const maxCount = colorCounts.get(`${dominantColor.r},${dominantColor.g},${dominantColor.b}`)?.count || 0;
+    console.log('🎨 [COLOR API] Sampled', sampleCount, 'pixels, dominant color:', { r, g, b, hex: hexColor, count: maxCount, dominance: (maxCount / sampleCount * 100).toFixed(1) + '%' });
 
     // Map RGB to color name
     const colorName = rgbToColorName(r, g, b);
