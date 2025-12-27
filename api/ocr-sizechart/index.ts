@@ -5,6 +5,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import sharp from 'sharp';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Set CORS headers
@@ -55,41 +56,124 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       // OCR.space free API (no key required, but limited requests)
       // Format: base64 image data
-      const base64Data = imageBase64 
-        ? (imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64)
-        : null;
+      let base64Data: string | null = null;
+      let needsConversion = false;
+      
+      if (imageBase64) {
+        // Extract base64 data (remove data URL prefix if present)
+        if (imageBase64.includes(',')) {
+          const [prefix, data] = imageBase64.split(',');
+          base64Data = data;
+          console.log('📊 [OCR] Data URL prefix:', prefix.substring(0, 50));
+        } else {
+          base64Data = imageBase64;
+        }
+        
+        console.log('📊 [OCR] Base64 data length:', base64Data.length);
+        
+        // Use sharp to detect actual image format and convert if needed
+        try {
+          const imageBuffer = Buffer.from(base64Data, 'base64');
+          const metadata = await sharp(imageBuffer).metadata();
+          const actualFormat = metadata.format;
+          
+          console.log('📊 [OCR] Sharp detected format:', actualFormat);
+          console.log('📊 [OCR] Image dimensions:', metadata.width, 'x', metadata.height);
+          
+          // Convert HEIC/HEIF to JPEG (OCR.space doesn't support HEIC)
+          const formatStr = String(actualFormat || '').toLowerCase();
+          if (formatStr === 'heic' || formatStr === 'heif' || formatStr === 'heif-sequence') {
+            console.log('📊 [OCR] HEIC/HEIF detected by sharp, converting to JPEG...');
+            needsConversion = true;
+          } else if (actualFormat && actualFormat !== 'jpeg' && actualFormat !== 'jpg' && actualFormat !== 'png') {
+            // Convert any unsupported format to JPEG
+            console.log(`📊 [OCR] Format ${actualFormat} may not be supported, converting to JPEG...`);
+            needsConversion = true;
+          }
+          
+          if (needsConversion) {
+            const jpegBuffer = await sharp(imageBuffer)
+              .jpeg({ quality: 90, mozjpeg: true })
+              .toBuffer();
+            base64Data = jpegBuffer.toString('base64');
+            console.log('📊 [OCR] Image converted to JPEG successfully (new length:', base64Data.length, ')');
+          }
+        } catch (sharpError: any) {
+          console.error('📊 [OCR] Sharp processing error:', sharpError.message);
+          // If sharp fails, try to detect from magic bytes as fallback
+          console.log('📊 [OCR] Falling back to magic bytes detection...');
+          try {
+            const sampleBase64 = base64Data.substring(0, 32);
+            const bytes = Buffer.from(sampleBase64, 'base64');
+            
+            // Check for HEIC/HEIF magic bytes
+            if (bytes.length >= 12 && bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70) {
+              if ((bytes[8] === 0x68 && bytes[9] === 0x65 && bytes[10] === 0x69 && bytes[11] === 0x63) ||
+                  (bytes[8] === 0x6D && bytes[9] === 0x69 && bytes[10] === 0x66 && bytes[11] === 0x31)) {
+                console.log('📊 [OCR] HEIC detected from magic bytes, attempting conversion...');
+                const imageBuffer = Buffer.from(base64Data, 'base64');
+                try {
+                  const jpegBuffer = await sharp(imageBuffer)
+                    .jpeg({ quality: 90, mozjpeg: true })
+                    .toBuffer();
+                  base64Data = jpegBuffer.toString('base64');
+                  console.log('📊 [OCR] HEIC converted to JPEG via fallback method');
+                } catch (convError: any) {
+                  console.error('📊 [OCR] Fallback conversion failed:', convError.message);
+                }
+              }
+            }
+          } catch (magicError: any) {
+            console.warn('📊 [OCR] Magic bytes detection failed:', magicError.message);
+          }
+        }
+      }
       
       if (base64Data) {
         // OCR.space requires API key - use free demo key (limited requests)
         // For production, get free API key from https://ocr.space/ocrapi/freekey
         const ocrApiKey = process.env.OCR_SPACE_API_KEY || 'helloworld';
         
+        // After conversion, always use JPG for OCR.space
+        const filetypeForOCR = needsConversion ? 'JPG' : 'JPG'; // Always JPG after any conversion
+        
+        console.log('📊 [OCR] Sending to OCR.space with filetype:', filetypeForOCR);
+        console.log('📊 [OCR] Base64 length:', base64Data.length);
+        
+        // OCR.space expects form data, not JSON!
+        // Create URL-encoded form data
+        const formData = new URLSearchParams();
+        formData.append('apikey', ocrApiKey);
+        formData.append('base64Image', base64Data); // Raw base64 (no data URI prefix needed when filetype is provided)
+        formData.append('filetype', filetypeForOCR);
+        formData.append('language', 'eng');
+        formData.append('isOverlayRequired', 'false');
+        formData.append('iscreatesearchablepdf', 'false');
+        formData.append('issearchablepdfhidetextlayer', 'false');
+        
         const ocrResponse = await fetch('https://api.ocr.space/parse/image', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'apikey': ocrApiKey,
+            'Content-Type': 'application/x-www-form-urlencoded',
           },
-          body: JSON.stringify({
-            base64Image: base64Data, // Send raw base64 without data URL prefix
-            filetype: 'JPG', // Specify file type explicitly
-            language: 'eng',
-            isOverlayRequired: false,
-            iscreatesearchablepdf: false,
-            issearchablepdfhidetextlayer: false,
-          }),
+          body: formData.toString(),
         });
         
         if (ocrResponse.ok) {
           const ocrData = await ocrResponse.json();
           console.log('📊 [OCR] OCR.space response:', JSON.stringify(ocrData, null, 2));
+          console.log('📊 [OCR] OCRExitCode:', ocrData.OCRExitCode);
+          console.log('📊 [OCR] IsErroredOnProcessing:', ocrData.IsErroredOnProcessing);
           
           if (ocrData.ParsedResults && ocrData.ParsedResults.length > 0) {
             extractedText = ocrData.ParsedResults[0].ParsedText || '';
             ocrConfidence = ocrData.ParsedResults[0].TextOverlay?.HasOverlay ? 80 : 60;
-            console.log('📊 [OCR] Text extracted successfully');
+            console.log('📊 [OCR] Text extracted successfully, length:', extractedText.length);
+            console.log('📊 [OCR] Extracted text preview:', extractedText.substring(0, 200));
           } else if (ocrData.ErrorMessage) {
             console.warn('📊 [OCR] OCR.space error:', ocrData.ErrorMessage);
+            console.warn('📊 [OCR] This might mean the image has no text, or OCR failed to process it');
+            
             // Fall through to manual input
           }
         } else {
@@ -254,7 +338,8 @@ function parseSizeChartText(text: string, ocrConfidence: number) {
     console.log('📊 [PARSE TEXT] Detected unit system: INCHES');
   } else {
     // Heuristic: if values are 60-120 range, likely cm; if 20-60, likely inches
-    const allNumbers = text.match(/\b(\d{2,3})\b/g) || [];
+    const allNumbersMatch = text.match(/\b(\d{2,3})\b/g);
+    const allNumbers: string[] = allNumbersMatch || [];
     const avgValue = allNumbers.length > 0 
       ? allNumbers.reduce((sum: number, n: string) => sum + parseInt(n, 10), 0) / allNumbers.length 
       : 0;

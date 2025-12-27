@@ -26,7 +26,7 @@ import { analyzeFabricComfort } from '../lib/fabricComfort';
 import { cmToInches, parseHeightToInches } from '../lib/measurementUtils';
 import { getAvailableBrands, getBrandSizeChart, convertBrandChartToFitLogic } from '../lib/brandSizeCharts';
 import { hasStretch, getStretchLevel } from '../lib/materialElasticity';
-import { detectDominantColor } from '../lib/colorDetection';
+import { detectDominantColor, clearColorCache } from '../lib/colorDetection';
 import * as ImagePicker from 'expo-image-picker';
 
 const { width, height } = Dimensions.get('window');
@@ -133,6 +133,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
   const [parsedSizeChart, setParsedSizeChart] = useState(null);
   const [isDetectingColor, setIsDetectingColor] = useState(false);
   const [isParsingSizeChart, setIsParsingSizeChart] = useState(false);
+  const [ocrParsingStatus, setOcrParsingStatus] = useState(null);
   const [manualSizeChartInput, setManualSizeChartInput] = useState({});
 
   // Pan responder for drag-to-dismiss - ONLY on the header area
@@ -1107,70 +1108,98 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
 
                       if (!result.canceled && result.assets[0]) {
                         setIsParsingSizeChart(true);
+                        setOcrParsingStatus('Preparing image...');
                         const imageUri = result.assets[0].uri;
                         
+                        console.log('📊 [FRONTEND] Image selected:', imageUri);
+                        
                         // Convert image to base64
-                        const response = await fetch(imageUri);
-                        const blob = await response.blob();
-                        const reader = new FileReader();
-                        reader.onloadend = async () => {
-                          const base64 = reader.result;
+                        try {
+                          setOcrParsingStatus('Converting image to base64...');
+                          const response = await fetch(imageUri);
+                          const blob = await response.blob();
+                          console.log('📊 [FRONTEND] Image blob size:', blob.size, 'bytes');
+                          console.log('📊 [FRONTEND] Image blob type:', blob.type);
                           
-                          // Call fit-check-utils API for parsing size chart
-                          try {
-                            const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'https://mvpstyli-fresh.vercel.app';
-                            console.log('📊 [FRONTEND] Uploading size chart image...');
-                            console.log('📊 [FRONTEND] Image size:', blob.size, 'bytes');
-                            console.log('📊 [FRONTEND] API endpoint:', `${API_BASE}/api/ocr-sizechart`);
+                          const reader = new FileReader();
+                          reader.onloadend = async () => {
+                            const base64 = reader.result;
+                            console.log('📊 [FRONTEND] Base64 length:', base64?.length || 0);
                             
-                            const parseResponse = await fetch(`${API_BASE}/api/ocr-sizechart`, {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ imageBase64: base64 }),
-                            });
-                            
-                            console.log('📊 [FRONTEND] OCR response status:', parseResponse.status);
-                            
-                            if (!parseResponse.ok) {
-                              const errorText = await parseResponse.text();
-                              console.error('📊 [FRONTEND] OCR API error:', parseResponse.status, errorText);
-                              throw new Error(`OCR API error: ${parseResponse.status}`);
-                            }
-                            
-                            const parseData = await parseResponse.json();
-                            console.log('📊 [FRONTEND] Size chart parse result:', JSON.stringify(parseData, null, 2));
-                            console.log('📊 [FRONTEND] Parse success:', parseData.success);
-                            console.log('📊 [FRONTEND] Parsed data:', parseData.data);
-                            console.log('📊 [FRONTEND] Raw text length:', parseData.rawText?.length || 0);
-                            
-                            if (parseData.success && parseData.data) {
-                              setParsedSizeChart(parseData.data);
-                              // Update product and reload
-                              const updatedProduct = {
-                                ...product,
-                                sizeChart: parseData.data,
-                              };
-                              setProduct(updatedProduct);
-                              setShowGarmentInputModal(false);
-                              setTimeout(() => {
-                                loadInsights(true);
-                              }, 100);
-                            } else {
-                              // Show manual input with pre-filled structure
-                              setManualSizeChartInput(parseData.structure || {
-                                sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
-                                measurements: ['chest', 'waist', 'hips', 'length', 'sleeve', 'shoulder', 'inseam', 'rise'],
+                            // Call fit-check-utils API for parsing size chart
+                            try {
+                              const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'https://mvpstyli-fresh.vercel.app';
+                              console.log('📊 [FRONTEND] Uploading size chart image...');
+                              console.log('📊 [FRONTEND] Image size:', blob.size, 'bytes');
+                              console.log('📊 [FRONTEND] API endpoint:', `${API_BASE}/api/ocr-sizechart`);
+                              
+                              setOcrParsingStatus('Sending to OCR service...');
+                              
+                              const parseResponse = await fetch(`${API_BASE}/api/ocr-sizechart`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ imageBase64: base64 }),
                               });
-                              // Don't close modal - show manual input form
+                              
+                              console.log('📊 [FRONTEND] OCR response status:', parseResponse.status);
+                              
+                              if (!parseResponse.ok) {
+                                const errorText = await parseResponse.text();
+                                console.error('📊 [FRONTEND] OCR API error:', parseResponse.status, errorText);
+                                setOcrParsingStatus(`Error: ${parseResponse.status}`);
+                                throw new Error(`OCR API error: ${parseResponse.status}`);
+                              }
+                              
+                              setOcrParsingStatus('Processing OCR results...');
+                              
+                              const parseData = await parseResponse.json();
+                              console.log('📊 [FRONTEND] Size chart parse result:', JSON.stringify(parseData, null, 2));
+                              console.log('📊 [FRONTEND] Parse success:', parseData.success);
+                              console.log('📊 [FRONTEND] Parsed data:', parseData.data);
+                              console.log('📊 [FRONTEND] Raw text length:', parseData.rawText?.length || 0);
+                              
+                              if (parseData.success && parseData.data) {
+                                setOcrParsingStatus('✓ Successfully parsed size chart!');
+                                setParsedSizeChart(parseData.data);
+                                // Update product and reload
+                                const updatedProduct = {
+                                  ...product,
+                                  sizeChart: parseData.data,
+                                };
+                                setProduct(updatedProduct);
+                                
+                                // Show success message briefly before closing
+                                setTimeout(() => {
+                                  setShowGarmentInputModal(false);
+                                  setOcrParsingStatus(null);
+                                  setTimeout(() => {
+                                    loadInsights(true);
+                                  }, 100);
+                                }, 1000);
+                              } else {
+                                setOcrParsingStatus('Could not auto-parse. Please enter manually.');
+                                // Show manual input with pre-filled structure
+                                setManualSizeChartInput(parseData.structure || {
+                                  sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
+                                  measurements: ['chest', 'waist', 'hips', 'length', 'sleeve', 'shoulder', 'inseam', 'rise'],
+                                });
+                                // Don't close modal - show manual input form
+                              }
+                            } catch (error) {
+                              console.error('Error parsing size chart:', error);
+                              setOcrParsingStatus(`Error: ${error.message}`);
+                              Alert.alert('Error', 'Failed to parse size chart. Please try manual input.');
+                            } finally {
+                              setIsParsingSizeChart(false);
                             }
-                          } catch (error) {
-                            console.error('Error parsing size chart:', error);
-                            Alert.alert('Error', 'Failed to parse size chart. Please try manual input.');
-                          } finally {
-                            setIsParsingSizeChart(false);
-                          }
-                        };
-                        reader.readAsDataURL(blob);
+                          };
+                          reader.readAsDataURL(blob);
+                        } catch (error) {
+                          console.error('Error converting image:', error);
+                          setOcrParsingStatus(`Error: ${error.message}`);
+                          Alert.alert('Error', 'Failed to process image');
+                          setIsParsingSizeChart(false);
+                        }
                       }
                     } catch (error) {
                       console.error('Error picking image:', error);
@@ -1180,13 +1209,26 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                   }}
                 >
                   {isParsingSizeChart ? (
-                    <ActivityIndicator color="#6366f1" />
+                    <>
+                      <ActivityIndicator color="#6366f1" style={{ marginBottom: 8 }} />
+                      <Text style={styles.uploadButtonText}>Processing...</Text>
+                    </>
                   ) : (
                     <>
                       <Text style={styles.uploadButtonText}>📷 Upload Screenshot</Text>
                     </>
                   )}
                 </Pressable>
+                
+                {ocrParsingStatus && (
+                  <Text style={[styles.detectedColorText, { 
+                    marginTop: 12, 
+                    color: ocrParsingStatus.startsWith('✓') ? '#10b981' : ocrParsingStatus.startsWith('Error') ? '#ef4444' : '#6366f1',
+                    fontSize: 13,
+                  }]}>
+                    {ocrParsingStatus}
+                  </Text>
+                )}
               </View>
 
               {/* Option 3: Manual Input */}
@@ -1305,24 +1347,56 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                 <Pressable
                   style={[styles.saveButton, isDetectingColor && { opacity: 0.5 }]}
                   onPress={async () => {
-                    if (isDetectingColor) return;
+                    if (isDetectingColor) {
+                      console.log('🎨 [COLOR MODAL] Color detection already in progress, ignoring click');
+                      return;
+                    }
+                    
+                    console.log('🎨 [COLOR MODAL] Detect Color button clicked');
+                    console.log('🎨 [COLOR MODAL] Product image:', product?.image?.substring(0, 100));
+                    
+                    if (!product?.image) {
+                      Alert.alert('Error', 'No product image available for color detection');
+                      return;
+                    }
+                    
                     // Clear cache to force fresh detection
+                    console.log('🎨 [COLOR MODAL] Clearing color cache...');
                     clearColorCache();
+                    
+                    console.log('🎨 [COLOR MODAL] Starting color detection...');
                     await autoDetectColor();
+                    console.log('🎨 [COLOR MODAL] Color detection completed');
                   }}
                   disabled={isDetectingColor}
                 >
                   {isDetectingColor ? (
-                    <ActivityIndicator color="#fff" />
+                    <>
+                      <ActivityIndicator color="#fff" style={{ marginRight: 8 }} />
+                      <Text style={styles.saveButtonText}>Detecting Color...</Text>
+                    </>
                   ) : (
                     <Text style={styles.saveButtonText}>🔍 Detect Color</Text>
                   )}
                 </Pressable>
                 
-                {detectedColor && (
-                  <Text style={[styles.detectedColorText, { marginTop: 12 }]}>
-                    Detected: {detectedColor}
+                {isDetectingColor && (
+                  <Text style={[styles.detectedColorText, { marginTop: 12, color: '#6366f1' }]}>
+                    Analyzing image...
                   </Text>
+                )}
+                
+                {detectedColor && !isDetectingColor && (
+                  <View style={{ marginTop: 12, padding: 12, backgroundColor: '#f0f0f0', borderRadius: 8 }}>
+                    <Text style={[styles.detectedColorText, { color: '#10b981', fontWeight: 'bold' }]}>
+                      ✓ Detected: {detectedColor}
+                    </Text>
+                    {product?.color && (
+                      <Text style={[styles.detectedColorText, { marginTop: 4, fontSize: 12, color: '#666' }]}>
+                        Saved to product
+                      </Text>
+                    )}
+                  </View>
                 )}
               </View>
 
