@@ -265,18 +265,19 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       const apiUrl = `${API_BASE}/api/pick-pixel-color`;
       
       // Send display coordinates (ix, iy) and display dimensions (displayW, displayH) as specified
+      // The API will convert these to actual pixel coordinates
       const apiResponse = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageUrl: imageUrl, // Use pre-loaded URL (much faster than base64)
-          x: coords.imageX, // Actual pixel X in natural image
-          y: coords.imageY, // Actual pixel Y in natural image
-          imageWidth: imageNaturalSize.width, // Natural image width
-          imageHeight: imageNaturalSize.height, // Natural image height
-          // Also send display dimensions for verification
-          displayWidth: coords.displayWidth,
-          displayHeight: coords.displayHeight,
+          x: coords.displayX, // Display coordinate ix (relative to displayed image)
+          y: coords.displayY, // Display coordinate iy (relative to displayed image)
+          imageWidth: coords.displayWidth, // Display width (displayW)
+          imageHeight: coords.displayHeight, // Display height (displayH)
+          // Also send natural dimensions for API verification
+          naturalWidth: imageNaturalSize.width,
+          naturalHeight: imageNaturalSize.height,
         }),
       });
 

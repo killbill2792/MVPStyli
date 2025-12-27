@@ -23,7 +23,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { imageBase64, imageUrl, x, y, imageWidth, imageHeight } = req.body;
+    const { imageBase64, imageUrl, x, y, imageWidth, imageHeight, naturalWidth, naturalHeight } = req.body;
 
     if (!imageBase64 && !imageUrl) {
       return res.status(400).json({ error: 'Missing imageBase64 or imageUrl' });
@@ -33,7 +33,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Missing x or y coordinates' });
     }
 
-    console.log('🎯 [PIXEL PICK] Picking exact pixel color at:', { x, y, imageWidth, imageHeight });
+    console.log('🎯 [PIXEL PICK] Picking exact pixel color at:', { 
+      x, y, 
+      imageWidth, imageHeight, 
+      naturalWidth, naturalHeight 
+    });
 
     let imageBuffer: Buffer;
 
@@ -58,14 +62,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const actualWidth = metadata.width || 1;
     const actualHeight = metadata.height || 1;
 
-    // Convert tap coordinates (from displayed image) to actual image coordinates
+    // Convert display coordinates (ix, iy) to actual image pixel coordinates
+    // x, y are display coordinates relative to displayed image (after offset)
+    // imageWidth, imageHeight are display dimensions (displayW, displayH)
     let pixelX = x;
     let pixelY = y;
 
     if (imageWidth && imageHeight && imageWidth > 0 && imageHeight > 0) {
-      // Calculate scale factor if image was resized for display
-      const scaleX = actualWidth / imageWidth;
-      const scaleY = actualHeight / imageHeight;
+      // Use natural dimensions if provided, otherwise use actual image dimensions
+      const targetWidth = naturalWidth || actualWidth;
+      const targetHeight = naturalHeight || actualHeight;
+      
+      // Calculate scale: display coordinates to pixel coordinates
+      const scaleX = targetWidth / imageWidth;
+      const scaleY = targetHeight / imageHeight;
       pixelX = Math.floor(x * scaleX);
       pixelY = Math.floor(y * scaleY);
     }
