@@ -22,7 +22,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { imageBase64, imageUrl } = req.body;
+    const { imageBase64, imageUrl, pickPixel, x, y, imageWidth, imageHeight } = req.body;
+
+    // If pickPixel is true, extract exact pixel color at coordinates
+    if (pickPixel && (x !== undefined && y !== undefined)) {
+      return await handlePixelColorPick(req, res, imageBase64, imageUrl, x, y, imageWidth, imageHeight);
+    }
 
     if (!imageBase64 && !imageUrl) {
       return res.status(400).json({ error: 'Missing imageBase64 or imageUrl' });
@@ -398,5 +403,115 @@ function rgbToColorName(r: number, g: number, b: number): string {
   }
 
   return closestColor;
+}
+
+/**
+ * Handle pixel color picking - extracts exact color at specific coordinates
+ */
+async function handlePixelColorPick(
+  req: VercelRequest,
+  res: VercelResponse,
+  imageBase64: string | undefined,
+  imageUrl: string | undefined,
+  x: number,
+  y: number,
+  imageWidth: number | undefined,
+  imageHeight: number | undefined
+) {
+  try {
+    console.log('🎨 [COLOR PICKER] Picking pixel color at coordinates:', { x, y, imageWidth, imageHeight });
+
+    let imageBuffer: Buffer;
+
+    if (imageBase64) {
+      const base64Data = imageBase64.includes(',') 
+        ? imageBase64.split(',')[1] 
+        : imageBase64;
+      imageBuffer = Buffer.from(base64Data, 'base64');
+    } else if (imageUrl) {
+      const response = await fetch(imageUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.statusText}`);
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      imageBuffer = Buffer.from(arrayBuffer);
+    } else {
+      return res.status(400).json({ error: 'Missing image data' });
+    }
+
+    // Get image metadata
+    const metadata = await sharp(imageBuffer).metadata();
+    const actualWidth = metadata.width || 1;
+    const actualHeight = metadata.height || 1;
+
+    // Convert tap coordinates (from displayed image) to actual image coordinates
+    let pixelX = x;
+    let pixelY = y;
+
+    if (imageWidth && imageHeight) {
+      // Calculate scale factor if image was resized for display
+      const scaleX = actualWidth / imageWidth;
+      const scaleY = actualHeight / imageHeight;
+      pixelX = Math.floor(x * scaleX);
+      pixelY = Math.floor(y * scaleY);
+    }
+
+    // Clamp coordinates to image bounds
+    pixelX = Math.max(0, Math.min(pixelX, actualWidth - 1));
+    pixelY = Math.max(0, Math.min(pixelY, actualHeight - 1));
+
+    console.log('🎨 [COLOR PICKER] Actual image size:', { actualWidth, actualHeight });
+    console.log('🎨 [COLOR PICKER] Pixel coordinates:', { pixelX, pixelY });
+
+    // Extract raw pixel data at the exact coordinates
+    // Extract a small region around the point (3x3) and average for better accuracy
+    const extractSize = 3;
+    const left = Math.max(0, pixelX - Math.floor(extractSize / 2));
+    const top = Math.max(0, pixelY - Math.floor(extractSize / 2));
+    const width = Math.min(extractSize, actualWidth - left);
+    const height = Math.min(extractSize, actualHeight - top);
+
+    const { data } = await sharp(imageBuffer)
+      .extract({ left, top, width, height })
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    const channels = data.info.channels || 3;
+    
+    // Average the pixels in the small region
+    let totalR = 0, totalG = 0, totalB = 0, count = 0;
+    
+    for (let i = 0; i < data.length; i += channels) {
+      totalR += data[i];
+      totalG += data[i + 1] || data[i];
+      totalB += data[i + 2] || data[i];
+      count++;
+    }
+
+    const r = Math.round(totalR / count);
+    const g = Math.round(totalG / count);
+    const b = Math.round(totalB / count);
+
+    const hexColor = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+    const colorName = rgbToColorName(r, g, b);
+
+    console.log('🎨 [COLOR PICKER] Picked color:', { r, g, b, hex: hexColor, name: colorName });
+
+    return res.status(200).json({
+      color: hexColor,
+      name: colorName,
+      confidence: 1.0, // High confidence for manually picked pixel
+      rgb: { r, g, b },
+      source: 'manual-pick',
+    });
+  } catch (error: any) {
+    console.error('🎨 [COLOR PICKER] Error:', error.message);
+    return res.status(500).json({
+      error: error.message,
+      color: '#000000',
+      name: 'unknown',
+      confidence: 0,
+    });
+  }
 }
 

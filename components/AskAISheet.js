@@ -124,29 +124,117 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
     return '';
   };
   
-  // Color picker handler - picks color from original product image
-  const handleColorPicker = async (event) => {
+  // Image dimensions for color picker
+  const [imageLayout, setImageLayout] = useState({ width: 0, height: 0, x: 0, y: 0 });
+  const [imageNaturalSize, setImageNaturalSize] = useState({ width: 0, height: 0 });
+  
+  // True pixel color picker - captures tap coordinates and sends to API
+  const handleColorPickerTap = async (event) => {
     try {
       const imageToUse = originalProductImage.current || product?.image;
       if (!imageToUse) {
         Alert.alert('Error', 'No product image available');
         return;
       }
+
+      // Get tap coordinates relative to the image
+      const { locationX, locationY } = event.nativeEvent;
       
-      // For now, we'll use the auto-detect as a proxy for color picking
-      // In a full implementation, you'd extract the pixel color at the click coordinates
-      // This requires canvas/image manipulation which is complex in React Native
-      // For MVP, we'll trigger auto-detection and mark it as manually selected
-      console.log('🎨 [COLOR PICKER] User wants to pick color from image');
-      setShowColorPicker(false);
+      console.log('🎨 [COLOR PICKER] Tap coordinates:', { locationX, locationY });
+      console.log('🎨 [COLOR PICKER] Image layout:', imageLayout);
+      console.log('🎨 [COLOR PICKER] Image natural size:', imageNaturalSize);
+
+      // Convert image to base64 for API
+      setIsDetectingColor(true);
       
-      // Trigger color detection and mark as manual
-      await autoDetectColor();
-      setColorSource('manual');
-      
-      Alert.alert('Color Picked', 'Color has been detected from the product image. You can adjust it if needed.');
+      try {
+        // Fetch image and convert to base64
+        const response = await fetch(imageToUse);
+        const blob = await response.blob();
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const base64 = reader.result;
+          
+          // Call API with pixel picker mode
+          const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://mvp-styli.vercel.app';
+          const apiUrl = `${API_BASE}/api/detect-color`;
+          
+          try {
+            const apiResponse = await fetch(apiUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                imageBase64: base64,
+                pickPixel: true,
+                x: locationX,
+                y: locationY,
+                imageWidth: imageLayout.width,
+                imageHeight: imageLayout.height,
+              }),
+            });
+
+            if (apiResponse.ok) {
+              const result = await apiResponse.json();
+              console.log('🎨 [COLOR PICKER] Pixel color result:', result);
+              
+              if (result.color && result.name) {
+                // Use the exact picked color
+                setPickedColorHex(result.color);
+                setPickedColorName(result.name);
+                setDetectedColor(result.name);
+                setDetectedColorHex(result.color);
+                setUserEnteredColor(result.name);
+                setColorSource('manual');
+                
+                // Update product color
+                const updatedProduct = {
+                  ...product,
+                  color: result.name,
+                };
+                setProduct(updatedProduct);
+                
+                console.log('🎨 [COLOR PICKER] Color picked manually:', {
+                  name: result.name,
+                  hex: result.color,
+                  rgb: result.rgb,
+                });
+                
+                // Close picker and show confirmation
+                setShowColorPicker(false);
+                
+                // Re-run fit analysis with manually picked color
+                console.log('🎨 [COLOR PICKER] Re-running fit analysis with manually selected color:', result.name);
+                setTimeout(() => {
+                  loadInsights(true);
+                }, 300);
+                
+                Alert.alert(
+                  'Color Picked',
+                  `Selected: ${result.name}\n\nFit analysis will update with this color.`,
+                  [{ text: 'OK' }]
+                );
+              } else {
+                throw new Error('Invalid color result from API');
+              }
+            } else {
+              throw new Error(`API error: ${apiResponse.status}`);
+            }
+          } catch (apiError) {
+            console.error('🎨 [COLOR PICKER] API error:', apiError);
+            Alert.alert('Error', 'Failed to pick color. Please try again.');
+          } finally {
+            setIsDetectingColor(false);
+          }
+        };
+        reader.readAsDataURL(blob);
+      } catch (fetchError) {
+        console.error('🎨 [COLOR PICKER] Fetch error:', fetchError);
+        setIsDetectingColor(false);
+        Alert.alert('Error', 'Failed to load image for color picking.');
+      }
     } catch (error) {
       console.error('🎨 [COLOR PICKER] Error:', error);
+      setIsDetectingColor(false);
       Alert.alert('Error', 'Failed to pick color from image');
     }
   };
@@ -1422,14 +1510,30 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                     <Pressable
                       style={[styles.saveButton, { flex: 1, backgroundColor: '#ef4444' }]}
                       onPress={() => {
-                        setShowParsedDataConfirmation(false);
-                        setPendingParsedData(null);
-                        setOcrParsingStatus(null);
-                        // Show manual input instead
-                        setManualSizeChartInput({
-                          sizes: pendingParsedData.map(item => item.size),
-                          measurements: pendingParsedData[0]?.measurements ? Object.keys(pendingParsedData[0].measurements) : ['chest', 'waist', 'hips'],
+                        // Preserve parsed values when entering edit mode
+                        const sizes = pendingParsedData.map(item => item.size);
+                        const measurements = pendingParsedData[0]?.measurements 
+                          ? Object.keys(pendingParsedData[0].measurements) 
+                          : ['chest', 'waist', 'hips'];
+                        
+                        // Pre-populate manual input with parsed values
+                        const prePopulatedInput = {
+                          sizes: sizes,
+                          measurements: measurements,
+                        };
+                        
+                        // Fill in all the parsed values
+                        pendingParsedData.forEach((item) => {
+                          if (item.measurements) {
+                            Object.entries(item.measurements).forEach(([measure, value]) => {
+                              prePopulatedInput[`${item.size}_${measure}`] = String(value);
+                            });
+                          }
                         });
+                        
+                        setManualSizeChartInput(prePopulatedInput);
+                        setShowParsedDataConfirmation(false);
+                        // Keep pendingParsedData in case user wants to go back
                       }}
                     >
                       <Text style={styles.saveButtonText}>✏️ Edit</Text>
@@ -1459,18 +1563,129 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                 </View>
               )}
 
-              {/* Manual Input Form */}
+              {/* Manual Input Form - Fully Editable */}
               {Object.keys(manualSizeChartInput).length > 0 && manualSizeChartInput.sizes && !showParsedDataConfirmation && (
                 <View style={styles.modalSection}>
-                  <Text style={styles.modalSectionTitle}>Manual Size Chart Entry</Text>
+                  <Text style={styles.modalSectionTitle}>Edit Size Chart</Text>
+                  <Text style={[styles.modalSectionSubtitle, { marginBottom: 16 }]}>
+                    Add sizes, add measurements, or modify values as needed
+                  </Text>
+                  
+                  {/* Add Size Button */}
+                  <Pressable
+                    style={[styles.uploadButton, { marginBottom: 16 }]}
+                    onPress={() => {
+                      Alert.prompt('Add Size', 'Enter new size label (e.g., XXS, 3XL):', (newSize) => {
+                        if (newSize && newSize.trim()) {
+                          setManualSizeChartInput({
+                            ...manualSizeChartInput,
+                            sizes: [...manualSizeChartInput.sizes, newSize.trim()],
+                          });
+                        }
+                      });
+                    }}
+                  >
+                    <Text style={styles.uploadButtonText}>+ Add Size</Text>
+                  </Pressable>
+                  
+                  {/* Add Measurement Button */}
+                  <Pressable
+                    style={[styles.uploadButton, { marginBottom: 16 }]}
+                    onPress={() => {
+                      Alert.prompt('Add Measurement', 'Enter new measurement (e.g., chest, waist, hips):', (newMeasure) => {
+                        if (newMeasure && newMeasure.trim()) {
+                          const measureKey = newMeasure.trim().toLowerCase();
+                          setManualSizeChartInput({
+                            ...manualSizeChartInput,
+                            measurements: [...(manualSizeChartInput.measurements || []), measureKey],
+                          });
+                        }
+                      });
+                    }}
+                  >
+                    <Text style={styles.uploadButtonText}>+ Add Measurement</Text>
+                  </Pressable>
+                  
                   <ScrollView style={{ maxHeight: 400 }}>
-                    {manualSizeChartInput.sizes.map((size) => (
-                      <View key={size} style={styles.manualSizeRow}>
-                        <Text style={styles.manualSizeLabel}>{size}:</Text>
+                    {manualSizeChartInput.sizes.map((size, sizeIdx) => (
+                      <View key={`${size}-${sizeIdx}`} style={styles.manualSizeRow}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                          <TextInput
+                            style={[styles.manualSizeLabel, { flex: 1, marginRight: 8, backgroundColor: 'rgba(255,255,255,0.1)', padding: 8, borderRadius: 4, color: '#fff' }]}
+                            value={size}
+                            onChangeText={(text) => {
+                              const newSizes = [...manualSizeChartInput.sizes];
+                              newSizes[sizeIdx] = text;
+                              // Update all keys that reference this size
+                              const updated = { ...manualSizeChartInput, sizes: newSizes };
+                              manualSizeChartInput.measurements?.forEach((measure) => {
+                                const oldKey = `${manualSizeChartInput.sizes[sizeIdx]}_${measure}`;
+                                const newKey = `${text}_${measure}`;
+                                if (updated[oldKey] !== undefined) {
+                                  updated[newKey] = updated[oldKey];
+                                  delete updated[oldKey];
+                                }
+                              });
+                              setManualSizeChartInput(updated);
+                            }}
+                            placeholder="Size"
+                            placeholderTextColor="#666"
+                          />
+                          <Pressable
+                            onPress={() => {
+                              const newSizes = manualSizeChartInput.sizes.filter((_, idx) => idx !== sizeIdx);
+                              const updated = { ...manualSizeChartInput, sizes: newSizes };
+                              // Remove all keys for this size
+                              manualSizeChartInput.measurements?.forEach((measure) => {
+                                delete updated[`${size}_${measure}`];
+                              });
+                              setManualSizeChartInput(updated);
+                            }}
+                            style={{ padding: 4 }}
+                          >
+                            <Text style={{ color: '#ef4444', fontSize: 18 }}>✕</Text>
+                          </Pressable>
+                        </View>
                         <View style={styles.manualMeasurementsRow}>
-                          {manualSizeChartInput.measurements?.map((measure) => (
-                            <View key={measure} style={styles.manualMeasurementInput}>
-                              <Text style={styles.manualMeasurementLabel}>{measure}</Text>
+                          {manualSizeChartInput.measurements?.map((measure, measureIdx) => (
+                            <View key={`${measure}-${measureIdx}`} style={styles.manualMeasurementInput}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                                <TextInput
+                                  style={[styles.manualMeasurementLabel, { flex: 1, fontSize: 11, backgroundColor: 'rgba(255,255,255,0.1)', padding: 4, borderRadius: 4, color: '#fff' }]}
+                                  value={measure}
+                                  onChangeText={(text) => {
+                                    const newMeasures = [...manualSizeChartInput.measurements];
+                                    newMeasures[measureIdx] = text.toLowerCase();
+                                    const updated = { ...manualSizeChartInput, measurements: newMeasures };
+                                    // Update all keys that reference this measurement
+                                    manualSizeChartInput.sizes.forEach((s) => {
+                                      const oldKey = `${s}_${measure}`;
+                                      const newKey = `${s}_${text.toLowerCase()}`;
+                                      if (updated[oldKey] !== undefined) {
+                                        updated[newKey] = updated[oldKey];
+                                        delete updated[oldKey];
+                                      }
+                                    });
+                                    setManualSizeChartInput(updated);
+                                  }}
+                                  placeholder="measurement"
+                                  placeholderTextColor="#666"
+                                />
+                                <Pressable
+                                  onPress={() => {
+                                    const newMeasures = manualSizeChartInput.measurements.filter((_, idx) => idx !== measureIdx);
+                                    const updated = { ...manualSizeChartInput, measurements: newMeasures };
+                                    // Remove all keys for this measurement
+                                    manualSizeChartInput.sizes.forEach((s) => {
+                                      delete updated[`${s}_${measure}`];
+                                    });
+                                    setManualSizeChartInput(updated);
+                                  }}
+                                  style={{ padding: 2, marginLeft: 4 }}
+                                >
+                                  <Text style={{ color: '#ef4444', fontSize: 12 }}>✕</Text>
+                                </Pressable>
+                              </View>
                               <TextInput
                                 style={styles.manualMeasurementTextInput}
                                 placeholder="0"
@@ -1496,7 +1711,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                       // Convert manual input to size chart format
                       const sizeChart = manualSizeChartInput.sizes.map((size) => {
                         const measurements = {};
-                        manualSizeChartInput.measurements.forEach((measure) => {
+                        manualSizeChartInput.measurements?.forEach((measure) => {
                           const value = parseFloat(manualSizeChartInput[`${size}_${measure}`]);
                           if (!isNaN(value)) {
                             measurements[measure] = value;
@@ -1514,6 +1729,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                         setProduct(updatedProduct);
                         setShowGarmentInputModal(false);
                         setManualSizeChartInput({});
+                        setPendingParsedData(null);
                         setTimeout(() => {
                           loadInsights(true);
                         }, 100);
@@ -1547,31 +1763,59 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
               </Pressable>
             </View>
             
-            <ScrollView 
-              style={styles.modalScroll}
-              contentContainerStyle={{ paddingBottom: 40, alignItems: 'center' }}
-            >
-              <Text style={[styles.modalSectionSubtitle, { marginBottom: 16, textAlign: 'center' }]}>
-                Tap anywhere on the product image to detect the color
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.modalSectionSubtitle, { marginBottom: 16, textAlign: 'center', paddingHorizontal: 20 }]}>
+                Tap anywhere on the product image to pick the exact color
               </Text>
+              
+              {isDetectingColor && (
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                  <ActivityIndicator color="#6366f1" size="large" />
+                  <Text style={[styles.modalSectionSubtitle, { marginTop: 12, color: '#6366f1' }]}>
+                    Picking color...
+                  </Text>
+                </View>
+              )}
               
               {originalProductImage.current || product?.image ? (
                 <Pressable
-                  onPress={handleColorPicker}
-                  style={{ width: '100%', alignItems: 'center' }}
+                  onPress={handleColorPickerTap}
+                  style={{ flex: 1, width: '100%' }}
+                  disabled={isDetectingColor}
                 >
                   <Image
                     source={{ uri: originalProductImage.current || product?.image }}
-                    style={{ width: '100%', height: 400, resizeMode: 'contain', borderRadius: 12 }}
+                    style={{ 
+                      width: '100%', 
+                      flex: 1,
+                      minHeight: 500,
+                      resizeMode: 'contain',
+                    }}
+                    onLayout={(event) => {
+                      const { width, height, x, y } = event.nativeEvent.layout;
+                      setImageLayout({ width, height, x, y });
+                    }}
+                    onLoad={(event) => {
+                      const { width, height } = event.nativeEvent.source;
+                      setImageNaturalSize({ width, height });
+                    }}
                   />
-                  <Text style={[styles.modalSectionSubtitle, { marginTop: 12, color: '#6366f1' }]}>
-                    Tap image to detect color
+                  <Text style={[styles.modalSectionSubtitle, { 
+                    marginTop: 12, 
+                    marginBottom: 20,
+                    color: '#6366f1',
+                    textAlign: 'center',
+                    paddingHorizontal: 20,
+                  }]}>
+                    {isDetectingColor ? 'Processing...' : 'Tap anywhere on the image to pick color'}
                   </Text>
                 </Pressable>
               ) : (
-                <Text style={styles.modalSectionSubtitle}>No product image available</Text>
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
+                  <Text style={styles.modalSectionSubtitle}>No product image available</Text>
+                </View>
               )}
-            </ScrollView>
+            </View>
           </View>
         </View>
       </Modal>
@@ -2212,7 +2456,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a1a',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: height * 0.85,
+    maxHeight: height * 0.9,
+    height: height * 0.9,
     flex: 1,
   },
   modalHeader: {
