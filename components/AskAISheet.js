@@ -135,6 +135,8 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
   const [isParsingSizeChart, setIsParsingSizeChart] = useState(false);
   const [ocrParsingStatus, setOcrParsingStatus] = useState(null);
   const [manualSizeChartInput, setManualSizeChartInput] = useState({});
+  const [showParsedDataConfirmation, setShowParsedDataConfirmation] = useState(false);
+  const [pendingParsedData, setPendingParsedData] = useState(null);
 
   // Pan responder for drag-to-dismiss - ONLY on the header area
   const panResponder = useRef(
@@ -1160,22 +1162,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                               
                               if (parseData.success && parseData.data) {
                                 setOcrParsingStatus('✓ Successfully parsed size chart!');
-                                setParsedSizeChart(parseData.data);
-                                // Update product and reload
-                                const updatedProduct = {
-                                  ...product,
-                                  sizeChart: parseData.data,
-                                };
-                                setProduct(updatedProduct);
-                                
-                                // Show success message briefly before closing
-                                setTimeout(() => {
-                                  setShowGarmentInputModal(false);
-                                  setOcrParsingStatus(null);
-                                  setTimeout(() => {
-                                    loadInsights(true);
-                                  }, 100);
-                                }, 1000);
+                                // Store parsed data for confirmation
+                                setPendingParsedData(parseData.data);
+                                setShowParsedDataConfirmation(true);
+                                setIsParsingSizeChart(false);
                               } else {
                                 setOcrParsingStatus('Could not auto-parse. Please enter manually.');
                                 // Show manual input with pre-filled structure
@@ -1249,8 +1239,92 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                 </Pressable>
               </View>
 
+              {/* Parsed Data Confirmation Table */}
+              {showParsedDataConfirmation && pendingParsedData && (
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalSectionTitle}>Review Parsed Size Chart</Text>
+                  <Text style={styles.modalSectionSubtitle}>Please confirm the measurements are correct</Text>
+                  
+                  <ScrollView 
+                    style={{ maxHeight: 400, marginTop: 16 }}
+                    horizontal={true}
+                    showsHorizontalScrollIndicator={true}
+                  >
+                    <View style={styles.parsedTableContainer}>
+                      {/* Header Row */}
+                      <View style={styles.parsedTableRow}>
+                        <View style={[styles.parsedTableCell, styles.parsedTableHeader]}>
+                          <Text style={styles.parsedTableHeaderText}>Size</Text>
+                        </View>
+                        {pendingParsedData[0]?.measurements && Object.keys(pendingParsedData[0].measurements).map((measure) => (
+                          <View key={measure} style={[styles.parsedTableCell, styles.parsedTableHeader]}>
+                            <Text style={styles.parsedTableHeaderText}>{measure}</Text>
+                            <Text style={styles.parsedTableUnitText}>(inches)</Text>
+                          </View>
+                        ))}
+                      </View>
+                      
+                      {/* Data Rows */}
+                      {pendingParsedData.map((item, idx) => (
+                        <View key={`${item.size}-${idx}`} style={styles.parsedTableRow}>
+                          <View style={[styles.parsedTableCell, styles.parsedTableSizeCell]}>
+                            <Text style={styles.parsedTableSizeText}>{item.size}</Text>
+                          </View>
+                          {item.measurements && Object.entries(item.measurements).map(([measure, value]) => (
+                            <View key={measure} style={styles.parsedTableCell}>
+                              <Text style={styles.parsedTableValueText}>
+                                {typeof value === 'number' ? value.toFixed(1) : value}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      ))}
+                    </View>
+                  </ScrollView>
+                  
+                  <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+                    <Pressable
+                      style={[styles.saveButton, { flex: 1, backgroundColor: '#ef4444' }]}
+                      onPress={() => {
+                        setShowParsedDataConfirmation(false);
+                        setPendingParsedData(null);
+                        setOcrParsingStatus(null);
+                        // Show manual input instead
+                        setManualSizeChartInput({
+                          sizes: pendingParsedData.map(item => item.size),
+                          measurements: pendingParsedData[0]?.measurements ? Object.keys(pendingParsedData[0].measurements) : ['chest', 'waist', 'hips'],
+                        });
+                      }}
+                    >
+                      <Text style={styles.saveButtonText}>✏️ Edit</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.saveButton, { flex: 1 }]}
+                      onPress={() => {
+                        // User confirmed - use the parsed data
+                        setParsedSizeChart(pendingParsedData);
+                        const updatedProduct = {
+                          ...product,
+                          sizeChart: pendingParsedData,
+                        };
+                        setProduct(updatedProduct);
+                        setShowParsedDataConfirmation(false);
+                        setPendingParsedData(null);
+                        setOcrParsingStatus(null);
+                        setShowGarmentInputModal(false);
+                        setTimeout(() => {
+                          loadInsights(true);
+                        }, 100);
+                      }}
+                    >
+                      <Text style={styles.saveButtonText}>✓ Confirm & Continue</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
+
               {/* Manual Input Form */}
-              {Object.keys(manualSizeChartInput).length > 0 && manualSizeChartInput.sizes && (
+              {Object.keys(manualSizeChartInput).length > 0 && manualSizeChartInput.sizes && !showParsedDataConfirmation && (
                 <View style={styles.modalSection}>
                   <Text style={styles.modalSectionTitle}>Manual Size Chart Entry</Text>
                   <ScrollView style={{ maxHeight: 400 }}>
@@ -2143,6 +2217,56 @@ const styles = StyleSheet.create({
     padding: 8,
     color: '#fff',
     fontSize: 14,
+  },
+  // Parsed data confirmation table styles
+  parsedTableContainer: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 8,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  parsedTableRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+  },
+  parsedTableCell: {
+    padding: 12,
+    minWidth: 80,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRightWidth: 1,
+    borderRightColor: 'rgba(255,255,255,0.1)',
+  },
+  parsedTableHeader: {
+    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    borderBottomWidth: 2,
+    borderBottomColor: '#6366f1',
+  },
+  parsedTableHeaderText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'capitalize',
+  },
+  parsedTableUnitText: {
+    color: '#9ca3af',
+    fontSize: 10,
+    marginTop: 2,
+  },
+  parsedTableSizeCell: {
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+  },
+  parsedTableSizeText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  parsedTableValueText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
 
