@@ -279,6 +279,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 /**
  * Parse size chart text from OCR output
+ * Improved parser that handles fractions, avoids numeric size pollution, and properly converts to inches
  * @param {string} text - Extracted text from OCR
  * @param {number} ocrConfidence - OCR confidence score (0-100)
  * @returns {Object} Parsed size chart data
@@ -292,253 +293,261 @@ function parseSizeChartText(text: string, ocrConfidence: number) {
     return { success: false, data: null, structure: null, confidence: 0 };
   }
 
-  const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-  console.log('📊 [PARSE TEXT] Total lines:', lines.length);
-  
-  // Enhanced patterns for better matching
-  const sizePattern = /\b(XS|S|M|L|XL|XXL|XXXL|XXS|\d{2,3})\b/i; // Include numeric sizes like 30, 32, 34
-  const measurementPattern = /\b(chest|waist|hips|hip|bust|length|sleeve|shoulder|inseam|rise|thigh|leg|arm|pit|pit-to-pit|garment length|top length|dress length)\b/i;
-  const numberPattern = /(\d+\.?\d*)\s*(cm|in|inch|inches|"|'|ft|centimeter|centimetre)?/i;
+  // Normalize lines
+  const lines = text
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .map(l => l.trim())
+    .filter(Boolean);
 
-  const sizes: string[] = [];
-  const measurements: string[] = [];
-  const data: Record<string, Record<string, number>> = {};
+  // IMPORTANT: do NOT treat plain numbers as sizes
+  // Only allow real size tokens here.
+  const SIZE_TOKENS = ['XXXS','XXS','XS','S','M','L','XL','XXL','XXXL'];
+  const sizeRegex = new RegExp(`^(${SIZE_TOKENS.join('|')})$`, 'i');
 
-  // First pass: identify sizes and measurements
-  console.log('📊 [PARSE TEXT] First pass: identifying sizes and measurements');
-  for (const line of lines) {
-    // Check for size labels
-    const sizeMatch = line.match(sizePattern);
-    if (sizeMatch) {
-      const size = sizeMatch[1].toUpperCase();
-      if (!sizes.includes(size)) {
-        sizes.push(size);
-        console.log('📊 [PARSE TEXT] Found size:', size);
-      }
-    }
+  // measurement label detection
+  const labelRegex = /\b(chest|bust|waist|hip|hips|low hip|inseam|rise|length|sleeve|shoulder)\b/i;
+  const unitRegex = /\b(inch|in|cm)\b/i;
 
-    // Check for measurement labels
-    const measureMatch = line.match(measurementPattern);
-    if (measureMatch) {
-      let measure = measureMatch[1].toLowerCase();
-      // Normalize measurement names
-      if (measure === 'hip') measure = 'hips';
-      if (measure === 'pit' || measure === 'pit-to-pit') measure = 'chest';
-      if (measure.includes('length')) {
-        if (measure.includes('garment') || measure.includes('top')) measure = 'topLength';
-        else if (measure.includes('dress')) measure = 'dressLength';
-        else measure = 'length';
-      }
-      if (!measurements.includes(measure)) {
-        measurements.push(measure);
-        console.log('📊 [PARSE TEXT] Found measurement:', measure);
-      }
-    }
+  type MeasurementKey = 'chest' | 'waist' | 'hips' | 'inseam' | 'rise' | 'length' | 'sleeve' | 'shoulder';
+  type UnitKey = 'in' | 'cm';
+
+  // We'll store per size, per measurement:
+  // - prefer inches
+  // - if only cm exists, convert later
+  const store: Record<string, Partial<Record<MeasurementKey, { unit: UnitKey; min?: number; max?: number; value?: number }>>> = {};
+
+  // Helper: normalize label -> measurement key
+  function normalizeMeasurement(label: string): MeasurementKey | null {
+    const s = label.toLowerCase();
+    if (s.includes('chest') || s.includes('bust')) return 'chest';
+    if (s.includes('waist')) return 'waist';
+    if (s.includes('low hip') || s.includes('hip') || s.includes('hips')) return 'hips';
+    if (s.includes('inseam')) return 'inseam';
+    if (s.includes('rise')) return 'rise';
+    if (s.includes('length')) return 'length';
+    if (s.includes('sleeve')) return 'sleeve';
+    if (s.includes('shoulder')) return 'shoulder';
+    return null;
   }
 
-  console.log('📊 [PARSE TEXT] Found sizes:', sizes);
-  console.log('📊 [PARSE TEXT] Found measurements:', measurements);
+  // Sequence fallback for when OCR drops labels inside a size block (common)
+  // Order matches the chart pattern you showed.
+  const fallbackSequence: Array<{ measure: MeasurementKey; unit: UnitKey }> = [
+    { measure: 'chest', unit: 'in' },
+    { measure: 'chest', unit: 'cm' },
+    { measure: 'waist', unit: 'in' },
+    { measure: 'waist', unit: 'cm' },
+    { measure: 'hips', unit: 'in' },
+    { measure: 'hips', unit: 'cm' },
+  ];
 
-  // Second pass: extract values - improved algorithm
-  console.log('📊 [PARSE TEXT] Second pass: extracting values');
   let currentSize: string | null = null;
-  let headerRow = false;
-  
-  // Detect unit system (cm vs inches)
-  let unitSystem: 'cm' | 'in' | 'unknown' = 'unknown';
-  const cmIndicators = text.match(/\b(\d{2,3})\s*cm\b/gi);
-  const inIndicators = text.match(/\b(\d{1,2}(?:\.\d+)?)\s*(?:in|inch|")\b/gi);
-  
-  if (cmIndicators && cmIndicators.length > inIndicators?.length) {
-    unitSystem = 'cm';
-    console.log('📊 [PARSE TEXT] Detected unit system: CM');
-  } else if (inIndicators && inIndicators.length > 0) {
-    unitSystem = 'in';
-    console.log('📊 [PARSE TEXT] Detected unit system: INCHES');
-  } else {
-    // Heuristic: if values are 60-120 range, likely cm; if 20-60, likely inches
-    const allNumbersMatch = text.match(/\b(\d{2,3})\b/g);
-    const allNumbers: string[] = allNumbersMatch || [];
-    const avgValue = allNumbers.length > 0 
-      ? allNumbers.reduce((sum: number, n: string) => sum + parseInt(n, 10), 0) / allNumbers.length 
-      : 0;
-    if (avgValue > 60) {
-      unitSystem = 'cm';
-      console.log('📊 [PARSE TEXT] Inferred unit system: CM (avg value:', avgValue, ')');
-    } else {
-      unitSystem = 'in';
-      console.log('📊 [PARSE TEXT] Inferred unit system: INCHES (avg value:', avgValue, ')');
-    }
+
+  // When we're inside a size block:
+  // - if we see explicit "Chest inch" etc, use that
+  // - if we just see numbers, consume them in fallbackSequence order
+  let currentLabelMeasure: MeasurementKey | null = null;
+  let currentLabelUnit: UnitKey | null = null;
+  let fallbackIndex = 0;
+
+  function ensureSize(size: string) {
+    if (!store[size]) store[size] = {};
   }
-  
+
+  function writeValue(size: string, measure: MeasurementKey, unit: UnitKey, min: number, max: number) {
+    ensureSize(size);
+    // Prefer inches if both exist: if we already have inches, don't overwrite with cm
+    const existing = store[size][measure];
+    if (existing && existing.unit === 'in' && unit === 'cm') return;
+    store[size][measure] = { unit, min, max, value: (min + max) / 2 };
+  }
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    
-    // Check if this is a header row (contains measurement names)
-    const hasMeasurements = measurementPattern.test(line);
-    const hasSizes = sizePattern.test(line);
-    
-    if (hasMeasurements && hasSizes) {
-      // This might be a header row - parse it differently
-      headerRow = true;
-      console.log('📊 [PARSE TEXT] Detected header row:', line);
-      
-      // Extract all sizes from header
-      const headerSizes = line.match(new RegExp(sizePattern.source, 'gi')) || [];
-      const headerMeasures = line.match(new RegExp(measurementPattern.source, 'gi')) || [];
-      
-      // Find numbers in this line
-      const numbers = line.match(/\d+\.?\d*/g) || [];
-      
-      if (headerSizes.length > 0 && numbers.length > 0) {
-        // Map numbers to sizes
-        headerSizes.forEach((size, idx) => {
-          const sizeKey = size.toUpperCase();
-          if (!data[sizeKey]) {
-            data[sizeKey] = {};
-          }
-          // Try to map numbers to measurements based on position
-          if (numbers[idx] !== undefined) {
-            let value = parseFloat(numbers[idx]);
-            
-            // Convert to inches if needed
-            if (unitSystem === 'cm') {
-              // Circumference measurements: chest, waist, hips (convert cm to inches)
-              // Length measurements: length, sleeve, shoulder, inseam, rise (convert cm to inches)
-              value = value / 2.54;
-              console.log(`📊 [PARSE TEXT] Converted ${numbers[idx]}cm to ${value.toFixed(2)}in`);
-            }
-            
-            // Try to find which measurement this belongs to
-            if (headerMeasures.length > 0) {
-              const measureIdx = Math.floor(idx / (numbers.length / headerMeasures.length));
-              if (headerMeasures[measureIdx]) {
-                let measure = headerMeasures[measureIdx].toLowerCase();
-                if (measure === 'hip') measure = 'hips';
-                if (measure === 'pit' || measure === 'pit-to-pit') measure = 'chest';
-                if (measure.includes('length')) {
-                  if (measure.includes('garment') || measure.includes('top')) measure = 'topLength';
-                  else if (measure.includes('dress')) measure = 'dressLength';
-                  else measure = 'length';
-                }
-                data[sizeKey][measure] = Math.round(value * 100) / 100; // Round to 2 decimals
-                console.log(`📊 [PARSE TEXT] Mapped ${sizeKey}.${measure} = ${data[sizeKey][measure]}in`);
-              }
-            }
-          }
-        });
+    const upper = line.toUpperCase();
+
+    // Detect size block header (xxs, xs, s...)
+    if (sizeRegex.test(upper)) {
+      currentSize = upper;
+      ensureSize(currentSize);
+      console.log('📊 [PARSE TEXT] Enter size block:', currentSize);
+      // reset context for this size block
+      currentLabelMeasure = null;
+      currentLabelUnit = null;
+      fallbackIndex = 0;
+      continue;
+    }
+
+    // If we are not in a size block, skip (we only parse within sizes)
+    if (!currentSize) continue;
+
+    // Ignore US size row etc
+    if (upper === 'US') continue;
+    if (/^\d+(-\d+)?$/.test(line)) {
+      // Lines like "2" or "4-6" are US sizes in your chart – ignore
+      continue;
+    }
+
+    // If line contains a label like "Chest inch" / "Waist cm"
+    const labelMatch = line.match(labelRegex);
+    const unitMatch = line.match(unitRegex);
+    if (labelMatch && unitMatch) {
+      const measure = normalizeMeasurement(labelMatch[0]);
+      const unitRaw = unitMatch[0].toLowerCase();
+      const unit: UnitKey = unitRaw.startsWith('cm') ? 'cm' : 'in';
+      if (measure) {
+        currentLabelMeasure = measure;
+        currentLabelUnit = unit;
+        console.log(`📊 [PARSE TEXT] Label set for ${currentSize}: ${measure} (${unit})`);
+      } else {
+        currentLabelMeasure = null;
+        currentLabelUnit = null;
       }
       continue;
     }
-    
-    // Regular row parsing
-    const sizeMatch = line.match(sizePattern);
-    if (sizeMatch) {
-      currentSize = sizeMatch[1].toUpperCase();
-      if (!data[currentSize]) {
-        data[currentSize] = {};
-      }
-      console.log('📊 [PARSE TEXT] Processing size:', currentSize);
+
+    // Otherwise, check if this line looks like a range/value (including OCR fractions like 303/4)
+    const parsed = parseRangeLineToNumbers(line);
+    if (!parsed) continue;
+    const { min, max } = parsed;
+
+    // Case A: we have explicit label context (best)
+    if (currentLabelMeasure && currentLabelUnit) {
+      writeValue(currentSize, currentLabelMeasure, currentLabelUnit, min, max);
+      continue;
     }
 
-    if (currentSize) {
-      // Extract numbers with units
-      const numbers = line.match(/\d+\.?\d*/g) || [];
-      const measureMatch = line.match(measurementPattern);
-      
-      if (numbers.length > 0) {
-        // Check if line has measurement label
-        if (measureMatch) {
-          let measure = measureMatch[1].toLowerCase();
-          if (measure === 'hip') measure = 'hips';
-          if (measure === 'pit' || measure === 'pit-to-pit') measure = 'chest';
-          if (measure.includes('length')) {
-            if (measure.includes('garment') || measure.includes('top')) measure = 'topLength';
-            else if (measure.includes('dress')) measure = 'dressLength';
-            else measure = 'length';
-          }
-          
-          // Find the number closest to the measurement label
-          const measureIndex = line.toLowerCase().indexOf(measure);
-          let closestNumber = numbers[0];
-          let closestDistance = Infinity;
-          
-          for (const num of numbers) {
-            const numIndex = line.indexOf(num);
-            const distance = Math.abs(numIndex - measureIndex);
-            if (distance < closestDistance) {
-              closestDistance = distance;
-              closestNumber = num;
-            }
-          }
-          
-          let value = parseFloat(closestNumber);
-          
-          // Convert to inches if needed
-          const isCm = line.toLowerCase().includes('cm') || unitSystem === 'cm';
-          if (isCm) {
-            value = value / 2.54;
-            console.log(`📊 [PARSE TEXT] Converted ${closestNumber}cm to ${value.toFixed(2)}in`);
-          }
-          
-          // Store as circumference for chest/waist/hips, length for others
-          data[currentSize][measure] = Math.round(value * 100) / 100; // Round to 2 decimals
-          console.log(`📊 [PARSE TEXT] Mapped ${currentSize}.${measure} = ${data[currentSize][measure]}in (from "${line}")`);
-        } else if (numbers.length > 0 && measurements.length > 0) {
-          // No measurement label, but we have numbers - try to infer from position
-          // This is less reliable but better than nothing
-          const numValues = numbers.map(n => {
-            const val = parseFloat(n);
-            const isCm = line.toLowerCase().includes('cm') || unitSystem === 'cm';
-            return isCm ? val / 2.54 : val;
-          });
-          
-          // Map to measurements in order (if we have same count)
-          if (numValues.length === measurements.length) {
-            measurements.forEach((measure, idx) => {
-              data[currentSize][measure] = Math.round(numValues[idx] * 100) / 100;
-              console.log(`📊 [PARSE TEXT] Inferred ${currentSize}.${measure} = ${data[currentSize][measure]}in`);
-            });
-          }
-        }
-      }
+    // Case B: fallback sequence (labels missing)
+    if (fallbackIndex < fallbackSequence.length) {
+      const { measure, unit } = fallbackSequence[fallbackIndex];
+      writeValue(currentSize, measure, unit, min, max);
+      fallbackIndex += 1;
+      continue;
     }
   }
 
-  // Convert to fitLogic format
-  const sizeChart = Object.entries(data)
-    .filter(([size, measurements]) => Object.keys(measurements).length > 0)
-    .map(([size, measurements]) => ({
-      size,
-      measurements,
-    }));
+  // Convert everything to inches and simplify into output shape
+  const sizesOut: string[] = [];
+  const measurementsOut = new Set<string>();
+  const dataOut: Array<{ size: string; measurements: Record<string, number> }> = [];
 
-  // Calculate overall confidence
-  // Base confidence on OCR confidence, but reduce if parsing found few sizes
+  for (const size of Object.keys(store)) {
+    const m = store[size];
+    const out: Record<string, number> = {};
+    for (const key of Object.keys(m) as MeasurementKey[]) {
+      const entry = m[key];
+      if (!entry || entry.value == null) continue;
+      let inchesVal = entry.value;
+      if (entry.unit === 'cm') inchesVal = inchesVal / 2.54;
+      // round to 2 decimals
+      const rounded = Math.round(inchesVal * 100) / 100;
+      out[key] = rounded;
+      measurementsOut.add(key);
+    }
+    if (Object.keys(out).length > 0) {
+      sizesOut.push(size);
+      dataOut.push({ size, measurements: out });
+    }
+  }
+
+  // Confidence: parsing confidence should not be "30" just because OCRConfidence is low.
+  // Use OCRConfidence as base but penalize if we found too little.
   let parseConfidence = ocrConfidence;
-  if (sizeChart.length === 0) {
-    parseConfidence = 0;
-  } else if (sizeChart.length < 2) {
-    parseConfidence = ocrConfidence * 0.5; // Low confidence if only 1 size found
-  } else if (sizeChart.length < 3) {
-    parseConfidence = ocrConfidence * 0.7; // Medium confidence if 2 sizes
-  }
+  if (dataOut.length === 0) parseConfidence = 0;
+  else if (dataOut.length === 1) parseConfidence = Math.min(parseConfidence, 40);
 
-  console.log('📊 [PARSE TEXT] Final parsed data:', {
-    success: sizeChart.length > 0,
-    sizeCount: sizeChart.length,
-    sizes: sizeChart.map(s => s.size),
-    confidence: parseConfidence,
-  });
+  console.log('📊 [PARSE TEXT] Parsed sizes:', sizesOut);
+  console.log('📊 [PARSE TEXT] Parsed measurements:', Array.from(measurementsOut));
+  console.log('📊 [PARSE TEXT] Final parsed data count:', dataOut.length);
 
   return {
-    success: sizeChart.length > 0,
-    data: sizeChart.length > 0 ? sizeChart : null,
+    success: dataOut.length > 0,
+    data: dataOut.length > 0 ? dataOut : null,
     confidence: parseConfidence,
     structure: {
-      sizes: sizes.length > 0 ? sizes : ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
-      measurements: measurements.length > 0 ? measurements : ['chest', 'waist', 'hips', 'length', 'sleeve', 'shoulder', 'inseam', 'rise'],
+      sizes: sizesOut.length ? sizesOut : ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL'],
+      measurements: Array.from(measurementsOut).length
+        ? Array.from(measurementsOut)
+        : ['chest', 'waist', 'hips', 'inseam', 'rise', 'length', 'sleeve', 'shoulder'],
     },
   };
+}
+
+/**
+ * Parse a line that might contain:
+ * - "303/4-321/4" (means 30.75 - 32.25)
+ * - "26-29"
+ * - "90-97.5"
+ * Returns min/max as floats (still in whatever unit the label implies).
+ */
+function parseRangeLineToNumbers(line: string): { min: number; max: number } | null {
+  const cleaned = line
+    .toLowerCase()
+    .replace(/–/g, '-') // normalize en-dash
+    .replace(/[^\d./\-\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!cleaned) return null;
+
+  // Try range first: something-something
+  if (cleaned.includes('-')) {
+    const parts = cleaned.split('-').map(s => s.trim()).filter(Boolean);
+    if (parts.length >= 2) {
+      const a = parseWeirdOcrNumber(parts[0]);
+      const b = parseWeirdOcrNumber(parts[1]);
+      if (a != null && b != null) {
+        return { min: Math.min(a, b), max: Math.max(a, b) };
+      }
+    }
+  }
+
+  // Single value
+  const single = parseWeirdOcrNumber(cleaned);
+  if (single != null) return { min: single, max: single };
+
+  return null;
+}
+
+/**
+ * OCR turns:
+ * - 30¾ into "303/4"
+ * - 24½ into "241/2"
+ * - 35½ into "351/2"
+ * We detect patterns like:
+ * - "303/4" -> 30 + 3/4
+ * - "241/2" -> 24 + 1/2
+ * Also handles normal decimals like "97.5"
+ */
+function parseWeirdOcrNumber(s: string): number | null {
+  const t = s.trim();
+  // plain decimal/int
+  if (/^\d+(\.\d+)?$/.test(t)) return parseFloat(t);
+
+  // Pattern: "303/4" (two+ digits then a/b) => treat as mixed number
+  // last 1-2 digits before slash are the numerator; digits before that are the whole part
+  const m = t.match(/^(\d+)(\d)\/(\d+)$/);
+  if (m) {
+    const wholeAndNum = m[1]; // e.g. "30" from "303/4"? actually m[1] captures all digits before last digit used as numerator
+    const num = parseInt(m[2], 10);
+    const den = parseInt(m[3], 10);
+    // whole part is all digits except the last numerator digit
+    const whole = parseInt(wholeAndNum, 10);
+    if (!isFinite(whole) || !isFinite(num) || !isFinite(den) || den === 0) return null;
+    return whole + num / den;
+  }
+
+  // Sometimes OCR might include spaces: "30 3/4"
+  const m2 = t.match(/^(\d+)\s+(\d+)\/(\d+)$/);
+  if (m2) {
+    const whole = parseInt(m2[1], 10);
+    const num = parseInt(m2[2], 10);
+    const den = parseInt(m2[3], 10);
+    if (!isFinite(whole) || !isFinite(num) || !isFinite(den) || den === 0) return null;
+    return whole + num / den;
+  }
+
+  return null;
 }
 
