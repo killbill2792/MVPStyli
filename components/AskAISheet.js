@@ -130,70 +130,78 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
   const [pickerTouchPosition, setPickerTouchPosition] = useState(null);
   const [magnifierPosition, setMagnifierPosition] = useState(null);
   const [livePickedColor, setLivePickedColor] = useState(null);
+  const colorPickerThrottleRef = useRef(null);
+  const colorPickerApiInProgress = useRef(false);
   
   // Manual color picker - CLIENT-SIDE ONLY, never calls auto-detect
-  // Live preview handler - called as user moves finger
+  // Live preview handler - called as user moves finger (throttled)
   const handleManualColorPickerMove = async (touchX, touchY) => {
     const imageToUse = originalProductImage.current || product?.image;
     if (!imageToUse || !imageLayout.width || !imageLayout.height) return;
 
-    // Update touch position for magnifier/crosshair (live preview)
+    // Update touch position for magnifier/crosshair (live preview) - immediate UI update
     setPickerTouchPosition({ x: touchX, y: touchY });
     setMagnifierPosition({ x: touchX, y: Math.max(10, touchY - 150) }); // Position above finger
     
-    // Throttle API calls for live preview (only call every 100ms)
-    if (isDetectingColor) return; // Don't spam API
-    
-    setIsDetectingColor(true);
-    
-    try {
-      // Fetch image and convert to base64
-      const response = await fetch(imageToUse);
-      const blob = await response.blob();
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64 = reader.result;
-        
-        // Call SEPARATE pixel-pick API (not the auto-detect endpoint)
-        const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://mvp-styli.vercel.app';
-        const apiUrl = `${API_BASE}/api/pick-pixel-color`;
-        
-        try {
-          const apiResponse = await fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              imageBase64: base64,
-              x: touchX,
-              y: touchY,
-              imageWidth: imageLayout.width,
-              imageHeight: imageLayout.height,
-            }),
-          });
-
-          if (apiResponse.ok) {
-            const result = await apiResponse.json();
-            
-            if (result.color) {
-              const hex = result.color;
-              const { r, g, b } = result.rgb || { r: 0, g: 0, b: 0 };
-              const colorName = rgbToColorNameSimple(r, g, b);
-              
-              // Update live preview (don't update product color yet - wait for tap)
-              setLivePickedColor({ hex, rgb: { r, g, b }, name: colorName });
-            }
-          }
-        } catch (apiError) {
-          console.error('🎨 [MANUAL PICKER] API error:', apiError);
-        } finally {
-          colorPickerApiInProgress.current = false;
-        }
-      };
-      reader.readAsDataURL(blob);
-    } catch (fetchError) {
-      console.error('🎨 [MANUAL PICKER] Fetch error:', fetchError);
-      colorPickerApiInProgress.current = false;
+    // Throttle API calls for live preview (only call every 150ms)
+    if (colorPickerThrottleRef.current) {
+      clearTimeout(colorPickerThrottleRef.current);
     }
+    
+    if (colorPickerApiInProgress.current) return; // Don't spam API
+    
+    colorPickerThrottleRef.current = setTimeout(async () => {
+      if (colorPickerApiInProgress.current) return;
+      colorPickerApiInProgress.current = true;
+      
+      try {
+        // Fetch image and convert to base64
+        const response = await fetch(imageToUse);
+        const blob = await response.blob();
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const base64 = reader.result;
+          
+          // Call SEPARATE pixel-pick API (not the auto-detect endpoint)
+          const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://mvp-styli.vercel.app';
+          const apiUrl = `${API_BASE}/api/pick-pixel-color`;
+          
+          try {
+            const apiResponse = await fetch(apiUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                imageBase64: base64,
+                x: touchX,
+                y: touchY,
+                imageWidth: imageLayout.width,
+                imageHeight: imageLayout.height,
+              }),
+            });
+
+            if (apiResponse.ok) {
+              const result = await apiResponse.json();
+              
+              if (result.color) {
+                const hex = result.color;
+                const { r, g, b } = result.rgb || { r: 0, g: 0, b: 0 };
+                const colorName = rgbToColorNameSimple(r, g, b);
+                
+                // Update live preview (don't update product color yet - wait for tap)
+                setLivePickedColor({ hex, rgb: { r, g, b }, name: colorName });
+              }
+            }
+          } catch (apiError) {
+            console.error('🎨 [MANUAL PICKER] API error:', apiError);
+          } finally {
+            colorPickerApiInProgress.current = false;
+          }
+        };
+        reader.readAsDataURL(blob);
+      } catch (fetchError) {
+        console.error('🎨 [MANUAL PICKER] Fetch error:', fetchError);
+        colorPickerApiInProgress.current = false;
+      }
     }, 150); // Throttle to 150ms
   };
 
