@@ -1967,10 +1967,13 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                         const { locationX, locationY } = evt.nativeEvent;
                         handleManualColorPickerMove(locationX, locationY);
                       },
-                      onPanResponderRelease: (evt) => {
-                        // User lifted finger - confirm color selection
+                      onPanResponderRelease: async (evt) => {
+                        // User lifted finger - confirm color selection (ONLY API CALL HERE)
                         const { locationX, locationY } = evt.nativeEvent;
-                        handleManualColorPickerTap({ nativeEvent: { locationX, locationY } });
+                        const colorResult = await pickColorAtCoordinates(locationX, locationY);
+                        if (colorResult) {
+                          handleManualColorPickerTap({ nativeEvent: { locationX, locationY }, colorResult });
+                        }
                       },
                     });
                     
