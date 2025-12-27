@@ -124,12 +124,15 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
     return '';
   };
   
-  // Image dimensions for color picker
+  // Manual Color Picker State (COMPLETELY SEPARATE from auto-detect)
   const [imageLayout, setImageLayout] = useState({ width: 0, height: 0, x: 0, y: 0 });
   const [imageNaturalSize, setImageNaturalSize] = useState({ width: 0, height: 0 });
+  const [pickerTouchPosition, setPickerTouchPosition] = useState(null);
+  const [magnifierPosition, setMagnifierPosition] = useState(null);
+  const [livePickedColor, setLivePickedColor] = useState(null);
   
-  // True pixel color picker - captures tap coordinates and sends to API
-  const handleColorPickerTap = async (event) => {
+  // Manual color picker - CLIENT-SIDE ONLY, never calls auto-detect
+  const handleManualColorPickerTap = async (event) => {
     try {
       const imageToUse = originalProductImage.current || product?.image;
       if (!imageToUse) {
@@ -139,12 +142,20 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
 
       // Get tap coordinates relative to the image
       const { locationX, locationY } = event.nativeEvent;
+      const touchX = locationX;
+      const touchY = locationY;
       
-      console.log('🎨 [COLOR PICKER] Tap coordinates:', { locationX, locationY });
-      console.log('🎨 [COLOR PICKER] Image layout:', imageLayout);
-      console.log('🎨 [COLOR PICKER] Image natural size:', imageNaturalSize);
+      console.log('🎨 [MANUAL PICKER] Tap at:', { touchX, touchY });
+      console.log('🎨 [MANUAL PICKER] Image layout:', imageLayout);
+      console.log('🎨 [MANUAL PICKER] Image natural size:', imageNaturalSize);
 
-      // Convert image to base64 for API
+      // Update touch position for magnifier/crosshair
+      setPickerTouchPosition({ x: touchX, y: touchY });
+      setMagnifierPosition({ x: touchX, y: touchY - 150 }); // Position above finger
+      
+      // For now, we'll need to use a separate pixel-picking API endpoint
+      // This is a temporary solution until we can implement full client-side canvas
+      // Create a dedicated pixel-pick endpoint that ONLY does pixel extraction
       setIsDetectingColor(true);
       
       try {
@@ -155,9 +166,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         reader.onloadend = async () => {
           const base64 = reader.result;
           
-          // Call API with pixel picker mode
+          // Call SEPARATE pixel-pick API (not the auto-detect endpoint)
+          // This endpoint ONLY extracts pixel color, no dominant color logic
           const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://mvp-styli.vercel.app';
-          const apiUrl = `${API_BASE}/api/detect-color`;
+          const apiUrl = `${API_BASE}/api/pick-pixel-color`; // Separate endpoint - NEVER calls auto-detect
           
           try {
             const apiResponse = await fetch(apiUrl, {
@@ -165,9 +177,8 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 imageBase64: base64,
-                pickPixel: true,
-                x: locationX,
-                y: locationY,
+                x: touchX,
+                y: touchY,
                 imageWidth: imageLayout.width,
                 imageHeight: imageLayout.height,
               }),
@@ -175,67 +186,135 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
 
             if (apiResponse.ok) {
               const result = await apiResponse.json();
-              console.log('🎨 [COLOR PICKER] Pixel color result:', result);
+              console.log('🎨 [MANUAL PICKER] Pixel color result:', result);
               
-              if (result.color && result.name) {
-                // Use the exact picked color
-                setPickedColorHex(result.color);
-                setPickedColorName(result.name);
-                setDetectedColor(result.name);
-                setDetectedColorHex(result.color);
-                setUserEnteredColor(result.name);
+              if (result.color) {
+                // Use the EXACT picked pixel color (no averaging, no dominant color logic)
+                const hex = result.color;
+                const { r, g, b } = result.rgb || { r: 0, g: 0, b: 0 };
+                
+                // Convert RGB to color name (client-side, simple mapping)
+                const colorName = rgbToColorNameSimple(r, g, b);
+                
+                setPickedColorHex(hex);
+                setPickedColorName(colorName);
+                setDetectedColor(colorName);
+                setDetectedColorHex(hex);
+                setUserEnteredColor(colorName);
                 setColorSource('manual');
+                setLivePickedColor({ hex, rgb: { r, g, b }, name: colorName });
                 
                 // Update product color
                 const updatedProduct = {
                   ...product,
-                  color: result.name,
+                  color: colorName,
                 };
                 setProduct(updatedProduct);
                 
-                console.log('🎨 [COLOR PICKER] Color picked manually:', {
-                  name: result.name,
-                  hex: result.color,
-                  rgb: result.rgb,
+                console.log('🎨 [MANUAL PICKER] Color picked manually (EXACT PIXEL):', {
+                  name: colorName,
+                  hex: hex,
+                  rgb: { r, g, b },
                 });
                 
-                // Close picker and show confirmation
-                setShowColorPicker(false);
-                
-                // Re-run fit analysis with manually picked color
-                console.log('🎨 [COLOR PICKER] Re-running fit analysis with manually selected color:', result.name);
-                setTimeout(() => {
-                  loadInsights(true);
-                }, 300);
-                
-                Alert.alert(
-                  'Color Picked',
-                  `Selected: ${result.name}\n\nFit analysis will update with this color.`,
-                  [{ text: 'OK' }]
-                );
+                // Don't close picker immediately - let user see the color
+                // User can tap again to pick a different color, or tap "Done" to confirm
               } else {
                 throw new Error('Invalid color result from API');
               }
             } else {
-              throw new Error(`API error: ${apiResponse.status}`);
+              const errorText = await apiResponse.text();
+              console.warn('🎨 [MANUAL PICKER] Pixel-pick API error:', apiResponse.status, errorText);
+              
+              // If endpoint doesn't exist (404), the endpoint needs to be deployed
+              if (apiResponse.status === 404) {
+                Alert.alert(
+                  'API Endpoint Not Deployed',
+                  'The pixel color picker endpoint needs to be deployed. The endpoint exists in the codebase but hasn\'t been deployed to Vercel yet. Please commit and push the changes.',
+                  [{ text: 'OK' }]
+                );
+              } else {
+                Alert.alert('Error', `Failed to pick color: ${apiResponse.status}`);
+              }
             }
           } catch (apiError) {
-            console.error('🎨 [COLOR PICKER] API error:', apiError);
-            Alert.alert('Error', 'Failed to pick color. Please try again.');
+            console.error('🎨 [MANUAL PICKER] API error:', apiError);
+            // Don't show error - just log it, user can try again
           } finally {
             setIsDetectingColor(false);
           }
         };
         reader.readAsDataURL(blob);
       } catch (fetchError) {
-        console.error('🎨 [COLOR PICKER] Fetch error:', fetchError);
+        console.error('🎨 [MANUAL PICKER] Fetch error:', fetchError);
         setIsDetectingColor(false);
-        Alert.alert('Error', 'Failed to load image for color picking.');
       }
     } catch (error) {
-      console.error('🎨 [COLOR PICKER] Error:', error);
+      console.error('🎨 [MANUAL PICKER] Error:', error);
       setIsDetectingColor(false);
-      Alert.alert('Error', 'Failed to pick color from image');
+    }
+  };
+  
+  // Simple RGB to color name (client-side, for manual picker only)
+  const rgbToColorNameSimple = (r, g, b) => {
+    const colors = [
+      { name: 'black', rgb: [0, 0, 0], threshold: 40 },
+      { name: 'white', rgb: [255, 255, 255], threshold: 230 },
+      { name: 'grey', rgb: [128, 128, 128], threshold: 60 },
+      { name: 'red', rgb: [255, 0, 0], threshold: 120 },
+      { name: 'blue', rgb: [0, 0, 255], threshold: 120 },
+      { name: 'green', rgb: [0, 255, 0], threshold: 120 },
+      { name: 'yellow', rgb: [255, 255, 0], threshold: 200 },
+      { name: 'orange', rgb: [255, 165, 0], threshold: 120 },
+      { name: 'pink', rgb: [255, 192, 203], threshold: 150 },
+      { name: 'purple', rgb: [128, 0, 128], threshold: 100 },
+      { name: 'brown', rgb: [165, 42, 42], threshold: 70 },
+      { name: 'navy', rgb: [0, 0, 128], threshold: 60 },
+      { name: 'burgundy', rgb: [128, 0, 32], threshold: 60 },
+      { name: 'coral', rgb: [255, 127, 80], threshold: 120 },
+      { name: 'teal', rgb: [0, 128, 128], threshold: 80 },
+      { name: 'emerald', rgb: [80, 200, 120], threshold: 90 },
+      { name: 'lavender', rgb: [230, 230, 250], threshold: 180 },
+    ];
+
+    let minDistance = Infinity;
+    let closestColor = 'unknown';
+
+    for (const color of colors) {
+      const distance = Math.sqrt(
+        Math.pow(r - color.rgb[0], 2) +
+        Math.pow(g - color.rgb[1], 2) +
+        Math.pow(b - color.rgb[2], 2)
+      );
+      
+      if (distance < minDistance && distance < color.threshold) {
+        minDistance = distance;
+        closestColor = color.name;
+      }
+    }
+
+    return closestColor;
+  };
+  
+  // Confirm manual color pick
+  const confirmManualColorPick = () => {
+    if (livePickedColor) {
+      console.log('🎨 [MANUAL PICKER] Confirming color pick:', livePickedColor);
+      setShowColorPicker(false);
+      setPickerTouchPosition(null);
+      setMagnifierPosition(null);
+      
+      // Re-run fit analysis with manually picked color
+      console.log('🎨 [MANUAL PICKER] Re-running fit analysis with manually selected color:', livePickedColor.name);
+      setTimeout(() => {
+        loadInsights(true);
+      }, 300);
+      
+      Alert.alert(
+        'Color Picked',
+        `Selected: ${livePickedColor.name}\n\nFit analysis will update with this color.`,
+        [{ text: 'OK' }]
+      );
     }
   };
   
@@ -1575,13 +1654,11 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                   <Pressable
                     style={[styles.uploadButton, { marginBottom: 16 }]}
                     onPress={() => {
-                      Alert.prompt('Add Size', 'Enter new size label (e.g., XXS, 3XL):', (newSize) => {
-                        if (newSize && newSize.trim()) {
-                          setManualSizeChartInput({
-                            ...manualSizeChartInput,
-                            sizes: [...manualSizeChartInput.sizes, newSize.trim()],
-                          });
-                        }
+                      // Simple approach: add a default size that user can edit
+                      const defaultSize = `Size${manualSizeChartInput.sizes.length + 1}`;
+                      setManualSizeChartInput({
+                        ...manualSizeChartInput,
+                        sizes: [...manualSizeChartInput.sizes, defaultSize],
                       });
                     }}
                   >
@@ -1592,14 +1669,11 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                   <Pressable
                     style={[styles.uploadButton, { marginBottom: 16 }]}
                     onPress={() => {
-                      Alert.prompt('Add Measurement', 'Enter new measurement (e.g., chest, waist, hips):', (newMeasure) => {
-                        if (newMeasure && newMeasure.trim()) {
-                          const measureKey = newMeasure.trim().toLowerCase();
-                          setManualSizeChartInput({
-                            ...manualSizeChartInput,
-                            measurements: [...(manualSizeChartInput.measurements || []), measureKey],
-                          });
-                        }
+                      // Simple approach: add a default measurement that user can edit
+                      const defaultMeasure = `measure${(manualSizeChartInput.measurements?.length || 0) + 1}`;
+                      setManualSizeChartInput({
+                        ...manualSizeChartInput,
+                        measurements: [...(manualSizeChartInput.measurements || []), defaultMeasure],
                       });
                     }}
                   >
@@ -1747,72 +1821,132 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         </View>
       </Modal>
 
-      {/* Color Picker Modal - Shows original product image */}
+      {/* Manual Color Picker Modal - COMPLETELY SEPARATE from auto-detect */}
       <Modal
         visible={showColorPicker}
         transparent={true}
         animationType="slide"
-        onRequestClose={() => setShowColorPicker(false)}
+        onRequestClose={() => {
+          setShowColorPicker(false);
+          setPickerTouchPosition(null);
+          setMagnifierPosition(null);
+          setLivePickedColor(null);
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Pick Color from Product</Text>
-              <Pressable onPress={() => setShowColorPicker(false)}>
+              <Pressable onPress={() => {
+                setShowColorPicker(false);
+                setPickerTouchPosition(null);
+                setMagnifierPosition(null);
+                setLivePickedColor(null);
+              }}>
                 <Text style={styles.modalCloseBtn}>✕</Text>
               </Pressable>
             </View>
             
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.modalSectionSubtitle, { marginBottom: 16, textAlign: 'center', paddingHorizontal: 20 }]}>
-                Tap anywhere on the product image to pick the exact color
+            <View style={{ flex: 1, position: 'relative' }}>
+              <Text style={[styles.modalSectionSubtitle, { 
+                marginBottom: 16, 
+                textAlign: 'center', 
+                paddingHorizontal: 20,
+                color: '#9ca3af',
+              }]}>
+                Tap anywhere on the image to pick the exact pixel color
               </Text>
               
-              {isDetectingColor && (
-                <View style={{ padding: 20, alignItems: 'center' }}>
-                  <ActivityIndicator color="#6366f1" size="large" />
-                  <Text style={[styles.modalSectionSubtitle, { marginTop: 12, color: '#6366f1' }]}>
-                    Picking color...
-                  </Text>
-                </View>
-              )}
-              
               {originalProductImage.current || product?.image ? (
-                <Pressable
-                  onPress={handleColorPickerTap}
-                  style={{ flex: 1, width: '100%' }}
-                  disabled={isDetectingColor}
-                >
-                  <Image
-                    source={{ uri: originalProductImage.current || product?.image }}
-                    style={{ 
-                      width: '100%', 
-                      flex: 1,
-                      minHeight: 500,
-                      resizeMode: 'contain',
-                    }}
-                    onLayout={(event) => {
-                      const { width, height, x, y } = event.nativeEvent.layout;
-                      setImageLayout({ width, height, x, y });
-                    }}
-                    onLoad={(event) => {
-                      const { width, height } = event.nativeEvent.source;
-                      setImageNaturalSize({ width, height });
-                    }}
-                  />
-                  <Text style={[styles.modalSectionSubtitle, { 
-                    marginTop: 12, 
-                    marginBottom: 20,
-                    color: '#6366f1',
-                    textAlign: 'center',
-                    paddingHorizontal: 20,
-                  }]}>
-                    {isDetectingColor ? 'Processing...' : 'Tap anywhere on the image to pick color'}
-                  </Text>
-                </Pressable>
+                <View style={{ flex: 1, position: 'relative' }}>
+                  <Pressable
+                    onPress={handleManualColorPickerTap}
+                    style={{ flex: 1, width: '100%' }}
+                    disabled={isDetectingColor}
+                  >
+                    <Image
+                      source={{ uri: originalProductImage.current || product?.image }}
+                      style={{ 
+                        width: '100%', 
+                        flex: 1,
+                        minHeight: 500,
+                        resizeMode: 'contain',
+                      }}
+                      onLayout={(event) => {
+                        const { width, height, x, y } = event.nativeEvent.layout;
+                        setImageLayout({ width, height, x, y });
+                      }}
+                      onLoad={(event) => {
+                        const { width, height } = event.nativeEvent.source;
+                        setImageNaturalSize({ width, height });
+                      }}
+                    />
+                  </Pressable>
+                  
+                  {/* Crosshair at tap position */}
+                  {pickerTouchPosition && (
+                    <View
+                      style={[
+                        styles.crosshair,
+                        {
+                          left: pickerTouchPosition.x - 10,
+                          top: pickerTouchPosition.y - 10,
+                        }
+                      ]}
+                    />
+                  )}
+                  
+                  {/* Magnifier/Loupe above finger */}
+                  {magnifierPosition && livePickedColor && (
+                    <View
+                      style={[
+                        styles.magnifier,
+                        {
+                          left: Math.max(10, Math.min(magnifierPosition.x - 60, width - 130)),
+                          top: Math.max(10, magnifierPosition.y),
+                        }
+                      ]}
+                    >
+                      <View style={styles.magnifierContent}>
+                        <View style={[styles.magnifierColorSwatch, { backgroundColor: livePickedColor.hex }]} />
+                        <Text style={styles.magnifierText}>
+                          {livePickedColor.hex.toUpperCase()}
+                        </Text>
+                        <Text style={styles.magnifierTextSmall}>
+                          RGB: {livePickedColor.rgb.r}, {livePickedColor.rgb.g}, {livePickedColor.rgb.b}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+                </View>
               ) : (
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
                   <Text style={styles.modalSectionSubtitle}>No product image available</Text>
+                </View>
+              )}
+              
+              {/* Live Color Preview */}
+              {livePickedColor && (
+                <View style={styles.colorPreviewContainer}>
+                  <View style={[styles.colorPreviewSwatch, { backgroundColor: livePickedColor.hex }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.colorPreviewName}>{livePickedColor.name}</Text>
+                    <Text style={styles.colorPreviewHex}>{livePickedColor.hex.toUpperCase()}</Text>
+                  </View>
+                  <Pressable
+                    style={styles.confirmColorButton}
+                    onPress={confirmManualColorPick}
+                  >
+                    <Text style={styles.confirmColorButtonText}>✓ Use This Color</Text>
+                  </Pressable>
+                </View>
+              )}
+              
+              {!livePickedColor && (
+                <View style={styles.instructions}>
+                  <Text style={styles.instructionText}>
+                    {isDetectingColor ? 'Picking color...' : 'Tap the image to pick a color'}
+                  </Text>
                 </View>
               )}
             </View>
@@ -2595,6 +2729,120 @@ const styles = StyleSheet.create({
     color: '#a5b4fc',
     fontSize: 14,
     fontWeight: '600',
+  },
+  // Manual Color Picker styles
+  crosshair: {
+    position: 'absolute',
+    width: 20,
+    height: 20,
+    borderWidth: 2,
+    borderColor: '#fff',
+    borderRadius: 10,
+    backgroundColor: 'transparent',
+    zIndex: 1000,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+    elevation: 10,
+  },
+  magnifier: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    borderRadius: 60,
+    borderWidth: 3,
+    borderColor: '#fff',
+    zIndex: 1001,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.8,
+    shadowRadius: 8,
+    elevation: 15,
+    overflow: 'hidden',
+  },
+  magnifierContent: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 8,
+  },
+  magnifierColorSwatch: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: '#fff',
+    marginBottom: 4,
+  },
+  magnifierText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  magnifierTextSmall: {
+    color: '#9ca3af',
+    fontSize: 8,
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  colorPreviewContainer: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    padding: 16,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    zIndex: 1002,
+  },
+  colorPreviewSwatch: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 3,
+    borderColor: '#fff',
+  },
+  colorPreviewName: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  colorPreviewHex: {
+    color: '#9ca3af',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  confirmColorButton: {
+    backgroundColor: '#6366f1',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  confirmColorButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  instructions: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    alignItems: 'center',
+  },
+  instructionText: {
+    color: '#9ca3af',
+    fontSize: 14,
+    textAlign: 'center',
   },
   materialInput: {
     backgroundColor: 'rgba(255,255,255,0.1)',
