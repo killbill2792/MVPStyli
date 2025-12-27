@@ -56,24 +56,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       // OCR.space free API (no key required, but limited requests)
       // Format: base64 image data
-      let base64Data: string | null = null;
+      let rawBase64: string | null = null;
+      let dataUriForOCR: string | null = null;
       let needsConversion = false;
       
       if (imageBase64) {
-        // Extract base64 data (remove data URL prefix if present)
+        // Keep two versions:
+        // 1. rawBase64 - for sharp processing (no prefix)
+        // 2. dataUriForOCR - for OCR.space (with data:image/jpeg;base64, prefix)
+        
+        // Extract raw base64 (remove data URL prefix if present for sharp)
         if (imageBase64.includes(',')) {
           const [prefix, data] = imageBase64.split(',');
-          base64Data = data;
+          rawBase64 = data;
           console.log('📊 [OCR] Data URL prefix:', prefix.substring(0, 50));
         } else {
-          base64Data = imageBase64;
+          rawBase64 = imageBase64;
         }
         
-        console.log('📊 [OCR] Base64 data length:', base64Data.length);
+        console.log('📊 [OCR] Raw base64 length:', rawBase64.length);
         
         // Use sharp to detect actual image format and convert if needed
         try {
-          const imageBuffer = Buffer.from(base64Data, 'base64');
+          const imageBuffer = Buffer.from(rawBase64, 'base64');
           const metadata = await sharp(imageBuffer).metadata();
           const actualFormat = metadata.format;
           
@@ -95,15 +100,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const jpegBuffer = await sharp(imageBuffer)
               .jpeg({ quality: 90, mozjpeg: true })
               .toBuffer();
-            base64Data = jpegBuffer.toString('base64');
-            console.log('📊 [OCR] Image converted to JPEG successfully (new length:', base64Data.length, ')');
+            rawBase64 = jpegBuffer.toString('base64');
+            console.log('📊 [OCR] Image converted to JPEG successfully (new length:', rawBase64.length, ')');
           }
+          
+          // Build data URI for OCR.space (always use image/jpeg after conversion or if already JPEG)
+          dataUriForOCR = `data:image/jpeg;base64,${rawBase64}`;
+          console.log('📊 [OCR] Data URI for OCR.space prepared (length:', dataUriForOCR.length, ')');
         } catch (sharpError: any) {
           console.error('📊 [OCR] Sharp processing error:', sharpError.message);
           // If sharp fails, try to detect from magic bytes as fallback
           console.log('📊 [OCR] Falling back to magic bytes detection...');
           try {
-            const sampleBase64 = base64Data.substring(0, 32);
+            const sampleBase64 = rawBase64.substring(0, 32);
             const bytes = Buffer.from(sampleBase64, 'base64');
             
             // Check for HEIC/HEIF magic bytes
@@ -111,40 +120,50 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               if ((bytes[8] === 0x68 && bytes[9] === 0x65 && bytes[10] === 0x69 && bytes[11] === 0x63) ||
                   (bytes[8] === 0x6D && bytes[9] === 0x69 && bytes[10] === 0x66 && bytes[11] === 0x31)) {
                 console.log('📊 [OCR] HEIC detected from magic bytes, attempting conversion...');
-                const imageBuffer = Buffer.from(base64Data, 'base64');
+                const imageBuffer = Buffer.from(rawBase64, 'base64');
                 try {
                   const jpegBuffer = await sharp(imageBuffer)
                     .jpeg({ quality: 90, mozjpeg: true })
                     .toBuffer();
-                  base64Data = jpegBuffer.toString('base64');
+                  rawBase64 = jpegBuffer.toString('base64');
                   console.log('📊 [OCR] HEIC converted to JPEG via fallback method');
                 } catch (convError: any) {
                   console.error('📊 [OCR] Fallback conversion failed:', convError.message);
                 }
               }
             }
+            
+            // Build data URI for OCR.space (use image/jpeg as default)
+            dataUriForOCR = `data:image/jpeg;base64,${rawBase64}`;
           } catch (magicError: any) {
             console.warn('📊 [OCR] Magic bytes detection failed:', magicError.message);
+            // Fallback: use original input if it was already a data URI, otherwise create one
+            if (imageBase64.startsWith('data:')) {
+              dataUriForOCR = imageBase64;
+            } else {
+              dataUriForOCR = `data:image/jpeg;base64,${rawBase64}`;
+            }
           }
         }
       }
       
-      if (base64Data) {
+      if (dataUriForOCR) {
         // OCR.space requires API key - use free demo key (limited requests)
         // For production, get free API key from https://ocr.space/ocrapi/freekey
         const ocrApiKey = process.env.OCR_SPACE_API_KEY || 'helloworld';
         
         // After conversion, always use JPG for OCR.space
-        const filetypeForOCR = needsConversion ? 'JPG' : 'JPG'; // Always JPG after any conversion
+        const filetypeForOCR = 'JPG'; // Always JPG after any conversion
         
         console.log('📊 [OCR] Sending to OCR.space with filetype:', filetypeForOCR);
-        console.log('📊 [OCR] Base64 length:', base64Data.length);
+        console.log('📊 [OCR] Data URI length:', dataUriForOCR.length);
+        console.log('📊 [OCR] Data URI prefix:', dataUriForOCR.substring(0, 30));
         
         // OCR.space expects form data, not JSON!
-        // Create URL-encoded form data
+        // OCR.space wants base64Image as full data URI: data:image/jpeg;base64,...
         const formData = new URLSearchParams();
         formData.append('apikey', ocrApiKey);
-        formData.append('base64Image', base64Data); // Raw base64 (no data URI prefix needed when filetype is provided)
+        formData.append('base64Image', dataUriForOCR); // Full data URI with prefix!
         formData.append('filetype', filetypeForOCR);
         formData.append('language', 'eng');
         formData.append('isOverlayRequired', 'false');
