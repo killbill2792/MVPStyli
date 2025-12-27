@@ -132,6 +132,72 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
   const [livePickedColor, setLivePickedColor] = useState(null);
   
   // Manual color picker - CLIENT-SIDE ONLY, never calls auto-detect
+  // Live preview handler - called as user moves finger
+  const handleManualColorPickerMove = async (touchX, touchY) => {
+    const imageToUse = originalProductImage.current || product?.image;
+    if (!imageToUse || !imageLayout.width || !imageLayout.height) return;
+
+    // Update touch position for magnifier/crosshair (live preview)
+    setPickerTouchPosition({ x: touchX, y: touchY });
+    setMagnifierPosition({ x: touchX, y: Math.max(10, touchY - 150) }); // Position above finger
+    
+    // Throttle API calls for live preview (only call every 100ms)
+    if (isDetectingColor) return; // Don't spam API
+    
+    setIsDetectingColor(true);
+    
+    try {
+      // Fetch image and convert to base64
+      const response = await fetch(imageToUse);
+      const blob = await response.blob();
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = reader.result;
+        
+        // Call SEPARATE pixel-pick API (not the auto-detect endpoint)
+        const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://mvp-styli.vercel.app';
+        const apiUrl = `${API_BASE}/api/pick-pixel-color`;
+        
+        try {
+          const apiResponse = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              imageBase64: base64,
+              x: touchX,
+              y: touchY,
+              imageWidth: imageLayout.width,
+              imageHeight: imageLayout.height,
+            }),
+          });
+
+          if (apiResponse.ok) {
+            const result = await apiResponse.json();
+            
+            if (result.color) {
+              const hex = result.color;
+              const { r, g, b } = result.rgb || { r: 0, g: 0, b: 0 };
+              const colorName = rgbToColorNameSimple(r, g, b);
+              
+              // Update live preview (don't update product color yet - wait for tap)
+              setLivePickedColor({ hex, rgb: { r, g, b }, name: colorName });
+            }
+          }
+        } catch (apiError) {
+          console.error('🎨 [MANUAL PICKER] API error:', apiError);
+        } finally {
+          colorPickerApiInProgress.current = false;
+        }
+      };
+      reader.readAsDataURL(blob);
+    } catch (fetchError) {
+      console.error('🎨 [MANUAL PICKER] Fetch error:', fetchError);
+      colorPickerApiInProgress.current = false;
+    }
+    }, 150); // Throttle to 150ms
+  };
+
+  // Final tap handler - confirms color selection
   const handleManualColorPickerTap = async (event) => {
     try {
       const imageToUse = originalProductImage.current || product?.image;
@@ -145,31 +211,49 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       const touchX = locationX;
       const touchY = locationY;
       
-      console.log('🎨 [MANUAL PICKER] Tap at:', { touchX, touchY });
-      console.log('🎨 [MANUAL PICKER] Image layout:', imageLayout);
-      console.log('🎨 [MANUAL PICKER] Image natural size:', imageNaturalSize);
+      console.log('🎨 [MANUAL PICKER] Final tap at:', { touchX, touchY });
 
-      // Update touch position for magnifier/crosshair
-      setPickerTouchPosition({ x: touchX, y: touchY });
-      setMagnifierPosition({ x: touchX, y: touchY - 150 }); // Position above finger
+      // If we already have a live preview color, use it
+      if (livePickedColor) {
+        setPickedColorHex(livePickedColor.hex);
+        setPickedColorName(livePickedColor.name);
+        setDetectedColor(livePickedColor.name);
+        setDetectedColorHex(livePickedColor.hex);
+        setUserEnteredColor(livePickedColor.name);
+        setColorSource('manual');
+        
+        // Update product color
+        const updatedProduct = {
+          ...product,
+          color: livePickedColor.name,
+        };
+        setProduct(updatedProduct);
+        
+        console.log('🎨 [MANUAL PICKER] Color confirmed (EXACT PIXEL):', {
+          name: livePickedColor.name,
+          hex: livePickedColor.hex,
+          rgb: livePickedColor.rgb,
+        });
+        
+        // Re-run fit analysis with new color
+        setTimeout(() => {
+          loadInsights(true);
+        }, 100);
+        return;
+      }
       
-      // For now, we'll need to use a separate pixel-picking API endpoint
-      // This is a temporary solution until we can implement full client-side canvas
-      // Create a dedicated pixel-pick endpoint that ONLY does pixel extraction
+      // Fallback: call API if no live preview
       setIsDetectingColor(true);
       
       try {
-        // Fetch image and convert to base64
         const response = await fetch(imageToUse);
         const blob = await response.blob();
         const reader = new FileReader();
         reader.onloadend = async () => {
           const base64 = reader.result;
           
-          // Call SEPARATE pixel-pick API (not the auto-detect endpoint)
-          // This endpoint ONLY extracts pixel color, no dominant color logic
           const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://mvp-styli.vercel.app';
-          const apiUrl = `${API_BASE}/api/pick-pixel-color`; // Separate endpoint - NEVER calls auto-detect
+          const apiUrl = `${API_BASE}/api/pick-pixel-color`;
           
           try {
             const apiResponse = await fetch(apiUrl, {
@@ -186,14 +270,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
 
             if (apiResponse.ok) {
               const result = await apiResponse.json();
-              console.log('🎨 [MANUAL PICKER] Pixel color result:', result);
               
               if (result.color) {
-                // Use the EXACT picked pixel color (no averaging, no dominant color logic)
                 const hex = result.color;
                 const { r, g, b } = result.rgb || { r: 0, g: 0, b: 0 };
-                
-                // Convert RGB to color name (client-side, simple mapping)
                 const colorName = rgbToColorNameSimple(r, g, b);
                 
                 setPickedColorHex(hex);
@@ -204,33 +284,25 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                 setColorSource('manual');
                 setLivePickedColor({ hex, rgb: { r, g, b }, name: colorName });
                 
-                // Update product color
                 const updatedProduct = {
                   ...product,
                   color: colorName,
                 };
                 setProduct(updatedProduct);
                 
-                console.log('🎨 [MANUAL PICKER] Color picked manually (EXACT PIXEL):', {
-                  name: colorName,
-                  hex: hex,
-                  rgb: { r, g, b },
-                });
-                
-                // Don't close picker immediately - let user see the color
-                // User can tap again to pick a different color, or tap "Done" to confirm
-              } else {
-                throw new Error('Invalid color result from API');
+                // Re-run fit analysis
+                setTimeout(() => {
+                  loadInsights(true);
+                }, 100);
               }
             } else {
               const errorText = await apiResponse.text();
               console.warn('🎨 [MANUAL PICKER] Pixel-pick API error:', apiResponse.status, errorText);
               
-              // If endpoint doesn't exist (404), the endpoint needs to be deployed
               if (apiResponse.status === 404) {
                 Alert.alert(
                   'API Endpoint Not Deployed',
-                  'The pixel color picker endpoint needs to be deployed. The endpoint exists in the codebase but hasn\'t been deployed to Vercel yet. Please commit and push the changes.',
+                  'The pixel color picker endpoint needs to be deployed. Please wait a moment and try again.',
                   [{ text: 'OK' }]
                 );
               } else {
@@ -239,7 +311,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
             }
           } catch (apiError) {
             console.error('🎨 [MANUAL PICKER] API error:', apiError);
-            // Don't show error - just log it, user can try again
+            Alert.alert('Error', 'Failed to pick color. Please try again.');
           } finally {
             setIsDetectingColor(false);
           }
@@ -1859,65 +1931,106 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
               
               {originalProductImage.current || product?.image ? (
                 <View style={{ flex: 1, position: 'relative' }}>
-                  <Pressable
-                    onPress={handleManualColorPickerTap}
-                    style={{ flex: 1, width: '100%' }}
-                    disabled={isDetectingColor}
-                  >
-                    <Image
-                      source={{ uri: originalProductImage.current || product?.image }}
-                      style={{ 
-                        width: '100%', 
-                        flex: 1,
-                        minHeight: 500,
-                        resizeMode: 'contain',
-                      }}
-                      onLayout={(event) => {
-                        const { width, height, x, y } = event.nativeEvent.layout;
-                        setImageLayout({ width, height, x, y });
-                      }}
-                      onLoad={(event) => {
-                        const { width, height } = event.nativeEvent.source;
-                        setImageNaturalSize({ width, height });
-                      }}
-                    />
-                  </Pressable>
-                  
-                  {/* Crosshair at tap position */}
-                  {pickerTouchPosition && (
-                    <View
-                      style={[
-                        styles.crosshair,
-                        {
-                          left: pickerTouchPosition.x - 10,
-                          top: pickerTouchPosition.y - 10,
-                        }
-                      ]}
-                    />
-                  )}
-                  
-                  {/* Magnifier/Loupe above finger */}
-                  {magnifierPosition && livePickedColor && (
-                    <View
-                      style={[
-                        styles.magnifier,
-                        {
-                          left: Math.max(10, Math.min(magnifierPosition.x - 60, width - 130)),
-                          top: Math.max(10, magnifierPosition.y),
-                        }
-                      ]}
-                    >
-                      <View style={styles.magnifierContent}>
-                        <View style={[styles.magnifierColorSwatch, { backgroundColor: livePickedColor.hex }]} />
-                        <Text style={styles.magnifierText}>
-                          {livePickedColor.hex.toUpperCase()}
-                        </Text>
-                        <Text style={styles.magnifierTextSmall}>
-                          RGB: {livePickedColor.rgb.r}, {livePickedColor.rgb.g}, {livePickedColor.rgb.b}
-                        </Text>
+                  {/* PanResponder for live preview as user moves finger */}
+                  {(() => {
+                    // Create PanResponder using useMemo pattern (created once per render cycle)
+                    const colorPickerPanResponder = PanResponder.create({
+                      onStartShouldSetPanResponder: () => true,
+                      onMoveShouldSetPanResponder: () => true,
+                      onPanResponderGrant: (evt) => {
+                        // User started touching - show live preview
+                        const { locationX, locationY } = evt.nativeEvent;
+                        handleManualColorPickerMove(locationX, locationY);
+                      },
+                      onPanResponderMove: (evt) => {
+                        // User is moving finger - update live preview
+                        const { locationX, locationY } = evt.nativeEvent;
+                        handleManualColorPickerMove(locationX, locationY);
+                      },
+                      onPanResponderRelease: (evt) => {
+                        // User lifted finger - confirm color selection
+                        const { locationX, locationY } = evt.nativeEvent;
+                        handleManualColorPickerTap({ nativeEvent: { locationX, locationY } });
+                      },
+                    });
+                    
+                    return (
+                      <View style={{ flex: 1, width: '100%' }} {...colorPickerPanResponder.panHandlers}>
+                        <Image
+                          source={{ uri: originalProductImage.current || product?.image }}
+                          style={{ 
+                            width: '100%', 
+                            flex: 1,
+                            minHeight: 500,
+                            resizeMode: 'contain',
+                          }}
+                          onLayout={(event) => {
+                            const { width, height, x, y } = event.nativeEvent.layout;
+                            setImageLayout({ width, height, x, y });
+                          }}
+                          onLoad={(event) => {
+                            const { width, height } = event.nativeEvent.source;
+                            setImageNaturalSize({ width, height });
+                          }}
+                        />
+                        
+                        {/* Color Picker Cursor Icon */}
+                        {pickerTouchPosition && (
+                          <View
+                            style={[
+                              styles.colorPickerCursor,
+                              {
+                                left: pickerTouchPosition.x - 15,
+                                top: pickerTouchPosition.y - 15,
+                              }
+                            ]}
+                          >
+                            <Text style={styles.colorPickerCursorIcon}>🎯</Text>
+                          </View>
+                        )}
+                        
+                        {/* Crosshair at tap position */}
+                        {pickerTouchPosition && (
+                          <View
+                            style={[
+                              styles.crosshair,
+                              {
+                                left: pickerTouchPosition.x - 10,
+                                top: pickerTouchPosition.y - 10,
+                              }
+                            ]}
+                          />
+                        )}
+                        
+                        {/* Magnifier/Loupe above finger - shows zoomed view */}
+                        {magnifierPosition && livePickedColor && (
+                          <View
+                            style={[
+                              styles.magnifier,
+                              {
+                                left: Math.max(10, Math.min(magnifierPosition.x - 60, width - 130)),
+                                top: Math.max(10, magnifierPosition.y - 140),
+                              }
+                            ]}
+                          >
+                            <View style={styles.magnifierContent}>
+                              {/* Zoomed color swatch (larger for better visibility) */}
+                              <View style={[styles.magnifierColorSwatch, { backgroundColor: livePickedColor.hex }]} />
+                              <Text style={styles.magnifierText}>
+                                {livePickedColor.hex.toUpperCase()}
+                              </Text>
+                              <Text style={styles.magnifierTextSmall}>
+                                RGB: {livePickedColor.rgb.r}, {livePickedColor.rgb.g}, {livePickedColor.rgb.b}
+                              </Text>
+                              <Text style={styles.magnifierTextSmall}>
+                                {livePickedColor.name}
+                              </Text>
+                            </View>
+                          </View>
+                        )}
                       </View>
-                    </View>
-                  )}
+                    );
+                  })()}
                 </View>
               ) : (
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
@@ -2731,6 +2844,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   // Manual Color Picker styles
+  colorPickerCursor: {
+    position: 'absolute',
+    width: 30,
+    height: 30,
+    zIndex: 1001,
+    justifyContent: 'center',
+    alignItems: 'center',
+    pointerEvents: 'none',
+  },
+  colorPickerCursorIcon: {
+    fontSize: 24,
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 4,
+  },
   crosshair: {
     position: 'absolute',
     width: 20,

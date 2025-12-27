@@ -79,17 +79,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Extract EXACT pixel color at coordinates (NO averaging, NO region sampling)
     // This is the exact pixel the user tapped
-    const { data } = await sharp(imageBuffer)
+    const result = await sharp(imageBuffer)
       .extract({ left: pixelX, top: pixelY, width: 1, height: 1 })
       .raw()
       .toBuffer({ resolveWithObject: true });
 
-    const channels = data.info.channels || 3;
+    const { data, info } = result;
+    const channels = info.channels || 3;
     
     // Get the EXACT pixel RGB values (no averaging)
     const r = data[0];
-    const g = data[1] || data[0];
-    const b = data[2] || data[0];
+    const g = channels >= 2 ? data[1] : data[0];
+    const b = channels >= 3 ? data[2] : data[0];
 
     const hexColor = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 
