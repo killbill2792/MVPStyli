@@ -71,26 +71,30 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       
       console.log('🎨 [CLIENT COLOR] Color detection result:', JSON.stringify(colorResult, null, 2));
       
-      if (colorResult && colorResult.name && colorResult.name !== 'unknown' && colorResult.confidence > 0) {
+      if (colorResult && colorResult.color && colorResult.confidence > 0) {
+        const hex = colorResult.color;
+        const name = colorResult.name || 'unknown';
+        
         console.log('🎨 [CLIENT COLOR] Color detected successfully:', {
-          name: colorResult.name,
-          hex: colorResult.color,
+          name: name,
+          hex: hex,
           rgb: colorResult.rgb || 'N/A',
           confidence: colorResult.confidence,
         });
         
-        setDetectedColor(colorResult.name);
-        setDetectedColorHex(colorResult.color);
-        setUserEnteredColor(colorResult.name);
+        setDetectedColor(name);
+        setDetectedColorHex(hex);
+        setUserEnteredColor(name);
         setColorSource('auto-detected'); // Mark as auto-detected
         
-        // Update product color immediately
+        // Update product - store hex as source of truth, name for UI
         const updatedProduct = {
           ...product,
-          color: colorResult.name,
+          color: name, // For UI display
+          colorHex: hex, // Source of truth for logic
         };
         setProduct(updatedProduct);
-        console.log('🎨 [CLIENT COLOR] Product color updated to:', colorResult.name);
+        console.log('🎨 [CLIENT COLOR] Product color updated:', { name, hex });
         
         // Reload insights with new color after a short delay
         setTimeout(() => {
@@ -133,11 +137,73 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
   const colorPickerThrottleRef = useRef(null);
   const colorPickerApiInProgress = useRef(false);
   
+  // Convert touch coordinates to image pixel coordinates (accounts for resizeMode: contain letterboxing)
+  const convertTouchToImageCoords = (touchX, touchY) => {
+    if (!imageLayout.width || !imageLayout.height || !imageNaturalSize.width || !imageNaturalSize.height) {
+      return null;
+    }
+    
+    // Calculate the displayed image rect (accounting for letterboxing with resizeMode: contain)
+    const containerAspect = imageLayout.width / imageLayout.height;
+    const imageAspect = imageNaturalSize.width / imageNaturalSize.height;
+    
+    let displayedWidth, displayedHeight, offsetX, offsetY;
+    
+    if (imageAspect > containerAspect) {
+      // Image is wider - letterboxing on top/bottom
+      displayedWidth = imageLayout.width;
+      displayedHeight = imageLayout.width / imageAspect;
+      offsetX = 0;
+      offsetY = (imageLayout.height - displayedHeight) / 2;
+    } else {
+      // Image is taller - letterboxing on left/right
+      displayedWidth = imageLayout.height * imageAspect;
+      displayedHeight = imageLayout.height;
+      offsetX = (imageLayout.width - displayedWidth) / 2;
+      offsetY = 0;
+    }
+    
+    // Check if touch is outside the displayed image rect
+    if (touchX < offsetX || touchX > offsetX + displayedWidth ||
+        touchY < offsetY || touchY > offsetY + displayedHeight) {
+      return null; // Touch outside image
+    }
+    
+    // Convert touch coordinates to coordinates relative to displayed image
+    const relativeX = touchX - offsetX;
+    const relativeY = touchY - offsetY;
+    
+    // Scale to actual image coordinates
+    const scaleX = imageNaturalSize.width / displayedWidth;
+    const scaleY = imageNaturalSize.height / displayedHeight;
+    
+    const imageX = Math.floor(relativeX * scaleX);
+    const imageY = Math.floor(relativeY * scaleY);
+    
+    // Clamp to image bounds
+    const clampedX = Math.max(0, Math.min(imageX, imageNaturalSize.width - 1));
+    const clampedY = Math.max(0, Math.min(imageY, imageNaturalSize.height - 1));
+    
+    return {
+      imageX: clampedX,
+      imageY: clampedY,
+      displayX: touchX,
+      displayY: touchY,
+    };
+  };
+  
   // Manual color picker - CLIENT-SIDE ONLY, never calls auto-detect
   // Live preview handler - called as user moves finger (throttled)
   const handleManualColorPickerMove = async (touchX, touchY) => {
     const imageToUse = originalProductImage.current || product?.image;
     if (!imageToUse || !imageLayout.width || !imageLayout.height) return;
+
+    // Convert touch coordinates to image coordinates (accounts for letterboxing)
+    const coords = convertTouchToImageCoords(touchX, touchY);
+    if (!coords) {
+      // Touch outside image - don't update
+      return;
+    }
 
     // Update touch position for magnifier/crosshair (live preview) - immediate UI update
     setPickerTouchPosition({ x: touchX, y: touchY });
@@ -163,6 +229,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
           const base64 = reader.result;
           
           // Call SEPARATE pixel-pick API (not the auto-detect endpoint)
+          // Pass actual image coordinates, not display coordinates
           const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://mvp-styli.vercel.app';
           const apiUrl = `${API_BASE}/api/pick-pixel-color`;
           
@@ -172,10 +239,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 imageBase64: base64,
-                x: touchX,
-                y: touchY,
-                imageWidth: imageLayout.width,
-                imageHeight: imageLayout.height,
+                x: coords.imageX, // Use actual image coordinates
+                y: coords.imageY,
+                imageWidth: imageNaturalSize.width,
+                imageHeight: imageNaturalSize.height,
               }),
             });
 
@@ -185,7 +252,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
               if (result.color) {
                 const hex = result.color;
                 const { r, g, b } = result.rgb || { r: 0, g: 0, b: 0 };
-                const colorName = rgbToColorNameSimple(r, g, b);
+                
+                // Import color name helper (for UI display only)
+                const { colorNameFromHex } = require('../lib/colorAttributes');
+                const colorName = colorNameFromHex(hex);
                 
                 // Update live preview (don't update product color yet - wait for tap)
                 setLivePickedColor({ hex, rgb: { r, g, b }, name: colorName });
@@ -219,26 +289,37 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       const touchX = locationX;
       const touchY = locationY;
       
-      console.log('🎨 [MANUAL PICKER] Final tap at:', { touchX, touchY });
+      // Convert touch coordinates to image coordinates (accounts for letterboxing)
+      const coords = convertTouchToImageCoords(touchX, touchY);
+      if (!coords) {
+        // Touch outside image - ignore
+        return;
+      }
+      
+      console.log('🎨 [MANUAL PICKER] Final tap at:', { touchX, touchY, imageCoords: coords });
 
       // If we already have a live preview color, use it
       if (livePickedColor) {
+        const { colorNameFromHex } = require('../lib/colorAttributes');
+        const colorName = colorNameFromHex(livePickedColor.hex);
+        
         setPickedColorHex(livePickedColor.hex);
-        setPickedColorName(livePickedColor.name);
-        setDetectedColor(livePickedColor.name);
+        setPickedColorName(colorName);
+        setDetectedColor(colorName);
         setDetectedColorHex(livePickedColor.hex);
-        setUserEnteredColor(livePickedColor.name);
+        setUserEnteredColor(colorName);
         setColorSource('manual');
         
-        // Update product color
+        // Update product - store hex as source of truth, name for UI
         const updatedProduct = {
           ...product,
-          color: livePickedColor.name,
+          color: colorName, // For UI display
+          colorHex: livePickedColor.hex, // Source of truth for logic
         };
         setProduct(updatedProduct);
         
         console.log('🎨 [MANUAL PICKER] Color confirmed (EXACT PIXEL):', {
-          name: livePickedColor.name,
+          name: colorName,
           hex: livePickedColor.hex,
           rgb: livePickedColor.rgb,
         });
@@ -269,10 +350,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 imageBase64: base64,
-                x: touchX,
-                y: touchY,
-                imageWidth: imageLayout.width,
-                imageHeight: imageLayout.height,
+                x: coords.imageX, // Use actual image coordinates
+                y: coords.imageY,
+                imageWidth: imageNaturalSize.width,
+                imageHeight: imageNaturalSize.height,
               }),
             });
 
@@ -282,7 +363,9 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
               if (result.color) {
                 const hex = result.color;
                 const { r, g, b } = result.rgb || { r: 0, g: 0, b: 0 };
-                const colorName = rgbToColorNameSimple(r, g, b);
+                
+                const { colorNameFromHex } = require('../lib/colorAttributes');
+                const colorName = colorNameFromHex(hex);
                 
                 setPickedColorHex(hex);
                 setPickedColorName(colorName);
@@ -292,9 +375,11 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                 setColorSource('manual');
                 setLivePickedColor({ hex, rgb: { r, g, b }, name: colorName });
                 
+                // Store hex as source of truth, name for UI
                 const updatedProduct = {
                   ...product,
-                  color: colorName,
+                  color: colorName, // For UI display
+                  colorHex: hex, // Source of truth for logic
                 };
                 setProduct(updatedProduct);
                 
@@ -836,8 +921,12 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         productObjectColor: product?.color,
       });
       
+      // Get colorHex as source of truth (fallback to primaryColor for UI display)
+      const productColorHex = product?.colorHex || detectedColorHex || null;
+      
       const productForSuitability = {
-        primaryColor: productColor,
+        primaryColor: productColor, // For UI display/fallback
+        colorHex: productColorHex, // Source of truth for color logic
         category: fitLogicCategory, // Use same category mapping
         fitType: product?.fit || product?.fitType || null,
       };
