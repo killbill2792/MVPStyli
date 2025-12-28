@@ -86,29 +86,45 @@ const AdminGarmentsScreen = ({ onBack }) => {
   
   const { width, height } = Dimensions.get('window');
   
-  // Create PanResponder once and reuse it
+  // Create PanResponder once and reuse it - recreate when modal opens
   useEffect(() => {
-    if (showColorPicker) {
+    if (showColorPicker && formData.image_url) {
       colorPickerPanResponderRef.current = PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
         onPanResponderGrant: (evt) => {
-          const { locationX, locationY } = evt.nativeEvent;
-          handleManualColorPickerMove(locationX, locationY);
+          try {
+            const { locationX, locationY } = evt.nativeEvent;
+            handleManualColorPickerMove(locationX, locationY);
+          } catch (error) {
+            console.error('Error in onPanResponderGrant:', error);
+          }
         },
         onPanResponderMove: (evt) => {
-          const { locationX, locationY } = evt.nativeEvent;
-          handleManualColorPickerMove(locationX, locationY);
+          try {
+            const { locationX, locationY } = evt.nativeEvent;
+            handleManualColorPickerMove(locationX, locationY);
+          } catch (error) {
+            console.error('Error in onPanResponderMove:', error);
+          }
         },
         onPanResponderRelease: async (evt) => {
-          const { locationX, locationY } = evt.nativeEvent;
-          await pickColorAtCoordinates(locationX, locationY);
+          try {
+            const { locationX, locationY } = evt.nativeEvent;
+            await pickColorAtCoordinates(locationX, locationY);
+          } catch (error) {
+            console.error('Error in onPanResponderRelease:', error);
+          }
         },
       });
     } else {
       colorPickerPanResponderRef.current = null;
     }
-  }, [showColorPicker]);
+    
+    return () => {
+      colorPickerPanResponderRef.current = null;
+    };
+  }, [showColorPicker, formData.image_url]);
   
   const [measurementUnit, setMeasurementUnit] = useState('in'); // 'cm' or 'in' for input display (stored in inches)
 
