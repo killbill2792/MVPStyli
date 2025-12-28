@@ -48,7 +48,132 @@ const COLOR_SEASONS = {
   }
 };
 
-// Analyze face image and determine color profile using real skin tone detection
+// NEW: Analyze face from local URI with face detection, then upload
+export async function analyzeFaceForColorProfileFromLocalUri(
+  localUri: string,
+  uploadFn: (uri: string) => Promise<string>
+): Promise<{ profile: ExtendedColorProfile | null; uploadedUrl: string | null }> {
+  try {
+    console.log('🎨 [SKIN TONE CLIENT] ========== STARTING FACE ANALYSIS (LOCAL URI) ==========');
+    console.log('🎨 [SKIN TONE CLIENT] Local URI:', localUri.substring(0, 100));
+    
+    // Import face detection
+    const { detectFaceBoxFromUri } = require('./facedetection');
+    // @ts-ignore
+    const ImageManipulator = require('expo-image-manipulator');
+    
+    // 1) Normalize/rescale image for consistent results
+    const resized = await ImageManipulator.manipulateAsync(
+      localUri,
+      [{ resize: { width: 768 } }], // higher than detector, still fine
+      { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG }
+    );
+    
+    console.log('🎨 [SKIN TONE CLIENT] Image resized to:', resized.width, 'x', resized.height);
+    
+    // 2) Detect face on resized image (important: same image coords!)
+    const faceBox = await detectFaceBoxFromUri(resized.uri);
+    
+    if (!faceBox) {
+      console.warn('🎨 [SKIN TONE CLIENT] No face detected in image');
+      // Still upload the image for storage, but return null profile
+      const uploadedUrl = await uploadFn(resized.uri);
+      return { profile: null, uploadedUrl };
+    }
+    
+    console.log('🎨 [SKIN TONE CLIENT] Face detected:', faceBox);
+    
+    // 3) Upload the SAME resized image
+    const uploadedUrl = await uploadFn(resized.uri);
+    console.log('🎨 [SKIN TONE CLIENT] Image uploaded:', uploadedUrl.substring(0, 100));
+    
+    // 4) Call server analysis with real faceBox
+    const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL || 'https://mvp-styli.vercel.app';
+    const apiUrl = `${API_BASE}/api/analyze-skin-tone`;
+    
+    const startTime = Date.now();
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        imageUrl: uploadedUrl, 
+        faceBox: faceBox // REAL face box, not heuristic
+      }),
+    });
+    
+    const timeTaken = Date.now() - startTime;
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('🎨 [SKIN TONE CLIENT] API error:', response.status, errorText);
+      
+      // If server says face not detected, return null
+      if (errorText.includes('FACE_NOT_DETECTED') || response.status === 400) {
+        return { profile: null, uploadedUrl };
+      }
+      throw new Error(`Skin tone analysis failed: ${response.status} - ${errorText}`);
+    }
+    
+    const analysis = await response.json();
+    
+    // If server says face not detected / low confidence, treat as null
+    if (analysis?.error === 'FACE_NOT_DETECTED' || !analysis.undertone) {
+      console.warn('🎨 [SKIN TONE CLIENT] Server returned no face detected or invalid analysis');
+      return { profile: null, uploadedUrl };
+    }
+    
+    console.log('🎨 [SKIN TONE CLIENT] Analysis complete:', {
+      undertone: analysis.undertone,
+      depth: analysis.depth,
+      season: analysis.season,
+      confidence: analysis.confidence,
+      timeTaken: `${timeTaken}ms`,
+    });
+    
+    // Only assign season if confidence is good and undertone is not neutral
+    let season = analysis.season;
+    if (!season || analysis.confidence < 0.65 || analysis.undertone === 'neutral') {
+      season = null;
+      console.log('🎨 [SKIN TONE CLIENT] Season set to null (low confidence or neutral undertone)');
+    }
+    
+    // Get season data if season exists
+    const seasonData = season ? COLOR_SEASONS[season as keyof typeof COLOR_SEASONS] : null;
+    
+    const profile: ExtendedColorProfile = {
+      tone: analysis.undertone,
+      depth: analysis.depth,
+      season: season,
+      bestColors: seasonData?.bestColors || [],
+      avoidColors: seasonData?.avoidColors || [],
+      description: seasonData?.description || 'Color analysis complete',
+      confidence: analysis.confidence || 0,
+      skinHex: analysis.hex,
+      clarity: analysis.clarity,
+    };
+    
+    return { profile, uploadedUrl };
+  } catch (error: any) {
+    console.error('🎨 [SKIN TONE CLIENT] Error in analyzeFaceForColorProfileFromLocalUri:', error);
+    // Try to upload anyway for storage
+    try {
+      // @ts-ignore
+      const ImageManipulator = require('expo-image-manipulator');
+      const resized = await ImageManipulator.manipulateAsync(
+        localUri,
+        [{ resize: { width: 768 } }],
+        { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      const uploadedUrl = await uploadFn(resized.uri);
+      return { profile: null, uploadedUrl };
+    } catch (uploadError) {
+      console.error('🎨 [SKIN TONE CLIENT] Failed to upload image:', uploadError);
+      return { profile: null, uploadedUrl: null };
+    }
+  }
+}
+
+// OLD: Analyze face image from URL (kept for backward compatibility, but uses heuristic)
 export async function analyzeFaceForColorProfile(faceImageUrl: string): Promise<ExtendedColorProfile | null> {
   try {
     console.log('🎨 [SKIN TONE CLIENT] ========== STARTING FACE ANALYSIS ==========');
@@ -173,38 +298,47 @@ export async function saveColorProfile(userId: string, profile: ColorProfile | E
     const extendedProfile = profile as ExtendedColorProfile;
     
     const updateData: any = {
-        color_tone: profile.tone,
-        color_depth: profile.depth,
-        color_season: profile.season,
-        best_colors: profile.bestColors,
-        avoid_colors: profile.avoidColors,
+      color_tone: profile.tone || null,
+      color_depth: profile.depth || null,
+      color_season: profile.season || null, // Can be null if low confidence
+      best_colors: profile.bestColors || [],
+      avoid_colors: profile.avoidColors || [],
       updated_at: new Date().toISOString(),
     };
     
-    // Add optional fields if present
-    if (extendedProfile.confidence !== undefined) {
-      updateData.skin_tone_confidence = extendedProfile.confidence;
-    }
-    if (extendedProfile.skinHex) {
-      updateData.skin_hex = extendedProfile.skinHex;
-    }
+    // Add optional fields if present (always set, even if null, to override previous values)
+    updateData.skin_tone_confidence = extendedProfile.confidence !== undefined ? extendedProfile.confidence : null;
+    updateData.skin_hex = extendedProfile.skinHex || null;
     
-    const { error } = await supabase
+    console.log('🎨 [SKIN TONE] Saving color profile to Supabase:', {
+      userId,
+      updateData,
+    });
+    
+    const { error, data } = await supabase
       .from('profiles')
       .update(updateData)
-      .eq('id', userId);
+      .eq('id', userId)
+      .select();
 
     if (error) {
-      console.error('Error saving color profile:', error);
+      console.error('🎨 [SKIN TONE] Error saving color profile:', {
+        error: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        updateData,
+      });
       return false;
     }
     
-    console.log('🎨 [SKIN TONE] Color profile saved:', {
+    console.log('🎨 [SKIN TONE] Color profile saved successfully:', {
       tone: profile.tone,
       depth: profile.depth,
       season: profile.season,
       confidence: extendedProfile.confidence,
       skinHex: extendedProfile.skinHex,
+      updated: data?.[0]?.updated_at,
     });
     
     return true;

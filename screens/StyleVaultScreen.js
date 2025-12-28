@@ -29,7 +29,7 @@ import { supabase } from '../lib/supabase';
 import { getUserFriends } from '../lib/friends';
 import { buildShareUrl } from '../lib/share';
 import { getStyleProfile, refreshStyleProfile } from '../lib/styleEngine';
-import { loadColorProfile, saveColorProfile, getAllSeasons, getSeasonSwatches, analyzeFaceForColorProfile } from '../lib/colorAnalysis';
+import { loadColorProfile, saveColorProfile, getAllSeasons, getSeasonSwatches, analyzeFaceForColorProfile, analyzeFaceForColorProfileFromLocalUri } from '../lib/colorAnalysis';
 import PhotoGuidelinesModal from '../components/PhotoGuidelinesModal';
 import PhotoGuidelinesScreen from '../components/PhotoGuidelinesScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -433,43 +433,44 @@ const StyleVaultScreen = () => {
               });
               if (!res.canceled && res.assets[0]) {
                 try {
-                  const uploadedUrl = await uploadImageAsync(res.assets[0].uri);
-                  if (user?.id) {
+                  const localUri = res.assets[0].uri;
+                  
+                  // NEW: Analyze using local URI with face detection, then upload
+                  const { profile, uploadedUrl } = await analyzeFaceForColorProfileFromLocalUri(localUri, uploadImageAsync);
+                  
+                  if (uploadedUrl && user?.id) {
                     await supabase.from('profiles').update({ face_image_url: uploadedUrl }).eq('id', user.id);
+                    setFaceImage(uploadedUrl);
+                    if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
                   }
-                  setFaceImage(uploadedUrl);
-                  if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
-                  // Analyze for color profile
-                  try {
-                  const profile = await analyzeFaceForColorProfile(uploadedUrl);
+                  
                   if (profile && user?.id) {
                     await saveColorProfile(user.id, profile);
                     setColorProfile(profile);
-                      const confidencePercent = profile.confidence ? Math.round(profile.confidence * 100) : 0;
+                    const confidencePercent = profile.confidence ? Math.round(profile.confidence * 100) : 0;
+                    
+                    if (profile.season) {
                       showBanner(
                         `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth • Suggested: ${profile.season} (${confidencePercent}% confidence)`,
                         'success'
                       );
-                  } else {
-                      Alert.alert(
-                        'Face Detection',
-                        'We couldn\'t detect a face in this photo. Please upload a clearer face photo with good lighting.',
-                        [{ text: 'OK' }]
+                    } else {
+                      showBanner(
+                        `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth (${confidencePercent}% confidence). Try a daylight selfie for season suggestion.`,
+                        'success'
                       );
-                      showBanner('✓ Face photo saved (analysis skipped)', 'success');
                     }
-                  } catch (analysisError) {
-                    console.error('Error analyzing face:', analysisError);
+                  } else {
                     Alert.alert(
-                      'Analysis Error',
-                      'Could not analyze skin tone. Please try again or manually set your color profile.',
+                      'Face Detection',
+                      'We couldn\'t confidently detect your skin tone from this photo. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.',
                       [{ text: 'OK' }]
                     );
-                    showBanner('✓ Face photo saved (analysis failed)', 'success');
+                    showBanner('✓ Face photo saved (analysis incomplete)', 'success');
                   }
                 } catch (error) {
-                  console.error('Error saving face photo:', error);
-                  Alert.alert('Error', 'Failed to save photo');
+                  console.error('Error processing face photo:', error);
+                  Alert.alert('Error', `Failed to process photo: ${error.message || 'Unknown error'}`);
                 }
               }
             } else {
@@ -488,43 +489,44 @@ const StyleVaultScreen = () => {
             });
             if (!res.canceled && res.assets[0]) {
               try {
-                const uploadedUrl = await uploadImageAsync(res.assets[0].uri);
-                if (user?.id) {
+                const localUri = res.assets[0].uri;
+                
+                // NEW: Analyze using local URI with face detection, then upload
+                const { profile, uploadedUrl } = await analyzeFaceForColorProfileFromLocalUri(localUri, uploadImageAsync);
+                
+                if (uploadedUrl && user?.id) {
                   await supabase.from('profiles').update({ face_image_url: uploadedUrl }).eq('id', user.id);
+                  setFaceImage(uploadedUrl);
+                  if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
                 }
-                setFaceImage(uploadedUrl);
-                if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
-                // Analyze for color profile
-                try {
-                const profile = await analyzeFaceForColorProfile(uploadedUrl);
+                
                 if (profile && user?.id) {
                   await saveColorProfile(user.id, profile);
                   setColorProfile(profile);
-                    const confidencePercent = profile.confidence ? Math.round(profile.confidence * 100) : 0;
+                  const confidencePercent = profile.confidence ? Math.round(profile.confidence * 100) : 0;
+                  
+                  if (profile.season) {
                     showBanner(
                       `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth • Suggested: ${profile.season} (${confidencePercent}% confidence)`,
                       'success'
                     );
-                } else {
-                    Alert.alert(
-                      'Face Detection',
-                      'We couldn\'t detect a face in this photo. Please upload a clearer face photo with good lighting.',
-                      [{ text: 'OK' }]
+                  } else {
+                    showBanner(
+                      `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth (${confidencePercent}% confidence). Try a daylight selfie for season suggestion.`,
+                      'success'
                     );
-                    showBanner('✓ Face photo saved (analysis skipped)', 'success');
                   }
-                } catch (analysisError) {
-                  console.error('Error analyzing face:', analysisError);
+                } else {
                   Alert.alert(
-                    'Analysis Error',
-                    'Could not analyze skin tone. Please try again or manually set your color profile.',
+                    'Face Detection',
+                    'We couldn\'t confidently detect your skin tone from this photo. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.',
                     [{ text: 'OK' }]
                   );
-                  showBanner('✓ Face photo saved (analysis failed)', 'success');
+                  showBanner('✓ Face photo saved (analysis incomplete)', 'success');
                 }
               } catch (error) {
-                console.error('Error saving face photo:', error);
-                Alert.alert('Error', 'Failed to save photo');
+                console.error('Error processing face photo:', error);
+                Alert.alert('Error', `Failed to process photo: ${error.message || 'Unknown error'}`);
               }
             }
           }
