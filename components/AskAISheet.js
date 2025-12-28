@@ -262,7 +262,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
 
     try {
       const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://mvp-styli.vercel.app';
-      const apiUrl = `${API_BASE}/api/pick-pixel-color`;
+      const apiUrl = `${API_BASE}/api/color`;
       
       // Send display coordinates (ix, iy) and display dimensions (displayW, displayH) as specified
       // The API will convert these to actual pixel coordinates
@@ -270,14 +270,12 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          mode: 'pick',
           imageUrl: imageUrl, // Use pre-loaded URL (much faster than base64)
-          x: coords.displayX, // Display coordinate ix (relative to displayed image)
-          y: coords.displayY, // Display coordinate iy (relative to displayed image)
-          imageWidth: coords.displayWidth, // Display width (displayW)
-          imageHeight: coords.displayHeight, // Display height (displayH)
-          // Also send natural dimensions for API verification
-          naturalWidth: imageNaturalSize.width,
-          naturalHeight: imageNaturalSize.height,
+          x: coords.imageX, // Actual image pixel coordinates
+          y: coords.imageY,
+          imageWidth: imageNaturalSize.width, // Natural image dimensions
+          imageHeight: imageNaturalSize.height,
         }),
       });
 
