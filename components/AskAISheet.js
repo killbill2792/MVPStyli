@@ -2454,24 +2454,37 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                 })()}
                 
                 <Pressable
-                  style={styles.saveButton}
+                  style={[styles.saveButton, isSavingMaterial && { opacity: 0.6 }]}
                   onPress={async () => {
+                    if (isSavingMaterial) return;
                     if (userEnteredMaterial) {
-                      const updatedProduct = {
-                        ...product,
-                        material: userEnteredMaterial,
-                        fabric: userEnteredMaterial,
-                        fabricStretch: hasStretch(userEnteredMaterial) ? getStretchLevel(userEnteredMaterial) : 'none',
-                      };
-                      setProduct(updatedProduct);
-                      setShowMaterialInputModal(false);
-                      // Wait a bit longer to ensure state is fully updated
-                      await new Promise(resolve => setTimeout(resolve, 300));
-                        loadInsights(true);
+                      setIsSavingMaterial(true);
+                      try {
+                        const updatedProduct = {
+                          ...product,
+                          material: userEnteredMaterial,
+                          fabric: userEnteredMaterial,
+                          fabricStretch: hasStretch(userEnteredMaterial) ? getStretchLevel(userEnteredMaterial) : 'none',
+                        };
+                        setProduct(updatedProduct);
+                        setShowMaterialInputModal(false);
+                        // Load insights immediately - no delay needed
+                        await loadInsights(true);
+                      } finally {
+                        setIsSavingMaterial(false);
+                      }
                     }
                   }}
+                  disabled={isSavingMaterial}
                 >
-                  <Text style={styles.saveButtonText}>Save Material</Text>
+                  {isSavingMaterial ? (
+                    <>
+                      <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
+                      <Text style={styles.saveButtonText}>Saving...</Text>
+                    </>
+                  ) : (
+                    <Text style={styles.saveButtonText}>Save Material</Text>
+                  )}
                 </Pressable>
               </View>
             </ScrollView>
