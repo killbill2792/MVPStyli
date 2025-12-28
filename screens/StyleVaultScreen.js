@@ -1306,12 +1306,24 @@ const StyleVaultScreen = () => {
                     <Text style={[styles.colorBestLabel, { fontSize: 12, marginBottom: 4 }]}>
                       Suggested from face photo:
                     </Text>
-                    {colorProfile.season ? (
+                    {colorProfile.needsConfirmation && colorProfile.season ? (
+                      <View>
+                        <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20, marginBottom: 8 }]}>
+                          {colorProfile.tone ? `• Undertone: ${colorProfile.tone.charAt(0).toUpperCase() + colorProfile.tone.slice(1)}` : ''}
+                          {colorProfile.depth ? `\n• Depth: ${colorProfile.depth.charAt(0).toUpperCase() + colorProfile.depth.slice(1)}` : ''}
+                          {colorProfile.season ? `\n• Suggested Season: ${colorProfile.season.charAt(0).toUpperCase() + colorProfile.season.slice(1)}` : ''}
+                          {colorProfile.seasonConfidence ? `\n• Confidence: ${Math.round(colorProfile.seasonConfidence * 100)}%` : ''}
+                        </Text>
+                        <Text style={[styles.colorBestList, { fontSize: 12, lineHeight: 18, color: '#f59e0b', fontStyle: 'italic', marginTop: 4 }]}>
+                          We detected {colorProfile.season}, please confirm or adjust.
+                        </Text>
+                      </View>
+                    ) : colorProfile.season ? (
                       <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20 }]}>
                         {colorProfile.tone ? `• Undertone: ${colorProfile.tone.charAt(0).toUpperCase() + colorProfile.tone.slice(1)}` : ''}
                         {colorProfile.depth ? `\n• Depth: ${colorProfile.depth.charAt(0).toUpperCase() + colorProfile.depth.slice(1)}` : ''}
                         {colorProfile.season ? `\n• Suggested Season: ${colorProfile.season.charAt(0).toUpperCase() + colorProfile.season.slice(1)}` : ''}
-                        {colorProfile.confidence ? `\n• Confidence: ${Math.round(colorProfile.confidence * 100)}%` : ''}
+                        {colorProfile.seasonConfidence ? `\n• Confidence: ${Math.round(colorProfile.seasonConfidence * 100)}%` : ''}
                       </Text>
                     ) : (
                       <View>
@@ -1374,8 +1386,12 @@ const StyleVaultScreen = () => {
                 
                 {/* Face Photo Thumbnail */}
                 <View style={{ alignItems: 'center' }}>
-                  <Pressable onPress={() => setShowFacePhotoGuidelines(true)}>
-                    {faceImage ? (
+                  <Pressable onPress={() => setShowFacePhotoGuidelines(true)} disabled={isAnalyzingFace}>
+                    {isAnalyzingFace ? (
+                      <View style={[styles.fitProfilePhotoThumbnail, styles.fitProfilePhotoPlaceholder, { justifyContent: 'center', alignItems: 'center' }]}>
+                        <ActivityIndicator size="small" color="#6366f1" />
+                      </View>
+                    ) : faceImage ? (
                       <Image 
                         source={{ uri: faceImage }} 
                         style={styles.fitProfilePhotoThumbnail}
