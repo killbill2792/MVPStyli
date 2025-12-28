@@ -1170,10 +1170,18 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                       )}
                       {fitSizeData?.missingGarment && (
                         <Pressable 
-                          style={styles.addDataBtn}
+                          style={[styles.addDataBtn, isSavingSizeChart && { opacity: 0.6 }]}
                           onPress={() => setShowGarmentInputModal(true)}
+                          disabled={isSavingSizeChart}
                         >
-                          <Text style={styles.addDataBtnText}>📐 Add Garment Measurements →</Text>
+                          {isSavingSizeChart ? (
+                            <>
+                              <ActivityIndicator size="small" color="#6366f1" style={{ marginRight: 8 }} />
+                              <Text style={styles.addDataBtnText}>Saving...</Text>
+                            </>
+                          ) : (
+                            <Text style={styles.addDataBtnText}>📐 Add Garment Measurements →</Text>
+                          )}
                         </Pressable>
                       )}
                     </View>
@@ -1414,10 +1422,18 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                   <View style={styles.missingDataBox}>
                     <Text style={styles.missingDataText}>{fabricComfort.insights?.[0] || 'Need Fabric Info'}</Text>
                     <Pressable 
-                      style={styles.addDataBtn}
+                      style={[styles.addDataBtn, isSavingMaterial && { opacity: 0.6 }]}
                       onPress={() => setShowMaterialInputModal(true)}
+                      disabled={isSavingMaterial}
                     >
-                      <Text style={styles.addDataBtnText}>🧵 Enter Material →</Text>
+                      {isSavingMaterial ? (
+                        <>
+                          <ActivityIndicator size="small" color="#6366f1" style={{ marginRight: 8 }} />
+                          <Text style={styles.addDataBtnText}>Saving...</Text>
+                        </>
+                      ) : (
+                        <Text style={styles.addDataBtnText}>🧵 Enter Material →</Text>
+                      )}
                     </Pressable>
                   </View>
                 ) : (
@@ -1790,25 +1806,38 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                       <Text style={styles.saveButtonText}>✏️ Edit</Text>
                     </Pressable>
                     <Pressable
-                      style={[styles.saveButton, { flex: 1 }]}
+                      style={[styles.saveButton, { flex: 1 }, isSavingSizeChart && { opacity: 0.6 }]}
                       onPress={async () => {
-                        // User confirmed - use the parsed data
-                        setParsedSizeChart(pendingParsedData);
-                        const updatedProduct = {
-                          ...product,
-                          sizeChart: pendingParsedData,
-                        };
-                        setProduct(updatedProduct);
-                        setShowParsedDataConfirmation(false);
-                        setPendingParsedData(null);
-                        setOcrParsingStatus(null);
-                        setShowGarmentInputModal(false);
-                        // Wait a bit longer to ensure state is fully updated
-                        await new Promise(resolve => setTimeout(resolve, 300));
-                        loadInsights(true);
+                        if (isSavingSizeChart) return;
+                        setIsSavingSizeChart(true);
+                        try {
+                          // User confirmed - use the parsed data
+                          setParsedSizeChart(pendingParsedData);
+                          const updatedProduct = {
+                            ...product,
+                            sizeChart: pendingParsedData,
+                          };
+                          setProduct(updatedProduct);
+                          setShowParsedDataConfirmation(false);
+                          setPendingParsedData(null);
+                          setOcrParsingStatus(null);
+                          setShowGarmentInputModal(false);
+                          // Load insights immediately - no delay needed
+                          await loadInsights(true);
+                        } finally {
+                          setIsSavingSizeChart(false);
+                        }
                       }}
+                      disabled={isSavingSizeChart}
                     >
-                      <Text style={styles.saveButtonText}>✓ Confirm & Continue</Text>
+                      {isSavingSizeChart ? (
+                        <>
+                          <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
+                          <Text style={styles.saveButtonText}>Saving...</Text>
+                        </>
+                      ) : (
+                        <Text style={styles.saveButtonText}>✓ Confirm & Continue</Text>
+                      )}
                     </Pressable>
                   </View>
                 </View>
