@@ -1201,7 +1201,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                               <Text style={styles.addDataBtnText}>Saving...</Text>
                             </>
                           ) : (
-                            <Text style={styles.addDataBtnText}>📐 Add Garment Measurements →</Text>
+                          <Text style={styles.addDataBtnText}>📐 Add Garment Measurements →</Text>
                           )}
                         </Pressable>
                       )}
@@ -1221,32 +1221,32 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                     
                     {/* Status Label */}
                     {!isRequesting && !isSavingSizeChart && (
-                      <View style={[
-                        styles.verdictBadge,
-                        fitSizeData?.status === 'Perfect Fit' && styles.verdictGood,
-                        fitSizeData?.status === 'Good Fit' && styles.verdictGood,
-                        fitSizeData?.status === 'Good with Tweaks' && styles.verdictNeutral,
-                        (fitSizeData?.status === 'Runs Small' || fitSizeData?.status === 'Runs Large' || fitSizeData?.status === 'High Risk') && styles.verdictWarning,
-                      ]}>
-                        <Text style={styles.verdictText}>{fitSizeData?.status || 'Analyzing...'}</Text>
-                      </View>
+                    <View style={[
+                      styles.verdictBadge,
+                      fitSizeData?.status === 'Perfect Fit' && styles.verdictGood,
+                      fitSizeData?.status === 'Good Fit' && styles.verdictGood,
+                      fitSizeData?.status === 'Good with Tweaks' && styles.verdictNeutral,
+                      (fitSizeData?.status === 'Runs Small' || fitSizeData?.status === 'Runs Large' || fitSizeData?.status === 'High Risk') && styles.verdictWarning,
+                    ]}>
+                      <Text style={styles.verdictText}>{fitSizeData?.status || 'Analyzing...'}</Text>
+                    </View>
                     )}
 
                     {/* Recommended Size - Only show when not loading */}
                     {!isRequesting && !isSavingSizeChart && !loading && (
                       <>
-                        {fitSizeData?.recommendedSize ? (
-                          <View style={styles.sizeRecommendation}>
-                            <Text style={styles.sizeLabel}>Recommended Size:</Text>
-                            <View style={styles.sizeBadge}>
-                              <Text style={styles.sizeText}>{fitSizeData.recommendedSize}</Text>
-                            </View>
-                            {fitSizeData?.backupSize && (
-                              <Text style={styles.backupSize}>Backup: {fitSizeData.backupSize}</Text>
-                            )}
-                          </View>
-                        ) : (
-                          <Text style={styles.missingDataText}>Need size chart</Text>
+                    {fitSizeData?.recommendedSize ? (
+                      <View style={styles.sizeRecommendation}>
+                        <Text style={styles.sizeLabel}>Recommended Size:</Text>
+                        <View style={styles.sizeBadge}>
+                          <Text style={styles.sizeText}>{fitSizeData.recommendedSize}</Text>
+                        </View>
+                        {fitSizeData?.backupSize && (
+                          <Text style={styles.backupSize}>Backup: {fitSizeData.backupSize}</Text>
+                        )}
+                      </View>
+                    ) : (
+                      <Text style={styles.missingDataText}>Need size chart</Text>
                         )}
                       </>
                     )}
@@ -1477,7 +1477,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                           <Text style={styles.addDataBtnText}>Saving...</Text>
                         </>
                       ) : (
-                        <Text style={styles.addDataBtnText}>🧵 Enter Material →</Text>
+                      <Text style={styles.addDataBtnText}>🧵 Enter Material →</Text>
                       )}
                     </Pressable>
                   </View>
@@ -1510,26 +1510,26 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                     
                     {/* Verdict and Insights - Only show when not loading */}
                     {!isRequesting && !isSavingMaterial && !loading && (
-                      <>
-                        <View style={[
-                          styles.verdictBadge,
-                          fabricComfort?.verdict === 'comfortable' && styles.verdictGood,
-                          fabricComfort?.verdict === 'ok' && styles.verdictNeutral,
-                          fabricComfort?.verdict === 'risky' && styles.verdictWarning,
-                        ]}>
-                          <Text style={styles.verdictText}>
-                            {fabricComfort?.verdict === 'comfortable' && '✅ Comfortable'}
-                            {fabricComfort?.verdict === 'ok' && '⚡ Okay'}
-                            {fabricComfort?.verdict === 'risky' && '⚠️ Risky'}
-                          </Text>
-                        </View>
+                  <>
+                    <View style={[
+                      styles.verdictBadge,
+                      fabricComfort?.verdict === 'comfortable' && styles.verdictGood,
+                      fabricComfort?.verdict === 'ok' && styles.verdictNeutral,
+                      fabricComfort?.verdict === 'risky' && styles.verdictWarning,
+                    ]}>
+                      <Text style={styles.verdictText}>
+                        {fabricComfort?.verdict === 'comfortable' && '✅ Comfortable'}
+                        {fabricComfort?.verdict === 'ok' && '⚡ Okay'}
+                        {fabricComfort?.verdict === 'risky' && '⚠️ Risky'}
+                      </Text>
+                    </View>
 
-                        {fabricComfort?.insights && fabricComfort.insights.length > 0 && (
-                          <View style={styles.adviceSection}>
-                            {fabricComfort.insights.slice(0, 4).map((insight, idx) => (
-                              <Text key={idx} style={styles.adviceItem}>• {insight}</Text>
-                            ))}
-                          </View>
+                    {fabricComfort?.insights && fabricComfort.insights.length > 0 && (
+                      <View style={styles.adviceSection}>
+                        {fabricComfort.insights.slice(0, 4).map((insight, idx) => (
+                          <Text key={idx} style={styles.adviceItem}>• {insight}</Text>
+                        ))}
+                      </View>
                         )}
                       </>
                     )}
@@ -2061,16 +2061,16 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                       if (sizeChart.length > 0) {
                         setIsSavingSizeChart(true);
                         try {
-                          setParsedSizeChart(sizeChart);
-                          const updatedProduct = {
-                            ...product,
-                            sizeChart: sizeChart,
-                          };
+                        setParsedSizeChart(sizeChart);
+                        const updatedProduct = {
+                          ...product,
+                          sizeChart: sizeChart,
+                        };
                           // Update product state first
-                          setProduct(updatedProduct);
+                        setProduct(updatedProduct);
                           // Close modal
-                          setShowGarmentInputModal(false);
-                          setManualSizeChartInput({});
+                        setShowGarmentInputModal(false);
+                        setManualSizeChartInput({});
                           setPendingParsedData(null);
                           // Load insights immediately with updated product
                           await loadInsights(true, updatedProduct);
@@ -2089,7 +2089,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                         <Text style={styles.saveButtonText}>Saving...</Text>
                       </>
                     ) : (
-                      <Text style={styles.saveButtonText}>Save Size Chart</Text>
+                    <Text style={styles.saveButtonText}>Save Size Chart</Text>
                     )}
                   </Pressable>
                 </View>
@@ -2524,16 +2524,16 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                     if (userEnteredMaterial) {
                       setIsSavingMaterial(true);
                       try {
-                        const updatedProduct = {
-                          ...product,
-                          material: userEnteredMaterial,
-                          fabric: userEnteredMaterial,
-                          fabricStretch: hasStretch(userEnteredMaterial) ? getStretchLevel(userEnteredMaterial) : 'none',
-                        };
+                      const updatedProduct = {
+                        ...product,
+                        material: userEnteredMaterial,
+                        fabric: userEnteredMaterial,
+                        fabricStretch: hasStretch(userEnteredMaterial) ? getStretchLevel(userEnteredMaterial) : 'none',
+                      };
                         // Update product state first
-                        setProduct(updatedProduct);
+                      setProduct(updatedProduct);
                         // Close modal
-                        setShowMaterialInputModal(false);
+                      setShowMaterialInputModal(false);
                         // Load insights immediately with updated product
                         await loadInsights(true, updatedProduct);
                       } finally {
@@ -2549,7 +2549,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                       <Text style={styles.saveButtonText}>Saving...</Text>
                     </>
                   ) : (
-                    <Text style={styles.saveButtonText}>Save Material</Text>
+                  <Text style={styles.saveButtonText}>Save Material</Text>
                   )}
                 </Pressable>
               </View>
@@ -3047,6 +3047,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#fff',
+  },
+  colorHexText: {
+    fontSize: 13,
+    fontWeight: '400',
+    color: '#ccc',
+    marginTop: 2,
     flex: 1,
   },
   pickColorButton: {
