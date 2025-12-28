@@ -1894,15 +1894,6 @@ const styles = StyleSheet.create({
     ...TextStyles.h3,
     color: Colors.textSecondary,
   },
-  colorPickerImageContainer: {
-    width: '100%',
-    height: 400,
-    position: 'relative',
-  },
-  colorPickerImage: {
-    width: '100%',
-    height: '100%',
-  },
   colorPickerNoImage: {
     padding: Spacing.xl,
     alignItems: 'center',
