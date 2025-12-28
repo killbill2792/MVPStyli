@@ -8,11 +8,11 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import sharp from 'sharp';
 
 // Convert RGB to Lab color space (simplified approximation)
-function rgbToLab(r: number, g: number, b: number) {
+function rgbToLab(r: number, g: number, blue: number) {
   // Normalize RGB to 0-1
   let rNorm = r / 255;
   let gNorm = g / 255;
-  let bNorm = b / 255;
+  let bNorm = blue / 255;
 
   // Convert to linear RGB
   rNorm = rNorm > 0.04045 ? Math.pow((rNorm + 0.055) / 1.055, 2.4) : rNorm / 12.92;

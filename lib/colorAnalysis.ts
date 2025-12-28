@@ -173,11 +173,11 @@ export async function saveColorProfile(userId: string, profile: ColorProfile | E
     const extendedProfile = profile as ExtendedColorProfile;
     
     const updateData: any = {
-      color_tone: profile.tone,
-      color_depth: profile.depth,
-      color_season: profile.season,
-      best_colors: profile.bestColors,
-      avoid_colors: profile.avoidColors,
+        color_tone: profile.tone,
+        color_depth: profile.depth,
+        color_season: profile.season,
+        best_colors: profile.bestColors,
+        avoid_colors: profile.avoidColors,
       updated_at: new Date().toISOString(),
     };
     

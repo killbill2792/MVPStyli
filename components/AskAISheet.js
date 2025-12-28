@@ -562,7 +562,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         });
       } else {
         // Load insights immediately if we already have color or no image
-        loadInsights();
+      loadInsights();
       }
     } else {
       // Reset position when hidden
@@ -1573,72 +1573,72 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                         // Convert image to base64
                         try {
                           setOcrParsingStatus('Converting image to base64...');
-                          const response = await fetch(imageUri);
-                          const blob = await response.blob();
+                        const response = await fetch(imageUri);
+                        const blob = await response.blob();
                           console.log('📊 [FRONTEND] Image blob size:', blob.size, 'bytes');
                           console.log('📊 [FRONTEND] Image blob type:', blob.type);
                           
-                          const reader = new FileReader();
-                          reader.onloadend = async () => {
-                            const base64 = reader.result;
+                        const reader = new FileReader();
+                        reader.onloadend = async () => {
+                          const base64 = reader.result;
                             console.log('📊 [FRONTEND] Base64 length:', base64?.length || 0);
-                            
-                            // Call fit-check-utils API for parsing size chart
-                            try {
-                              const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'https://mvpstyli-fresh.vercel.app';
-                              console.log('📊 [FRONTEND] Uploading size chart image...');
-                              console.log('📊 [FRONTEND] Image size:', blob.size, 'bytes');
-                              console.log('📊 [FRONTEND] API endpoint:', `${API_BASE}/api/ocr-sizechart`);
+                          
+                          // Call fit-check-utils API for parsing size chart
+                          try {
+                            const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'https://mvpstyli-fresh.vercel.app';
+                            console.log('📊 [FRONTEND] Uploading size chart image...');
+                            console.log('📊 [FRONTEND] Image size:', blob.size, 'bytes');
+                            console.log('📊 [FRONTEND] API endpoint:', `${API_BASE}/api/ocr-sizechart`);
                               
                               setOcrParsingStatus('Sending to OCR service...');
-                              
-                              const parseResponse = await fetch(`${API_BASE}/api/ocr-sizechart`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ imageBase64: base64 }),
-                              });
-                              
-                              console.log('📊 [FRONTEND] OCR response status:', parseResponse.status);
-                              
-                              if (!parseResponse.ok) {
-                                const errorText = await parseResponse.text();
-                                console.error('📊 [FRONTEND] OCR API error:', parseResponse.status, errorText);
+                            
+                            const parseResponse = await fetch(`${API_BASE}/api/ocr-sizechart`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ imageBase64: base64 }),
+                            });
+                            
+                            console.log('📊 [FRONTEND] OCR response status:', parseResponse.status);
+                            
+                            if (!parseResponse.ok) {
+                              const errorText = await parseResponse.text();
+                              console.error('📊 [FRONTEND] OCR API error:', parseResponse.status, errorText);
                                 setOcrParsingStatus(`Error: ${parseResponse.status}`);
-                                throw new Error(`OCR API error: ${parseResponse.status}`);
-                              }
+                              throw new Error(`OCR API error: ${parseResponse.status}`);
+                            }
                               
                               setOcrParsingStatus('Processing OCR results...');
-                              
-                              const parseData = await parseResponse.json();
-                              console.log('📊 [FRONTEND] Size chart parse result:', JSON.stringify(parseData, null, 2));
-                              console.log('📊 [FRONTEND] Parse success:', parseData.success);
-                              console.log('📊 [FRONTEND] Parsed data:', parseData.data);
-                              console.log('📊 [FRONTEND] Raw text length:', parseData.rawText?.length || 0);
-                              
-                              if (parseData.success && parseData.data) {
+                            
+                            const parseData = await parseResponse.json();
+                            console.log('📊 [FRONTEND] Size chart parse result:', JSON.stringify(parseData, null, 2));
+                            console.log('📊 [FRONTEND] Parse success:', parseData.success);
+                            console.log('📊 [FRONTEND] Parsed data:', parseData.data);
+                            console.log('📊 [FRONTEND] Raw text length:', parseData.rawText?.length || 0);
+                            
+                            if (parseData.success && parseData.data) {
                                 setOcrParsingStatus('✓ Successfully parsed size chart!');
                                 // Store parsed data for confirmation
                                 setPendingParsedData(parseData.data);
                                 setShowParsedDataConfirmation(true);
                                 setIsParsingSizeChart(false);
-                              } else {
+                            } else {
                                 setOcrParsingStatus('Could not auto-parse. Please enter manually.');
-                                // Show manual input with pre-filled structure
-                                setManualSizeChartInput(parseData.structure || {
-                                  sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
-                                  measurements: ['chest', 'waist', 'hips', 'length', 'sleeve', 'shoulder', 'inseam', 'rise'],
-                                });
-                                // Don't close modal - show manual input form
-                              }
-                            } catch (error) {
-                              console.error('Error parsing size chart:', error);
-                              setOcrParsingStatus(`Error: ${error.message}`);
-                              Alert.alert('Error', 'Failed to parse size chart. Please try manual input.');
-                            } finally {
-                              setIsParsingSizeChart(false);
+                              // Show manual input with pre-filled structure
+                              setManualSizeChartInput(parseData.structure || {
+                                sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
+                                measurements: ['chest', 'waist', 'hips', 'length', 'sleeve', 'shoulder', 'inseam', 'rise'],
+                              });
+                              // Don't close modal - show manual input form
                             }
-                          };
-                          reader.readAsDataURL(blob);
+                          } catch (error) {
+                            console.error('Error parsing size chart:', error);
+                              setOcrParsingStatus(`Error: ${error.message}`);
+                            Alert.alert('Error', 'Failed to parse size chart. Please try manual input.');
+                          } finally {
+                            setIsParsingSizeChart(false);
+                          }
+                        };
+                        reader.readAsDataURL(blob);
                         } catch (error) {
                           console.error('Error converting image:', error);
                           setOcrParsingStatus(`Error: ${error.message}`);
@@ -2221,7 +2221,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                     {product?.color && (
                       <Text style={[styles.detectedColorText, { marginTop: 4, fontSize: 12, color: '#666' }]}>
                         Saved to product
-                      </Text>
+                  </Text>
                     )}
                   </View>
                 )}

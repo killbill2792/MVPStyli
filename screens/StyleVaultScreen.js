@@ -441,16 +441,16 @@ const StyleVaultScreen = () => {
                   if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
                   // Analyze for color profile
                   try {
-                    const profile = await analyzeFaceForColorProfile(uploadedUrl);
-                    if (profile && user?.id) {
-                      await saveColorProfile(user.id, profile);
-                      setColorProfile(profile);
+                  const profile = await analyzeFaceForColorProfile(uploadedUrl);
+                  if (profile && user?.id) {
+                    await saveColorProfile(user.id, profile);
+                    setColorProfile(profile);
                       const confidencePercent = profile.confidence ? Math.round(profile.confidence * 100) : 0;
                       showBanner(
                         `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth • Suggested: ${profile.season} (${confidencePercent}% confidence)`,
                         'success'
                       );
-                    } else {
+                  } else {
                       Alert.alert(
                         'Face Detection',
                         'We couldn\'t detect a face in this photo. Please upload a clearer face photo with good lighting.',
@@ -496,16 +496,16 @@ const StyleVaultScreen = () => {
                 if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
                 // Analyze for color profile
                 try {
-                  const profile = await analyzeFaceForColorProfile(uploadedUrl);
-                  if (profile && user?.id) {
-                    await saveColorProfile(user.id, profile);
-                    setColorProfile(profile);
+                const profile = await analyzeFaceForColorProfile(uploadedUrl);
+                if (profile && user?.id) {
+                  await saveColorProfile(user.id, profile);
+                  setColorProfile(profile);
                     const confidencePercent = profile.confidence ? Math.round(profile.confidence * 100) : 0;
                     showBanner(
                       `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth • Suggested: ${profile.season} (${confidencePercent}% confidence)`,
                       'success'
                     );
-                  } else {
+                } else {
                     Alert.alert(
                       'Face Detection',
                       'We couldn\'t detect a face in this photo. Please upload a clearer face photo with good lighting.',
