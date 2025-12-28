@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,8 @@ import {
   Modal,
   FlatList,
   Switch,
+  PanResponder,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -73,6 +75,15 @@ const AdminGarmentsScreen = ({ onBack }) => {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [pickedColorHex, setPickedColorHex] = useState('');
   const [pickedColorName, setPickedColorName] = useState('');
+  const [livePickedColor, setLivePickedColor] = useState(null);
+  const [pickerTouchPosition, setPickerTouchPosition] = useState(null);
+  const [magnifierPosition, setMagnifierPosition] = useState(null);
+  const [imageLayout, setImageLayout] = useState({ width: 0, height: 0, x: 0, y: 0 });
+  const [imageNaturalSize, setImageNaturalSize] = useState({ width: 0, height: 0 });
+  const [isSamplingColor, setIsSamplingColor] = useState(false);
+  const colorPickerImageUrlRef = useRef(null);
+  
+  const { width, height } = Dimensions.get('window');
   
   const [measurementUnit, setMeasurementUnit] = useState('in'); // 'cm' or 'in' for input display (stored in inches)
 
@@ -385,8 +396,67 @@ const AdminGarmentsScreen = ({ onBack }) => {
     setShowForm(true);
   };
 
-  // Color picker handler
-  const handleColorPick = async (imageUrl, x, y, imageWidth, imageHeight) => {
+  // Convert touch coordinates to image pixel coordinates (accounts for resizeMode: contain letterboxing)
+  const convertTouchToImageCoords = (touchX, touchY) => {
+    if (!imageLayout.width || !imageLayout.height || !imageNaturalSize.width || !imageNaturalSize.height) {
+      return null;
+    }
+    
+    const containerW = imageLayout.width;
+    const containerH = imageLayout.height;
+    const naturalW = imageNaturalSize.width;
+    const naturalH = imageNaturalSize.height;
+    
+    const scale = Math.min(containerW / naturalW, containerH / naturalH);
+    const displayW = naturalW * scale;
+    const displayH = naturalH * scale;
+    const offsetX = (containerW - displayW) / 2;
+    const offsetY = (containerH - displayH) / 2;
+    
+    const ix = touchX - offsetX;
+    const iy = touchY - offsetY;
+    
+    if (ix < 0 || ix > displayW || iy < 0 || iy > displayH) {
+      return null;
+    }
+    
+    const clampedIx = Math.max(0, Math.min(ix, displayW));
+    const clampedIy = Math.max(0, Math.min(iy, displayH));
+    const pixelX = Math.floor((clampedIx / displayW) * naturalW);
+    const pixelY = Math.floor((clampedIy / displayH) * naturalH);
+    
+    return {
+      imageX: Math.max(0, Math.min(pixelX, naturalW - 1)),
+      imageY: Math.max(0, Math.min(pixelY, naturalH - 1)),
+      displayX: clampedIx,
+      displayY: clampedIy,
+    };
+  };
+  
+  // Live preview handler - NO API CALLS, just UI updates
+  const handleManualColorPickerMove = (touchX, touchY) => {
+    const coords = convertTouchToImageCoords(touchX, touchY);
+    if (!coords) return;
+    
+    setPickerTouchPosition({ x: touchX, y: touchY });
+    setMagnifierPosition({ x: touchX, y: Math.max(10, touchY - 150) });
+  };
+  
+  // Pick color at coordinates - called only on release
+  const pickColorAtCoordinates = async (touchX, touchY) => {
+    let imageUrl = colorPickerImageUrlRef.current || formData.image_url;
+    if (!imageUrl) {
+      Alert.alert('Error', 'No product image available');
+      return null;
+    }
+
+    const coords = convertTouchToImageCoords(touchX, touchY);
+    if (!coords) {
+      return null;
+    }
+
+    setIsSamplingColor(true);
+    
     try {
       const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL || 'https://mvp-styli.vercel.app';
       const apiUrl = `${API_BASE}/api/color`;
@@ -397,10 +467,10 @@ const AdminGarmentsScreen = ({ onBack }) => {
         body: JSON.stringify({
           mode: 'pick',
           imageUrl: imageUrl,
-          x: x,
-          y: y,
-          imageWidth: imageWidth,
-          imageHeight: imageHeight,
+          x: coords.imageX,
+          y: coords.imageY,
+          imageWidth: imageNaturalSize.width,
+          imageHeight: imageNaturalSize.height,
         }),
       });
 
@@ -408,14 +478,20 @@ const AdminGarmentsScreen = ({ onBack }) => {
         const result = await response.json();
         if (result.color) {
           const hex = result.color;
+          const { r, g, b } = result.rgb || { r: 0, g: 0, b: 0 };
+          
           // Get color name using the naming system
           const { getNearestColorName } = require('../lib/colorNaming');
           const nearestColor = getNearestColorName(hex);
           
-          setFormData({ ...formData, color_hex: hex, color: nearestColor.name });
-          setPickedColorHex(hex);
-          setPickedColorName(nearestColor.name);
-          setShowColorPicker(false);
+          const colorResult = {
+            hex,
+            rgb: { r, g, b },
+            name: nearestColor.name,
+          };
+          
+          setLivePickedColor(colorResult);
+          return colorResult;
         }
       } else {
         Alert.alert('Error', 'Failed to pick color from image');
@@ -423,6 +499,23 @@ const AdminGarmentsScreen = ({ onBack }) => {
     } catch (error) {
       console.error('Color pick error:', error);
       Alert.alert('Error', 'Failed to pick color from image');
+    } finally {
+      setIsSamplingColor(false);
+    }
+    
+    return null;
+  };
+  
+  // Confirm color pick
+  const confirmColorPick = () => {
+    if (livePickedColor) {
+      setFormData({ ...formData, color_hex: livePickedColor.hex, color: livePickedColor.name });
+      setPickedColorHex(livePickedColor.hex);
+      setPickedColorName(livePickedColor.name);
+      setShowColorPicker(false);
+      setLivePickedColor(null);
+      setPickerTouchPosition(null);
+      setMagnifierPosition(null);
     }
   };
 
