@@ -21,6 +21,7 @@
     "expo": "~54.0.0",
     "expo-build-properties": "^1.0.9",
     "expo-contacts": "^15.0.10",
+    "expo-face-detector": "^13.0.2",
     "expo-file-system": "~19.0.15",
     "expo-image-picker": "~17.0.8",
     "expo-linear-gradient": "^15.0.7",

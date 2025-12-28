@@ -440,13 +440,32 @@ const StyleVaultScreen = () => {
                   setFaceImage(uploadedUrl);
                   if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
                   // Analyze for color profile
-                  const profile = await analyzeFaceForColorProfile(uploadedUrl);
-                  if (profile && user?.id) {
-                    await saveColorProfile(user.id, profile);
-                    setColorProfile(profile);
-                    showBanner('✓ Face photo saved & colors analyzed!', 'success');
-                  } else {
-                    showBanner('✓ Face photo saved!', 'success');
+                  try {
+                    const profile = await analyzeFaceForColorProfile(uploadedUrl);
+                    if (profile && user?.id) {
+                      await saveColorProfile(user.id, profile);
+                      setColorProfile(profile);
+                      const confidencePercent = profile.confidence ? Math.round(profile.confidence * 100) : 0;
+                      showBanner(
+                        `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth • Suggested: ${profile.season} (${confidencePercent}% confidence)`,
+                        'success'
+                      );
+                    } else {
+                      Alert.alert(
+                        'Face Detection',
+                        'We couldn\'t detect a face in this photo. Please upload a clearer face photo with good lighting.',
+                        [{ text: 'OK' }]
+                      );
+                      showBanner('✓ Face photo saved (analysis skipped)', 'success');
+                    }
+                  } catch (analysisError) {
+                    console.error('Error analyzing face:', analysisError);
+                    Alert.alert(
+                      'Analysis Error',
+                      'Could not analyze skin tone. Please try again or manually set your color profile.',
+                      [{ text: 'OK' }]
+                    );
+                    showBanner('✓ Face photo saved (analysis failed)', 'success');
                   }
                 } catch (error) {
                   console.error('Error saving face photo:', error);
@@ -476,13 +495,32 @@ const StyleVaultScreen = () => {
                 setFaceImage(uploadedUrl);
                 if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
                 // Analyze for color profile
-                const profile = await analyzeFaceForColorProfile(uploadedUrl);
-                if (profile && user?.id) {
-                  await saveColorProfile(user.id, profile);
-                  setColorProfile(profile);
-                  showBanner('✓ Face photo saved & colors analyzed!', 'success');
-                } else {
-                  showBanner('✓ Face photo saved!', 'success');
+                try {
+                  const profile = await analyzeFaceForColorProfile(uploadedUrl);
+                  if (profile && user?.id) {
+                    await saveColorProfile(user.id, profile);
+                    setColorProfile(profile);
+                    const confidencePercent = profile.confidence ? Math.round(profile.confidence * 100) : 0;
+                    showBanner(
+                      `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth • Suggested: ${profile.season} (${confidencePercent}% confidence)`,
+                      'success'
+                    );
+                  } else {
+                    Alert.alert(
+                      'Face Detection',
+                      'We couldn\'t detect a face in this photo. Please upload a clearer face photo with good lighting.',
+                      [{ text: 'OK' }]
+                    );
+                    showBanner('✓ Face photo saved (analysis skipped)', 'success');
+                  }
+                } catch (analysisError) {
+                  console.error('Error analyzing face:', analysisError);
+                  Alert.alert(
+                    'Analysis Error',
+                    'Could not analyze skin tone. Please try again or manually set your color profile.',
+                    [{ text: 'OK' }]
+                  );
+                  showBanner('✓ Face photo saved (analysis failed)', 'success');
                 }
               } catch (error) {
                 console.error('Error saving face photo:', error);
@@ -1253,6 +1291,22 @@ const StyleVaultScreen = () => {
             <View style={[styles.section, { marginBottom: 20 }]}>
               <View style={styles.colorProfileSection}>
                 <Text style={styles.colorProfileTitle}>🎨 Your Colors</Text>
+                
+                {/* Show detected attributes if available */}
+                {colorProfile.confidence !== undefined && (
+                  <View style={{ marginBottom: 12, padding: 12, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 8 }}>
+                    <Text style={[styles.colorBestLabel, { fontSize: 12, marginBottom: 4 }]}>
+                      Detected from face photo:
+                    </Text>
+                    <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20 }]}>
+                      {colorProfile.tone ? `• Undertone: ${colorProfile.tone.charAt(0).toUpperCase() + colorProfile.tone.slice(1)}` : ''}
+                      {colorProfile.depth ? `\n• Depth: ${colorProfile.depth.charAt(0).toUpperCase() + colorProfile.depth.slice(1)}` : ''}
+                      {colorProfile.season ? `\n• Suggested Season: ${colorProfile.season.charAt(0).toUpperCase() + colorProfile.season.slice(1)}` : ''}
+                      {colorProfile.confidence ? `\n• Confidence: ${Math.round(colorProfile.confidence * 100)}%` : ''}
+                    </Text>
+                  </View>
+                )}
+                
                 <View style={styles.colorSeasonBadge}>
                   <Text style={styles.colorSeasonText}>{colorProfile.description}</Text>
                 </View>
@@ -1267,7 +1321,7 @@ const StyleVaultScreen = () => {
                   style={styles.changeSeasonBtn}
                   onPress={() => setShowSeasonPicker(true)}
                 >
-                  <Text style={styles.changeSeasonText}>Change Season →</Text>
+                  <Text style={styles.changeSeasonText}>Edit Season →</Text>
                 </Pressable>
               </View>
             </View>

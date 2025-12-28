@@ -48,32 +48,94 @@ const COLOR_SEASONS = {
   }
 };
 
-// Analyze face image and determine color profile
-// For MVP: Uses heuristic approach based on common patterns
-// Future: Can integrate with ML model or cloud vision API
-export async function analyzeFaceForColorProfile(faceImageUrl: string): Promise<ColorProfile | null> {
+// Analyze face image and determine color profile using real skin tone detection
+export async function analyzeFaceForColorProfile(faceImageUrl: string): Promise<ExtendedColorProfile | null> {
   try {
-    // For MVP, we'll use a simplified heuristic approach
-    // In production, this would call an image analysis API
+    console.log('🎨 [SKIN TONE] Starting face analysis for:', faceImageUrl.substring(0, 100));
     
-    // Default to a neutral analysis that's safe for most people
-    // The user can manually adjust in their profile settings
-    const defaultProfile: ColorProfile = {
-      tone: 'neutral',
-      depth: 'medium',
-      season: 'autumn', // Most versatile for many skin tones
-      bestColors: ['navy', 'burgundy', 'olive', 'cream', 'rust', 'teal'],
-      avoidColors: ['neon colors', 'very pale pastels'],
-      description: 'Versatile palette - most colors work for you!'
+    // Step 1: Try to detect face using expo-face-detector (client-side)
+    let faceBox = null;
+    let faceDetectionMethod = 'none';
+    
+    try {
+      // Try to use expo-face-detector
+      const FaceDetector = require('expo-face-detector').FaceDetector;
+      const detector = new FaceDetector.FaceDetectorOptions({
+        mode: FaceDetector.FaceDetectorMode.fast,
+        detectLandmarks: false,
+        runClassifications: false,
+      });
+      
+      // Note: expo-face-detector works with Image component, not direct file paths
+      // For now, we'll use a fallback heuristic approach
+      // In production, you'd use the FaceDetector component in the UI
+      throw new Error('Using fallback - face detector requires UI component');
+    } catch (faceDetectError: any) {
+      console.log('🎨 [SKIN TONE] Face detector not available, using fallback heuristic');
+      
+      // Fallback: For selfies and face photos, assume face is in center-upper region
+      // This works well for most selfies and portrait photos
+      // We'll fetch image dimensions from the server or use a reasonable estimate
+      // For square selfies: face is typically in center, upper 60% of image
+      // We'll let the API estimate based on image dimensions
+      
+      // For now, send a heuristic face box that the API can refine
+      // The API will use image dimensions to create a proper face region
+      faceBox = {
+        x: -1, // Signal to API to use heuristic
+        y: -1,
+        width: -1,
+        height: -1,
+      };
+      faceDetectionMethod = 'heuristic';
+    }
+    
+    // Step 2: Call server-side API to analyze skin tone
+    const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://mvp-styli.vercel.app';
+    const apiUrl = `${API_BASE}/api/analyze-skin-tone`;
+    
+    const startTime = Date.now();
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imageUrl: faceImageUrl,
+        faceBox: faceBox, // May be heuristic (-1 values) if face detection failed
+      }),
+    });
+    
+    const timeTaken = Date.now() - startTime;
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('🎨 [SKIN TONE] API error:', response.status, errorText);
+      throw new Error(`Skin tone analysis failed: ${response.status}`);
+    }
+    
+    const analysis = await response.json();
+    console.log('🎨 [SKIN TONE] Analysis complete:', {
+      ...analysis,
+      timeTaken: `${timeTaken}ms`,
+    });
+    
+    // Step 3: Map to ColorProfile format
+    const seasonData = COLOR_SEASONS[analysis.season as keyof typeof COLOR_SEASONS] || COLOR_SEASONS.autumn;
+    
+    const profile: ExtendedColorProfile = {
+      tone: analysis.undertone,
+      depth: analysis.depth,
+      season: analysis.season,
+      bestColors: seasonData.bestColors,
+      avoidColors: seasonData.avoidColors,
+      description: seasonData.description,
+      confidence: analysis.confidence,
+      skinHex: analysis.hex,
+      clarity: analysis.clarity,
     };
-
-    // If we have an actual image, we could analyze it
-    // For now, return the default
-    console.log('Color analysis requested for:', faceImageUrl);
     
-    return defaultProfile;
-  } catch (error) {
-    console.error('Error analyzing face for color:', error);
+    return profile;
+  } catch (error: any) {
+    console.error('🎨 [SKIN TONE] Error analyzing face for color:', error);
     return null;
   }
 }
@@ -96,25 +158,53 @@ export function getSeasonSwatches(season: string): string[] {
   return COLOR_SEASONS[season as keyof typeof COLOR_SEASONS]?.swatches || [];
 }
 
+// Extended ColorProfile with analysis metadata
+export interface ExtendedColorProfile extends ColorProfile {
+  confidence?: number;
+  skinHex?: string;
+  clarity?: 'muted' | 'clear' | 'vivid';
+}
+
 // Save color profile to user's profile in Supabase
-export async function saveColorProfile(userId: string, profile: ColorProfile): Promise<boolean> {
+export async function saveColorProfile(userId: string, profile: ColorProfile | ExtendedColorProfile): Promise<boolean> {
   try {
+    const extendedProfile = profile as ExtendedColorProfile;
+    
+    const updateData: any = {
+      color_tone: profile.tone,
+      color_depth: profile.depth,
+      color_season: profile.season,
+      best_colors: profile.bestColors,
+      avoid_colors: profile.avoidColors,
+      updated_at: new Date().toISOString(),
+    };
+    
+    // Add optional fields if present
+    if (extendedProfile.confidence !== undefined) {
+      updateData.skin_tone_confidence = extendedProfile.confidence;
+    }
+    if (extendedProfile.skinHex) {
+      updateData.skin_hex = extendedProfile.skinHex;
+    }
+    
     const { error } = await supabase
       .from('profiles')
-      .update({
-        color_tone: profile.tone,
-        color_depth: profile.depth,
-        color_season: profile.season,
-        best_colors: profile.bestColors,
-        avoid_colors: profile.avoidColors,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', userId);
 
     if (error) {
       console.error('Error saving color profile:', error);
       return false;
     }
+    
+    console.log('🎨 [SKIN TONE] Color profile saved:', {
+      tone: profile.tone,
+      depth: profile.depth,
+      season: profile.season,
+      confidence: extendedProfile.confidence,
+      skinHex: extendedProfile.skinHex,
+    });
+    
     return true;
   } catch (error) {
     console.error('Error saving color profile:', error);
