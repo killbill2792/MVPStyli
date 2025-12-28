@@ -379,16 +379,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const hexColor = `#${skinRgb.r.toString(16).padStart(2, '0')}${skinRgb.g.toString(16).padStart(2, '0')}${skinRgb.b.toString(16).padStart(2, '0')}`;
 
-    console.log('🎨 [SKIN TONE] Analysis complete:', {
+    console.log('🎨 [SKIN TONE] ========== ANALYSIS COMPLETE ==========');
+    console.log('🎨 [SKIN TONE] Results:', {
       rgb: skinRgb,
       hex: hexColor,
-      lab: { l: lab.l.toFixed(1), a: lab.a.toFixed(1), b: lab.b.toFixed(1) },
-      undertone,
-      depth,
+      lab: { 
+        l: Math.round(lab.l * 10) / 10, 
+        a: Math.round(lab.a * 10) / 10, 
+        b: Math.round(lab.b * 10) / 10 
+      },
+      undertone: `${undertone} (confidence: ${(undertoneConfidence * 100).toFixed(0)}%)`,
+      depth: `${depth} (confidence: ${(depthConfidence * 100).toFixed(0)}%)`,
       clarity,
-      season,
-      confidence: overallConfidence.toFixed(2),
+      season: `${season} (confidence: ${(seasonConfidence * 100).toFixed(0)}%)`,
+      overallConfidence: `${(overallConfidence * 100).toFixed(0)}%`,
     });
+    console.log('🎨 [SKIN TONE] ========================================');
 
     return res.status(200).json({
       rgb: skinRgb,
