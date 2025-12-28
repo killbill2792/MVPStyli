@@ -849,7 +849,18 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         bodyShape: userProfileData?.body_shape || null,
         bestColors: colorProfile?.bestColors || userProfileData?.best_colors || [],
         avoidColors: colorProfile?.avoidColors || userProfileData?.avoid_colors || [],
+        // Include depth and clarity if available from skin tone analysis
+        depth: colorProfile?.depth || userProfileData?.color_depth || null,
+        clarity: colorProfile?.clarity || null,
       };
+      
+      console.log('🎨 [FIT CHECK] User color profile for suitability:', {
+        undertone,
+        season,
+        depth: userProfileForSuitability.depth,
+        clarity: userProfileForSuitability.clarity,
+        source: colorProfile ? 'from colorProfile (face analysis)' : 'from userProfileData (database)',
+      });
       
       console.log('🎨 Final suitability profile:', userProfileForSuitability);
       
