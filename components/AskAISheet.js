@@ -261,8 +261,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
     colorPickerApiInProgress.current = true;
 
     try {
-      const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://mvp-styli.vercel.app';
+      const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL || 'https://mvp-styli.vercel.app';
       const apiUrl = `${API_BASE}/api/color`;
+      console.log('🎯 [MANUAL PICKER] Calling API:', apiUrl);
+      console.log('🎯 [MANUAL PICKER] Request body:', { mode: 'pick', imageUrl: imageUrl?.substring(0, 50) + '...', x: coords.imageX, y: coords.imageY, imageWidth: imageNaturalSize.width, imageHeight: imageNaturalSize.height });
       
       // Send display coordinates (ix, iy) and display dimensions (displayW, displayH) as specified
       // The API will convert these to actual pixel coordinates
