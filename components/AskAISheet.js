@@ -1345,7 +1345,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                         : 'Need Color Info: Product color not detected'}
                     </Text>
                     <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                      {colorSuitability.reasons?.[0]?.includes('Color Profile') ? (
+                      {colorSuitability.reasons?.[0]?.includes('Color Profile') && (
                         <Pressable 
                           style={styles.addDataBtn}
                           onPress={() => {
