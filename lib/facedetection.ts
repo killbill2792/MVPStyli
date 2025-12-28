@@ -10,6 +10,7 @@ import "@tensorflow/tfjs-react-native";
 import { decodeJpeg } from "@tensorflow/tfjs-react-native";
 // @ts-ignore - @tensorflow-models/face-detection types may not be available
 import * as faceDetection from "@tensorflow-models/face-detection";
+import { setupTensorFlowPlatform } from "./tfjs-platform-setup";
 
 let detector: faceDetection.FaceDetector | null = null;
 let tfReady = false;
@@ -18,6 +19,8 @@ export type FaceBox = { x: number; y: number; width: number; height: number };
 
 async function ensureTfReady() {
   if (tfReady) return;
+  // Setup platform first (polyfills react-native-fs)
+  await setupTensorFlowPlatform();
   await tf.ready();
   tfReady = true;
 }
