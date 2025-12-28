@@ -186,13 +186,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.log('🎨 [SKIN TONE] Loaded image from base64, length:', base64Data.length);
     } else if (imageUrl) {
       console.log('🎨 [SKIN TONE] Fetching image from URL:', imageUrl.substring(0, 100));
-      const response = await fetch(imageUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch image: ${response.statusText}`);
+      try {
+        const response = await fetch(imageUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; SkinToneAnalyzer/1.0)',
+          },
+        });
+        if (!response.ok) {
+          console.error('🎨 [SKIN TONE] Image fetch failed:', response.status, response.statusText);
+          throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+        }
+        const arrayBuffer = await response.arrayBuffer();
+        if (arrayBuffer.byteLength === 0) {
+          throw new Error('Fetched image is empty');
+        }
+        imageBuffer = Buffer.from(arrayBuffer);
+        console.log('🎨 [SKIN TONE] Fetched image, size:', arrayBuffer.byteLength, 'bytes');
+      } catch (fetchError: any) {
+        console.error('🎨 [SKIN TONE] Error fetching image:', fetchError.message);
+        throw new Error(`Image fetch error: ${fetchError.message}`);
       }
-      const arrayBuffer = await response.arrayBuffer();
-      imageBuffer = Buffer.from(arrayBuffer);
-      console.log('🎨 [SKIN TONE] Fetched image, size:', arrayBuffer.byteLength, 'bytes');
     } else {
       return res.status(400).json({ error: 'Missing image data' });
     }
