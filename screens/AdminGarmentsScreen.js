@@ -1028,7 +1028,7 @@ const AdminGarmentsScreen = ({ onBack }) => {
 
           {/* Color Picker Overlay - Rendered at root level of form modal for proper positioning */}
           {showColorPicker && (
-              <View style={styles.colorPickerOverlay}>
+            <View style={styles.colorPickerOverlay}>
                 <View style={styles.colorPickerModalContent}>
                   <View style={styles.colorPickerModalHeader}>
                     <Text style={styles.colorPickerModalTitle}>Pick Color from Product</Text>
@@ -1213,8 +1213,9 @@ const AdminGarmentsScreen = ({ onBack }) => {
                   </View>
                 </View>
               </View>
-            )}
+          )}
 
+          <ScrollView style={styles.formScroll} contentContainerStyle={styles.formContent}>
             {/* Basic Info */}
             <View style={styles.formSection}>
               <Text style={styles.sectionTitle}>Basic Information</Text>
@@ -1405,13 +1406,13 @@ const AdminGarmentsScreen = ({ onBack }) => {
                   )}
                   
                   {/* Color Name Input */}
-                  <TextInput
+                <TextInput
                     style={[styles.input, { flex: 1, marginRight: 8 }]}
-                    value={formData.color}
-                    onChangeText={(text) => setFormData({ ...formData, color: text })}
+                  value={formData.color}
+                  onChangeText={(text) => setFormData({ ...formData, color: text })}
                     placeholder="Color name (e.g., Navy Blue)"
-                    placeholderTextColor="#666"
-                  />
+                  placeholderTextColor="#666"
+                />
                   
                   {/* Pick Color Button with Eyedropper Icon */}
                   <Pressable
@@ -1898,6 +1899,18 @@ const styles = StyleSheet.create({
     ...TextStyles.caption,
     color: Colors.textSecondary,
     marginTop: 4,
+  },
+  colorPickerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    zIndex: 10000,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 10000, // Android
   },
   colorPickerModalOverlay: {
     flex: 1,
