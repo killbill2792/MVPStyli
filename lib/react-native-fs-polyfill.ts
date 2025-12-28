@@ -4,7 +4,7 @@
  */
 
 // @ts-ignore
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 // Create a polyfill object that matches react-native-fs API
 const RNFS = {

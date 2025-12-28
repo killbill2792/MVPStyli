@@ -1,5 +1,5 @@
 // faceDetection.ts
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 // @ts-ignore - expo-image-manipulator types may not be available
 import * as ImageManipulator from "expo-image-manipulator";
 // @ts-ignore - @tensorflow/tfjs types may not be available
