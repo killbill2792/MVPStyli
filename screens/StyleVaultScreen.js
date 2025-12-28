@@ -466,12 +466,13 @@ const StyleVaultScreen = () => {
                       );
                     }
                   } else {
+                    // No face detected - show error banner
                     Alert.alert(
                       'Face Detection',
-                      'We couldn\'t confidently detect your skin tone from this photo. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.',
+                      'We couldn\'t detect a face in this photo. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.',
                       [{ text: 'OK' }]
                     );
-                    showBanner('✓ Face photo saved (analysis incomplete)', 'success');
+                    showBanner('✕ No face detected. Please upload a clear face photo.', 'error');
                   }
                 } catch (error) {
                   setIsAnalyzingFace(false);
