@@ -211,7 +211,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Get image metadata
-    const metadata = await sharp(imageBuffer).metadata();
+    let metadata;
+    try {
+      metadata = await sharp(imageBuffer).metadata();
+      if (!metadata || !metadata.width || !metadata.height) {
+        throw new Error('Invalid image: could not read metadata');
+      }
+    } catch (metadataError: any) {
+      console.error('🎨 [SKIN TONE] Error reading image metadata:', metadataError.message);
+      throw new Error(`Image processing error: ${metadataError.message}`);
+    }
+    
     const imageWidth = metadata.width || 1;
     const imageHeight = metadata.height || 1;
 
