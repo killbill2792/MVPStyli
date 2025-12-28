@@ -1423,38 +1423,45 @@ const AdminGarmentsScreen = ({ onBack }) => {
               {formData.image_url ? (
                 <View style={{ flex: 1, position: 'relative' }}>
                   {(() => {
-                    // Create PanResponder inline to avoid closure issues
-                    const panResponder = PanResponder.create({
-                      onStartShouldSetPanResponder: () => true,
-                      onMoveShouldSetPanResponder: () => true,
-                      onPanResponderGrant: (evt) => {
-                        try {
-                          const { locationX, locationY } = evt.nativeEvent;
-                          handleManualColorPickerMove(locationX, locationY);
-                        } catch (error) {
-                          console.error('Error in onPanResponderGrant:', error);
-                        }
-                      },
-                      onPanResponderMove: (evt) => {
-                        try {
-                          const { locationX, locationY } = evt.nativeEvent;
-                          handleManualColorPickerMove(locationX, locationY);
-                        } catch (error) {
-                          console.error('Error in onPanResponderMove:', error);
-                        }
-                      },
-                      onPanResponderRelease: async (evt) => {
-                        try {
-                          const { locationX, locationY } = evt.nativeEvent;
-                          await pickColorAtCoordinates(locationX, locationY);
-                        } catch (error) {
-                          console.error('Error in onPanResponderRelease:', error);
-                        }
-                      },
-                    });
-                    
-                    return (
-                      <View style={{ flex: 1, width: '100%' }} {...panResponder.panHandlers}>
+                    try {
+                      // Create PanResponder inline to avoid closure issues
+                      const panResponder = PanResponder.create({
+                        onStartShouldSetPanResponder: () => true,
+                        onMoveShouldSetPanResponder: () => true,
+                        onPanResponderGrant: (evt) => {
+                          try {
+                            const { locationX, locationY } = evt.nativeEvent;
+                            if (typeof handleManualColorPickerMove === 'function') {
+                              handleManualColorPickerMove(locationX, locationY);
+                            }
+                          } catch (error) {
+                            console.error('🎨 [ADMIN] Error in onPanResponderGrant:', error);
+                          }
+                        },
+                        onPanResponderMove: (evt) => {
+                          try {
+                            const { locationX, locationY } = evt.nativeEvent;
+                            if (typeof handleManualColorPickerMove === 'function') {
+                              handleManualColorPickerMove(locationX, locationY);
+                            }
+                          } catch (error) {
+                            console.error('🎨 [ADMIN] Error in onPanResponderMove:', error);
+                          }
+                        },
+                        onPanResponderRelease: async (evt) => {
+                          try {
+                            const { locationX, locationY } = evt.nativeEvent;
+                            if (typeof pickColorAtCoordinates === 'function') {
+                              await pickColorAtCoordinates(locationX, locationY);
+                            }
+                          } catch (error) {
+                            console.error('🎨 [ADMIN] Error in onPanResponderRelease:', error);
+                          }
+                        },
+                      });
+                      
+                      return (
+                        <View style={{ flex: 1, width: '100%' }} {...panResponder.panHandlers}>
                         <Image
                           source={{ uri: formData.image_url }}
                           style={{ 
@@ -1519,7 +1526,27 @@ const AdminGarmentsScreen = ({ onBack }) => {
                           </View>
                         )}
                       </View>
-                    );
+                      );
+                    } catch (error) {
+                      console.error('🎨 [ADMIN] Error creating PanResponder or rendering color picker:', error);
+                      // Fallback: render image without PanResponder
+                      return (
+                        <View style={{ flex: 1, width: '100%' }}>
+                          <Image
+                            source={{ uri: formData.image_url }}
+                            style={{ 
+                              width: '100%', 
+                              flex: 1,
+                              minHeight: 400,
+                              resizeMode: 'contain',
+                            }}
+                          />
+                          <Text style={{ padding: 20, textAlign: 'center', color: Colors.textSecondary }}>
+                            Error loading color picker. Please try again.
+                          </Text>
+                        </View>
+                      );
+                    }
                   })()}
                 </View>
               ) : (
