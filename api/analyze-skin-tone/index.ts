@@ -211,7 +211,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // NOW calculate heuristic face box using actual image dimensions
     let actualFaceBox = faceBox;
-    if (faceBox.x < 0 || faceBox.y < 0 || faceBox.width < 0 || faceBox.height < 0) {
+    if (!faceBox || faceBox.x < 0 || faceBox.y < 0 || faceBox.width < 0 || faceBox.height < 0) {
       // Use heuristic: for selfies/portraits, face is typically in center-upper 60%
       // Assume face takes up roughly 40-50% of image width, centered horizontally
       // And is in upper 60% of image height
@@ -413,9 +413,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       confidence: Math.round(overallConfidence * 100) / 100,
     });
   } catch (error: any) {
-    console.error('🎨 [SKIN TONE] Error:', error.message);
+    console.error('🎨 [SKIN TONE] ========== ERROR ==========');
+    console.error('🎨 [SKIN TONE] Error message:', error.message);
+    console.error('🎨 [SKIN TONE] Error stack:', error.stack);
+    console.error('🎨 [SKIN TONE] Error name:', error.name);
+    if (error.cause) {
+      console.error('🎨 [SKIN TONE] Error cause:', error.cause);
+    }
+    console.error('🎨 [SKIN TONE] ==========================');
+    
     return res.status(500).json({
-      error: error.message,
+      error: error.message || 'Unknown error occurred',
+      errorType: error.name || 'Error',
       undertone: 'neutral',
       depth: 'medium',
       season: 'autumn',
