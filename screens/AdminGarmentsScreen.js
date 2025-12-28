@@ -1229,10 +1229,17 @@ const AdminGarmentsScreen = ({ onBack }) => {
                   <Pressable
                     style={styles.colorPickerButton}
                     onPress={() => {
-                      if (formData.image_url) {
-                        setShowColorPicker(true);
-                      } else {
-                        Alert.alert('Image Required', 'Please upload a product image first to pick a color from it.');
+                      try {
+                        console.log('🎨 [ADMIN] Pick button clicked, image_url:', formData.image_url ? 'exists' : 'missing');
+                        if (formData.image_url) {
+                          console.log('🎨 [ADMIN] Opening color picker modal');
+                          setShowColorPicker(true);
+                        } else {
+                          Alert.alert('Image Required', 'Please upload a product image first to pick a color from it.');
+                        }
+                      } catch (error) {
+                        console.error('🎨 [ADMIN] Error in pick button handler:', error);
+                        Alert.alert('Error', 'Failed to open color picker. Please try again.');
                       }
                     }}
                   >
