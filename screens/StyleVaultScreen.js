@@ -1388,20 +1388,23 @@ const StyleVaultScreen = () => {
                 {/* Face Photo Thumbnail */}
                 <View style={{ alignItems: 'center' }}>
                   <Pressable onPress={() => setShowFacePhotoGuidelines(true)} disabled={isAnalyzingFace}>
-                    {isAnalyzingFace ? (
-                      <View style={[styles.fitProfilePhotoThumbnail, styles.fitProfilePhotoPlaceholder, { justifyContent: 'center', alignItems: 'center' }]}>
-                        <ActivityIndicator size="small" color="#6366f1" />
-                      </View>
-                    ) : faceImage ? (
-                      <Image 
-                        source={{ uri: faceImage }} 
-                        style={styles.fitProfilePhotoThumbnail}
-                      />
-                    ) : (
-                      <View style={[styles.fitProfilePhotoThumbnail, styles.fitProfilePhotoPlaceholder]}>
-                        <Text style={styles.fitProfilePhotoPlaceholderText}>🎨</Text>
-                      </View>
-                    )}
+                    <View style={{ position: 'relative' }}>
+                      {faceImage ? (
+                        <Image 
+                          source={{ uri: faceImage }} 
+                          style={styles.fitProfilePhotoThumbnail}
+                        />
+                      ) : (
+                        <View style={[styles.fitProfilePhotoThumbnail, styles.fitProfilePhotoPlaceholder]}>
+                          <Text style={styles.fitProfilePhotoPlaceholderText}>🎨</Text>
+                        </View>
+                      )}
+                      {isAnalyzingFace && (
+                        <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20 }]}>
+                          <ActivityIndicator size="small" color="#6366f1" />
+                        </View>
+                      )}
+                    </View>
                   </Pressable>
                   <Text style={[styles.fitProfilePhotoLabel, { marginTop: 4 }]}>Your Face Photo</Text>
                 </View>

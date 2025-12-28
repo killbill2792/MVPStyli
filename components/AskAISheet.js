@@ -481,6 +481,8 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
   const [parsedSizeChart, setParsedSizeChart] = useState(null);
   const [isDetectingColor, setIsDetectingColor] = useState(false);
   const [isParsingSizeChart, setIsParsingSizeChart] = useState(false);
+  const [isSavingSizeChart, setIsSavingSizeChart] = useState(false);
+  const [isSavingMaterial, setIsSavingMaterial] = useState(false);
   const [ocrParsingStatus, setOcrParsingStatus] = useState(null);
   const [manualSizeChartInput, setManualSizeChartInput] = useState({});
   const [showParsedDataConfirmation, setShowParsedDataConfirmation] = useState(false);
@@ -1608,7 +1610,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                             console.log('📊 [FRONTEND] Image size:', blob.size, 'bytes');
                             console.log('📊 [FRONTEND] API endpoint:', `${API_BASE}/api/ocr-sizechart`);
                               
-                              setOcrParsingStatus('Sending to OCR service...');
+                              setOcrParsingStatus('Analysing the screenshot...');
                             
                             const parseResponse = await fetch(`${API_BASE}/api/ocr-sizechart`, {
                               method: 'POST',
