@@ -539,23 +539,23 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       openSheet();
       
       // Check if color is already in product name/metadata
-      const productColorFromName = inferColorFromName(product?.name || '');
-      if (productColorFromName && !product?.color) {
+      const productColorFromName = inferColorFromName(productToUse?.name || '');
+      if (productColorFromName && !productToUse?.color) {
         console.log('🎨 [COLOR] Color detected from product name:', productColorFromName);
         setColorSource('product');
         setDetectedColor(productColorFromName);
         setUserEnteredColor(productColorFromName);
-      } else if (product?.color && !detectedColor && !userEnteredColor) {
+      } else if (productToUse?.color && !detectedColor && !userEnteredColor) {
         // Product already has color set
-        console.log('🎨 [COLOR] Color from product metadata:', product.color);
+        console.log('🎨 [COLOR] Color from product metadata:', productToUse.color);
         setColorSource('product');
-        setDetectedColor(product.color);
-        setUserEnteredColor(product.color);
+        setDetectedColor(productToUse.color);
+        setUserEnteredColor(productToUse.color);
       }
       
       // Auto-detect color immediately when Fit Check opens (only if no color from product)
       // Note: autoDetectColor will reload insights after detection, so we don't need to call loadInsights here
-      if (originalProductImage.current && !productColorFromName && !product?.color) {
+      if (originalProductImage.current && !productColorFromName && !productToUse?.color) {
         console.log('🎨 [COLOR] Auto-detecting color from product image...');
         // Start color detection (non-blocking) - it will reload insights after detection
         autoDetectColor().then(() => {
