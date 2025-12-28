@@ -61,12 +61,18 @@ const AdminGarmentsScreen = ({ onBack }) => {
     price: '',
     material: '',
     color: '',
+    color_hex: '', // Hex code for color
     fit_type: 'regular', // slim | regular | relaxed | oversized
     fabric_stretch: 'none', // none | low | medium | high
     is_active: true,
     tags: '',
     sizes: [], // Array of size objects: [{ size_label: 'S', chest_width: 50, ... }, ...]
   });
+  
+  // Color picker state
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [pickedColorHex, setPickedColorHex] = useState('');
+  const [pickedColorName, setPickedColorName] = useState('');
   
   const [measurementUnit, setMeasurementUnit] = useState('in'); // 'cm' or 'in' for input display (stored in inches)
 
@@ -366,14 +372,58 @@ const AdminGarmentsScreen = ({ onBack }) => {
       price: garment.price?.toString() || '',
       material: garment.material || '',
       color: garment.color || '',
+      color_hex: garment.color_hex || '',
       fit_type: garment.fit_type || 'regular',
       fabric_stretch: garment.fabric_stretch || 'none',
       is_active: garment.is_active !== false,
       tags: Array.isArray(garment.tags) ? garment.tags.join(', ') : '',
       sizes: sizes,
     });
+    setPickedColorHex(garment.color_hex || '');
+    setPickedColorName(garment.color || '');
     setMeasurementUnit('in'); // Default to inches since we store in inches
     setShowForm(true);
+  };
+
+  // Color picker handler
+  const handleColorPick = async (imageUrl, x, y, imageWidth, imageHeight) => {
+    try {
+      const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL || 'https://mvp-styli.vercel.app';
+      const apiUrl = `${API_BASE}/api/color`;
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'pick',
+          imageUrl: imageUrl,
+          x: x,
+          y: y,
+          imageWidth: imageWidth,
+          imageHeight: imageHeight,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.color) {
+          const hex = result.color;
+          // Get color name using the naming system
+          const { getNearestColorName } = require('../lib/colorNaming');
+          const nearestColor = getNearestColorName(hex);
+          
+          setFormData({ ...formData, color_hex: hex, color: nearestColor.name });
+          setPickedColorHex(hex);
+          setPickedColorName(nearestColor.name);
+          setShowColorPicker(false);
+        }
+      } else {
+        Alert.alert('Error', 'Failed to pick color from image');
+      }
+    } catch (error) {
+      console.error('Color pick error:', error);
+      Alert.alert('Error', 'Failed to pick color from image');
+    }
   };
 
   const handleSave = async () => {
@@ -1066,14 +1116,42 @@ const AdminGarmentsScreen = ({ onBack }) => {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Color</Text>
-                <TextInput
-                  style={styles.input}
-                  value={formData.color}
-                  onChangeText={(text) => setFormData({ ...formData, color: text })}
-                  placeholder="Color"
-                  placeholderTextColor="#666"
-                />
+                <Text style={styles.inputLabel}>Product Color</Text>
+                <View style={styles.colorPickerContainer}>
+                  {/* Color Swatch */}
+                  {formData.color_hex && (
+                    <View style={[styles.colorSwatch, { backgroundColor: formData.color_hex }]} />
+                  )}
+                  
+                  {/* Color Name Input */}
+                  <TextInput
+                    style={[styles.input, { flex: 1, marginRight: 8 }]}
+                    value={formData.color}
+                    onChangeText={(text) => setFormData({ ...formData, color: text })}
+                    placeholder="Color name (e.g., Navy Blue)"
+                    placeholderTextColor="#666"
+                  />
+                  
+                  {/* Pick Color Button with Eyedropper Icon */}
+                  <Pressable
+                    style={styles.colorPickerButton}
+                    onPress={() => {
+                      if (formData.image_url) {
+                        setShowColorPicker(true);
+                      } else {
+                        Alert.alert('Image Required', 'Please upload a product image first to pick a color from it.');
+                      }
+                    }}
+                  >
+                    <Text style={styles.colorPickerIcon}>🎨</Text>
+                    <Text style={styles.colorPickerButtonText}>Pick</Text>
+                  </Pressable>
+                </View>
+                
+                {/* Show HEX code if available */}
+                {formData.color_hex && (
+                  <Text style={styles.colorHexText}>HEX: {formData.color_hex.toUpperCase()}</Text>
+                )}
               </View>
 
               <View style={styles.inputGroup}>
@@ -1203,6 +1281,52 @@ const AdminGarmentsScreen = ({ onBack }) => {
             </View>
           </ScrollView>
         </SafeAreaView>
+      </Modal>
+
+      {/* Color Picker Modal */}
+      <Modal
+        visible={showColorPicker}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowColorPicker(false)}
+      >
+        <View style={styles.colorPickerModalOverlay}>
+          <View style={styles.colorPickerModalContent}>
+            <View style={styles.colorPickerModalHeader}>
+              <Text style={styles.colorPickerModalTitle}>Pick Color from Product</Text>
+              <Pressable onPress={() => setShowColorPicker(false)}>
+                <Text style={styles.colorPickerModalClose}>✕</Text>
+              </Pressable>
+            </View>
+            
+            {formData.image_url ? (
+              <View style={styles.colorPickerImageContainer}>
+                <Image
+                  source={{ uri: formData.image_url }}
+                  style={styles.colorPickerImage}
+                  resizeMode="contain"
+                  onLayout={(event) => {
+                    const { width, height } = event.nativeEvent.layout;
+                    // Store image dimensions for coordinate conversion
+                  }}
+                />
+                <Pressable
+                  style={StyleSheet.absoluteFill}
+                  onPress={(event) => {
+                    // Simple center tap for now - can be enhanced with coordinate mapping
+                    const { width, height } = event.nativeEvent.layout || { width: 0, height: 0 };
+                    // Use center of image as default
+                    handleColorPick(formData.image_url, 0.5, 0.5, 1, 1);
+                  }}
+                />
+              </View>
+            ) : (
+              <View style={styles.colorPickerNoImage}>
+                <Text style={styles.colorPickerNoImageText}>No image available</Text>
+              </View>
+            )}
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -1498,6 +1622,86 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  colorPickerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  colorSwatch: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: Colors.border,
+  },
+  colorPickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.md,
+    gap: 4,
+  },
+  colorPickerIcon: {
+    fontSize: 16,
+  },
+  colorPickerButtonText: {
+    ...TextStyles.body,
+    color: Colors.textWhite,
+    fontWeight: Typography.semibold,
+  },
+  colorHexText: {
+    ...TextStyles.caption,
+    color: Colors.textSecondary,
+    marginTop: 4,
+  },
+  colorPickerModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  colorPickerModalContent: {
+    width: '90%',
+    maxHeight: '80%',
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+  },
+  colorPickerModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  colorPickerModalTitle: {
+    ...TextStyles.h3,
+    fontWeight: Typography.bold,
+  },
+  colorPickerModalClose: {
+    ...TextStyles.h3,
+    color: Colors.textSecondary,
+  },
+  colorPickerImageContainer: {
+    width: '100%',
+    height: 400,
+    position: 'relative',
+  },
+  colorPickerImage: {
+    width: '100%',
+    height: '100%',
+  },
+  colorPickerNoImage: {
+    padding: Spacing.xl,
+    alignItems: 'center',
+  },
+  colorPickerNoImageText: {
+    ...TextStyles.body,
+    color: Colors.textSecondary,
   },
 });
 

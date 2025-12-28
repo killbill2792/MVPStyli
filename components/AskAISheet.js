@@ -1355,13 +1355,6 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                         >
                           <Text style={styles.addDataBtnText}>Set Color Profile →</Text>
                         </Pressable>
-                      ) : (
-                        <Pressable 
-                          style={styles.addDataBtn}
-                          onPress={() => setShowColorInputModal(true)}
-                        >
-                          <Text style={styles.addDataBtnText}>🎨 Detect/Enter Color →</Text>
-                        </Pressable>
                       )}
                     </View>
                   </View>

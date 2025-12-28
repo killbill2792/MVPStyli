@@ -516,10 +516,15 @@ const ProductScreen = ({ onBack }) => {
                     <Text style={styles.detailValue}>{inferredCategory}</Text>
                   </View>
                 )}
-                {(product.color || inferredColor) && (
+                {(product.color || inferredColor || product.colorHex) && (
                   <View style={styles.detailItem}>
                     <Text style={styles.detailLabel}>Color</Text>
-                    <Text style={styles.detailValue}>{product.color || inferredColor}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      {product.colorHex && (
+                        <View style={[styles.colorSwatch, { backgroundColor: product.colorHex }]} />
+                      )}
+                      <Text style={styles.detailValue}>{product.color || inferredColor || 'Color'}</Text>
+                    </View>
                   </View>
                 )}
                 {(product.fabric || inferredFabric) && (
@@ -1286,6 +1291,13 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 24,
     fontWeight: 'bold',
+  },
+  colorSwatch: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
 });
 
