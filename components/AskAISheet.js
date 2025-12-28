@@ -309,6 +309,14 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       } else {
         const errorText = await apiResponse.text();
         console.error('🎨 [MANUAL PICKER] API error:', apiResponse.status, errorText);
+        console.error('🎨 [MANUAL PICKER] API URL was:', apiUrl);
+        if (apiResponse.status === 404) {
+          Alert.alert(
+            'API Endpoint Not Found',
+            `The color picker API endpoint is not available.\n\nURL: ${apiUrl}\n\nThis usually means the deployment is in progress. Please wait a few minutes and try again.`,
+            [{ text: 'OK' }]
+          );
+        }
       }
     } catch (apiError) {
       console.error('🎨 [MANUAL PICKER] API error:', apiError);
