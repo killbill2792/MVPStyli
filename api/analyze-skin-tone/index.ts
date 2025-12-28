@@ -161,7 +161,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Missing imageUrl or imageBase64' });
     }
 
-    // Handle heuristic face box (client couldn't detect face, use center-upper region)
+    console.log('🎨 [SKIN TONE] ========== STARTING ANALYSIS ==========');
+    console.log('🎨 [SKIN TONE] Request received:', {
+      hasImageUrl: !!imageUrl,
+      hasImageBase64: !!imageBase64,
+      imageUrl: imageUrl ? imageUrl.substring(0, 100) + '...' : 'N/A',
+      faceBox: faceBox,
+      faceBoxIsHeuristic: faceBox.x < 0 || faceBox.y < 0 || faceBox.width < 0 || faceBox.height < 0,
+    });
+
+    // Load image FIRST to get dimensions
+    let imageBuffer: Buffer;
+    if (imageBase64) {
+      const base64Data = imageBase64.includes(',') 
+        ? imageBase64.split(',')[1] 
+        : imageBase64;
+      imageBuffer = Buffer.from(base64Data, 'base64');
+      console.log('🎨 [SKIN TONE] Loaded image from base64, length:', base64Data.length);
+    } else if (imageUrl) {
+      console.log('🎨 [SKIN TONE] Fetching image from URL:', imageUrl.substring(0, 100));
+      const response = await fetch(imageUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.statusText}`);
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      imageBuffer = Buffer.from(arrayBuffer);
+      console.log('🎨 [SKIN TONE] Fetched image, size:', arrayBuffer.byteLength, 'bytes');
+    } else {
+      return res.status(400).json({ error: 'Missing image data' });
+    }
+
+    // Get image metadata
+    const metadata = await sharp(imageBuffer).metadata();
+    const imageWidth = metadata.width || 1;
+    const imageHeight = metadata.height || 1;
+
+    console.log('🎨 [SKIN TONE] Image metadata:', {
+      width: imageWidth,
+      height: imageHeight,
+      format: metadata.format,
+      channels: metadata.channels,
+    });
+
+    // NOW calculate heuristic face box using actual image dimensions
     let actualFaceBox = faceBox;
     if (faceBox.x < 0 || faceBox.y < 0 || faceBox.width < 0 || faceBox.height < 0) {
       // Use heuristic: for selfies/portraits, face is typically in center-upper 60%
@@ -179,43 +221,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         height: estimatedFaceHeight,
       };
       
-      console.log('🎨 [SKIN TONE] Using heuristic face box:', actualFaceBox);
+      console.log('🎨 [SKIN TONE] Calculated heuristic face box:', {
+        ...actualFaceBox,
+        imageWidth,
+        imageHeight,
+        faceWidthPercent: ((estimatedFaceWidth / imageWidth) * 100).toFixed(1) + '%',
+        faceHeightPercent: ((estimatedFaceHeight / imageHeight) * 100).toFixed(1) + '%',
+      });
+    } else {
+      console.log('🎨 [SKIN TONE] Using provided face box:', actualFaceBox);
     }
     
     if (!actualFaceBox || actualFaceBox.x < 0 || actualFaceBox.y < 0 || actualFaceBox.width <= 0 || actualFaceBox.height <= 0) {
+      console.error('🎨 [SKIN TONE] Invalid face box:', actualFaceBox);
       return res.status(400).json({ error: 'Invalid faceBox. Could not determine face region.' });
     }
-
-    console.log('🎨 [SKIN TONE] Starting analysis:', {
-      hasImageUrl: !!imageUrl,
-      hasImageBase64: !!imageBase64,
-      faceBox,
-    });
-
-    // Load image
-    let imageBuffer: Buffer;
-    if (imageBase64) {
-      const base64Data = imageBase64.includes(',') 
-        ? imageBase64.split(',')[1] 
-        : imageBase64;
-      imageBuffer = Buffer.from(base64Data, 'base64');
-    } else if (imageUrl) {
-      const response = await fetch(imageUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch image: ${response.statusText}`);
-      }
-      const arrayBuffer = await response.arrayBuffer();
-      imageBuffer = Buffer.from(arrayBuffer);
-    } else {
-      return res.status(400).json({ error: 'Missing image data' });
-    }
-
-    // Get image metadata
-    const metadata = await sharp(imageBuffer).metadata();
-    const imageWidth = metadata.width || 1;
-    const imageHeight = metadata.height || 1;
-
-    console.log('🎨 [SKIN TONE] Image loaded:', { imageWidth, imageHeight });
 
     // Extract face region
     const { x, y, width, height } = actualFaceBox;

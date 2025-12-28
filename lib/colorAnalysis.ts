@@ -51,12 +51,13 @@ const COLOR_SEASONS = {
 // Analyze face image and determine color profile using real skin tone detection
 export async function analyzeFaceForColorProfile(faceImageUrl: string): Promise<ExtendedColorProfile | null> {
   try {
-    console.log('🎨 [SKIN TONE] Starting face analysis for:', faceImageUrl.substring(0, 100));
+    console.log('🎨 [SKIN TONE CLIENT] ========== STARTING FACE ANALYSIS ==========');
+    console.log('🎨 [SKIN TONE CLIENT] Image URL:', faceImageUrl.substring(0, 100) + (faceImageUrl.length > 100 ? '...' : ''));
     
     // Step 1: Use heuristic face region (works for selfies and portraits)
     // For selfies: face is typically in center, upper 60% of image
     // The API will refine this based on actual image dimensions
-    console.log('🎨 [SKIN TONE] Using heuristic face region (works for selfies/portraits)');
+    console.log('🎨 [SKIN TONE CLIENT] Using heuristic face region (works for selfies/portraits)');
     
     const faceBox = {
       x: -1, // Signal to API to use heuristic (center-upper region)
@@ -66,8 +67,14 @@ export async function analyzeFaceForColorProfile(faceImageUrl: string): Promise<
     };
     
     // Step 2: Call server-side API to analyze skin tone
-    const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://mvp-styli.vercel.app';
+    const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL || 'https://mvp-styli.vercel.app';
     const apiUrl = `${API_BASE}/api/analyze-skin-tone`;
+    
+    console.log('🎨 [SKIN TONE CLIENT] Calling API:', apiUrl);
+    console.log('🎨 [SKIN TONE CLIENT] Request payload:', {
+      imageUrl: faceImageUrl.substring(0, 80) + '...',
+      faceBox,
+    });
     
     const startTime = Date.now();
     const response = await fetch(apiUrl, {
@@ -80,18 +87,38 @@ export async function analyzeFaceForColorProfile(faceImageUrl: string): Promise<
     });
     
     const timeTaken = Date.now() - startTime;
+    console.log('🎨 [SKIN TONE CLIENT] API response received:', {
+      status: response.status,
+      ok: response.ok,
+      timeTaken: `${timeTaken}ms`,
+    });
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('🎨 [SKIN TONE] API error:', response.status, errorText);
-      throw new Error(`Skin tone analysis failed: ${response.status}`);
+      console.error('🎨 [SKIN TONE CLIENT] API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText,
+        apiUrl,
+      });
+      throw new Error(`Skin tone analysis failed: ${response.status} - ${errorText}`);
     }
     
     const analysis = await response.json();
-    console.log('🎨 [SKIN TONE] Analysis complete:', {
-      ...analysis,
+    console.log('🎨 [SKIN TONE CLIENT] ========== ANALYSIS RESULTS ==========');
+    console.log('🎨 [SKIN TONE CLIENT] Raw API response:', JSON.stringify(analysis, null, 2));
+    console.log('🎨 [SKIN TONE CLIENT] Parsed results:', {
+      rgb: analysis.rgb,
+      hex: analysis.hex,
+      lab: analysis.lab,
+      undertone: analysis.undertone,
+      depth: analysis.depth,
+      clarity: analysis.clarity,
+      season: analysis.season,
+      confidence: analysis.confidence,
       timeTaken: `${timeTaken}ms`,
     });
+    console.log('🎨 [SKIN TONE CLIENT] ===========================================');
     
     // Step 3: Map to ColorProfile format
     const seasonData = COLOR_SEASONS[analysis.season as keyof typeof COLOR_SEASONS] || COLOR_SEASONS.autumn;
