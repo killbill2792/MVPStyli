@@ -1425,12 +1425,13 @@ const AdminGarmentsScreen = ({ onBack }) => {
                 </View>
                 
                 <View style={{ flex: 1, position: 'relative' }}>
-                  <Text style={[styles.colorPickerInstruction, { 
+                  <Text style={{ 
                     marginBottom: 16, 
                     textAlign: 'center', 
                     paddingHorizontal: 20,
                     color: '#9ca3af',
-                  }]}>
+                    fontSize: 14,
+                  }}>
                     Tap anywhere on the image to pick the exact pixel color
                   </Text>
                   
