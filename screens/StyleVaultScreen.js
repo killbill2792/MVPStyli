@@ -1298,14 +1298,26 @@ const StyleVaultScreen = () => {
                 {colorProfile.confidence !== undefined && (
                   <View style={{ marginBottom: 12, padding: 12, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 8 }}>
                     <Text style={[styles.colorBestLabel, { fontSize: 12, marginBottom: 4 }]}>
-                      Detected from face photo:
+                      Suggested from face photo:
                     </Text>
-                    <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20 }]}>
-                      {colorProfile.tone ? `• Undertone: ${colorProfile.tone.charAt(0).toUpperCase() + colorProfile.tone.slice(1)}` : ''}
-                      {colorProfile.depth ? `\n• Depth: ${colorProfile.depth.charAt(0).toUpperCase() + colorProfile.depth.slice(1)}` : ''}
-                      {colorProfile.season ? `\n• Suggested Season: ${colorProfile.season.charAt(0).toUpperCase() + colorProfile.season.slice(1)}` : ''}
-                      {colorProfile.confidence ? `\n• Confidence: ${Math.round(colorProfile.confidence * 100)}%` : ''}
-                    </Text>
+                    {colorProfile.season ? (
+                      <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20 }]}>
+                        {colorProfile.tone ? `• Undertone: ${colorProfile.tone.charAt(0).toUpperCase() + colorProfile.tone.slice(1)}` : ''}
+                        {colorProfile.depth ? `\n• Depth: ${colorProfile.depth.charAt(0).toUpperCase() + colorProfile.depth.slice(1)}` : ''}
+                        {colorProfile.season ? `\n• Suggested Season: ${colorProfile.season.charAt(0).toUpperCase() + colorProfile.season.slice(1)}` : ''}
+                        {colorProfile.confidence ? `\n• Confidence: ${Math.round(colorProfile.confidence * 100)}%` : ''}
+                      </Text>
+                    ) : (
+                      <View>
+                        <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20, marginBottom: 8 }]}>
+                          {colorProfile.tone ? `${colorProfile.tone.charAt(0).toUpperCase() + colorProfile.tone.slice(1)} undertone` : ''}
+                          {colorProfile.depth ? ` • ${colorProfile.depth.charAt(0).toUpperCase() + colorProfile.depth.slice(1)} depth` : ''}
+                        </Text>
+                        <Text style={[styles.colorBestList, { fontSize: 12, lineHeight: 18, color: '#666', fontStyle: 'italic' }]}>
+                          Season unclear (lighting/photo variation). You can choose manually or upload another photo.
+                        </Text>
+                      </View>
+                    )}
                   </View>
                 )}
                 
