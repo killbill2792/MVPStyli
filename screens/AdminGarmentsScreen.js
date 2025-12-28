@@ -82,8 +82,33 @@ const AdminGarmentsScreen = ({ onBack }) => {
   const [imageNaturalSize, setImageNaturalSize] = useState({ width: 0, height: 0 });
   const [isSamplingColor, setIsSamplingColor] = useState(false);
   const colorPickerImageUrlRef = useRef(null);
+  const colorPickerPanResponderRef = useRef(null);
   
   const { width, height } = Dimensions.get('window');
+  
+  // Create PanResponder once and reuse it
+  useEffect(() => {
+    if (showColorPicker) {
+      colorPickerPanResponderRef.current = PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: (evt) => {
+          const { locationX, locationY } = evt.nativeEvent;
+          handleManualColorPickerMove(locationX, locationY);
+        },
+        onPanResponderMove: (evt) => {
+          const { locationX, locationY } = evt.nativeEvent;
+          handleManualColorPickerMove(locationX, locationY);
+        },
+        onPanResponderRelease: async (evt) => {
+          const { locationX, locationY } = evt.nativeEvent;
+          await pickColorAtCoordinates(locationX, locationY);
+        },
+      });
+    } else {
+      colorPickerPanResponderRef.current = null;
+    }
+  }, [showColorPicker]);
   
   const [measurementUnit, setMeasurementUnit] = useState('in'); // 'cm' or 'in' for input display (stored in inches)
 
@@ -1415,26 +1440,8 @@ const AdminGarmentsScreen = ({ onBack }) => {
               
               {formData.image_url ? (
                 <View style={{ flex: 1, position: 'relative' }}>
-                  {(() => {
-                    const colorPickerPanResponder = PanResponder.create({
-                      onStartShouldSetPanResponder: () => true,
-                      onMoveShouldSetPanResponder: () => true,
-                      onPanResponderGrant: (evt) => {
-                        const { locationX, locationY } = evt.nativeEvent;
-                        handleManualColorPickerMove(locationX, locationY);
-                      },
-                      onPanResponderMove: (evt) => {
-                        const { locationX, locationY } = evt.nativeEvent;
-                        handleManualColorPickerMove(locationX, locationY);
-                      },
-                      onPanResponderRelease: async (evt) => {
-                        const { locationX, locationY } = evt.nativeEvent;
-                        await pickColorAtCoordinates(locationX, locationY);
-                      },
-                    });
-                    
-                    return (
-                      <View style={{ flex: 1, width: '100%' }} {...colorPickerPanResponder.panHandlers}>
+                  {colorPickerPanResponderRef.current && (
+                    <View style={{ flex: 1, width: '100%' }} {...colorPickerPanResponderRef.current.panHandlers}>
                         <Image
                           source={{ uri: formData.image_url }}
                           style={{ 
@@ -1498,9 +1505,8 @@ const AdminGarmentsScreen = ({ onBack }) => {
                             </View>
                           </View>
                         )}
-                      </View>
-                    );
-                  })()}
+                    </View>
+                  )}
                 </View>
               ) : (
                 <View style={styles.colorPickerNoImage}>
