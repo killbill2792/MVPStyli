@@ -53,42 +53,17 @@ export async function analyzeFaceForColorProfile(faceImageUrl: string): Promise<
   try {
     console.log('🎨 [SKIN TONE] Starting face analysis for:', faceImageUrl.substring(0, 100));
     
-    // Step 1: Try to detect face using expo-face-detector (client-side)
-    let faceBox = null;
-    let faceDetectionMethod = 'none';
+    // Step 1: Use heuristic face region (works for selfies and portraits)
+    // For selfies: face is typically in center, upper 60% of image
+    // The API will refine this based on actual image dimensions
+    console.log('🎨 [SKIN TONE] Using heuristic face region (works for selfies/portraits)');
     
-    try {
-      // Try to use expo-face-detector
-      const FaceDetector = require('expo-face-detector').FaceDetector;
-      const detector = new FaceDetector.FaceDetectorOptions({
-        mode: FaceDetector.FaceDetectorMode.fast,
-        detectLandmarks: false,
-        runClassifications: false,
-      });
-      
-      // Note: expo-face-detector works with Image component, not direct file paths
-      // For now, we'll use a fallback heuristic approach
-      // In production, you'd use the FaceDetector component in the UI
-      throw new Error('Using fallback - face detector requires UI component');
-    } catch (faceDetectError: any) {
-      console.log('🎨 [SKIN TONE] Face detector not available, using fallback heuristic');
-      
-      // Fallback: For selfies and face photos, assume face is in center-upper region
-      // This works well for most selfies and portrait photos
-      // We'll fetch image dimensions from the server or use a reasonable estimate
-      // For square selfies: face is typically in center, upper 60% of image
-      // We'll let the API estimate based on image dimensions
-      
-      // For now, send a heuristic face box that the API can refine
-      // The API will use image dimensions to create a proper face region
-      faceBox = {
-        x: -1, // Signal to API to use heuristic
-        y: -1,
-        width: -1,
-        height: -1,
-      };
-      faceDetectionMethod = 'heuristic';
-    }
+    const faceBox = {
+      x: -1, // Signal to API to use heuristic (center-upper region)
+      y: -1,
+      width: -1,
+      height: -1,
+    };
     
     // Step 2: Call server-side API to analyze skin tone
     const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://mvp-styli.vercel.app';
