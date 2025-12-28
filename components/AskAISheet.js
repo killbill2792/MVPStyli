@@ -1981,8 +1981,9 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                     ))}
                   </ScrollView>
                   <Pressable
-                    style={styles.saveButton}
-                    onPress={() => {
+                    style={[styles.saveButton, isSavingSizeChart && { opacity: 0.6 }]}
+                    onPress={async () => {
+                      if (isSavingSizeChart) return;
                       // Convert manual input to size chart format
                       const sizeChart = manualSizeChartInput.sizes.map((size) => {
                         const measurements = {};
@@ -1996,25 +1997,36 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                       }).filter(item => Object.keys(item.measurements).length > 0);
 
                       if (sizeChart.length > 0) {
-                        setParsedSizeChart(sizeChart);
-                        const updatedProduct = {
-                          ...product,
-                          sizeChart: sizeChart,
-                        };
-                        setProduct(updatedProduct);
-                        setShowGarmentInputModal(false);
-                        setManualSizeChartInput({});
-                        setPendingParsedData(null);
-                        // Force refresh insights after a short delay to ensure state is updated
-                        setTimeout(() => {
-                          loadInsights(true);
-                        }, 200);
+                        setIsSavingSizeChart(true);
+                        try {
+                          setParsedSizeChart(sizeChart);
+                          const updatedProduct = {
+                            ...product,
+                            sizeChart: sizeChart,
+                          };
+                          setProduct(updatedProduct);
+                          setShowGarmentInputModal(false);
+                          setManualSizeChartInput({});
+                          setPendingParsedData(null);
+                          // Load insights immediately - no delay needed
+                          await loadInsights(true);
+                        } finally {
+                          setIsSavingSizeChart(false);
+                        }
                       } else {
                         Alert.alert('Error', 'Please enter at least one measurement');
                       }
                     }}
+                    disabled={isSavingSizeChart}
                   >
-                    <Text style={styles.saveButtonText}>Save Size Chart</Text>
+                    {isSavingSizeChart ? (
+                      <>
+                        <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
+                        <Text style={styles.saveButtonText}>Saving...</Text>
+                      </>
+                    ) : (
+                      <Text style={styles.saveButtonText}>Save Size Chart</Text>
+                    )}
                   </Pressable>
                 </View>
               )}
