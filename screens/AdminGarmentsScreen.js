@@ -86,45 +86,7 @@ const AdminGarmentsScreen = ({ onBack }) => {
   
   const { width, height } = Dimensions.get('window');
   
-  // Create PanResponder once and reuse it - recreate when modal opens
-  useEffect(() => {
-    if (showColorPicker && formData.image_url) {
-      colorPickerPanResponderRef.current = PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
-        onPanResponderGrant: (evt) => {
-          try {
-            const { locationX, locationY } = evt.nativeEvent;
-            handleManualColorPickerMove(locationX, locationY);
-          } catch (error) {
-            console.error('Error in onPanResponderGrant:', error);
-          }
-        },
-        onPanResponderMove: (evt) => {
-          try {
-            const { locationX, locationY } = evt.nativeEvent;
-            handleManualColorPickerMove(locationX, locationY);
-          } catch (error) {
-            console.error('Error in onPanResponderMove:', error);
-          }
-        },
-        onPanResponderRelease: async (evt) => {
-          try {
-            const { locationX, locationY } = evt.nativeEvent;
-            await pickColorAtCoordinates(locationX, locationY);
-          } catch (error) {
-            console.error('Error in onPanResponderRelease:', error);
-          }
-        },
-      });
-    } else {
-      colorPickerPanResponderRef.current = null;
-    }
-    
-    return () => {
-      colorPickerPanResponderRef.current = null;
-    };
-  }, [showColorPicker, formData.image_url]);
+  // Note: PanResponder will be created inline in the modal to avoid closure issues
   
   const [measurementUnit, setMeasurementUnit] = useState('in'); // 'cm' or 'in' for input display (stored in inches)
 
@@ -1521,8 +1483,9 @@ const AdminGarmentsScreen = ({ onBack }) => {
                             </View>
                           </View>
                         )}
-                    </View>
-                  )}
+                      </View>
+                    );
+                  })()}
                 </View>
               ) : (
                 <View style={styles.colorPickerNoImage}>
