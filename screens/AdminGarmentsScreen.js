@@ -1721,8 +1721,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a1a',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: height * 0.9,
-    height: height * 0.9,
+    maxHeight: Dimensions.get('window').height * 0.9,
+    height: Dimensions.get('window').height * 0.9,
     flex: 1,
   },
   colorPickerModalHeader: {
