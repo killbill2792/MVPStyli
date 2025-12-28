@@ -736,19 +736,19 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
 
       // Build product info with URL for caching
       const productInfo = {
-        name: product?.name || 'Item',
-        category: product?.category || inferCategory(product?.name),
-        color: product?.color || inferColor(product?.name),
-        fabric: product?.fabric,
-        fit: product?.fit,
-        length: product?.length,
-        price: product?.price,
-        brand: product?.brand,
-        url: product?.url || product?.link || product?.product_link || product?.name, // For cache key
+        name: productToUse?.name || 'Item',
+        category: productToUse?.category || inferCategory(productToUse?.name),
+        color: productToUse?.color || inferColor(productToUse?.name),
+        fabric: productToUse?.fabric,
+        fit: productToUse?.fit,
+        length: productToUse?.length,
+        price: productToUse?.price,
+        brand: productToUse?.brand,
+        url: productToUse?.url || productToUse?.link || productToUse?.product_link || productToUse?.name, // For cache key
       };
 
       // Build product for fitLogic - needs category mapping and sizeChart
-      const category = product?.category || inferCategory(product?.name);
+      const category = productToUse?.category || inferCategory(productToUse?.name);
       const fitLogicCategory = category === 'dress' || category === 'dresses' ? 'dresses' :
                                category === 'lower' || category === 'pants' || category === 'jeans' ? 'lower_body' :
                                'upper_body';
@@ -1214,8 +1214,8 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                       </View>
                     )}
 
-                    {/* Recommended Size */}
-                    {!isRequesting && !isSavingSizeChart && (
+                    {/* Recommended Size - Only show when not loading */}
+                    {!isRequesting && !isSavingSizeChart && !loading && (
                       <>
                         {fitSizeData?.recommendedSize ? (
                           <View style={styles.sizeRecommendation}>
@@ -1233,8 +1233,8 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                       </>
                     )}
 
-                    {/* Measurement Deltas (2-5 bullets) */}
-                    {!isRequesting && !isSavingSizeChart && fitSizeData?.measurementDeltas && fitSizeData.measurementDeltas.length > 0 && (
+                    {/* Measurement Deltas (2-5 bullets) - Only show when not loading */}
+                    {!isRequesting && !isSavingSizeChart && !loading && fitSizeData?.measurementDeltas && fitSizeData.measurementDeltas.length > 0 && (
                       <View style={styles.adviceSection}>
                         {fitSizeData.measurementDeltas.map((delta, idx) => (
                           <Text key={idx} style={styles.adviceItem}>• {delta}</Text>
@@ -1242,8 +1242,8 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                       </View>
                     )}
 
-                    {/* Stylist Translation */}
-                    {!isRequesting && !isSavingSizeChart && fitSizeData?.stylistTranslation && (
+                    {/* Stylist Translation - Only show when not loading */}
+                    {!isRequesting && !isSavingSizeChart && !loading && fitSizeData?.stylistTranslation && (
                       <View style={styles.stylistTranslationBox}>
                         <Text style={styles.stylistTranslationText}>{fitSizeData.stylistTranslation}</Text>
                       </View>
@@ -1457,8 +1457,8 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                   </View>
                 ) : (
                   <>
-                    {/* Loading Indicator */}
-                    {(isRequesting || isSavingMaterial) && (
+                    {/* Loading Indicator - Always show when processing */}
+                    {(isRequesting || isSavingMaterial || loading) && (
                       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, padding: 12, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 8 }}>
                         <ActivityIndicator size="small" color="#6366f1" style={{ marginRight: 8 }} />
                         <Text style={{ color: '#6366f1', fontSize: 13, fontWeight: '500' }}>
@@ -1467,8 +1467,8 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                       </View>
                     )}
                     
-                    {/* Material Name Display with Edit Option */}
-                    {!isRequesting && !isSavingMaterial && product?.material && (
+                    {/* Material Name Display with Edit Option - Only show when not loading */}
+                    {!isRequesting && !isSavingMaterial && !loading && product?.material && (
                       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, padding: 8, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 8 }}>
                         <Text style={[styles.adviceItem, { flex: 1, marginBottom: 0 }]}>
                           Material: <Text style={{ fontWeight: '600' }}>{product.material}</Text>
@@ -1482,7 +1482,8 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                       </View>
                     )}
                     
-                    {!isRequesting && !isSavingMaterial && (
+                    {/* Verdict and Insights - Only show when not loading */}
+                    {!isRequesting && !isSavingMaterial && !loading && (
                       <>
                         <View style={[
                           styles.verdictBadge,
@@ -2045,10 +2046,8 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                           setShowGarmentInputModal(false);
                           setManualSizeChartInput({});
                           setPendingParsedData(null);
-                          // Wait a tiny bit for state to propagate
-                          await new Promise(resolve => setTimeout(resolve, 50));
-                          // Load insights
-                          await loadInsights(true);
+                          // Load insights immediately with updated product
+                          await loadInsights(true, updatedProduct);
                         } finally {
                           setIsSavingSizeChart(false);
                         }
