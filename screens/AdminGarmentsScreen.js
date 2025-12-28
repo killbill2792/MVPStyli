@@ -1244,14 +1244,20 @@ const AdminGarmentsScreen = ({ onBack }) => {
                       }
                     }}
                   >
-                    <Text style={styles.colorPickerIcon}>🎨</Text>
+                    <Text style={styles.colorPickerIcon}>🎯</Text>
                     <Text style={styles.colorPickerButtonText}>Pick</Text>
                   </Pressable>
                 </View>
                 
-                {/* Show HEX code if available */}
+                {/* Show Color Swatch, HEX, and Name if available */}
                 {formData.color_hex && (
-                  <Text style={styles.colorHexText}>HEX: {formData.color_hex.toUpperCase()}</Text>
+                  <View style={styles.colorDisplayContainer}>
+                    <View style={[styles.colorSwatch, { backgroundColor: formData.color_hex }]} />
+                    <View style={styles.colorInfoContainer}>
+                      <Text style={styles.colorNameText}>{formData.color || 'Color'}</Text>
+                      <Text style={styles.colorHexText}>HEX: {formData.color_hex.toUpperCase()}</Text>
+                    </View>
+                  </View>
                 )}
               </View>
 
