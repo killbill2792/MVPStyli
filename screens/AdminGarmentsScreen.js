@@ -82,11 +82,8 @@ const AdminGarmentsScreen = ({ onBack }) => {
   const [imageNaturalSize, setImageNaturalSize] = useState({ width: 0, height: 0 });
   const [isSamplingColor, setIsSamplingColor] = useState(false);
   const colorPickerImageUrlRef = useRef(null);
-  const colorPickerPanResponderRef = useRef(null);
   
   const { width, height } = Dimensions.get('window');
-  
-  // Note: PanResponder will be created inline in the modal to avoid closure issues
   
   const [measurementUnit, setMeasurementUnit] = useState('in'); // 'cm' or 'in' for input display (stored in inches)
 
@@ -1418,8 +1415,39 @@ const AdminGarmentsScreen = ({ onBack }) => {
               
               {formData.image_url ? (
                 <View style={{ flex: 1, position: 'relative' }}>
-                  {colorPickerPanResponderRef.current && (
-                    <View style={{ flex: 1, width: '100%' }} {...colorPickerPanResponderRef.current.panHandlers}>
+                  {(() => {
+                    // Create PanResponder inline to avoid closure issues
+                    const panResponder = PanResponder.create({
+                      onStartShouldSetPanResponder: () => true,
+                      onMoveShouldSetPanResponder: () => true,
+                      onPanResponderGrant: (evt) => {
+                        try {
+                          const { locationX, locationY } = evt.nativeEvent;
+                          handleManualColorPickerMove(locationX, locationY);
+                        } catch (error) {
+                          console.error('Error in onPanResponderGrant:', error);
+                        }
+                      },
+                      onPanResponderMove: (evt) => {
+                        try {
+                          const { locationX, locationY } = evt.nativeEvent;
+                          handleManualColorPickerMove(locationX, locationY);
+                        } catch (error) {
+                          console.error('Error in onPanResponderMove:', error);
+                        }
+                      },
+                      onPanResponderRelease: async (evt) => {
+                        try {
+                          const { locationX, locationY } = evt.nativeEvent;
+                          await pickColorAtCoordinates(locationX, locationY);
+                        } catch (error) {
+                          console.error('Error in onPanResponderRelease:', error);
+                        }
+                      },
+                    });
+                    
+                    return (
+                      <View style={{ flex: 1, width: '100%' }} {...panResponder.panHandlers}>
                         <Image
                           source={{ uri: formData.image_url }}
                           style={{ 
