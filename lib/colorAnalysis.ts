@@ -329,6 +329,27 @@ export async function saveColorProfile(userId: string, profile: ColorProfile | E
         hint: error.hint,
         updateData,
       });
+      
+      // If error is about missing columns, provide helpful message and retry without them
+      if (error.code === 'PGRST204' && (error.message?.includes('skin_hex') || error.message?.includes('skin_tone_confidence'))) {
+        console.error('🎨 [SKIN TONE] Missing database columns. Please run the SQL script: scripts/ADD_SKIN_TONE_COLUMNS_FIXED.sql in Supabase SQL Editor');
+        // Retry without the optional fields
+        const fallbackData = { ...updateData };
+        delete fallbackData.skin_tone_confidence;
+        delete fallbackData.skin_hex;
+        const { error: retryError, data: retryData } = await supabase
+          .from('profiles')
+          .update(fallbackData)
+          .eq('id', userId)
+          .select();
+        if (retryError) {
+          console.error('🎨 [SKIN TONE] Retry also failed:', retryError);
+          return false;
+        }
+        console.log('🎨 [SKIN TONE] Saved profile without skin tone fields. Please add columns and try again.');
+        return true;
+      }
+      
       return false;
     }
     
