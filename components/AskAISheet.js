@@ -934,9 +934,14 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       
       // Use fabricComfort for fabric analysis (NO-AI)
       console.log('🧵 Using fabricComfort for fabric analysis');
+      console.log('🧵 Product material/fabric:', {
+        material: productToUse?.material,
+        fabric: productToUse?.fabric,
+        productToUse: productToUse ? 'exists' : 'null'
+      });
       const fabricAnalysis = analyzeFabricComfort({
-        material: product?.material || product?.fabric || null,
-        fabric: product?.fabric || null,
+        material: productToUse?.material || productToUse?.fabric || null,
+        fabric: productToUse?.fabric || null,
       });
       console.log('🧵 Fabric analysis result:', fabricAnalysis);
       setFabricComfort(fabricAnalysis);
