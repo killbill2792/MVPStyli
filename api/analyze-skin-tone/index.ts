@@ -179,25 +179,55 @@ function suggestSeasonSafe(
   if (undertone === "neutral") return { season: null, confidence: clamp(overallConfidence - 0.15, 0.0, 1.0), note: "Undertone neutral" };
   if (overallConfidence < 0.65) return { season: null, confidence: overallConfidence, note: "Low confidence" };
 
-  // Very simple mapping (MVP):
-  // Warm + light + clear/vivid -> Spring
-  // Warm + medium/deep + muted/clear -> Autumn
-  // Cool + light + muted/clear -> Summer
-  // Cool + medium/deep + clear/vivid -> Winter
+  // Improved season mapping based on color analysis principles:
+  // SPRING: Warm + Light + Clear/Vivid (bright, clear, warm colors)
+  // AUTUMN: Warm + Medium/Deep + Muted/Clear (earthy, rich, warm colors)
+  // SUMMER: Cool + Light + Muted/Clear (soft, cool, light colors)
+  // WINTER: Cool + Medium/Deep + Clear/Vivid (bold, cool, high contrast)
   let season: Season;
   let conf = clamp(0.7 + (overallConfidence - 0.65) * 0.8, 0.7, 0.92);
 
   if (undertone === "warm") {
-    if (depth === "light" && (clarity === "clear" || clarity === "vivid")) {
-      season = "spring";
+    if (depth === "light") {
+      // Light warm skin: Spring (clear/vivid) or Autumn (muted)
+      if (clarity === "vivid" || clarity === "clear") {
+        season = "spring";
+      } else {
+        // muted light warm -> could be spring or autumn, but muted leans autumn
+        season = "autumn";
+        conf = clamp(conf - 0.1, 0.6, 0.9); // Lower confidence for ambiguous case
+      }
+    } else if (depth === "medium") {
+      // Medium warm skin: Autumn (muted/clear) or Spring (if very clear)
+      if (clarity === "vivid") {
+        season = "spring";
+        conf = clamp(conf - 0.05, 0.65, 0.9); // Slightly lower confidence
+      } else {
+        season = "autumn";
+      }
     } else {
+      // Deep warm skin: Always Autumn
       season = "autumn";
     }
   } else {
-    // cool
-    if (depth === "light" && (clarity === "muted" || clarity === "clear")) {
-      season = "summer";
+    // cool undertone
+    if (depth === "light") {
+      // Light cool skin: Summer (muted/clear) or Winter (if very vivid)
+      if (clarity === "vivid") {
+        season = "winter";
+        conf = clamp(conf - 0.05, 0.65, 0.9); // Slightly lower confidence
+      } else {
+        season = "summer";
+      }
+    } else if (depth === "medium") {
+      // Medium cool skin: Summer (muted) or Winter (clear/vivid)
+      if (clarity === "vivid" || clarity === "clear") {
+        season = "winter";
+      } else {
+        season = "summer";
+      }
     } else {
+      // Deep cool skin: Always Winter
       season = "winter";
     }
   }
@@ -225,12 +255,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       faceBox?: FaceBox;
     };
 
+    console.log("🎨 [SKIN TONE API] Request received:", {
+      hasImageUrl: !!imageUrl,
+      hasImageBase64: !!imageBase64,
+      faceBox: faceBox ? { x: faceBox.x, y: faceBox.y, width: faceBox.width, height: faceBox.height } : null,
+    });
+
     if (!imageUrl && !imageBase64) {
       return res.status(400).json({ error: "Missing imageUrl or imageBase64" });
     }
 
     // IMPORTANT: no heuristic fallback. Require a valid faceBox.
     if (!isValidFaceBox(faceBox)) {
+      console.log("🎨 [SKIN TONE API] Invalid faceBox:", faceBox);
       return res.status(400).json({ error: "FACE_NOT_DETECTED" });
     }
 
@@ -390,6 +427,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
 
     const seasonRes = suggestSeasonSafe(undertoneRes.undertone, depthRes.depth, clarity, overallConfidence);
+
+    // Detailed logging for debugging
+    console.log("🎨 [SKIN TONE API] Analysis results:", {
+      rgb: { r: meanR, g: meanG, b: meanB },
+      hex,
+      lab: { l: lab.l.toFixed(2), a: lab.a.toFixed(2), b: lab.b.toFixed(2) },
+      undertone: undertoneRes.undertone,
+      undertoneConfidence: undertoneRes.confidence.toFixed(3),
+      depth: depthRes.depth,
+      depthConfidence: depthRes.confidence.toFixed(3),
+      clarity,
+      overallConfidence: overallConfidence.toFixed(3),
+      season: seasonRes.season,
+      seasonConfidence: seasonRes.confidence.toFixed(3),
+      seasonNote: seasonRes.note,
+      skinPixelCount,
+      skinPixelRatio: (skinPixelRatio * 100).toFixed(1) + "%",
+      lightingWarning,
+    });
 
     // If season is null, include a note
     if (seasonRes.season === null) {
