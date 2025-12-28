@@ -608,7 +608,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
     });
   };
 
-  const loadInsights = async (forceRefresh = false) => {
+  const loadInsights = async (forceRefresh = false, productOverride = null) => {
     // Client-side throttling: prevent multiple simultaneous requests
     if (requestInProgress.current && !forceRefresh) {
       console.log('⏳ Request already in progress, please wait...');
@@ -619,6 +619,9 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
     setLoading(true);
     setIsRequesting(true);
     setIsCached(false);
+    
+    // Use productOverride if provided, otherwise use current product state
+    const productToUse = productOverride || product;
     
     try {
       // Load user's profile directly from Supabase to get latest measurements
@@ -752,12 +755,12 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       
       // Convert sizeChart to fitLogic format if available
       let sizeChart = [];
-      if (product?.sizeChart) {
-        if (Array.isArray(product.sizeChart)) {
-          sizeChart = product.sizeChart;
-        } else if (typeof product.sizeChart === 'object') {
+      if (productToUse?.sizeChart) {
+        if (Array.isArray(productToUse.sizeChart)) {
+          sizeChart = productToUse.sizeChart;
+        } else if (typeof productToUse.sizeChart === 'object') {
           // Convert object format to array format
-          sizeChart = Object.entries(product.sizeChart).map(([size, measurements]) => ({
+          sizeChart = Object.entries(productToUse.sizeChart).map(([size, measurements]) => ({
             size,
             measurements: typeof measurements === 'object' ? measurements : {}
           }));
@@ -767,16 +770,16 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       // Normalize fabric stretch: single source of truth
       // Check material keywords first, then fabricStretch field
       let normalizedFabricStretch = false;
-      const materialStr = (product?.fabric || product?.material || '').toLowerCase();
+      const materialStr = (productToUse?.fabric || productToUse?.material || '').toLowerCase();
       const hasStretchKeywords = materialStr.includes('stretch') || 
                                   materialStr.includes('elastic') || 
                                   materialStr.includes('spandex') || 
                                   materialStr.includes('elastane') ||
                                   materialStr.includes('lycra');
       
-      if (product?.fabricStretch) {
+      if (productToUse?.fabricStretch) {
         // Direct fabric_stretch field from garment (none, low, medium, high)
-        normalizedFabricStretch = product.fabricStretch !== 'none' && product.fabricStretch !== 'low';
+        normalizedFabricStretch = productToUse.fabricStretch !== 'none' && productToUse.fabricStretch !== 'low';
       } else {
         // Fallback to keyword detection
         normalizedFabricStretch = hasStretchKeywords;
@@ -1854,10 +1857,8 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                           setPendingParsedData(null);
                           setOcrParsingStatus(null);
                           setShowGarmentInputModal(false);
-                          // Wait a tiny bit for state to propagate
-                          await new Promise(resolve => setTimeout(resolve, 50));
-                          // Load insights
-                          await loadInsights(true);
+                          // Load insights immediately with updated product
+                          await loadInsights(true, updatedProduct);
                         } finally {
                           setIsSavingSizeChart(false);
                         }
@@ -2508,10 +2509,8 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                         setProduct(updatedProduct);
                         // Close modal
                         setShowMaterialInputModal(false);
-                        // Wait a tiny bit for state to propagate
-                        await new Promise(resolve => setTimeout(resolve, 50));
-                        // Load insights
-                        await loadInsights(true);
+                        // Load insights immediately with updated product
+                        await loadInsights(true, updatedProduct);
                       } finally {
                         setIsSavingMaterial(false);
                       }
