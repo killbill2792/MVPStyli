@@ -506,16 +506,34 @@ const AdminGarmentsScreen = ({ onBack }) => {
     return null;
   };
   
-  // Confirm color pick
+  // Confirm color pick - same logic as fit check
   const confirmColorPick = () => {
     if (livePickedColor) {
-      setFormData({ ...formData, color_hex: livePickedColor.hex, color: livePickedColor.name });
+      console.log('🎨 [ADMIN] Confirming color pick:', livePickedColor);
+      // Use color naming system to get the best name
+      const { getNearestColorName } = require('../lib/colorNaming');
+      const nearestColor = getNearestColorName(livePickedColor.hex);
+      const colorName = nearestColor.name;
+      
+      // Update form data with hex, name, and ensure swatch is visible
+      setFormData(prev => ({
+        ...prev,
+        color_hex: livePickedColor.hex,
+        color: colorName, // Auto-fill name, but user can edit it
+      }));
       setPickedColorHex(livePickedColor.hex);
-      setPickedColorName(livePickedColor.name);
+      setPickedColorName(colorName);
       setShowColorPicker(false);
       setLivePickedColor(null);
       setPickerTouchPosition(null);
       setMagnifierPosition(null);
+      colorPickerImageUrlRef.current = null;
+      
+      console.log('🎨 [ADMIN] Color saved:', {
+        hex: livePickedColor.hex,
+        name: colorName,
+        rgb: livePickedColor.rgb,
+      });
     }
   };
 
