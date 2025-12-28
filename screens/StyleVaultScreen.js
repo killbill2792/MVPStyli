@@ -8,6 +8,7 @@ import {
   Dimensions,
   Image,
   FlatList,
+  ActivityIndicator,
   TextInput,
   Modal,
   Switch,
@@ -434,9 +435,12 @@ const StyleVaultScreen = () => {
               if (!res.canceled && res.assets[0]) {
                 try {
                   const localUri = res.assets[0].uri;
+                  setIsAnalyzingFace(true);
                   
                   // NEW: Analyze using local URI with face detection, then upload
                   const { profile, uploadedUrl } = await analyzeFaceForColorProfileFromLocalUri(localUri, uploadImageAsync);
+                  
+                  setIsAnalyzingFace(false);
                   
                   if (uploadedUrl && user?.id) {
                     await supabase.from('profiles').update({ face_image_url: uploadedUrl }).eq('id', user.id);
@@ -469,6 +473,7 @@ const StyleVaultScreen = () => {
                     showBanner('✓ Face photo saved (analysis incomplete)', 'success');
                   }
                 } catch (error) {
+                  setIsAnalyzingFace(false);
                   console.error('Error processing face photo:', error);
                   Alert.alert('Error', `Failed to process photo: ${error.message || 'Unknown error'}`);
                 }
@@ -524,10 +529,11 @@ const StyleVaultScreen = () => {
                   );
                   showBanner('✓ Face photo saved (analysis incomplete)', 'success');
                 }
-              } catch (error) {
-                console.error('Error processing face photo:', error);
-                Alert.alert('Error', `Failed to process photo: ${error.message || 'Unknown error'}`);
-              }
+                } catch (error) {
+                  setIsAnalyzingFace(false);
+                  console.error('Error processing face photo:', error);
+                  Alert.alert('Error', `Failed to process photo: ${error.message || 'Unknown error'}`);
+                }
             }
           }
         },
@@ -1350,32 +1356,38 @@ const StyleVaultScreen = () => {
               <Text style={styles.fitProfileName}>Fit Profile</Text>
               <View style={styles.fitProfilePhotos}>
                 {/* Body Photo Thumbnail */}
-                <Pressable onPress={() => setShowBodyPhotoGuidelines(true)}>
-                  {bodyImage ? (
-                    <Image 
-                      source={{ uri: bodyImage }} 
-                      style={styles.fitProfilePhotoThumbnail}
-                    />
-                  ) : (
-                    <View style={[styles.fitProfilePhotoThumbnail, styles.fitProfilePhotoPlaceholder]}>
-                      <Text style={styles.fitProfilePhotoPlaceholderText}>📸</Text>
-                    </View>
-                  )}
-                </Pressable>
+                <View style={{ alignItems: 'center' }}>
+                  <Pressable onPress={() => setShowBodyPhotoGuidelines(true)}>
+                    {bodyImage ? (
+                      <Image 
+                        source={{ uri: bodyImage }} 
+                        style={styles.fitProfilePhotoThumbnail}
+                      />
+                    ) : (
+                      <View style={[styles.fitProfilePhotoThumbnail, styles.fitProfilePhotoPlaceholder]}>
+                        <Text style={styles.fitProfilePhotoPlaceholderText}>📸</Text>
+                      </View>
+                    )}
+                  </Pressable>
+                  <Text style={[styles.fitProfilePhotoLabel, { marginTop: 4 }]}>Your Body Photo</Text>
+                </View>
                 
                 {/* Face Photo Thumbnail */}
-                <Pressable onPress={() => setShowFacePhotoGuidelines(true)}>
-                  {faceImage ? (
-                    <Image 
-                      source={{ uri: faceImage }} 
-                      style={styles.fitProfilePhotoThumbnail}
-                    />
-                  ) : (
-                    <View style={[styles.fitProfilePhotoThumbnail, styles.fitProfilePhotoPlaceholder]}>
-                      <Text style={styles.fitProfilePhotoPlaceholderText}>🎨</Text>
-                    </View>
-                  )}
-                </Pressable>
+                <View style={{ alignItems: 'center' }}>
+                  <Pressable onPress={() => setShowFacePhotoGuidelines(true)}>
+                    {faceImage ? (
+                      <Image 
+                        source={{ uri: faceImage }} 
+                        style={styles.fitProfilePhotoThumbnail}
+                      />
+                    ) : (
+                      <View style={[styles.fitProfilePhotoThumbnail, styles.fitProfilePhotoPlaceholder]}>
+                        <Text style={styles.fitProfilePhotoPlaceholderText}>🎨</Text>
+                      </View>
+                    )}
+                  </Pressable>
+                  <Text style={[styles.fitProfilePhotoLabel, { marginTop: 4 }]}>Your Face Photo</Text>
+                </View>
               </View>
             </View>
             <View style={styles.fitProfileSummaryRow}>
@@ -3736,6 +3748,11 @@ const styles = StyleSheet.create({
   },
   fitProfilePhotoPlaceholderText: {
     fontSize: 18,
+  },
+  fitProfilePhotoLabel: {
+    fontSize: 10,
+    color: '#999',
+    textAlign: 'center',
   },
   fitProfileSummaryCard: {
     backgroundColor: 'rgba(255,255,255,0.05)',

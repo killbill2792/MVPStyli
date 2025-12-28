@@ -562,7 +562,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         });
       } else {
         // Load insights immediately if we already have color or no image
-      loadInsights();
+        // Use a small delay to prevent double refresh
+        setTimeout(() => {
+          loadInsights();
+        }, 100);
       }
     } else {
       // Reset position when hidden
@@ -1956,9 +1959,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                         setShowGarmentInputModal(false);
                         setManualSizeChartInput({});
                         setPendingParsedData(null);
+                        // Force refresh insights after a short delay to ensure state is updated
                         setTimeout(() => {
                           loadInsights(true);
-                        }, 100);
+                        }, 200);
                       } else {
                         Alert.alert('Error', 'Please enter at least one measurement');
                       }
@@ -2403,9 +2407,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                       };
                       setProduct(updatedProduct);
                       setShowMaterialInputModal(false);
+                      // Force refresh insights after a short delay to ensure state is updated
                       setTimeout(() => {
                         loadInsights(true);
-                      }, 100);
+                      }, 200);
                     }
                   }}
                 >

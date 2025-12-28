@@ -127,14 +127,21 @@ export async function analyzeFaceForColorProfileFromLocalUri(
       depth: analysis.depth,
       season: analysis.season,
       confidence: analysis.confidence,
+      seasonConfidence: analysis.seasonConfidence,
+      needsConfirmation: analysis.needsConfirmation,
       timeTaken: `${timeTaken}ms`,
     });
     
-    // Only assign season if confidence is good and undertone is not neutral
+    // Use seasonConfidence instead of overall confidence for season decision
+    // Only set season to null if seasonConfidence is too low
     let season = analysis.season;
-    if (!season || analysis.confidence < 0.65 || analysis.undertone === 'neutral') {
-      season = null;
-      console.log('🎨 [SKIN TONE CLIENT] Season set to null (low confidence or neutral undertone)');
+    if (!analysis.season || (analysis.seasonConfidence ?? 0) < 0.72) {
+      // Keep season but mark as needing confirmation
+      // Do NOT set to null unless we want "unknown"
+      console.log('🎨 [SKIN TONE CLIENT] Season confidence low, needs confirmation:', {
+        season: analysis.season,
+        seasonConfidence: analysis.seasonConfidence,
+      });
     }
     
     // Get season data if season exists
@@ -288,6 +295,8 @@ export function getSeasonSwatches(season: string): string[] {
 // Extended ColorProfile with analysis metadata
 export interface ExtendedColorProfile extends ColorProfile {
   confidence?: number;
+  seasonConfidence?: number;
+  needsConfirmation?: boolean;
   skinHex?: string;
   clarity?: 'muted' | 'clear' | 'vivid';
 }

@@ -1,9 +1,11 @@
 /**
- * Skin Tone Analysis API (Improved Heuristic)
+ * Skin Tone Analysis API (Production-Friendly Heuristic)
  * - Robust sampling inside faceBox (many samples, trimmed mean)
  * - Simple skin-pixel filter to avoid beard/eyes/lips
  * - Lighting bias detection (warm cast) and confidence penalty
- * - Season assignment is gated (avoid overconfident Spring/Winter)
+ * - ALWAYS returns a season (never null), but includes:
+ *    - seasonConfidence
+ *    - needsConfirmation (UI can ask user to confirm/change)
  *
  * No paid APIs. Uses Sharp only.
  */
@@ -28,7 +30,7 @@ function rgbToHex(r: number, g: number, b: number) {
     .padStart(2, '0')}`;
 }
 
-// Convert RGB to Lab (D65) – same as your version (kept)
+// Convert RGB to Lab (D65)
 function rgbToLab(r: number, g: number, blue: number) {
   let rNorm = r / 255;
   let gNorm = g / 255;
@@ -78,47 +80,41 @@ function rgbToHsv(r: number, g: number, b: number) {
 }
 
 /**
- * Very lightweight skin-pixel check.
+ * Lightweight skin-pixel check.
  * Purpose: avoid sampling beard/eyes/lips/background.
- * Works reasonably for many skin tones, but still heuristic.
  */
 function isLikelySkinPixel(r: number, g: number, b: number) {
-  // reject very dark (hair) and very bright (white background)
   const v = (r + g + b) / (3 * 255);
   if (v < 0.08 || v > 0.95) return false;
 
-  // Basic RGB skin range heuristic (broad)
-  // - not too blue
-  // - red slightly higher than blue
-  // - green between
-  const rg = r - g;
   const rb = r - b;
   if (rb < 5) return false;
   if (r < 40 || g < 20 || b < 10) return false;
 
-  // Avoid grey-ish pixels (low saturation) because those are often walls/shadows
   const { s } = rgbToHsv(r, g, b);
   if (s < 0.08) return false;
 
-  // avoid extreme red (lips)
+  // avoid extreme red lips
   if (r > 200 && g < 90 && b < 90) return false;
 
-  // tolerate many tones: just require plausible ordering
-  // (this is intentionally permissive)
+  // permissive ordering
   if (r < g && rb > 15) return false;
 
   return true;
 }
 
-function determineUndertoneFromLab(lab: { l: number; a: number; b: number }): { undertone: Undertone; confidence: number } {
+function determineUndertoneFromLab(lab: { l: number; a: number; b: number }): {
+  undertone: Undertone;
+  confidence: number;
+  chroma: number;
+  warmScore: number;
+  coolScore: number;
+} {
   const { a, b } = lab;
   const chroma = Math.sqrt(a * a + b * b);
 
-  // Warm tends to +b (yellow) and +a (red)
-  // Cool tends to -b (blue) or negative a/b direction
-  // Neutral near 0
-  const warmScore = (b / 25) + (a / 35);
-  const coolScore = (-b / 25) + (-a / 50);
+  const warmScore = b / 25 + a / 35;
+  const coolScore = -b / 25 + -a / 50;
 
   let undertone: Undertone = 'neutral';
   let confidence = 0.55;
@@ -131,25 +127,25 @@ function determineUndertoneFromLab(lab: { l: number; a: number; b: number }): { 
     confidence = clamp(0.62 + (Math.min(chroma, 35) / 35) * 0.25, 0.55, 0.92);
   } else {
     undertone = 'neutral';
-    // more chroma => less neutral
     confidence = clamp(0.75 - (Math.min(chroma, 35) / 35) * 0.25, 0.5, 0.8);
   }
 
-  return { undertone, confidence };
+  return { undertone, confidence, chroma, warmScore, coolScore };
 }
 
 function determineDepthFromL(l: number): { depth: Depth; confidence: number } {
-  // L* 0..100, higher means lighter
-  // Adjusted thresholds slightly
-  if (l >= 72) return { depth: 'light', confidence: clamp(0.75 + (l - 72) / 28 * 0.2, 0.65, 0.95) };
-  if (l <= 38) return { depth: 'deep', confidence: clamp(0.75 + (38 - l) / 38 * 0.2, 0.65, 0.95) };
+  if (l >= 72) return { depth: 'light', confidence: clamp(0.75 + ((l - 72) / 28) * 0.2, 0.65, 0.95) };
+  if (l <= 38) return { depth: 'deep', confidence: clamp(0.75 + ((38 - l) / 38) * 0.2, 0.65, 0.95) };
 
-  // medium
-  const distToEdge = Math.min(l - 38, 72 - l); // 0..?
-  return { depth: 'medium', confidence: clamp(0.70 + (distToEdge / 20) * 0.15, 0.65, 0.9) };
+  const distToEdge = Math.min(l - 38, 72 - l);
+  return { depth: 'medium', confidence: clamp(0.7 + (distToEdge / 20) * 0.15, 0.65, 0.9) };
 }
 
-function determineClarityFromSamples(samples: Array<{ r: number; g: number; b: number }>): { clarity: Clarity; confidence: number; avgSat: number } {
+function determineClarityFromSamples(samples: Array<{ r: number; g: number; b: number }>): {
+  clarity: Clarity;
+  confidence: number;
+  avgSat: number;
+} {
   if (samples.length === 0) return { clarity: 'muted', confidence: 0.5, avgSat: 0 };
 
   const sats = samples.map((s) => rgbToHsv(s.r, s.g, s.b).s);
@@ -160,7 +156,6 @@ function determineClarityFromSamples(samples: Array<{ r: number; g: number; b: n
   else if (avgSat >= 0.14) clarity = 'clear';
   else clarity = 'muted';
 
-  // confidence based on how far from boundaries
   const d1 = Math.min(Math.abs(avgSat - 0.14), Math.abs(avgSat - 0.22));
   const confidence = clamp(0.65 + d1 * 1.2, 0.55, 0.9);
 
@@ -172,64 +167,94 @@ function determineClarityFromSamples(samples: Array<{ r: number; g: number; b: n
  * If R and G are significantly higher than B -> warm cast.
  */
 function estimateWarmLightingBias(avg: { r: number; g: number; b: number }) {
-  // normalized
-  const rn = avg.r / 255, gn = avg.g / 255, bn = avg.b / 255;
+  const rn = avg.r / 255,
+    gn = avg.g / 255,
+    bn = avg.b / 255;
   const warmIndex = (rn + gn) / 2 - bn; // positive => warm
-  // 0.00..0.30 typical
   const isWarm = warmIndex > 0.08;
-  const severity = clamp((warmIndex - 0.08) / 0.18, 0, 1); // 0..1
+  const severity = clamp((warmIndex - 0.08) / 0.18, 0, 1);
   return { isWarm, severity, warmIndex: Math.round(warmIndex * 1000) / 1000 };
 }
 
-function suggestSeasonGated(
+/**
+ * NEW: Always return a Season.
+ * - seasonConfidence is separate from overall confidence
+ * - needsConfirmation tells UI to ask user to confirm/change
+ */
+function decideSeasonAlways(
   undertone: Undertone,
   depth: Depth,
   clarity: Clarity,
   undertoneConfidence: number,
   depthConfidence: number,
   clarityConfidence: number,
-  warmLightingSeverity: number
-): { season: Season | null; confidence: number; reason: string } {
-  // Base confidence from components
+  warmLightingSeverity: number,
+  labInfo?: { chroma: number; warmScore: number; coolScore: number }
+): { season: Season; seasonConfidence: number; needsConfirmation: boolean; reason: string } {
+  // Start from component avg
   let base = (undertoneConfidence + depthConfidence + clarityConfidence) / 3;
 
-  // Penalize warm lighting (because it fakes warm undertone + vividness)
-  const lightingPenalty = warmLightingSeverity * 0.15;
-  base = clamp(base - lightingPenalty, 0, 1);
+  // Lighting penalty (warm cast can fake warm undertone and vividness)
+  base = clamp(base - warmLightingSeverity * 0.15, 0, 1);
 
-  // If undertone is neutral or base confidence low => no season (ask user)
-  if (undertone === 'neutral' || base < 0.65) {
-    return { season: null, confidence: base, reason: 'Neutral undertone or low confidence' };
-  }
+  // --- Candidate logic ---
+  // If undertone is neutral, choose using depth + clarity and hint scores.
+  // If warm/cool, choose normally.
+  let season: Season = 'autumn';
+  let reason = '';
 
-  // Gated rules (stricter than before)
-  // Spring: warm + light or light-medium + clear/vivid
-  if (undertone === 'warm') {
-    if ((depth === 'light') && (clarity === 'clear' || clarity === 'vivid') && base >= 0.72) {
-      return { season: 'spring', confidence: base, reason: 'Warm + light + clear/vivid' };
+  const isWarmish = undertone === 'warm' || (undertone === 'neutral' && (labInfo?.warmScore ?? 0) > (labInfo?.coolScore ?? 0) + 0.08);
+  const isCoolish = undertone === 'cool' || (undertone === 'neutral' && (labInfo?.coolScore ?? 0) > (labInfo?.warmScore ?? 0) + 0.08);
+
+  if (isWarmish) {
+    // Warm axis: Spring vs Autumn
+    if (depth === 'light' && (clarity === 'clear' || clarity === 'vivid')) {
+      season = 'spring';
+      reason = 'Warm-ish + light + clear/vivid → Spring';
+    } else {
+      season = 'autumn';
+      reason = 'Warm-ish + medium/deep or muted/clear → Autumn';
     }
-    // Autumn: warm + medium/deep OR muted/clear
-    if ((depth === 'deep' || depth === 'medium') && (clarity === 'muted' || clarity === 'clear')) {
-      return { season: 'autumn', confidence: base, reason: 'Warm + medium/deep and muted/clear' };
-    }
-    // If warm but ambiguous, return null instead of forcing Spring
-    return { season: null, confidence: base, reason: 'Warm but ambiguous for Spring/Autumn' };
-  }
-
-  // Cool seasons
-  if (undertone === 'cool') {
-    // Summer: cool + light/medium + muted/clear
+  } else if (isCoolish) {
+    // Cool axis: Summer vs Winter
     if ((depth === 'light' || depth === 'medium') && (clarity === 'muted' || clarity === 'clear')) {
-      return { season: 'summer', confidence: base, reason: 'Cool + light/medium and muted/clear' };
+      season = 'summer';
+      reason = 'Cool-ish + light/medium + muted/clear → Summer';
+    } else {
+      season = 'winter';
+      reason = 'Cool-ish + deep or vivid/clear → Winter';
     }
-    // Winter: cool + deep + vivid/clear and higher base
-    if (depth === 'deep' && (clarity === 'vivid' || clarity === 'clear') && base >= 0.72) {
-      return { season: 'winter', confidence: base, reason: 'Cool + deep + clear/vivid' };
+  } else {
+    // Truly neutral: use depth + clarity only (practical fallback)
+    if (depth === 'light') {
+      season = clarity === 'vivid' ? 'spring' : 'summer';
+      reason = 'Neutral + light → Spring (vivid) or Summer (muted/clear)';
+    } else if (depth === 'deep') {
+      season = clarity === 'muted' ? 'autumn' : 'winter';
+      reason = 'Neutral + deep → Autumn (muted) or Winter (clear/vivid)';
+    } else {
+      season = clarity === 'muted' ? 'summer' : 'autumn';
+      reason = 'Neutral + medium → Summer (muted) or Autumn (clear/vivid)';
     }
-    return { season: null, confidence: base, reason: 'Cool but ambiguous for Summer/Winter' };
   }
 
-  return { season: null, confidence: base, reason: 'Fallback' };
+  // seasonConfidence: penalize if undertone is neutral (because season split depends on it)
+  let seasonConfidence = base;
+  if (undertone === 'neutral') seasonConfidence = clamp(seasonConfidence - 0.12, 0, 1);
+
+  // penalize ambiguous clarity boundaries slightly
+  if (clarityConfidence < 0.65) seasonConfidence = clamp(seasonConfidence - 0.05, 0, 1);
+
+  // needsConfirmation rule
+  const needsConfirmation =
+    undertone === 'neutral' || seasonConfidence < 0.72 || warmLightingSeverity > 0.35;
+
+  return {
+    season,
+    seasonConfidence: Math.round(clamp(seasonConfidence, 0, 0.95) * 100) / 100,
+    needsConfirmation,
+    reason,
+  };
 }
 
 async function loadImageBuffer(imageUrl?: string, imageBase64?: string): Promise<Buffer> {
@@ -238,7 +263,9 @@ async function loadImageBuffer(imageUrl?: string, imageBase64?: string): Promise
     return Buffer.from(base64Data, 'base64');
   }
   if (imageUrl) {
-    const response = await fetch(imageUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SkinToneAnalyzer/1.0)' } });
+    const response = await fetch(imageUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SkinToneAnalyzer/1.0)' },
+    });
     if (!response.ok) throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
     const arrayBuffer = await response.arrayBuffer();
     if (arrayBuffer.byteLength === 0) throw new Error('Fetched image is empty');
@@ -249,7 +276,7 @@ async function loadImageBuffer(imageUrl?: string, imageBase64?: string): Promise
 
 function computeHeuristicFaceBox(imageWidth: number, imageHeight: number): FaceBox {
   const estimatedFaceWidth = Math.floor(imageWidth * 0.45);
-  const estimatedFaceHeight = Math.floor(imageHeight * 0.50);
+  const estimatedFaceHeight = Math.floor(imageHeight * 0.5);
   const estimatedX = Math.floor((imageWidth - estimatedFaceWidth) / 2);
   const estimatedY = Math.floor(imageHeight * 0.15);
   return { x: estimatedX, y: estimatedY, width: estimatedFaceWidth, height: estimatedFaceHeight };
@@ -263,15 +290,7 @@ function clampFaceBoxToBounds(box: FaceBox, imageWidth: number, imageHeight: num
   return { left, top, width: w, height: h };
 }
 
-/**
- * Sample many pixels from safe skin zones inside the face crop.
- * Returns:
- * - skinSamples (filtered)
- * - allSamples (for debugging)
- */
 async function sampleSkinFromFace(faceImage: Buffer) {
-  // Downscale to speed sampling
-  // raw pixel access: fast enough on Vercel
   const { data, info } = await sharp(faceImage)
     .resize(160, 160, { fit: 'fill' })
     .raw()
@@ -281,25 +300,16 @@ async function sampleSkinFromFace(faceImage: Buffer) {
   const H = info.height || 160;
   const C = info.channels || 3;
 
-  // Define "safe" zones:
-  // - avoid top hairline: y 0..18%
-  // - avoid eyes: y 25..55% but narrow band in center
-  // - avoid mouth/beard: y 70..100%
-  // We'll sample mostly cheeks + mid-forehead area.
   const zones = [
-    // left cheek
-    { x0: 0.10, x1: 0.38, y0: 0.45, y1: 0.70 },
-    // right cheek
-    { x0: 0.62, x1: 0.90, y0: 0.45, y1: 0.70 },
-    // mid-forehead
-    { x0: 0.35, x1: 0.65, y0: 0.18, y1: 0.35 },
+    { x0: 0.1, x1: 0.38, y0: 0.45, y1: 0.7 }, // left cheek
+    { x0: 0.62, x1: 0.9, y0: 0.45, y1: 0.7 }, // right cheek
+    { x0: 0.35, x1: 0.65, y0: 0.18, y1: 0.35 }, // mid-forehead
   ];
 
   const all: Array<{ r: number; g: number; b: number }> = [];
   const skin: Array<{ r: number; g: number; b: number }> = [];
 
-  // sample grid
-  const steps = 14; // 14x14 per zone ≈ 196 points per zone
+  const steps = 14;
   for (const z of zones) {
     for (let yi = 0; yi < steps; yi++) {
       for (let xi = 0; xi < steps; xi++) {
@@ -322,14 +332,17 @@ async function sampleSkinFromFace(faceImage: Buffer) {
 function trimmedMean(samples: Array<{ r: number; g: number; b: number }>, trimRatio = 0.15) {
   if (samples.length === 0) return { r: 0, g: 0, b: 0 };
 
-  // Sort by brightness
-  const sorted = [...samples].sort((a, b) => (a.r + a.g + a.b) - (b.r + b.g + b.b));
+  const sorted = [...samples].sort((a, b) => a.r + a.g + a.b - (b.r + b.g + b.b));
   const trim = Math.floor(sorted.length * trimRatio);
   const kept = sorted.slice(trim, Math.max(trim + 1, sorted.length - trim));
 
-  let sr = 0, sg = 0, sb = 0;
+  let sr = 0,
+    sg = 0,
+    sb = 0;
   for (const s of kept) {
-    sr += s.r; sg += s.g; sb += s.b;
+    sr += s.r;
+    sg += s.g;
+    sb += s.b;
   }
   const n = kept.length || 1;
   return { r: Math.round(sr / n), g: Math.round(sg / n), b: Math.round(sb / n) };
@@ -344,29 +357,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { imageUrl, imageBase64, faceBox } = req.body as { imageUrl?: string; imageBase64?: string; faceBox?: FaceBox };
+    const { imageUrl, imageBase64, faceBox } = req.body as {
+      imageUrl?: string;
+      imageBase64?: string;
+      faceBox?: FaceBox;
+    };
 
     if (!imageUrl && !imageBase64) return res.status(400).json({ error: 'Missing imageUrl or imageBase64' });
 
     const imageBuffer = await loadImageBuffer(imageUrl, imageBase64);
     const meta = await sharp(imageBuffer).metadata();
     if (!meta.width || !meta.height) throw new Error('Invalid image metadata');
+
     const imageWidth = meta.width;
     const imageHeight = meta.height;
 
-    // Compute overall image average for lighting bias
+    // Overall image average for lighting bias
     const overallRaw = await sharp(imageBuffer)
       .resize(64, 64, { fit: 'fill' })
       .raw()
       .toBuffer({ resolveWithObject: true });
 
-    {
-      // no-op, just to keep TS happy for destructuring below
-    }
-
     const { data: odata, info: oinfo } = overallRaw;
     const oC = oinfo.channels || 3;
-    let or = 0, og = 0, ob = 0, ocnt = 0;
+    let or = 0,
+      og = 0,
+      ob = 0,
+      ocnt = 0;
     for (let i = 0; i < odata.length; i += oC) {
       or += odata[i];
       og += odata[i + 1] ?? odata[i];
@@ -376,7 +393,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const overallAvg = { r: Math.round(or / ocnt), g: Math.round(og / ocnt), b: Math.round(ob / ocnt) };
     const lighting = estimateWarmLightingBias(overallAvg);
 
-    // Determine faceBox: use provided if valid, else heuristic
+    // Use provided faceBox if valid, else heuristic
     let actualFaceBox: FaceBox | null = null;
     if (faceBox && typeof faceBox === 'object') {
       const valid =
@@ -390,41 +407,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         faceBox.y >= 0;
       actualFaceBox = valid ? faceBox : null;
     }
-
-    if (!actualFaceBox) {
-      actualFaceBox = computeHeuristicFaceBox(imageWidth, imageHeight);
-    }
+    if (!actualFaceBox) actualFaceBox = computeHeuristicFaceBox(imageWidth, imageHeight);
 
     const crop = clampFaceBoxToBounds(actualFaceBox, imageWidth, imageHeight);
-
     const faceImage = await sharp(imageBuffer).extract(crop).toBuffer();
 
     // Sample skin
     const { allSamples, skinSamples } = await sampleSkinFromFace(faceImage);
-
-    // If skin samples are too few, fall back to allSamples trimmed mean
     const useSamples = skinSamples.length >= 40 ? skinSamples : allSamples;
+
     const skinRgb = trimmedMean(useSamples, 0.18);
     const hex = rgbToHex(skinRgb.r, skinRgb.g, skinRgb.b);
 
     const lab = rgbToLab(skinRgb.r, skinRgb.g, skinRgb.b);
-    const { undertone, confidence: undertoneConfidence } = determineUndertoneFromLab(lab);
-    const { depth, confidence: depthConfidence } = determineDepthFromL(lab.l);
+    const undertoneInfo = determineUndertoneFromLab(lab);
+    const { undertone, confidence: undertoneConfidence } = undertoneInfo;
 
+    const { depth, confidence: depthConfidence } = determineDepthFromL(lab.l);
     const { clarity, confidence: clarityConfidence, avgSat } = determineClarityFromSamples(useSamples);
 
-    // Season gated + confidence includes lighting penalty
-    const seasonResult = suggestSeasonGated(
+    // Season: ALWAYS decide
+    const seasonDecision = decideSeasonAlways(
       undertone,
       depth,
       clarity,
       undertoneConfidence,
       depthConfidence,
       clarityConfidence,
-      lighting.severity
+      lighting.severity,
+      { chroma: undertoneInfo.chroma, warmScore: undertoneInfo.warmScore, coolScore: undertoneInfo.coolScore }
     );
 
-    const confidence = clamp(seasonResult.confidence, 0, 0.95);
+    // Overall confidence (not just season), penalize heavy warm lighting slightly
+    const overallConfidence = clamp(
+      (undertoneConfidence + depthConfidence + clarityConfidence) / 3 - lighting.severity * 0.08,
+      0,
+      0.95
+    );
 
     return res.status(200).json({
       rgb: skinRgb,
@@ -433,8 +452,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       undertone,
       depth,
       clarity,
-      season: seasonResult.season,
-      confidence: Math.round(confidence * 100) / 100,
+
+      // IMPORTANT: never null
+      season: seasonDecision.season,
+
+      confidence: Math.round(overallConfidence * 100) / 100,
+      seasonConfidence: seasonDecision.seasonConfidence,
+      needsConfirmation: seasonDecision.needsConfirmation,
+
       diagnostics: {
         lighting: {
           overallAvg,
@@ -448,7 +473,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           used: skinSamples.length >= 40 ? 'skinSamples' : 'fallbackAllSamples',
           avgSat: Math.round(avgSat * 1000) / 1000,
         },
-        seasonReason: seasonResult.reason,
+        seasonReason: seasonDecision.reason,
+        undertoneMeta: {
+          chroma: Math.round(undertoneInfo.chroma * 100) / 100,
+          warmScore: Math.round(undertoneInfo.warmScore * 1000) / 1000,
+          coolScore: Math.round(undertoneInfo.coolScore * 1000) / 1000,
+          undertoneConfidence: Math.round(undertoneConfidence * 100) / 100,
+          depthConfidence: Math.round(depthConfidence * 100) / 100,
+          clarityConfidence: Math.round(clarityConfidence * 100) / 100,
+        },
         faceBoxUsed: crop,
         faceBoxSource: faceBox && actualFaceBox === faceBox ? 'provided' : 'heuristic',
       },
@@ -458,8 +491,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       error: error.message || 'Unknown error occurred',
       undertone: 'neutral',
       depth: 'medium',
-      season: null,
+      clarity: 'muted',
+      season: 'autumn', // safe fallback
       confidence: 0,
+      seasonConfidence: 0,
+      needsConfirmation: true,
     });
   }
 }
