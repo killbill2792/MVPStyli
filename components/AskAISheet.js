@@ -564,7 +564,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         // Load insights immediately if we already have color or no image
         // Use a small delay to prevent double refresh
         setTimeout(() => {
-          loadInsights();
+      loadInsights();
         }, 100);
       }
     } else {
@@ -1774,7 +1774,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                     </Pressable>
                     <Pressable
                       style={[styles.saveButton, { flex: 1 }]}
-                      onPress={() => {
+                      onPress={async () => {
                         // User confirmed - use the parsed data
                         setParsedSizeChart(pendingParsedData);
                         const updatedProduct = {
@@ -1786,9 +1786,9 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                         setPendingParsedData(null);
                         setOcrParsingStatus(null);
                         setShowGarmentInputModal(false);
-                        setTimeout(() => {
-                          loadInsights(true);
-                        }, 100);
+                        // Wait a bit longer to ensure state is fully updated
+                        await new Promise(resolve => setTimeout(resolve, 300));
+                        loadInsights(true);
                       }}
                     >
                       <Text style={styles.saveButtonText}>✓ Confirm & Continue</Text>
@@ -2397,7 +2397,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                 
                 <Pressable
                   style={styles.saveButton}
-                  onPress={() => {
+                  onPress={async () => {
                     if (userEnteredMaterial) {
                       const updatedProduct = {
                         ...product,
@@ -2407,10 +2407,9 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                       };
                       setProduct(updatedProduct);
                       setShowMaterialInputModal(false);
-                      // Force refresh insights after a short delay to ensure state is updated
-                      setTimeout(() => {
+                      // Wait a bit longer to ensure state is fully updated
+                      await new Promise(resolve => setTimeout(resolve, 300));
                         loadInsights(true);
-                      }, 200);
                     }
                   }}
                 >

@@ -136,6 +136,7 @@ const StyleVaultScreen = () => {
   const [profilePic, setProfilePic] = useState(user?.avatar_url || null);
   const [bodyImage, setBodyImage] = useState(user?.body_image_url || twinUrl || null);
   const [faceImage, setFaceImage] = useState(user?.face_image_url || null);
+  const [isAnalyzingFace, setIsAnalyzingFace] = useState(false);
   const [colorProfile, setColorProfile] = useState(null);
   const [showSeasonPicker, setShowSeasonPicker] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);

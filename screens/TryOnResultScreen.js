@@ -154,7 +154,7 @@ const TryOnResultScreen = () => {
             <Text style={styles.productName}>{displayProduct.name}</Text>
           )}
           
-          {/* Main Action Buttons - AI Insights & Ask Pod */}
+          {/* Main Action Buttons - Fit Check & Ask Pod */}
           <View style={styles.actions}>
             <Pressable 
                 style={styles.aiInsightsBtn}
@@ -166,7 +166,7 @@ const TryOnResultScreen = () => {
                   end={{ x: 1, y: 0 }}
                   style={styles.aiInsightsGradient}
                 >
-                  <Text style={styles.aiInsightsText}>✨ AI Insights</Text>
+                  <Text style={styles.aiInsightsText}>✨ Fit Check</Text>
                 </LinearGradient>
             </Pressable>
             <Pressable 

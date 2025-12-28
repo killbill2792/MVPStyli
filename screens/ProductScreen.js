@@ -981,7 +981,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   actionBtnPrimary: {
-    flex: 2,
+    flex: 1,
     backgroundColor: '#fff',
     height: 44,
     borderRadius: 22,
@@ -994,7 +994,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   actionBtnSecondary: {
-    flex: 1.5,
+    flex: 1,
     backgroundColor: 'rgba(255,255,255,0.1)',
     height: 44,
     borderRadius: 22,
