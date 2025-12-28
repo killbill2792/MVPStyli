@@ -1026,9 +1026,8 @@ const AdminGarmentsScreen = ({ onBack }) => {
             </Pressable>
           </View>
 
-          <ScrollView style={styles.formScroll} contentContainerStyle={styles.formContent}>
-            {/* Color Picker Overlay - Rendered INSIDE form modal to avoid modal conflicts */}
-            {showColorPicker && (
+          {/* Color Picker Overlay - Rendered at root level of form modal for proper positioning */}
+          {showColorPicker && (
               <View style={styles.colorPickerOverlay}>
                 <View style={styles.colorPickerModalContent}>
                   <View style={styles.colorPickerModalHeader}>
