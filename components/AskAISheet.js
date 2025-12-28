@@ -73,11 +73,16 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       
       if (colorResult && colorResult.color && colorResult.confidence > 0) {
         const hex = colorResult.color;
-        const name = colorResult.name || 'unknown';
+        
+        // Use robust offline color naming system (Lab-based ΔE matching)
+        const { getNearestColorName } = require('../lib/colorNaming');
+        const nearestColor = getNearestColorName(hex);
+        const name = nearestColor.name;
         
         console.log('🎨 [CLIENT COLOR] Color detected successfully:', {
           name: name,
           hex: hex,
+          nearestMatch: nearestColor.hex,
           rgb: colorResult.rgb || 'N/A',
           confidence: colorResult.confidence,
         });
@@ -94,7 +99,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
           colorHex: hex, // Source of truth for logic
         };
         setProduct(updatedProduct);
-        console.log('🎨 [CLIENT COLOR] Product color updated:', { name, hex });
+        console.log('🎨 [CLIENT COLOR] Product color updated:', { name, hex, nearestMatch: nearestColor.hex });
         
         // Reload insights with new color after a short delay
         setTimeout(() => {
@@ -202,6 +207,9 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
     };
   };
   
+  // Throttle for color name updates during drag (80ms debounce)
+  const colorNameUpdateTimeout = useRef(null);
+  
   // Manual color picker - CLIENT-SIDE ONLY, never calls auto-detect
   // Live preview handler - NO API CALLS, just UI updates for instant feedback
   const handleManualColorPickerMove = (touchX, touchY) => {
@@ -290,14 +298,16 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
           const hex = result.color;
           const { r, g, b } = result.rgb || { r: 0, g: 0, b: 0 };
           
-          // Import color name helper (for UI display only)
-          const { colorNameFromHex } = require('../lib/colorAttributes');
-          const colorName = colorNameFromHex(hex);
+          // Use robust offline color naming system (Lab-based ΔE matching)
+          const { getNearestColorName } = require('../lib/colorNaming');
+          const nearestColor = getNearestColorName(hex);
+          const colorName = nearestColor.name;
           
           console.log('🎨 [MANUAL PICKER] Color picked successfully:', {
             hex: hex,
             rgb: { r, g, b },
             name: colorName,
+            nearestMatch: nearestColor.hex,
             imageCoords: { x: coords.imageX, y: coords.imageY },
             displayCoords: { x: touchX, y: touchY },
             imageSize: { width: imageNaturalSize.width, height: imageNaturalSize.height },
@@ -337,8 +347,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       return;
     }
 
-    const { colorNameFromHex } = require('../lib/colorAttributes');
-    const colorName = colorNameFromHex(colorResult.hex);
+    // Use robust offline color naming system (Lab-based ΔE matching)
+    const { getNearestColorName } = require('../lib/colorNaming');
+    const nearestColor = getNearestColorName(colorResult.hex);
+    const colorName = nearestColor.name;
     
     setPickedColorHex(colorResult.hex);
     setPickedColorName(colorName);
@@ -1278,26 +1290,34 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                     </Text>
                   </View>
 
-                  {/* Color Display: Name + Swatch */}
+                  {/* Color Display: Swatch + Name + Hex */}
                   {(product?.color || detectedColor || userEnteredColor) ? (
                     <View style={styles.colorDisplayRow}>
                       {/* Circular Color Swatch */}
                       <View style={[
                         styles.colorSwatch,
                         {
-                          backgroundColor: detectedColorHex || pickedColorHex || '#808080',
+                          backgroundColor: detectedColorHex || pickedColorHex || product?.colorHex || '#808080',
                         }
                       ]} />
                       
-                      {/* Color Name */}
-                      <Text style={styles.colorNameText}>
-                        {product?.color || detectedColor || userEnteredColor}
-                      </Text>
+                      {/* Color Name and Hex */}
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.colorNameText}>
+                          Name: {product?.color || detectedColor || userEnteredColor}
+                        </Text>
+                        <Text style={styles.colorHexText}>
+                          HEX: {(detectedColorHex || pickedColorHex || product?.colorHex || '#808080').toUpperCase()}
+                        </Text>
+                      </View>
                     </View>
                   ) : (
                     <View style={styles.colorDisplayRow}>
                       <View style={[styles.colorSwatch, { backgroundColor: '#808080' }]} />
-                      <Text style={[styles.colorNameText, { color: '#666' }]}>No color detected</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.colorNameText, { color: '#666' }]}>Name: No color detected</Text>
+                        <Text style={[styles.colorHexText, { color: '#666' }]}>HEX: #808080</Text>
+                      </View>
                     </View>
                   )}
 
@@ -2205,10 +2225,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                                 {livePickedColor.hex.toUpperCase()}
                               </Text>
                               <Text style={styles.magnifierTextSmall}>
-                                RGB: {livePickedColor.rgb.r}, {livePickedColor.rgb.g}, {livePickedColor.rgb.b}
+                                Name: {livePickedColor.name}
                               </Text>
                               <Text style={styles.magnifierTextSmall}>
-                                {livePickedColor.name}
+                                RGB: {livePickedColor.rgb.r}, {livePickedColor.rgb.g}, {livePickedColor.rgb.b}
                               </Text>
                             </View>
                           </View>
@@ -2228,8 +2248,8 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                 <View style={styles.colorPreviewContainer}>
                   <View style={[styles.colorPreviewSwatch, { backgroundColor: livePickedColor.hex }]} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.colorPreviewName}>{livePickedColor.name}</Text>
-                    <Text style={styles.colorPreviewHex}>{livePickedColor.hex.toUpperCase()}</Text>
+                    <Text style={styles.colorPreviewName}>Name: {livePickedColor.name}</Text>
+                    <Text style={styles.colorPreviewHex}>HEX: {livePickedColor.hex.toUpperCase()}</Text>
                   </View>
                   <Pressable
                     style={styles.confirmColorButton}
