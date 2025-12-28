@@ -161,13 +161,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Missing imageUrl or imageBase64' });
     }
 
+    // Validate faceBox
+    if (!faceBox || typeof faceBox !== 'object') {
+      console.error('🎨 [SKIN TONE] Invalid faceBox:', faceBox);
+      return res.status(400).json({ error: 'Missing or invalid faceBox' });
+    }
+
     console.log('🎨 [SKIN TONE] ========== STARTING ANALYSIS ==========');
     console.log('🎨 [SKIN TONE] Request received:', {
       hasImageUrl: !!imageUrl,
       hasImageBase64: !!imageBase64,
       imageUrl: imageUrl ? imageUrl.substring(0, 100) + '...' : 'N/A',
       faceBox: faceBox,
-      faceBoxIsHeuristic: faceBox.x < 0 || faceBox.y < 0 || faceBox.width < 0 || faceBox.height < 0,
+      faceBoxIsHeuristic: faceBox && (faceBox.x < 0 || faceBox.y < 0 || faceBox.width < 0 || faceBox.height < 0),
     });
 
     // Load image FIRST to get dimensions
