@@ -1965,6 +1965,23 @@ const styles = StyleSheet.create({
     ...TextStyles.body,
     color: Colors.textSecondary,
   },
+  colorDisplayContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 12,
+    padding: 12,
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.md,
+  },
+  colorInfoContainer: {
+    flex: 1,
+  },
+  colorNameText: {
+    ...TextStyles.body,
+    fontWeight: Typography.semibold,
+    marginBottom: 4,
+  },
 });
 
 export default AdminGarmentsScreen;
