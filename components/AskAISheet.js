@@ -1420,6 +1420,21 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                   </View>
                 ) : (
                   <>
+                    {/* Material Name Display with Edit Option */}
+                    {product?.material && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, padding: 8, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 8 }}>
+                        <Text style={[styles.adviceItem, { flex: 1, marginBottom: 0 }]}>
+                          Material: <Text style={{ fontWeight: '600' }}>{product.material}</Text>
+                        </Text>
+                        <Pressable 
+                          onPress={() => setShowMaterialInputModal(true)}
+                          style={{ padding: 4 }}
+                        >
+                          <Text style={{ color: '#6366f1', fontSize: 12, fontWeight: '600' }}>Edit</Text>
+                        </Pressable>
+                      </View>
+                    )}
+                    
                     <View style={[
                       styles.verdictBadge,
                       fabricComfort?.verdict === 'comfortable' && styles.verdictGood,
