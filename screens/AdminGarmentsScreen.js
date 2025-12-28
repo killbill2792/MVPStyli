@@ -1027,6 +1027,195 @@ const AdminGarmentsScreen = ({ onBack }) => {
           </View>
 
           <ScrollView style={styles.formScroll} contentContainerStyle={styles.formContent}>
+            {/* Color Picker Overlay - Rendered INSIDE form modal to avoid modal conflicts */}
+            {showColorPicker && (
+              <View style={styles.colorPickerOverlay}>
+                <View style={styles.colorPickerModalContent}>
+                  <View style={styles.colorPickerModalHeader}>
+                    <Text style={styles.colorPickerModalTitle}>Pick Color from Product</Text>
+                    <Pressable onPress={() => {
+                      console.log('🎨 [ADMIN] Closing color picker');
+                      setShowColorPicker(false);
+                      setPickerTouchPosition(null);
+                      setMagnifierPosition(null);
+                      setLivePickedColor(null);
+                      colorPickerImageUrlRef.current = null;
+                    }}>
+                      <Text style={styles.colorPickerModalClose}>✕</Text>
+                    </Pressable>
+                  </View>
+                  
+                  <View style={{ flex: 1, position: 'relative', minHeight: 400 }}>
+                    <Text style={[styles.colorPickerInstruction, { 
+                      marginBottom: 16, 
+                      textAlign: 'center', 
+                      paddingHorizontal: 20,
+                    }]}>
+                      Tap anywhere on the image to pick the exact pixel color
+                    </Text>
+                    
+                    {formData.image_url ? (
+                      <View style={{ flex: 1, position: 'relative' }}>
+                        {(() => {
+                          try {
+                            const panResponder = PanResponder.create({
+                              onStartShouldSetPanResponder: () => true,
+                              onMoveShouldSetPanResponder: () => true,
+                              onPanResponderGrant: (evt) => {
+                                try {
+                                  const { locationX, locationY } = evt.nativeEvent;
+                                  if (typeof handleManualColorPickerMove === 'function') {
+                                    handleManualColorPickerMove(locationX, locationY);
+                                  }
+                                } catch (error) {
+                                  console.error('🎨 [ADMIN] Error in onPanResponderGrant:', error);
+                                }
+                              },
+                              onPanResponderMove: (evt) => {
+                                try {
+                                  const { locationX, locationY } = evt.nativeEvent;
+                                  if (typeof handleManualColorPickerMove === 'function') {
+                                    handleManualColorPickerMove(locationX, locationY);
+                                  }
+                                } catch (error) {
+                                  console.error('🎨 [ADMIN] Error in onPanResponderMove:', error);
+                                }
+                              },
+                              onPanResponderRelease: async (evt) => {
+                                try {
+                                  const { locationX, locationY } = evt.nativeEvent;
+                                  if (typeof pickColorAtCoordinates === 'function') {
+                                    await pickColorAtCoordinates(locationX, locationY);
+                                  }
+                                } catch (error) {
+                                  console.error('🎨 [ADMIN] Error in onPanResponderRelease:', error);
+                                }
+                              },
+                            });
+                            
+                            return (
+                              <View style={{ flex: 1, width: '100%' }} {...panResponder.panHandlers}>
+                                <Image
+                                  source={{ uri: formData.image_url }}
+                                  style={{ 
+                                    width: '100%', 
+                                    flex: 1,
+                                    minHeight: 400,
+                                    resizeMode: 'contain',
+                                  }}
+                                  onLayout={(event) => {
+                                    const { width, height, x, y } = event.nativeEvent.layout;
+                                    setImageLayout({ width, height, x, y });
+                                    colorPickerImageUrlRef.current = formData.image_url;
+                                  }}
+                                  onLoad={(event) => {
+                                    const { width, height } = event.nativeEvent.source;
+                                    setImageNaturalSize({ width, height });
+                                  }}
+                                />
+                                
+                                {/* Crosshair */}
+                                {pickerTouchPosition && (
+                                  <View
+                                    style={[
+                                      styles.colorPickerCrosshair,
+                                      {
+                                        left: pickerTouchPosition.x - 12,
+                                        top: pickerTouchPosition.y - 12,
+                                      }
+                                    ]}
+                                    pointerEvents="none"
+                                  >
+                                    <View style={styles.colorPickerCrosshairRing} />
+                                    <View style={styles.colorPickerCrosshairDot} />
+                                    <View style={[styles.colorPickerCrosshairLine, { width: 24, height: 1, top: 11 }]} />
+                                    <View style={[styles.colorPickerCrosshairLine, { width: 1, height: 24, left: 11 }]} />
+                                  </View>
+                                )}
+                                
+                                {/* Magnifier */}
+                                {magnifierPosition && livePickedColor && (
+                                  <View
+                                    style={[
+                                      styles.colorPickerMagnifier,
+                                      {
+                                        left: Math.max(10, Math.min(magnifierPosition.x - 60, width - 130)),
+                                        top: Math.max(10, magnifierPosition.y - 140),
+                                      }
+                                    ]}
+                                  >
+                                    <View style={styles.colorPickerMagnifierContent}>
+                                      <View style={[styles.colorPickerMagnifierSwatch, { backgroundColor: livePickedColor.hex }]} />
+                                      <Text style={styles.colorPickerMagnifierText}>
+                                        {livePickedColor.hex.toUpperCase()}
+                                      </Text>
+                                      <Text style={styles.colorPickerMagnifierTextSmall}>
+                                        Name: {livePickedColor.name}
+                                      </Text>
+                                      <Text style={styles.colorPickerMagnifierTextSmall}>
+                                        RGB: {livePickedColor.rgb.r}, {livePickedColor.rgb.g}, {livePickedColor.rgb.b}
+                                      </Text>
+                                    </View>
+                                  </View>
+                                )}
+                              </View>
+                            );
+                          } catch (error) {
+                            console.error('🎨 [ADMIN] Error creating PanResponder or rendering color picker:', error);
+                            return (
+                              <View style={{ flex: 1, width: '100%', justifyContent: 'center', alignItems: 'center' }}>
+                                <Image
+                                  source={{ uri: formData.image_url }}
+                                  style={{ 
+                                    width: '100%', 
+                                    flex: 1,
+                                    minHeight: 400,
+                                    resizeMode: 'contain',
+                                  }}
+                                />
+                                <Text style={{ padding: 20, textAlign: 'center', color: Colors.textSecondary }}>
+                                  Error loading color picker. Please try again.
+                                </Text>
+                              </View>
+                            );
+                          }
+                        })()}
+                      </View>
+                    ) : (
+                      <View style={styles.colorPickerNoImage}>
+                        <Text style={styles.colorPickerNoImageText}>No product image available</Text>
+                      </View>
+                    )}
+                    
+                    {/* Live Color Preview */}
+                    {livePickedColor && (
+                      <View style={styles.colorPickerPreviewContainer}>
+                        <View style={[styles.colorPickerPreviewSwatch, { backgroundColor: livePickedColor.hex }]} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.colorPickerPreviewName}>Name: {livePickedColor.name}</Text>
+                          <Text style={styles.colorPickerPreviewHex}>HEX: {livePickedColor.hex.toUpperCase()}</Text>
+                        </View>
+                        <Pressable
+                          style={styles.colorPickerConfirmButton}
+                          onPress={confirmColorPick}
+                        >
+                          <Text style={styles.colorPickerConfirmButtonText}>✓ Use This Color</Text>
+                        </Pressable>
+                      </View>
+                    )}
+                    
+                    {!livePickedColor && (
+                      <View style={styles.colorPickerInstructions}>
+                        <Text style={styles.colorPickerInstructionText}>
+                          {isSamplingColor ? 'Picking color...' : 'Tap the image to pick a color'}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </View>
+            )}
+
             {/* Basic Info */}
             <View style={styles.formSection}>
               <Text style={styles.sectionTitle}>Basic Information</Text>
@@ -1381,207 +1570,6 @@ const AdminGarmentsScreen = ({ onBack }) => {
             </View>
           </ScrollView>
         </SafeAreaView>
-      </Modal>
-
-      {/* Color Picker Modal */}
-      <Modal
-        visible={showColorPicker}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => {
-          setShowColorPicker(false);
-          setPickerTouchPosition(null);
-          setMagnifierPosition(null);
-          setLivePickedColor(null);
-          colorPickerImageUrlRef.current = null;
-        }}
-      >
-        <View style={styles.colorPickerModalOverlay}>
-          <View style={styles.colorPickerModalContent}>
-            <View style={styles.colorPickerModalHeader}>
-              <Text style={styles.colorPickerModalTitle}>Pick Color from Product</Text>
-              <Pressable onPress={() => {
-                setShowColorPicker(false);
-                setPickerTouchPosition(null);
-                setMagnifierPosition(null);
-                setLivePickedColor(null);
-                colorPickerImageUrlRef.current = null;
-              }}>
-                <Text style={styles.colorPickerModalClose}>✕</Text>
-              </Pressable>
-            </View>
-            
-            <View style={{ flex: 1, position: 'relative' }}>
-              <Text style={[styles.colorPickerInstruction, { 
-                marginBottom: 16, 
-                textAlign: 'center', 
-                paddingHorizontal: 20,
-              }]}>
-                Tap anywhere on the image to pick the exact pixel color
-              </Text>
-              
-              {formData.image_url ? (
-                <View style={{ flex: 1, position: 'relative' }}>
-                  {(() => {
-                    try {
-                      // Create PanResponder inline to avoid closure issues
-                      const panResponder = PanResponder.create({
-                        onStartShouldSetPanResponder: () => true,
-                        onMoveShouldSetPanResponder: () => true,
-                        onPanResponderGrant: (evt) => {
-                          try {
-                            const { locationX, locationY } = evt.nativeEvent;
-                            if (typeof handleManualColorPickerMove === 'function') {
-                              handleManualColorPickerMove(locationX, locationY);
-                            }
-                          } catch (error) {
-                            console.error('🎨 [ADMIN] Error in onPanResponderGrant:', error);
-                          }
-                        },
-                        onPanResponderMove: (evt) => {
-                          try {
-                            const { locationX, locationY } = evt.nativeEvent;
-                            if (typeof handleManualColorPickerMove === 'function') {
-                              handleManualColorPickerMove(locationX, locationY);
-                            }
-                          } catch (error) {
-                            console.error('🎨 [ADMIN] Error in onPanResponderMove:', error);
-                          }
-                        },
-                        onPanResponderRelease: async (evt) => {
-                          try {
-                            const { locationX, locationY } = evt.nativeEvent;
-                            if (typeof pickColorAtCoordinates === 'function') {
-                              await pickColorAtCoordinates(locationX, locationY);
-                            }
-                          } catch (error) {
-                            console.error('🎨 [ADMIN] Error in onPanResponderRelease:', error);
-                          }
-                        },
-                      });
-                      
-                      return (
-                        <View style={{ flex: 1, width: '100%' }} {...panResponder.panHandlers}>
-                        <Image
-                          source={{ uri: formData.image_url }}
-                          style={{ 
-                            width: '100%', 
-                            flex: 1,
-                            minHeight: 400,
-                            resizeMode: 'contain',
-                          }}
-                          onLayout={(event) => {
-                            const { width, height, x, y } = event.nativeEvent.layout;
-                            setImageLayout({ width, height, x, y });
-                            colorPickerImageUrlRef.current = formData.image_url;
-                          }}
-                          onLoad={(event) => {
-                            const { width, height } = event.nativeEvent.source;
-                            setImageNaturalSize({ width, height });
-                          }}
-                        />
-                        
-                        {/* Crosshair */}
-                        {pickerTouchPosition && (
-                          <View
-                            style={[
-                              styles.colorPickerCrosshair,
-                              {
-                                left: pickerTouchPosition.x - 12,
-                                top: pickerTouchPosition.y - 12,
-                              }
-                            ]}
-                            pointerEvents="none"
-                          >
-                            <View style={styles.colorPickerCrosshairRing} />
-                            <View style={styles.colorPickerCrosshairDot} />
-                            <View style={[styles.colorPickerCrosshairLine, { width: 24, height: 1, top: 11 }]} />
-                            <View style={[styles.colorPickerCrosshairLine, { width: 1, height: 24, left: 11 }]} />
-                          </View>
-                        )}
-                        
-                        {/* Magnifier */}
-                        {magnifierPosition && livePickedColor && (
-                          <View
-                            style={[
-                              styles.colorPickerMagnifier,
-                              {
-                                left: Math.max(10, Math.min(magnifierPosition.x - 60, width - 130)),
-                                top: Math.max(10, magnifierPosition.y - 140),
-                              }
-                            ]}
-                          >
-                            <View style={styles.colorPickerMagnifierContent}>
-                              <View style={[styles.colorPickerMagnifierSwatch, { backgroundColor: livePickedColor.hex }]} />
-                              <Text style={styles.colorPickerMagnifierText}>
-                                {livePickedColor.hex.toUpperCase()}
-                              </Text>
-                              <Text style={styles.colorPickerMagnifierTextSmall}>
-                                Name: {livePickedColor.name}
-                              </Text>
-                              <Text style={styles.colorPickerMagnifierTextSmall}>
-                                RGB: {livePickedColor.rgb.r}, {livePickedColor.rgb.g}, {livePickedColor.rgb.b}
-                              </Text>
-                            </View>
-                          </View>
-                        )}
-                      </View>
-                      );
-                    } catch (error) {
-                      console.error('🎨 [ADMIN] Error creating PanResponder or rendering color picker:', error);
-                      // Fallback: render image without PanResponder
-                      return (
-                        <View style={{ flex: 1, width: '100%' }}>
-                          <Image
-                            source={{ uri: formData.image_url }}
-                            style={{ 
-                              width: '100%', 
-                              flex: 1,
-                              minHeight: 400,
-                              resizeMode: 'contain',
-                            }}
-                          />
-                          <Text style={{ padding: 20, textAlign: 'center', color: Colors.textSecondary }}>
-                            Error loading color picker. Please try again.
-                          </Text>
-                        </View>
-                      );
-                    }
-                  })()}
-                </View>
-              ) : (
-                <View style={styles.colorPickerNoImage}>
-                  <Text style={styles.colorPickerNoImageText}>No product image available</Text>
-                </View>
-              )}
-              
-              {/* Live Color Preview */}
-              {livePickedColor && (
-                <View style={styles.colorPickerPreviewContainer}>
-                  <View style={[styles.colorPickerPreviewSwatch, { backgroundColor: livePickedColor.hex }]} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.colorPickerPreviewName}>Name: {livePickedColor.name}</Text>
-                    <Text style={styles.colorPickerPreviewHex}>HEX: {livePickedColor.hex.toUpperCase()}</Text>
-                  </View>
-                  <Pressable
-                    style={styles.colorPickerConfirmButton}
-                    onPress={confirmColorPick}
-                  >
-                    <Text style={styles.colorPickerConfirmButtonText}>✓ Use This Color</Text>
-                  </Pressable>
-                </View>
-              )}
-              
-              {!livePickedColor && (
-                <View style={styles.colorPickerInstructions}>
-                  <Text style={styles.colorPickerInstructionText}>
-                    {isSamplingColor ? 'Picking color...' : 'Tap the image to pick a color'}
-                  </Text>
-                </View>
-              )}
-            </View>
-          </View>
-        </View>
       </Modal>
     </SafeAreaView>
   );
