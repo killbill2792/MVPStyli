@@ -319,7 +319,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
+    console.log('🎨 [SKIN TONE] Skin samples collected:', {
+      sampleCount: samples.length,
+      samples: samples.map(s => ({ 
+        r: s.r, 
+        g: s.g, 
+        b: s.b, 
+        hex: `#${s.r.toString(16).padStart(2, '0')}${s.g.toString(16).padStart(2, '0')}${s.b.toString(16).padStart(2, '0')}`,
+        brightness: ((s.r + s.g + s.b) / 3).toFixed(1),
+      })),
+    });
+
     if (samples.length === 0) {
+      console.error('🎨 [SKIN TONE] No skin samples collected!');
       return res.status(400).json({ error: 'Could not sample skin patches' });
     }
 
@@ -332,6 +344,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const medianIdx = Math.floor(samples.length / 2);
     const skinRgb = samples[medianIdx];
+    
+    console.log('🎨 [SKIN TONE] Selected skin RGB (median):', {
+      r: skinRgb.r,
+      g: skinRgb.g,
+      b: skinRgb.b,
+      hex: `#${skinRgb.r.toString(16).padStart(2, '0')}${skinRgb.g.toString(16).padStart(2, '0')}${skinRgb.b.toString(16).padStart(2, '0')}`,
+      brightness: ((skinRgb.r + skinRgb.g + skinRgb.b) / 3).toFixed(1),
+    });
 
     // Convert to Lab
     const lab = rgbToLab(skinRgb.r, skinRgb.g, skinRgb.b);
