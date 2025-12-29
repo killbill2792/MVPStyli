@@ -544,7 +544,7 @@ const PodsHome = ({
           </View>
         </View>
       </Modal>
-      </SafeAreaView>
+    </SafeAreaView>
     </View>
   );
 };

@@ -436,7 +436,7 @@ const PodsScreen = ({ onBack, onCreatePod, userId, userName, params }) => {
       </Pressable>
       
       <SafeAreaView style={{ flex: 1, position: 'relative' }} edges={['top']}>
-        <View style={styles.header}>
+      <View style={styles.header}>
         <Pressable onPress={onBack} style={styles.backButton}>
           <Text style={styles.backButtonText}>✕</Text>
         </Pressable>
@@ -771,7 +771,7 @@ const PodsScreen = ({ onBack, onCreatePod, userId, userName, params }) => {
           </View>
         </View>
       </Modal>
-      </SafeAreaView>
+    </SafeAreaView>
     </View>
   );
 };

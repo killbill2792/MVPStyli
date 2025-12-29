@@ -8,3 +8,4 @@ ADD COLUMN IF NOT EXISTS product_url TEXT;
 
 
 
+

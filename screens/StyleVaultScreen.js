@@ -137,6 +137,7 @@ const StyleVaultScreen = () => {
   const [bodyImage, setBodyImage] = useState(user?.body_image_url || twinUrl || null);
   const [faceImage, setFaceImage] = useState(user?.face_image_url || null);
   const [isAnalyzingFace, setIsAnalyzingFace] = useState(false);
+  const [faceAnalysisError, setFaceAnalysisError] = useState(null);
   const [colorProfile, setColorProfile] = useState(null);
   const [showSeasonPicker, setShowSeasonPicker] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -436,9 +437,10 @@ const StyleVaultScreen = () => {
               if (!res.canceled && res.assets[0]) {
                 try {
                   const localUri = res.assets[0].uri;
-                  setIsAnalyzingFace(true);
-                  // Clear old photo immediately when starting new analysis
+                  // Clear old photo and error state immediately when starting new analysis
                   setFaceImage(null);
+                  setFaceAnalysisError(null);
+                  setIsAnalyzingFace(true);
                   
                   // NEW: Analyze using local URI with face detection, then upload
                   const { profile, uploadedUrl } = await analyzeFaceForColorProfileFromLocalUri(localUri, uploadImageAsync);
@@ -447,13 +449,14 @@ const StyleVaultScreen = () => {
                   
                   if (uploadedUrl && user?.id) {
                     await supabase.from('profiles').update({ face_image_url: uploadedUrl }).eq('id', user.id);
-                  setFaceImage(uploadedUrl);
-                  if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
+                    setFaceImage(uploadedUrl);
+                    if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
                   }
                   
                   if (profile && user?.id) {
                     await saveColorProfile(user.id, profile);
                     setColorProfile(profile);
+                    setFaceAnalysisError(null); // Clear any previous errors
                     const confidencePercent = profile.confidence ? Math.round(profile.confidence * 100) : 0;
                     
                     if (profile.season) {
@@ -468,7 +471,9 @@ const StyleVaultScreen = () => {
                       );
                     }
                   } else {
-                    // No face detected - show error banner
+                    // No face detected - set error state
+                    setIsAnalyzingFace(false);
+                    setFaceAnalysisError('No face detected. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.');
                     Alert.alert(
                       'Face Detection',
                       'We couldn\'t detect a face in this photo. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.',
@@ -478,6 +483,7 @@ const StyleVaultScreen = () => {
                   }
                 } catch (error) {
                   setIsAnalyzingFace(false);
+                  setFaceAnalysisError(`Failed to process photo: ${error.message || 'Unknown error'}`);
                   console.error('Error processing face photo:', error);
                   Alert.alert('Error', `Failed to process photo: ${error.message || 'Unknown error'}`);
                 }
@@ -499,19 +505,26 @@ const StyleVaultScreen = () => {
             if (!res.canceled && res.assets[0]) {
               try {
                 const localUri = res.assets[0].uri;
+                // Clear old photo and error state immediately when starting new analysis
+                setFaceImage(null);
+                setFaceAnalysisError(null);
+                setIsAnalyzingFace(true);
                 
                 // NEW: Analyze using local URI with face detection, then upload
                 const { profile, uploadedUrl } = await analyzeFaceForColorProfileFromLocalUri(localUri, uploadImageAsync);
                 
+                setIsAnalyzingFace(false);
+                
                 if (uploadedUrl && user?.id) {
                   await supabase.from('profiles').update({ face_image_url: uploadedUrl }).eq('id', user.id);
-                setFaceImage(uploadedUrl);
-                if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
+                  setFaceImage(uploadedUrl);
+                  if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
                 }
                 
                 if (profile && user?.id) {
                   await saveColorProfile(user.id, profile);
                   setColorProfile(profile);
+                  setFaceAnalysisError(null); // Clear any previous errors
                   const confidencePercent = profile.confidence ? Math.round(profile.confidence * 100) : 0;
                   
                   if (profile.season) {
@@ -526,7 +539,9 @@ const StyleVaultScreen = () => {
                     );
                   }
                 } else {
-                  // No face detected - show error banner
+                  // No face detected - set error state
+                  setIsAnalyzingFace(false);
+                  setFaceAnalysisError('No face detected. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.');
                   Alert.alert(
                     'Face Detection',
                     'We couldn\'t detect a face in this photo. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.',
@@ -535,9 +550,10 @@ const StyleVaultScreen = () => {
                   showBanner('✕ No face detected. Please upload a clear face photo.', 'error');
                 }
               } catch (error) {
-                  setIsAnalyzingFace(false);
-                  console.error('Error processing face photo:', error);
-                  Alert.alert('Error', `Failed to process photo: ${error.message || 'Unknown error'}`);
+                setIsAnalyzingFace(false);
+                setFaceAnalysisError(`Failed to process photo: ${error.message || 'Unknown error'}`);
+                console.error('Error processing face photo:', error);
+                Alert.alert('Error', `Failed to process photo: ${error.message || 'Unknown error'}`);
               }
             }
           }
@@ -1304,7 +1320,7 @@ const StyleVaultScreen = () => {
             <View style={[styles.section, { marginBottom: 20 }]}>
               <View style={styles.colorProfileSection}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <Text style={styles.colorProfileTitle}>🎨 Your Colors</Text>
+                <Text style={styles.colorProfileTitle}>🎨 Your Colors</Text>
                   {/* Face Photo Thumbnail */}
                   <View style={{ alignItems: 'center' }}>
                     <Pressable onPress={() => setShowFacePhotoGuidelines(true)} disabled={isAnalyzingFace}>
@@ -1332,77 +1348,97 @@ const StyleVaultScreen = () => {
                   </View>
                 </View>
                 
-                {/* Show analyzing state if analyzing - hide all other content */}
-                {isAnalyzingFace && (
-                  <View style={{ marginBottom: 12, padding: 16, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 8, alignItems: 'center' }}>
-                    <ActivityIndicator size="small" color="#6366f1" style={{ marginBottom: 12 }} />
-                    <Text style={[styles.colorBestLabel, { fontSize: 14, textAlign: 'center', fontWeight: '600', color: '#fff' }]}>
-                      Analyzing your face photo...
-                    </Text>
-                    <Text style={[styles.colorBestList, { fontSize: 12, textAlign: 'center', marginTop: 8, color: '#9ca3af' }]}>
-                      Detecting undertone, depth, and season
-                    </Text>
-                  </View>
-                )}
-                
-                {/* Show detected attributes if available - only when not analyzing */}
-                {!isAnalyzingFace && colorProfile && colorProfile.confidence !== undefined && (
-                  <View style={{ marginBottom: 12, padding: 12, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 8 }}>
-                    <Text style={[styles.colorBestLabel, { fontSize: 12, marginBottom: 4 }]}>
-                      Suggested from face photo:
-                    </Text>
-                    {colorProfile.needsConfirmation && colorProfile.season ? (
-                      <View>
-                        <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20, marginBottom: 8 }]}>
+                {/* Always show "Suggested from face photo" section with different states */}
+                <View style={{ marginBottom: 12, padding: 12, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 8 }}>
+                  <Text style={[styles.colorBestLabel, { fontSize: 12, marginBottom: 4 }]}>
+                    Suggested from face photo:
+                  </Text>
+                  
+                  {/* Analyzing state */}
+                  {isAnalyzingFace && (
+                    <View style={{ alignItems: 'center', paddingVertical: 8 }}>
+                      <ActivityIndicator size="small" color="#6366f1" style={{ marginBottom: 8 }} />
+                      <Text style={[styles.colorBestList, { fontSize: 13, textAlign: 'center', color: '#9ca3af' }]}>
+                        Analyzing your face photo...
+                      </Text>
+                      <Text style={[styles.colorBestList, { fontSize: 12, textAlign: 'center', marginTop: 4, color: '#6b7280' }]}>
+                        Detecting undertone, depth, and season
+                      </Text>
+                    </View>
+                  )}
+                  
+                  {/* Error state */}
+                  {!isAnalyzingFace && faceAnalysisError && (
+                    <View style={{ paddingVertical: 8 }}>
+                      <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20, color: '#ef4444' }]}>
+                        {faceAnalysisError}
+                      </Text>
+                    </View>
+                  )}
+                  
+                  {/* Success state - show verdict */}
+                  {!isAnalyzingFace && !faceAnalysisError && colorProfile && colorProfile.confidence !== undefined && (
+                    <>
+                      {colorProfile.needsConfirmation && colorProfile.season ? (
+                        <View>
+                          <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20, marginBottom: 8 }]}>
+                            {colorProfile.tone ? `• Undertone: ${colorProfile.tone.charAt(0).toUpperCase() + colorProfile.tone.slice(1)}` : ''}
+                            {colorProfile.depth ? `\n• Depth: ${colorProfile.depth.charAt(0).toUpperCase() + colorProfile.depth.slice(1)}` : ''}
+                            {colorProfile.season ? `\n• Suggested Season: ${colorProfile.season.charAt(0).toUpperCase() + colorProfile.season.slice(1)}` : ''}
+                            {colorProfile.seasonConfidence ? `\n• Confidence: ${Math.round(colorProfile.seasonConfidence * 100)}%` : ''}
+                          </Text>
+                          <Text style={[styles.colorBestList, { fontSize: 12, lineHeight: 18, color: '#f59e0b', fontStyle: 'italic', marginTop: 4 }]}>
+                            We detected {colorProfile.season}, please confirm or adjust.
+                          </Text>
+                        </View>
+                      ) : colorProfile.season ? (
+                        <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20 }]}>
                           {colorProfile.tone ? `• Undertone: ${colorProfile.tone.charAt(0).toUpperCase() + colorProfile.tone.slice(1)}` : ''}
                           {colorProfile.depth ? `\n• Depth: ${colorProfile.depth.charAt(0).toUpperCase() + colorProfile.depth.slice(1)}` : ''}
                           {colorProfile.season ? `\n• Suggested Season: ${colorProfile.season.charAt(0).toUpperCase() + colorProfile.season.slice(1)}` : ''}
                           {colorProfile.seasonConfidence ? `\n• Confidence: ${Math.round(colorProfile.seasonConfidence * 100)}%` : ''}
                         </Text>
-                        <Text style={[styles.colorBestList, { fontSize: 12, lineHeight: 18, color: '#f59e0b', fontStyle: 'italic', marginTop: 4 }]}>
-                          We detected {colorProfile.season}, please confirm or adjust.
-                        </Text>
-                      </View>
-                    ) : colorProfile.season ? (
-                      <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20 }]}>
-                        {colorProfile.tone ? `• Undertone: ${colorProfile.tone.charAt(0).toUpperCase() + colorProfile.tone.slice(1)}` : ''}
-                        {colorProfile.depth ? `\n• Depth: ${colorProfile.depth.charAt(0).toUpperCase() + colorProfile.depth.slice(1)}` : ''}
-                        {colorProfile.season ? `\n• Suggested Season: ${colorProfile.season.charAt(0).toUpperCase() + colorProfile.season.slice(1)}` : ''}
-                        {colorProfile.seasonConfidence ? `\n• Confidence: ${Math.round(colorProfile.seasonConfidence * 100)}%` : ''}
-                      </Text>
-                    ) : (
-                      <View>
-                        <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20, marginBottom: 8 }]}>
-                          {colorProfile.tone ? `${colorProfile.tone.charAt(0).toUpperCase() + colorProfile.tone.slice(1)} undertone` : ''}
-                          {colorProfile.depth ? ` • ${colorProfile.depth.charAt(0).toUpperCase() + colorProfile.depth.slice(1)} depth` : ''}
-                        </Text>
-                        <Text style={[styles.colorBestList, { fontSize: 12, lineHeight: 18, color: '#666', fontStyle: 'italic' }]}>
-                          Season unclear (lighting/photo variation). You can choose manually or upload another photo.
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                )}
+                      ) : (
+                        <View>
+                          <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20, marginBottom: 8 }]}>
+                            {colorProfile.tone ? `${colorProfile.tone.charAt(0).toUpperCase() + colorProfile.tone.slice(1)} undertone` : ''}
+                            {colorProfile.depth ? ` • ${colorProfile.depth.charAt(0).toUpperCase() + colorProfile.depth.slice(1)} depth` : ''}
+                          </Text>
+                          <Text style={[styles.colorBestList, { fontSize: 12, lineHeight: 18, color: '#666', fontStyle: 'italic' }]}>
+                            Season unclear (lighting/photo variation). You can choose manually or upload another photo.
+                          </Text>
+                        </View>
+                      )}
+                    </>
+                  )}
+                  
+                  {/* Initial state - no photo uploaded yet */}
+                  {!isAnalyzingFace && !faceAnalysisError && (!colorProfile || colorProfile.confidence === undefined) && (
+                    <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20, color: '#9ca3af', fontStyle: 'italic' }]}>
+                      Upload a face photo to get color analysis
+                    </Text>
+                  )}
+                </View>
                 
                 {/* Hide color profile details while analyzing */}
                 {!isAnalyzingFace && colorProfile && (
                   <>
-                    <View style={styles.colorSeasonBadge}>
-                      <Text style={styles.colorSeasonText}>{colorProfile.description}</Text>
-                    </View>
-                    <View style={styles.colorSwatchRow}>
-                      {getSeasonSwatches(colorProfile.season).slice(0, 6).map((color, idx) => (
-                        <View key={idx} style={[styles.colorSwatch, { backgroundColor: color }]} />
-                      ))}
-                    </View>
-                    <Text style={styles.colorBestLabel}>Colors that love you:</Text>
-                    <Text style={styles.colorBestList}>{colorProfile.bestColors.slice(0, 4).join(', ')}</Text>
-                    <Pressable 
-                      style={styles.changeSeasonBtn}
-                      onPress={() => setShowSeasonPicker(true)}
-                    >
+                <View style={styles.colorSeasonBadge}>
+                  <Text style={styles.colorSeasonText}>{colorProfile.description}</Text>
+                </View>
+                <View style={styles.colorSwatchRow}>
+                  {getSeasonSwatches(colorProfile.season).slice(0, 6).map((color, idx) => (
+                    <View key={idx} style={[styles.colorSwatch, { backgroundColor: color }]} />
+                  ))}
+                </View>
+                <Text style={styles.colorBestLabel}>Colors that love you:</Text>
+                <Text style={styles.colorBestList}>{colorProfile.bestColors.slice(0, 4).join(', ')}</Text>
+                <Pressable 
+                  style={styles.changeSeasonBtn}
+                  onPress={() => setShowSeasonPicker(true)}
+                >
                       <Text style={styles.changeSeasonText}>Edit Season →</Text>
-                    </Pressable>
+                </Pressable>
                   </>
                 )}
               </View>
@@ -1432,7 +1468,7 @@ const StyleVaultScreen = () => {
                   )}
                 </Pressable>
                   <Text style={[styles.fitProfilePhotoLabel, { marginTop: 4 }]}>Your Body Photo</Text>
-                </View>
+                    </View>
                 
               </View>
             </View>

@@ -66,3 +66,4 @@ SELECT 'try_on_history' as table_name, count(*) as row_count FROM public.try_on_
 
 
 
+

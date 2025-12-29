@@ -2119,8 +2119,8 @@ export default function App() {
                   </View>
                   <Text style={styles.stickySearchBarText}>Search Styles by your Vibe, Color or Budget</Text>
                 </Pressable>
-              </View>
-              
+                </View>
+                
               <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: 100, paddingTop: 105 }}>
                 {/* Product Grid */}
                 <View style={styles.productGrid}>
