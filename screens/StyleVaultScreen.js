@@ -1330,8 +1330,18 @@ const StyleVaultScreen = () => {
                   </View>
                 </View>
                 
+                {/* Show analyzing state if analyzing */}
+                {isAnalyzingFace && (
+                  <View style={{ marginBottom: 12, padding: 12, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 8, alignItems: 'center' }}>
+                    <ActivityIndicator size="small" color="#6366f1" style={{ marginBottom: 8 }} />
+                    <Text style={[styles.colorBestLabel, { fontSize: 12, textAlign: 'center' }]}>
+                      Analyzing your face photo...
+                    </Text>
+                  </View>
+                )}
+                
                 {/* Show detected attributes if available */}
-                {colorProfile.confidence !== undefined && (
+                {!isAnalyzingFace && colorProfile.confidence !== undefined && (
                   <View style={{ marginBottom: 12, padding: 12, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 8 }}>
                     <Text style={[styles.colorBestLabel, { fontSize: 12, marginBottom: 4 }]}>
                       Suggested from face photo:
