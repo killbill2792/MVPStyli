@@ -628,7 +628,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
                   borderTopLeftRadius: BorderRadius.sm,
                   maxWidth: '85%'
                 }}>
-                  <Text style={{ ...TextStyles.body, color: Colors.textPrimary, marginBottom: msg.products && msg.products.length > 0 ? Spacing.md : 0 }}>
+                  <Text style={{ ...TextStyles.body, color: Colors.textPrimary, marginBottom: msg.products && msg.products.length > 0 ? Spacing.md : 0, lineHeight: 22 }}>
                     {msg.message}
                   </Text>
                   
