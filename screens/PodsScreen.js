@@ -762,13 +762,15 @@ const PodsScreen = ({ onBack, onCreatePod, userId, userName, params }) => {
       </Modal>
       
       {/* Floating Help Icon - Outside SafeAreaView to ensure visibility */}
+      </SafeAreaView>
+      
+      {/* Floating Help Icon - Outside SafeAreaView to ensure visibility */}
       <Pressable 
         style={styles.helpFloatingButton}
         onPress={() => setShowHelpModal(true)}
       >
         <Text style={styles.helpFloatingButtonIcon}>?</Text>
       </Pressable>
-      </SafeAreaView>
     </View>
   );
 };
