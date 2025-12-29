@@ -701,6 +701,14 @@ const PodsScreen = ({ onBack, onCreatePod, userId, userName, params }) => {
 
       </ScrollView>
       
+      {/* Floating Help Icon - Inside SafeAreaView but above everything */}
+      <Pressable 
+        style={styles.helpFloatingButton}
+        onPress={() => setShowHelpModal(true)}
+      >
+        <Text style={styles.helpFloatingButtonIcon}>?</Text>
+      </Pressable>
+      
       {/* Help Modal */}
       <Modal
         visible={showHelpModal}
@@ -761,14 +769,6 @@ const PodsScreen = ({ onBack, onCreatePod, userId, userName, params }) => {
         </View>
       </Modal>
       </SafeAreaView>
-      
-      {/* Floating Help Icon - Outside SafeAreaView to prevent clipping, like App.js shop screen */}
-      <Pressable 
-        style={styles.helpFloatingButton}
-        onPress={() => setShowHelpModal(true)}
-      >
-        <Text style={styles.helpFloatingButtonIcon}>?</Text>
-      </Pressable>
     </View>
   );
 };
