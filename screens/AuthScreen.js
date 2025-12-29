@@ -68,26 +68,11 @@ const AuthScreen = () => {
         Alert.alert('Success', 'Account created! Please verify your phone number.');
         setIsLogin(true);
       } else {
-        const userInfo = getUserInfo(email);
         const { data, error } = await supabase.auth.signUp({
           email: email,
           password: password,
-          options: {
-            data: {
-              name: userInfo.name,
-              gender: userInfo.gender,
-              location: userInfo.location,
-            }
-          }
         });
         if (error) throw error;
-        
-        // Setup demo data if user was created
-        if (data.user && data.user.id) {
-          setupDemoDataForUser(data.user.id, email).catch(err => {
-            console.log('Demo data setup skipped:', err);
-          });
-        }
         
         Alert.alert('Success', 'Account created! You can sign in now (email verification bypassed for testing).');
         setIsLogin(true);
