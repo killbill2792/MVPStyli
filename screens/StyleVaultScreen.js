@@ -1381,22 +1381,27 @@ const StyleVaultScreen = () => {
                   </View>
                 )}
                 
-                <View style={styles.colorSeasonBadge}>
-                  <Text style={styles.colorSeasonText}>{colorProfile.description}</Text>
-                </View>
-                <View style={styles.colorSwatchRow}>
-                  {getSeasonSwatches(colorProfile.season).slice(0, 6).map((color, idx) => (
-                    <View key={idx} style={[styles.colorSwatch, { backgroundColor: color }]} />
-                  ))}
-                </View>
-                <Text style={styles.colorBestLabel}>Colors that love you:</Text>
-                <Text style={styles.colorBestList}>{colorProfile.bestColors.slice(0, 4).join(', ')}</Text>
-                <Pressable 
-                  style={styles.changeSeasonBtn}
-                  onPress={() => setShowSeasonPicker(true)}
-                >
-                  <Text style={styles.changeSeasonText}>Edit Season →</Text>
-                </Pressable>
+                {/* Hide color profile details while analyzing */}
+                {!isAnalyzingFace && colorProfile && (
+                  <>
+                    <View style={styles.colorSeasonBadge}>
+                      <Text style={styles.colorSeasonText}>{colorProfile.description}</Text>
+                    </View>
+                    <View style={styles.colorSwatchRow}>
+                      {getSeasonSwatches(colorProfile.season).slice(0, 6).map((color, idx) => (
+                        <View key={idx} style={[styles.colorSwatch, { backgroundColor: color }]} />
+                      ))}
+                    </View>
+                    <Text style={styles.colorBestLabel}>Colors that love you:</Text>
+                    <Text style={styles.colorBestList}>{colorProfile.bestColors.slice(0, 4).join(', ')}</Text>
+                    <Pressable 
+                      style={styles.changeSeasonBtn}
+                      onPress={() => setShowSeasonPicker(true)}
+                    >
+                      <Text style={styles.changeSeasonText}>Edit Season →</Text>
+                    </Pressable>
+                  </>
+                )}
               </View>
             </View>
           )}
