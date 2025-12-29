@@ -292,9 +292,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .select()
         .single();
 
-      if (garmentError) {
+      if (garmentError || !garment) {
         console.error('Error creating garment:', garmentError);
-        return res.status(500).json({ error: 'Failed to create garment', details: garmentError.message });
+        return res.status(500).json({ error: 'Failed to create garment', details: garmentError?.message || 'Garment creation failed' });
       }
 
       // Create sizes if provided
@@ -302,7 +302,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const sizeData = sizes
           .filter((size: any) => size.size_label && size.size_label.trim() !== '') // Only include sizes with labels
           .map((size: any) => {
-            if (!garment || !garment.id) {
+            if (!garment.id) {
               throw new Error('Garment ID is required to create sizes');
             }
             
@@ -351,7 +351,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (sizeData.length > 0) {
           const { error: sizesError } = await supabase
             .from('garment_sizes')
-            .insert(sizeData as any[]);
+            .insert(sizeData as unknown as any[]);
 
           if (sizesError) {
             console.error('Error creating sizes:', sizesError);
@@ -426,7 +426,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Update the garment
       const { data: garment, error: garmentError } = await supabase
         .from('garments')
-        .update(updateData)
+        .update(updateData as Record<string, any>)
         .eq('id', id)
         .select()
         .single();
@@ -497,7 +497,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (sizeData.length > 0) {
           const { error: sizesError } = await supabase
             .from('garment_sizes')
-            .insert(sizeData as any[]);
+            .insert(sizeData as unknown as any[]);
 
           if (sizesError) {
             console.error('Error updating sizes:', sizesError);

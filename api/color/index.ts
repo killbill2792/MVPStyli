@@ -1,87 +1,59 @@
 /**
  * Unified Color API
  * Handles both dominant color detection and exact pixel color picking
- * Mode: 'detect' for dominant color, 'pick' for exact pixel
+ * Mode: 'detect' for dominant color, 'pick' for circular area sampling with trimmed mean
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import sharp from 'sharp';
+import { getNearestColorName } from '../../lib/colorNaming';
 
-// RGB to color name mapping (comprehensive list)
-function rgbToColorName(r: number, g: number, b: number): string {
-  const colors: Array<{ name: string; r: number; g: number; b: number; tolerance: number }> = [
-    { name: 'black', r: 0, g: 0, b: 0, tolerance: 30 },
-    { name: 'white', r: 255, g: 255, b: 255, tolerance: 30 },
-    { name: 'grey', r: 128, g: 128, b: 128, tolerance: 40 },
-    { name: 'gray', r: 128, g: 128, b: 128, tolerance: 40 },
-    { name: 'red', r: 255, g: 0, b: 0, tolerance: 50 },
-    { name: 'burgundy', r: 128, g: 0, b: 32, tolerance: 40 },
-    { name: 'maroon', r: 128, g: 0, b: 0, tolerance: 40 },
-    { name: 'crimson', r: 220, g: 20, b: 60, tolerance: 40 },
-    { name: 'pink', r: 255, g: 192, b: 203, tolerance: 50 },
-    { name: 'rose', r: 255, g: 0, b: 127, tolerance: 50 },
-    { name: 'coral', r: 255, g: 127, b: 80, tolerance: 50 },
-    { name: 'salmon', r: 250, g: 128, b: 114, tolerance: 50 },
-    { name: 'orange', r: 255, g: 165, b: 0, tolerance: 50 },
-    { name: 'peach', r: 255, g: 218, b: 185, tolerance: 50 },
-    { name: 'yellow', r: 255, g: 255, b: 0, tolerance: 50 },
-    { name: 'gold', r: 255, g: 215, b: 0, tolerance: 50 },
-    { name: 'mustard', r: 255, g: 219, b: 88, tolerance: 50 },
-    { name: 'green', r: 0, g: 128, b: 0, tolerance: 50 },
-    { name: 'emerald', r: 80, g: 200, b: 120, tolerance: 50 },
-    { name: 'olive', r: 128, g: 128, b: 0, tolerance: 50 },
-    { name: 'mint', r: 152, g: 255, b: 152, tolerance: 50 },
-    { name: 'teal', r: 0, g: 128, b: 128, tolerance: 50 },
-    { name: 'turquoise', r: 64, g: 224, b: 208, tolerance: 50 },
-    { name: 'cyan', r: 0, g: 255, b: 255, tolerance: 50 },
-    { name: 'blue', r: 0, g: 0, b: 255, tolerance: 50 },
-    { name: 'navy', r: 0, g: 0, b: 128, tolerance: 40 },
-    { name: 'royal blue', r: 65, g: 105, b: 225, tolerance: 50 },
-    { name: 'sky blue', r: 135, g: 206, b: 235, tolerance: 50 },
-    { name: 'purple', r: 128, g: 0, b: 128, tolerance: 50 },
-    { name: 'violet', r: 138, g: 43, b: 226, tolerance: 50 },
-    { name: 'lavender', r: 230, g: 230, b: 250, tolerance: 50 },
-    { name: 'plum', r: 221, g: 160, b: 221, tolerance: 50 },
-    { name: 'indigo', r: 75, g: 0, b: 130, tolerance: 50 },
-    { name: 'brown', r: 165, g: 42, b: 42, tolerance: 50 },
-    { name: 'tan', r: 210, g: 180, b: 140, tolerance: 50 },
-    { name: 'beige', r: 245, g: 245, b: 220, tolerance: 50 },
-    { name: 'cream', r: 255, g: 253, b: 208, tolerance: 50 },
-    { name: 'ivory', r: 255, g: 255, b: 240, tolerance: 50 },
-    { name: 'khaki', r: 240, g: 230, b: 140, tolerance: 50 },
-    { name: 'camel', r: 193, g: 154, b: 107, tolerance: 50 },
-    { name: 'rust', r: 183, g: 65, b: 14, tolerance: 50 },
-    { name: 'terracotta', r: 226, g: 114, b: 91, tolerance: 50 },
-  ];
-
-  let bestMatch = { name: 'unknown', distance: Infinity };
-
-  for (const color of colors) {
-    const distance = Math.sqrt(
-      Math.pow(r - color.r, 2) + Math.pow(g - color.g, 2) + Math.pow(b - color.b, 2)
-    );
-    if (distance < color.tolerance && distance < bestMatch.distance) {
-      bestMatch = { name: color.name, distance };
-    }
+/**
+ * Trimmed mean: Remove outliers and average the rest
+ * This is a robust statistical method that filters out extreme values
+ */
+function trimmedMean(samples: Array<{ r: number; g: number; b: number }>, trimRatio: number = 0.15): { r: number; g: number; b: number } {
+  if (samples.length === 0) {
+    return { r: 128, g: 128, b: 128 };
   }
 
-  if (bestMatch.name === 'unknown') {
-    // Fallback to hue-based naming
-    const hue = Math.atan2(Math.sqrt(3) * (g - b), 2 * r - g - b) * (180 / Math.PI);
-    if (hue < 0) hue += 360;
-    
-    if (hue < 15 || hue >= 345) return 'red';
-    if (hue < 45) return 'orange';
-    if (hue < 75) return 'yellow';
-    if (hue < 165) return 'green';
-    if (hue < 195) return 'cyan';
-    if (hue < 255) return 'blue';
-    if (hue < 285) return 'purple';
-    if (hue < 315) return 'pink';
-    return 'red';
+  if (samples.length === 1) {
+    return samples[0];
   }
 
-  return bestMatch.name;
+  // Calculate distances from center (median) for each channel
+  const rValues = samples.map(s => s.r).sort((a, b) => a - b);
+  const gValues = samples.map(s => s.g).sort((a, b) => a - b);
+  const bValues = samples.map(s => s.b).sort((a, b) => a - b);
+
+  const trimCount = Math.floor(samples.length * trimRatio);
+  const startIdx = trimCount;
+  const endIdx = samples.length - trimCount;
+
+  if (endIdx <= startIdx) {
+    // If trimming removes all samples, use median
+    const mid = Math.floor(samples.length / 2);
+    return {
+      r: rValues[mid],
+      g: gValues[mid],
+      b: bValues[mid],
+    };
+  }
+
+  // Calculate mean of trimmed values
+  let sumR = 0, sumG = 0, sumB = 0;
+  for (let i = startIdx; i < endIdx; i++) {
+    sumR += rValues[i];
+    sumG += gValues[i];
+    sumB += bValues[i];
+  }
+
+  const count = endIdx - startIdx;
+  return {
+    r: Math.round(sumR / count),
+    g: Math.round(sumG / count),
+    b: Math.round(sumB / count),
+  };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -104,7 +76,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Missing or invalid mode. Must be "detect" or "pick"' });
     }
 
-    // MODE: PICK (exact pixel color)
+    // MODE: PICK (circular area sampling with trimmed mean)
     if (mode === 'pick') {
       if (!imageBase64 && !imageUrl) {
         return res.status(400).json({ error: 'Missing imageBase64 or imageUrl' });
@@ -114,7 +86,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Missing x or y coordinates' });
       }
 
-      console.log('🎯 [COLOR API] Picking exact pixel color at:', { x, y, imageWidth, imageHeight });
+      console.log('🎯 [COLOR API] Picking color from circular area at:', { x, y, imageWidth, imageHeight });
 
       let imageBuffer: Buffer;
 
@@ -151,29 +123,107 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       pixelX = Math.max(0, Math.min(pixelX, actualWidth - 1));
       pixelY = Math.max(0, Math.min(pixelY, actualHeight - 1));
 
-      console.log('🎯 [COLOR API] Actual image size:', { actualWidth, actualHeight });
-      console.log('🎯 [COLOR API] Pixel coordinates:', { pixelX, pixelY });
+      // 16px radius circle sampling
+      const SAMPLE_RADIUS = 16;
+      const radiusSquared = SAMPLE_RADIUS * SAMPLE_RADIUS;
 
+      // Calculate bounding box for extraction (square that contains the circle)
+      const extractLeft = Math.max(0, pixelX - SAMPLE_RADIUS);
+      const extractTop = Math.max(0, pixelY - SAMPLE_RADIUS);
+      const extractRight = Math.min(actualWidth - 1, pixelX + SAMPLE_RADIUS);
+      const extractBottom = Math.min(actualHeight - 1, pixelY + SAMPLE_RADIUS);
+      
+      const extractWidth = extractRight - extractLeft + 1;
+      const extractHeight = extractBottom - extractTop + 1;
+
+      console.log('🎯 [COLOR API] Sampling circular area:', {
+        center: { x: pixelX, y: pixelY },
+        radius: SAMPLE_RADIUS,
+        bounds: { left: extractLeft, top: extractTop, width: extractWidth, height: extractHeight },
+      });
+
+      // Extract the bounding box region
       const result = await sharp(imageBuffer)
-        .extract({ left: pixelX, top: pixelY, width: 1, height: 1 })
+        .extract({ 
+          left: extractLeft, 
+          top: extractTop, 
+          width: extractWidth, 
+          height: extractHeight 
+        })
         .raw()
         .toBuffer({ resolveWithObject: true });
 
       const { data, info } = result;
       const channels = info.channels || 3;
       
-      const r = data[0];
-      const g = channels >= 2 ? data[1] : data[0];
-      const b = channels >= 3 ? data[2] : data[0];
+      // Collect all pixels within the circular area
+      const samples: Array<{ r: number; g: number; b: number }> = [];
+      const centerX = pixelX - extractLeft;
+      const centerY = pixelY - extractTop;
+      
+      for (let y = 0; y < extractHeight; y++) {
+        for (let x = 0; x < extractWidth; x++) {
+          // Calculate distance from center
+          const dx = x - centerX;
+          const dy = y - centerY;
+          const distanceSquared = dx * dx + dy * dy;
+          
+          // Only sample pixels within the circle
+          if (distanceSquared <= radiusSquared) {
+            const idx = (y * extractWidth + x) * channels;
+            const r = data[idx];
+            const g = channels >= 2 ? data[idx + 1] : data[idx];
+            const b = channels >= 3 ? data[idx + 2] : data[idx];
+            
+            samples.push({ r, g, b });
+          }
+        }
+      }
 
-      const hexColor = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+      if (samples.length === 0) {
+        // Fallback to single pixel if circle is empty (edge case)
+        const idx = (centerY * extractWidth + centerX) * channels;
+        const r = data[idx];
+        const g = channels >= 2 ? data[idx + 1] : data[idx];
+        const b = channels >= 3 ? data[idx + 2] : data[idx];
+        
+        const hexColor = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+        const colorName = getNearestColorName(hexColor);
 
-      console.log('🎯 [COLOR API] Exact pixel color:', { r, g, b, hex: hexColor });
+        return res.status(200).json({
+          color: hexColor,
+          rgb: { r, g, b },
+          name: colorName.name,
+          source: 'manual-pick-fallback',
+          pixelsSampled: 1,
+        });
+      }
+
+      // Apply trimmed mean (remove 15% outliers from each end, average the rest)
+      const trimmedResult = trimmedMean(samples, 0.15);
+      const { r: avgR, g: avgG, b: avgB } = trimmedResult;
+
+      const hexColor = `#${avgR.toString(16).padStart(2, '0')}${avgG.toString(16).padStart(2, '0')}${avgB.toString(16).padStart(2, '0')}`;
+      
+      // Use unified color naming system (Lab-based ΔE matching)
+      const colorName = getNearestColorName(hexColor);
+
+      console.log('🎯 [COLOR API] Sampled color (trimmed mean):', {
+        rgb: { r: avgR, g: avgG, b: avgB },
+        hex: hexColor,
+        name: colorName.name,
+        pixelsSampled: samples.length,
+        radius: SAMPLE_RADIUS,
+        method: 'circular-trimmed-mean',
+      });
 
       return res.status(200).json({
         color: hexColor,
-        rgb: { r, g, b },
-        source: 'manual-pick-exact-pixel',
+        rgb: { r: avgR, g: avgG, b: avgB },
+        name: colorName.name,
+        source: 'manual-pick-circular-trimmed-mean',
+        pixelsSampled: samples.length,
+        radius: SAMPLE_RADIUS,
       });
     }
 
@@ -308,7 +358,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const maxCount = colorCounts.get(`${bestColor.r},${bestColor.g},${bestColor.b}`)?.count || 0;
     console.log('🎨 [COLOR API] Sampled', totalSampled, 'pixels, dominant color:', { r, g, b, hex: hexColor, count: maxCount });
 
-    const colorName = rgbToColorName(r, g, b);
+    // Use unified color naming system (Lab-based ΔE matching with full NTC dataset)
+    const colorNameResult = getNearestColorName(hexColor);
+    const colorName = colorNameResult.name;
     const confidence = 0.85;
 
     console.log('🎨 [COLOR API] Detected color:', {
@@ -316,6 +368,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       rgb: { r, g, b },
       name: colorName,
       confidence,
+      namingMethod: 'Lab-ΔE-NTC',
     });
 
     return res.status(200).json({
