@@ -1310,8 +1310,8 @@ const StyleVaultScreen = () => {
                     <Pressable onPress={() => setShowFacePhotoGuidelines(true)} disabled={isAnalyzingFace}>
                       <View style={{ position: 'relative' }}>
                         {isAnalyzingFace ? (
-                          // Show analyzing state - hide old photo
-                          <View style={[styles.colorProfileFaceThumbnail, styles.colorProfileFacePlaceholder, { backgroundColor: 'rgba(99, 102, 241, 0.3)' }]}>
+                          // Show analyzing state - hide old photo completely
+                          <View style={[styles.colorProfileFaceThumbnail, styles.colorProfileFacePlaceholder, { backgroundColor: 'rgba(99, 102, 241, 0.3)', justifyContent: 'center', alignItems: 'center' }]}>
                             <ActivityIndicator size="small" color="#6366f1" />
                           </View>
                         ) : faceImage ? (
@@ -1332,12 +1332,15 @@ const StyleVaultScreen = () => {
                   </View>
                 </View>
                 
-                {/* Show analyzing state if analyzing */}
+                {/* Show analyzing state if analyzing - hide all other content */}
                 {isAnalyzingFace && (
-                  <View style={{ marginBottom: 12, padding: 12, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 8, alignItems: 'center' }}>
-                    <ActivityIndicator size="small" color="#6366f1" style={{ marginBottom: 8 }} />
-                    <Text style={[styles.colorBestLabel, { fontSize: 12, textAlign: 'center' }]}>
+                  <View style={{ marginBottom: 12, padding: 16, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 8, alignItems: 'center' }}>
+                    <ActivityIndicator size="small" color="#6366f1" style={{ marginBottom: 12 }} />
+                    <Text style={[styles.colorBestLabel, { fontSize: 14, textAlign: 'center', fontWeight: '600', color: '#fff' }]}>
                       Analyzing your face photo...
+                    </Text>
+                    <Text style={[styles.colorBestList, { fontSize: 12, textAlign: 'center', marginTop: 8, color: '#9ca3af' }]}>
+                      Detecting undertone, depth, and season
                     </Text>
                   </View>
                 )}
