@@ -10,6 +10,47 @@ import AskAISheet from '../components/AskAISheet';
 import { supabase } from '../lib/supabase';
 import { formatInchesAsFraction } from '../lib/measurementUtils';
 
+// Helper function to get hex color from color name
+const getColorHexFromName = (colorName) => {
+  if (!colorName) return null;
+  const colorMap = {
+    'black': '#000000',
+    'white': '#FFFFFF',
+    'grey': '#808080',
+    'gray': '#808080',
+    'red': '#FF0000',
+    'blue': '#0000FF',
+    'navy': '#000080',
+    'green': '#008000',
+    'yellow': '#FFFF00',
+    'orange': '#FFA500',
+    'pink': '#FFC0CB',
+    'purple': '#800080',
+    'brown': '#A52A2A',
+    'beige': '#F5F5DC',
+    'cream': '#FFFDD0',
+    'ivory': '#FFFFF0',
+    'khaki': '#C3B091',
+    'olive': '#808000',
+    'burgundy': '#800020',
+    'maroon': '#800000',
+    'wine': '#800020',
+    'plum': '#800080',
+    'camel': '#C19A6B',
+    'rust': '#B7410E',
+    'teal': '#008080',
+    'emerald': '#50C878',
+    'lavender': '#E6E6FA',
+    'coral': '#FF7F50',
+    'salmon': '#FA8072',
+    'tan': '#D2B48C',
+    'charcoal': '#36454F',
+    'slate': '#708090',
+  };
+  const normalizedName = colorName.toLowerCase().trim();
+  return colorMap[normalizedName] || null;
+};
+
 const { width, height } = Dimensions.get('window');
 
 // Safe Image Component
@@ -520,9 +561,13 @@ const ProductScreen = ({ onBack }) => {
                   <View style={styles.detailItem}>
                     <Text style={styles.detailLabel}>Color</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      {product.colorHex && (
-                        <View style={[styles.colorSwatch, { backgroundColor: product.colorHex }]} />
-                      )}
+                      {(() => {
+                        // Get hex color - prefer colorHex, fallback to color name conversion
+                        const colorHex = product.colorHex || getColorHexFromName(product.color || inferredColor);
+                        return colorHex ? (
+                          <View style={[styles.colorSwatch, { backgroundColor: colorHex }]} />
+                        ) : null;
+                      })()}
                       <Text style={styles.detailValue}>{product.color || inferredColor || 'Color'}</Text>
                     </View>
                   </View>
