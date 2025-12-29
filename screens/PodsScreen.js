@@ -701,17 +701,6 @@ const PodsScreen = ({ onBack, onCreatePod, userId, userName, params }) => {
 
       </ScrollView>
       
-      {/* Floating Help Icon - Inside SafeAreaView but above everything */}
-      <Pressable 
-        style={styles.helpFloatingButton}
-        onPress={() => {
-          console.log('🎯 Help button pressed!');
-          setShowHelpModal(true);
-        }}
-      >
-        <Text style={styles.helpFloatingButtonIcon}>?</Text>
-      </Pressable>
-      
       {/* Help Modal */}
       <Modal
         visible={showHelpModal}
@@ -1160,12 +1149,12 @@ const styles = StyleSheet.create({
   },
   helpFloatingButton: {
     position: 'absolute',
-    top: 100, // Temporarily at top for testing
+    bottom: 100,
     right: 20,
-    width: 80, // Larger for testing
-    height: 80, // Larger for testing
-    borderRadius: 40,
-    backgroundColor: '#ff0000', // Bright red for testing visibility
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#6366f1',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#6366f1',
@@ -1173,7 +1162,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.5,
     shadowRadius: 8,
     elevation: 10,
-    zIndex: 9999,
+    zIndex: 99999,
   },
   helpFloatingButtonIcon: {
     color: '#fff',
