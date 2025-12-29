@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Pressable, Image, StyleSheet, Alert, StatusBar, TextInput, ScrollView, Modal, ActivityIndicator, Dimensions, FlatList, Animated, PanResponder, KeyboardAvoidingView, Platform, InteractionManager, Linking } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Alert, StatusBar, TextInput, ScrollView, Modal, ActivityIndicator, Dimensions, FlatList, Animated, PanResponder, KeyboardAvoidingView, Platform, InteractionManager, Linking } from 'react-native';
 import { SafeAreaView, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -33,32 +33,7 @@ import { buildShareUrl, parseDeepLink } from './lib/share';
 import { sendFriendRequest, areFriends } from './lib/friends';
 import { createPodInvites } from './lib/pods';
 import { submitVote as submitVoteToDB } from './lib/pods';
-
-// Safe Image Component to prevent crashes
-const SafeImage = ({ source, style, resizeMode, ...props }) => {
-  const [error, setError] = useState(false);
-  
-  if (error || !source || !source.uri || typeof source.uri !== 'string') {
-    return (
-      <View style={[style, { backgroundColor: '#333', justifyContent: 'center', alignItems: 'center' }]}>
-         <Text style={{ fontSize: 10, color: '#666' }}>IMG</Text>
-      </View>
-    );
-  }
-
-  return (
-    <Image 
-      source={source} 
-      style={style} 
-      resizeMode={resizeMode} 
-      onError={(e) => {
-        console.log('Image load error:', e.nativeEvent.error, source.uri);
-        setError(true);
-      }}
-      {...props} 
-    />
-  );
-};
+import { SafeImage, OptimizedImage } from './lib/OptimizedImage';
 
 const { width, height } = Dimensions.get('window');
 
@@ -1353,7 +1328,7 @@ const TryOn = () => {
       {/* Main Image Area */}
       <View style={[styles.tryOnImageContainer, { marginBottom: 12 }]}>
         <Pressable onPress={handleImageUpload} style={{ flex: 1 }}>
-          <Image 
+          <OptimizedImage 
             source={{ uri: result || selectedImage }} 
             style={styles.tryOnMainImage} 
             resizeMode="cover" 
@@ -1406,7 +1381,7 @@ const TryOn = () => {
             }}>
                 {twinUrl ? (
                   <View>
-                    <Image source={{ uri: twinUrl }} style={styles.userThumbnail} />
+                    <OptimizedImage source={{ uri: twinUrl }} style={styles.userThumbnail} resizeMode="cover" />
                     <Pressable 
                       style={{ position: 'absolute', top: -5, right: -5, backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: 10, width: 20, height: 20, justifyContent: 'center', alignItems: 'center' }}
                       onPress={(e) => {
@@ -2111,7 +2086,7 @@ export default function App() {
                   onPress={() => setRoute('chat')}
                 >
                   <View style={styles.searchBarIconContainer}>
-                    <Image 
+                    <OptimizedImage 
                       source={require('./assets/icon.png')} 
                       style={styles.searchBarIconImage}
                       resizeMode="contain"
@@ -2134,7 +2109,7 @@ export default function App() {
                                 handleSetRoute('product');
                             }}
                         >
-                            <Image source={{ uri: p.image }} style={styles.productImage} />
+                            <OptimizedImage source={{ uri: p.image }} style={styles.productImage} resizeMode="cover" />
                             <View style={styles.productInfo}>
                                 <Text style={styles.productBrand}>{p.brand || 'Brand'}</Text>
                                 <Text style={styles.productName} numberOfLines={1}>{p.name}</Text>

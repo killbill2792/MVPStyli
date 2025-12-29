@@ -1,43 +1,28 @@
-// faceDetection.ts
-import * as FileSystem from "expo-file-system/legacy";
-// @ts-ignore - expo-image-manipulator types may not be available
+// faceDetection.ts - Using expo-face-detector instead of TensorFlow
 import * as ImageManipulator from "expo-image-manipulator";
-// @ts-ignore - @tensorflow/tfjs types may not be available
-import * as tf from "@tensorflow/tfjs";
-// @ts-ignore
-import "@tensorflow/tfjs-react-native";
-// @ts-ignore
-import { decodeJpeg } from "@tensorflow/tfjs-react-native";
-// @ts-ignore - @tensorflow-models/face-detection types may not be available
-import * as faceDetection from "@tensorflow-models/face-detection";
-import { setupTensorFlowPlatform } from "./tfjs-platform-setup";
-
-let detector: faceDetection.FaceDetector | null = null;
-let tfReady = false;
 
 export type FaceBox = { x: number; y: number; width: number; height: number };
 
-async function ensureTfReady() {
-  if (tfReady) return;
-  // Setup platform first (polyfills react-native-fs)
-  await setupTensorFlowPlatform();
-  await tf.ready();
-  tfReady = true;
-}
+// Lazy load FaceDetector to handle cases where native module isn't available
+let FaceDetector: any = null;
+let faceDetectorLoaded = false;
 
-async function getDetector() {
-  if (detector) return detector;
-
-  // MediaPipe runtime (free) – runs on-device
-  const model = faceDetection.SupportedModels.MediaPipeFaceDetector;
-  const config: faceDetection.MediaPipeFaceDetectorTfjsModelConfig = {
-    runtime: "tfjs",
-    maxFaces: 1,
-    modelType: "short", // faster, good enough for MVP
-  };
-
-  detector = await faceDetection.createDetector(model, config);
-  return detector;
+async function loadFaceDetector() {
+  if (faceDetectorLoaded) return FaceDetector;
+  
+  try {
+    // @ts-ignore - expo-face-detector types may not be available
+    const detector = require("expo-face-detector");
+    FaceDetector = detector.FaceDetector;
+    faceDetectorLoaded = true;
+    console.log('📸 [FACE DETECTION] FaceDetector module loaded successfully');
+    return FaceDetector;
+  } catch (error) {
+    console.warn('📸 [FACE DETECTION] Failed to load expo-face-detector:', error);
+    console.warn('📸 [FACE DETECTION] Native module may not be available. Face detection will be disabled.');
+    faceDetectorLoaded = true; // Mark as loaded to prevent repeated attempts
+    return null;
+  }
 }
 
 /**
@@ -45,50 +30,95 @@ async function getDetector() {
  * Returns newUri + scale factors so we can map box back to original.
  */
 async function normalizeImage(uri: string) {
-  // read image size using manipulator (cheap)
-  const info = await ImageManipulator.manipulateAsync(uri, [], { compress: 1, format: ImageManipulator.SaveFormat.JPEG });
-  // Unfortunately manipulator doesn't expose width/height here reliably across platforms without actions.
-  // We'll just resize to a max width of 512 and rely on returned width/height from the resize result.
+  console.log('📸 [FACE DETECTION] Normalizing image:', uri.substring(0, 100));
+  // Resize to a max width of 512 for faster detection
   const resized = await ImageManipulator.manipulateAsync(
     uri,
     [{ resize: { width: 512 } }],
     { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG }
   );
-
+  console.log('📸 [FACE DETECTION] Image resized to:', resized.width, 'x', resized.height);
   return resized.uri;
 }
 
+/**
+ * Detect face box from image URI using expo-face-detector
+ * Returns face bounding box in image coordinates, or null if no face detected or module unavailable
+ */
 export async function detectFaceBoxFromUri(originalUri: string): Promise<FaceBox | null> {
-  await ensureTfReady();
-  const det = await getDetector();
-
-  // Resize for stable & fast detection
-  const resizedUri = await normalizeImage(originalUri);
-
-  // tfjs-react-native decode
-  // @ts-ignore - EncodingType may not be in types
-  const imgB64 = await FileSystem.readAsStringAsync(resizedUri, { encoding: FileSystem.EncodingType?.Base64 || 'base64' });
-  const imgBuffer = tf.util.encodeString(imgB64, "base64").buffer as ArrayBuffer;
-  const raw = new Uint8Array(imgBuffer);
-  const imageTensor = decodeJpeg(raw);
-
+  const startTime = Date.now();
+  console.log('📸 [FACE DETECTION] ========== STARTING FACE DETECTION ==========');
+  console.log('📸 [FACE DETECTION] Original URI:', originalUri.substring(0, 100));
+  
   try {
-    const faces = await det.estimateFaces(imageTensor, { flipHorizontal: false });
-    if (!faces || faces.length === 0) return null;
+    // Try to load FaceDetector module
+    const Detector = await loadFaceDetector();
+    
+    if (!Detector) {
+      console.warn('📸 [FACE DETECTION] FaceDetector module not available. Returning null.');
+      console.warn('📸 [FACE DETECTION] To enable face detection, ensure expo-face-detector is properly configured in app.json and rebuild the app.');
+      return null;
+    }
+    
+    // Resize for stable & fast detection
+    const resizedUri = await normalizeImage(originalUri);
+    
+    console.log('📸 [FACE DETECTION] Calling FaceDetector.detectFacesAsync...');
+    
+    // Use expo-face-detector to detect faces
+    // Options: fast mode for speed, detect only 1 face
+    const faces = await Detector.detectFacesAsync(resizedUri, {
+      mode: Detector.Constants.Mode.fast, // fast mode for speed
+      detectLandmarks: Detector.Constants.Landmarks.none, // we don't need landmarks
+      runClassifications: Detector.Constants.Classifications.none, // we don't need classifications
+      minDetectionInterval: 0,
+      tracking: false,
+    });
+    
+    const detectionTime = Date.now() - startTime;
+    console.log('📸 [FACE DETECTION] Detection completed in:', detectionTime, 'ms');
+    console.log('📸 [FACE DETECTION] Faces detected:', faces?.faces?.length || 0);
+    
+    if (!faces || !faces.faces || faces.faces.length === 0) {
+      console.log('📸 [FACE DETECTION] No face detected in image');
+      return null;
+    }
 
-    const box = faces[0].box; // {xMin, yMin, width, height}
+    // Get the first face (we only need one)
+    const face = faces.faces[0];
+    console.log('📸 [FACE DETECTION] Face data:', {
+      bounds: face.bounds,
+      rollAngle: face.rollAngle,
+      yawAngle: face.yawAngle,
+    });
 
-    // IMPORTANT:
-    // Since we resized the image for detection, you should analyze the SAME resized image on server OR map back.
-    // Easiest MVP: upload the same resized image used for detection.
-    // So we return faceBox in resized-image coordinates.
-    return {
-      x: Math.max(0, Math.floor(box.xMin)),
-      y: Math.max(0, Math.floor(box.yMin)),
-      width: Math.max(1, Math.floor(box.width)),
-      height: Math.max(1, Math.floor(box.height)),
+    // expo-face-detector returns bounds as { origin: { x, y }, size: { width, height } }
+    const bounds = face.bounds;
+    const faceBox: FaceBox = {
+      x: Math.max(0, Math.floor(bounds.origin.x)),
+      y: Math.max(0, Math.floor(bounds.origin.y)),
+      width: Math.max(1, Math.floor(bounds.size.width)),
+      height: Math.max(1, Math.floor(bounds.size.height)),
     };
-  } finally {
-    imageTensor.dispose();
+    
+    console.log('📸 [FACE DETECTION] Face box (resized image coordinates):', faceBox);
+    console.log('📸 [FACE DETECTION] ========== FACE DETECTION COMPLETE ==========');
+    
+    return faceBox;
+  } catch (error: any) {
+    const errorTime = Date.now() - startTime;
+    console.error('📸 [FACE DETECTION] Error during face detection:', error);
+    console.error('📸 [FACE DETECTION] Error message:', error?.message || 'Unknown error');
+    console.error('📸 [FACE DETECTION] Error time:', errorTime, 'ms');
+    
+    // Check if it's a native module error
+    if (error?.message?.includes('Cannot find native module') || 
+        error?.message?.includes('ExpoFaceDetector')) {
+      console.warn('📸 [FACE DETECTION] Native module not found. Please add expo-face-detector plugin to app.json and rebuild.');
+      console.warn('📸 [FACE DETECTION] Face detection will be disabled until native module is available.');
+    }
+    
+    // Return null on error - caller will handle gracefully
+    return null;
   }
 }

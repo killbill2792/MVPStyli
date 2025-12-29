@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, Image, Platform, KeyboardAvoidingView, Keyboard, Modal, FlatList, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView, Keyboard, Modal, FlatList, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, Typography, Spacing, BorderRadius, TextStyles, getColors } from '../lib/designSystem';
@@ -7,6 +7,7 @@ import { isUrl, importProductFromUrl, searchWebProducts, normalizeProduct } from
 import { useApp } from '../lib/AppContext';
 import { trackEvent } from '../lib/styleEngine';
 import { supabase } from '../lib/supabase';
+import { SafeImage, OptimizedImage } from '../lib/OptimizedImage';
 
 export default function ChatScreen({ onBack, onProductSelect }) {
   const { state } = useApp();
@@ -601,7 +602,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
                   maxWidth: '80%'
                 }}>
                   {msg.image && (
-                    <Image 
+                    <OptimizedImage 
                       source={{ uri: msg.image }} 
                       style={{ 
                         width: 200, 
@@ -653,15 +654,27 @@ export default function ChatScreen({ onBack, onProductSelect }) {
                             borderColor: Colors.border,
                           }}
                         >
-                          <Image 
-                            source={{ uri: product.image }} 
-                            style={{ 
+                          {(product.image || product.imageUrl) ? (
+                            <OptimizedImage 
+                              source={{ uri: product.image || product.imageUrl }} 
+                              style={{ 
+                                width: '100%', 
+                                height: 150,
+                                backgroundColor: Colors.backgroundSecondary
+                              }}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View style={{ 
                               width: '100%', 
                               height: 150,
-                              backgroundColor: Colors.backgroundSecondary
-                            }}
-                            resizeMode="cover"
-                          />
+                              backgroundColor: Colors.backgroundSecondary,
+                              justifyContent: 'center',
+                              alignItems: 'center'
+                            }}>
+                              <Text style={{ ...TextStyles.caption, color: Colors.textSecondary }}>No Image</Text>
+                            </View>
+                          )}
                           <View style={{ padding: Spacing.sm }}>
                             <Text 
                               style={{ ...TextStyles.small, fontWeight: Typography.semibold }}

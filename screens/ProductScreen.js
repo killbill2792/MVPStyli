@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Image, ScrollView, Pressable, StyleSheet, TextInput, Dimensions, Modal, FlatList, Animated, Linking, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, TextInput, Dimensions, Modal, FlatList, Animated, Linking, ActivityIndicator } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../lib/AppContext';
 import { Colors } from '../lib/designSystem';
@@ -9,6 +9,7 @@ import BottomBar from '../components/BottomBar';
 import AskAISheet from '../components/AskAISheet';
 import { supabase } from '../lib/supabase';
 import { formatInchesAsFraction } from '../lib/measurementUtils';
+import { SafeImage, OptimizedImage } from '../lib/OptimizedImage';
 
 // Helper function to get hex color from color name
 const getColorHexFromName = (colorName) => {
@@ -52,32 +53,6 @@ const getColorHexFromName = (colorName) => {
 };
 
 const { width, height } = Dimensions.get('window');
-
-// Safe Image Component
-const SafeImage = ({ source, style, resizeMode, ...props }) => {
-  const [error, setError] = useState(false);
-  
-  if (error || !source || !source.uri || typeof source.uri !== 'string') {
-    return (
-      <View style={[style, { backgroundColor: '#333', justifyContent: 'center', alignItems: 'center' }]}>
-         <Text style={{ fontSize: 10, color: '#666' }}>IMG</Text>
-      </View>
-    );
-  }
-
-  return (
-    <Image 
-      source={source} 
-      style={style} 
-      resizeMode={resizeMode} 
-      onError={(e) => {
-        console.log('Image load error:', e.nativeEvent.error, source.uri);
-        setError(true);
-      }}
-      {...props} 
-    />
-  );
-};
 
 const ProductScreen = ({ onBack }) => {
   const { state, setRoute, setPriceTracking, setCurrentProduct, setSavedFits, setBannerMessage, setBannerType } = useApp();

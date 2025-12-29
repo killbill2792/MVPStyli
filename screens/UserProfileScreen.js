@@ -6,7 +6,6 @@ import {
   Pressable,
   ScrollView,
   Dimensions,
-  Image,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,6 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../lib/supabase';
 import { useApp } from '../lib/AppContext';
 import { sendFriendRequest, areFriends, hasSentFriendRequest, unfriend } from '../lib/friends';
+import { SafeImage, OptimizedImage } from '../lib/OptimizedImage';
 
 const { width } = Dimensions.get('window');
 
@@ -174,8 +174,17 @@ const UserProfileScreen = ({ userId, onBack, onPodGuest, onViewTryOn }) => {
           >
             <View style={styles.avatar}>
               {profile.avatar_url ? (
-                <Image source={{ uri: profile.avatar_url }} style={styles.avatarImage} />
-              ) : (
+                <OptimizedImage 
+                  source={{ uri: profile.avatar_url }} 
+                  style={styles.avatarImage} 
+                  resizeMode="cover"
+                  onError={() => {
+                    // Clear avatar_url on error so letter shows
+                    setProfile(prev => ({ ...prev, avatar_url: null }));
+                  }}
+                />
+              ) : null}
+              {!profile.avatar_url && (
                 <Text style={styles.avatarText}>{(profile.name || 'U')[0].toUpperCase()}</Text>
               )}
             </View>
@@ -258,7 +267,7 @@ const UserProfileScreen = ({ userId, onBack, onPodGuest, onViewTryOn }) => {
                   style={styles.podCard}
                   onPress={() => onPodGuest && onPodGuest(pod.id)}
                 >
-                  <Image source={{ uri: pod.image_url }} style={styles.podImage} />
+                  <OptimizedImage source={{ uri: pod.image_url }} style={styles.podImage} resizeMode="cover" />
                   <View style={styles.podOverlay}>
                     <Text style={styles.podTitle} numberOfLines={2}>{pod.title}</Text>
                   </View>
@@ -279,7 +288,7 @@ const UserProfileScreen = ({ userId, onBack, onPodGuest, onViewTryOn }) => {
                   style={styles.tryOnCard}
                   onPress={() => onViewTryOn && onViewTryOn(tryOn)}
                 >
-                  <Image source={{ uri: tryOn.result_url }} style={styles.tryOnImage} />
+                  <OptimizedImage source={{ uri: tryOn.result_url }} style={styles.tryOnImage} resizeMode="cover" />
                 </Pressable>
               ))}
             </ScrollView>

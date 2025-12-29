@@ -5,7 +5,6 @@ import {
   StyleSheet,
   Pressable,
   Dimensions,
-  Image,
   Share,
   ActivityIndicator
 } from 'react-native';
@@ -20,32 +19,7 @@ import {
 } from '../lib/pods';
 import { buildShareUrl } from '../lib/share';
 import { supabase } from '../lib/supabase';
-
-// Safe Image Component
-const SafeImage = ({ source, style, resizeMode, ...props }) => {
-  const [error, setError] = useState(false);
-  
-  if (error || !source || !source.uri || typeof source.uri !== 'string') {
-    return (
-      <View style={[style, { backgroundColor: '#333', justifyContent: 'center', alignItems: 'center' }]}>
-         <Text style={{ fontSize: 10, color: '#666' }}>IMG</Text>
-      </View>
-    );
-  }
-
-  return (
-    <Image 
-      source={source} 
-      style={style} 
-      resizeMode={resizeMode} 
-      onError={(e) => {
-        console.log('Image load error:', e.nativeEvent.error, source.uri);
-        setError(true);
-      }}
-      {...props} 
-    />
-  );
-};
+import { SafeImage, OptimizedImage } from '../lib/OptimizedImage';
 
 // Helper to parse image URI
 const getValidImageUri = (imageField) => {

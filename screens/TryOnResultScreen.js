@@ -1,37 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Image, StyleSheet, Pressable, Dimensions, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Dimensions, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../lib/AppContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../lib/supabase';
 import { trackEvent } from '../lib/styleEngine';
 import AskAISheet from '../components/AskAISheet';
-
-// Safe Image Component
-const SafeImage = ({ source, style, resizeMode, ...props }) => {
-  const [error, setError] = useState(false);
-  
-  if (error || !source || !source.uri || typeof source.uri !== 'string') {
-    return (
-      <View style={[style, { backgroundColor: '#333', justifyContent: 'center', alignItems: 'center' }]}>
-         <Text style={{ fontSize: 10, color: '#666' }}>IMG</Text>
-      </View>
-    );
-  }
-
-  return (
-    <Image 
-      source={source} 
-      style={style} 
-      resizeMode={resizeMode} 
-      onError={(e) => {
-        console.log('Image load error:', e.nativeEvent.error, source.uri);
-        setError(true);
-      }}
-      {...props} 
-    />
-  );
-};
+import { SafeImage, OptimizedImage } from '../lib/OptimizedImage';
 
 const { width, height } = Dimensions.get('window');
 

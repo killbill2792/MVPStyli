@@ -6,7 +6,6 @@ import {
   Pressable,
   ScrollView,
   Dimensions,
-  Image,
   FlatList,
   ActivityIndicator,
   TextInput,
@@ -35,32 +34,7 @@ import PhotoGuidelinesModal from '../components/PhotoGuidelinesModal';
 import PhotoGuidelinesScreen from '../components/PhotoGuidelinesScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { cmToInches, inchesToCm, parseMeasurementToInches, formatInchesAsFraction, parseHeightToInches } from '../lib/measurementUtils';
-
-// Safe Image Component to prevent crashes
-const SafeImage = ({ source, style, resizeMode, ...props }) => {
-  const [error, setError] = useState(false);
-  
-  if (error || !source || !source.uri || typeof source.uri !== 'string') {
-    return (
-      <View style={[style, { backgroundColor: '#333', justifyContent: 'center', alignItems: 'center' }]}>
-         <Text style={{ fontSize: 10, color: '#666' }}>IMG</Text>
-      </View>
-    );
-  }
-
-  return (
-    <Image 
-      source={source} 
-      style={style} 
-      resizeMode={resizeMode} 
-      onError={(e) => {
-        console.log('Image load error:', e.nativeEvent.error, source.uri);
-        setError(true);
-      }}
-      {...props} 
-    />
-  );
-};
+import { SafeImage, OptimizedImage } from '../lib/OptimizedImage';
 
 // Helper to parse image URI from potential JSON string
 const getValidImageUri = (imageField) => {
@@ -1226,8 +1200,14 @@ const StyleVaultScreen = () => {
             >
               <View style={styles.avatar}>
                 {profilePic && typeof profilePic === 'string' ? (
-                  <SafeImage source={{ uri: profilePic }} style={styles.avatarImage} resizeMode="cover" />
-                ) : (
+                  <SafeImage 
+                    source={{ uri: profilePic }} 
+                    style={styles.avatarImage} 
+                    resizeMode="cover"
+                    onError={() => setProfilePic(null)}
+                  />
+                ) : null}
+                {(!profilePic || typeof profilePic !== 'string') && (
                   <Text style={styles.avatarText}>{username ? username[0].toUpperCase() : 'U'}</Text>
                 )}
               </View>
@@ -1331,9 +1311,10 @@ const StyleVaultScreen = () => {
                             <ActivityIndicator size="small" color="#6366f1" />
                           </View>
                         ) : faceImage ? (
-                          <Image 
+                          <OptimizedImage 
                             source={{ uri: faceImage }} 
                             style={styles.colorProfileFaceThumbnail}
+                            onError={() => setFaceImage(null)}
                           />
                         ) : (
                           <View style={[styles.colorProfileFaceThumbnail, styles.colorProfileFacePlaceholder]}>
@@ -1457,11 +1438,13 @@ const StyleVaultScreen = () => {
                 <View style={{ alignItems: 'flex-end', marginLeft: 'auto' }}>
                 <Pressable onPress={() => setShowBodyPhotoGuidelines(true)}>
                   {bodyImage ? (
-                    <Image 
+                    <OptimizedImage 
                       source={{ uri: bodyImage }} 
                       style={styles.fitProfilePhotoThumbnail}
+                      onError={() => setBodyImage(null)}
                     />
-                  ) : (
+                  ) : null}
+                  {!bodyImage && (
                     <View style={[styles.fitProfilePhotoThumbnail, styles.fitProfilePhotoPlaceholder]}>
                       <Text style={styles.fitProfilePhotoPlaceholderText}>📸</Text>
                     </View>

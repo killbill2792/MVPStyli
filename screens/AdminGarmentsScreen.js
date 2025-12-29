@@ -6,7 +6,6 @@ import {
   ScrollView,
   TextInput,
   Pressable,
-  Image,
   Alert,
   ActivityIndicator,
   Modal,
@@ -21,6 +20,7 @@ import { useApp } from '../lib/AppContext';
 import { supabase } from '../lib/supabase';
 import { uploadImageAsync } from '../lib/upload';
 import { Colors, Typography, Spacing, BorderRadius, CardStyles, TextStyles } from '../lib/designSystem';
+import { SafeImage, OptimizedImage } from '../lib/OptimizedImage';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE;
 
@@ -879,7 +879,7 @@ const AdminGarmentsScreen = ({ onBack }) => {
   const renderGarmentCard = ({ item }) => (
     <View style={styles.garmentCard}>
       {item.image_url && (
-        <Image source={{ uri: item.image_url }} style={styles.garmentImage} />
+        <OptimizedImage source={{ uri: item.image_url }} style={styles.garmentImage} resizeMode="cover" />
       )}
       <View style={styles.garmentInfo}>
         <Text style={styles.garmentName}>{item.name}</Text>
@@ -1133,7 +1133,7 @@ const AdminGarmentsScreen = ({ onBack }) => {
                 <Text style={styles.inputLabel}>Main Image</Text>
                 {formData.image_url ? (
                   <View>
-                    <Image source={{ uri: formData.image_url }} style={styles.previewImage} />
+                    <OptimizedImage source={{ uri: formData.image_url }} style={styles.previewImage} resizeMode="cover" />
                     <View style={{ flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm }}>
                       <Pressable style={styles.changeImageButton} onPress={() => handleImagePicker(true)}>
                         <Text style={styles.changeImageButtonText}>Change Main</Text>
@@ -1162,7 +1162,7 @@ const AdminGarmentsScreen = ({ onBack }) => {
                   <ScrollView horizontal style={{ marginTop: Spacing.sm }}>
                     {formData.additional_images.map((url, index) => (
                       <View key={index} style={{ marginRight: Spacing.sm, position: 'relative' }}>
-                        <Image source={{ uri: url }} style={[styles.previewImage, { width: 120, height: 120 }]} />
+                        <OptimizedImage source={{ uri: url }} style={[styles.previewImage, { width: 120, height: 120 }]} resizeMode="cover" />
                         <Pressable
                           style={{
                             position: 'absolute',
@@ -1481,7 +1481,7 @@ const AdminGarmentsScreen = ({ onBack }) => {
                           
                           return (
                             <View style={{ flex: 1, width: '100%' }} {...panResponder.panHandlers}>
-                              <Image
+                              <OptimizedImage
                                 source={{ uri: formData.image_url }}
                                 style={{ 
                                   width: '100%', 

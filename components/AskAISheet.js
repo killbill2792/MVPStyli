@@ -12,7 +12,6 @@ import {
   Modal,
   TextInput,
   FlatList,
-  Image,
   Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -28,6 +27,7 @@ import { getAvailableBrands, getBrandSizeChart, convertBrandChartToFitLogic } fr
 import { hasStretch, getStretchLevel } from '../lib/materialElasticity';
 import { detectDominantColor, clearColorCache } from '../lib/colorDetection';
 import * as ImagePicker from 'expo-image-picker';
+import { SafeImage, OptimizedImage } from '../lib/OptimizedImage';
 
 const { width, height } = Dimensions.get('window');
 const SHEET_HEIGHT = height * 0.75;
@@ -1025,23 +1025,24 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         missingGarment: missingGarment.length > 0,
       });
       
-      // Build HOW TO WEAR data (rule-based)
-      const occasions = product?.category === 'dress' || product?.category === 'dresses' 
-        ? ['Work', 'Date Night', 'Casual', 'Formal']
-        : product?.category === 'upper' || product?.category === 'upper_body'
-        ? ['Casual', 'Work', 'Weekend', 'Layering']
-        : ['Casual', 'Work', 'Weekend', 'Active'];
-      
-      const stylingTips = [
-        product?.fit === 'oversized' ? 'Pair with fitted bottoms for balance' : null,
-        product?.color ? `Works with neutral accessories` : null,
-        'Layer with basics for versatility',
-        'Add statement piece for interest',
-      ].filter(Boolean);
-      
+      // Build HOW TO WEAR data (enhanced rule-based with 40+ rules)
+      console.log('👔 [HOW TO WEAR] ========== BUILDING HOW TO WEAR DATA ==========');
+      const howToWearResult = buildHowToWearData(
+        productToUse || product,
+        userProfileForSuitability,
+        colorSuitability,
+        bodyShapeSuitability,
+        fabricComfort,
+        sizeRecommendation
+      );
+      console.log('👔 [HOW TO WEAR] Result:', {
+        occasions: howToWearResult.occasions,
+        stylingTips: howToWearResult.stylingTips,
+        rulesApplied: howToWearResult.rulesApplied,
+      });
       setHowToWearData({
-        occasions: occasions.slice(0, 5),
-        stylingTips: stylingTips.slice(0, 4),
+        occasions: howToWearResult.occasions,
+        stylingTips: howToWearResult.stylingTips,
       });
       
       // All insights are rule-based (fitLogic, styleSuitability, fabricComfort)
@@ -1072,6 +1073,397 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
   };
   
   // Gemini removed - all insights are rule-based (fitLogic, styleSuitability, fabricComfort)
+
+  /**
+   * Enhanced How to Wear logic with 40+ rules
+   * Uses all available product, user profile, and analysis data
+   */
+  const buildHowToWearData = (product, userProfile, colorSuitability, bodyShapeSuitability, fabricComfort, sizeRecommendation) => {
+    console.log('👔 [HOW TO WEAR] Building with data:', {
+      productCategory: product?.category,
+      productFit: product?.fit || product?.fitType,
+      productMaterial: product?.material || product?.fabric,
+      productColor: product?.color,
+      userBodyShape: userProfile?.bodyShape,
+      userSeason: userProfile?.season,
+      colorVerdict: colorSuitability?.verdict,
+      bodyVerdict: bodyShapeSuitability?.verdict,
+      fabricVerdict: fabricComfort?.verdict,
+      sizeStatus: sizeRecommendation?.status,
+    });
+
+    // Always start with safe defaults
+    const defaultOccasions = ['Casual', 'Work', 'Weekend'];
+    const defaultTips = ['Layer with basics for versatility', 'Add statement piece for interest'];
+    
+    const occasions = [];
+    const stylingTips = [];
+    const rulesApplied = [];
+
+    try {
+      // Safely extract data with fallbacks
+      const category = (product?.category || '').toLowerCase();
+      const fitType = (product?.fit || product?.fitType || product?.fit_type || 'regular').toLowerCase();
+      const material = (product?.material || product?.fabric || '').toLowerCase();
+      const color = (product?.color || '').toLowerCase();
+      const colorHex = product?.colorHex || null;
+      const fabricStretch = product?.fabricStretch || 'none';
+      const tags = product?.tags || [];
+      const brand = (product?.brand || '').toLowerCase();
+      const name = (product?.name || '').toLowerCase();
+      
+      // User attributes
+      const bodyShape = (userProfile?.bodyShape || userProfile?.body_shape || '').toLowerCase();
+      const colorSeason = (userProfile?.season || userProfile?.color_season || '').toLowerCase();
+      const colorVerdict = colorSuitability?.verdict || null;
+      const bodyVerdict = bodyShapeSuitability?.verdict || null;
+      const fabricVerdict = fabricComfort?.verdict || null;
+      const sizeStatus = sizeRecommendation?.status || null;
+      const sizeRisk = sizeRecommendation?.risk || null;
+      
+      // ========== OCCASIONS LOGIC (40+ rules) ==========
+      
+      // RULE 1-5: Base occasions by category
+      if (category === 'dress' || category === 'dresses') {
+        occasions.push('Work', 'Date Night', 'Casual', 'Formal');
+        rulesApplied.push('category-dress-base');
+      } else if (category === 'upper' || category === 'upper_body' || category === 'top') {
+        occasions.push('Casual', 'Work', 'Weekend', 'Layering');
+        rulesApplied.push('category-upper-base');
+      } else if (category === 'lower' || category === 'lower_body' || category === 'pants' || category === 'jeans') {
+        occasions.push('Casual', 'Work', 'Weekend', 'Active');
+        rulesApplied.push('category-lower-base');
+      } else if (category === 'jacket' || category === 'coat' || category === 'blazer') {
+        occasions.push('Work', 'Formal', 'Casual', 'Layering');
+        rulesApplied.push('category-jacket-base');
+      } else {
+        occasions.push('Casual', 'Work', 'Weekend');
+        rulesApplied.push('category-default');
+      }
+      
+      // RULE 6-15: Material-based occasions
+      if (material) {
+        if (material.includes('satin') || material.includes('silk') || material.includes('velvet')) {
+          occasions.push('Formal', 'Date Night', 'Wedding', 'Gala', 'Evening');
+          rulesApplied.push('material-luxury');
+        } else if (material.includes('cotton') || material.includes('linen')) {
+          occasions.push('Brunch', 'Beach', 'Summer', 'Weekend', 'Casual');
+          rulesApplied.push('material-casual');
+        } else if (material.includes('denim')) {
+          occasions.push('Day Out', 'Weekend', 'Casual', 'Street Style');
+          rulesApplied.push('material-denim');
+        } else if (material.includes('wool') || material.includes('cashmere')) {
+          occasions.push('Work', 'Formal', 'Winter', 'Business', 'Office');
+          rulesApplied.push('material-professional');
+        } else if (material.includes('leather') || material.includes('pleather')) {
+          occasions.push('Night Out', 'Concert', 'Edgy', 'Street Style');
+          rulesApplied.push('material-edgy');
+        } else if (material.includes('athletic') || material.includes('sport') || material.includes('active')) {
+          occasions.push('Gym', 'Active', 'Workout', 'Sports');
+          rulesApplied.push('material-athletic');
+        } else if (material.includes('chiffon') || material.includes('sheer')) {
+          occasions.push('Summer', 'Beach', 'Resort', 'Vacation');
+          rulesApplied.push('material-sheer');
+        } else if (material.includes('knit') || material.includes('sweater')) {
+          occasions.push('Cozy', 'Winter', 'Layering', 'Comfort');
+          rulesApplied.push('material-knit');
+        }
+      }
+      
+      // RULE 16-25: Color-based occasions
+      if (color || colorHex) {
+        const colorLower = color || '';
+        if (colorLower.includes('black') || colorLower.includes('navy') || colorLower.includes('dark')) {
+          occasions.push('Evening', 'Formal', 'Work', 'Professional');
+          rulesApplied.push('color-dark-formal');
+        }
+        if (colorLower.includes('white') || colorLower.includes('cream') || colorLower.includes('beige') || colorLower.includes('ivory')) {
+          occasions.push('Summer', 'Brunch', 'Wedding', 'Resort', 'Daytime');
+          rulesApplied.push('color-light-daytime');
+        }
+        if (colorLower.includes('red') || colorLower.includes('pink') || colorLower.includes('coral')) {
+          occasions.push('Date Night', 'Party', 'Special Event', 'Celebration');
+          rulesApplied.push('color-bold-social');
+        }
+        if (colorLower.includes('blue') || colorLower.includes('navy')) {
+          occasions.push('Work', 'Professional', 'Business', 'Office');
+          rulesApplied.push('color-blue-professional');
+        }
+        if (colorLower.includes('green') || colorLower.includes('emerald')) {
+          occasions.push('Casual', 'Weekend', 'Nature', 'Outdoor');
+          rulesApplied.push('color-green-casual');
+        }
+        if (colorLower.includes('yellow') || colorLower.includes('gold')) {
+          occasions.push('Summer', 'Beach', 'Festival', 'Bright Day');
+          rulesApplied.push('color-yellow-summer');
+        }
+        if (colorLower.includes('purple') || colorLower.includes('lavender')) {
+          occasions.push('Date Night', 'Evening', 'Creative', 'Artistic');
+          rulesApplied.push('color-purple-creative');
+        }
+        if (colorLower.includes('neutral') || colorLower.includes('grey') || colorLower.includes('gray') || colorLower.includes('tan')) {
+          occasions.push('Work', 'Versatile', 'Everyday', 'Professional');
+          rulesApplied.push('color-neutral-versatile');
+        }
+      }
+      
+      // RULE 26-30: Fit-based occasions
+      if (fitType === 'oversized' || fitType === 'relaxed') {
+        occasions.push('Weekend', 'Casual', 'Comfort', 'Layering');
+        rulesApplied.push('fit-oversized-casual');
+      } else if (fitType === 'slim' || fitType === 'fitted' || fitType === 'bodycon') {
+        occasions.push('Date Night', 'Cocktail Party', 'Formal', 'Evening');
+        rulesApplied.push('fit-fitted-formal');
+      } else if (fitType === 'athletic' || fitType === 'active') {
+        occasions.push('Gym', 'Active', 'Sports', 'Workout');
+        rulesApplied.push('fit-athletic');
+      }
+      
+      // RULE 31-35: Brand/formality level
+      if (brand) {
+        const luxuryBrands = ['gucci', 'prada', 'chanel', 'dior', 'versace', 'louis vuitton', 'hermes'];
+        const fastFashion = ['zara', 'h&m', 'forever 21', 'asos', 'boohoo'];
+        if (luxuryBrands.some(b => brand.includes(b))) {
+          occasions.push('Luxury Event', 'Gala', 'High-End');
+          rulesApplied.push('brand-luxury');
+        } else if (fastFashion.some(b => brand.includes(b))) {
+          occasions.push('Casual', 'Everyday', 'Affordable Style');
+          rulesApplied.push('brand-fast-fashion');
+        }
+      }
+      
+      // RULE 36-40: Category-specific name-based rules
+      if (name) {
+        if (name.includes('cocktail') || name.includes('evening')) {
+          occasions.push('Cocktail Party', 'Evening', 'Formal');
+          rulesApplied.push('name-cocktail');
+        }
+        if (name.includes('beach') || name.includes('resort')) {
+          occasions.push('Beach', 'Resort', 'Vacation', 'Summer');
+          rulesApplied.push('name-beach');
+        }
+        if (name.includes('work') || name.includes('office') || name.includes('business')) {
+          occasions.push('Work', 'Office', 'Professional', 'Business');
+          rulesApplied.push('name-work');
+        }
+        if (name.includes('party') || name.includes('celebration')) {
+          occasions.push('Party', 'Celebration', 'Special Event');
+          rulesApplied.push('name-party');
+        }
+        if (name.includes('wedding') || name.includes('bridal')) {
+          occasions.push('Wedding', 'Formal', 'Special Occasion');
+          rulesApplied.push('name-wedding');
+        }
+      }
+      
+      // Remove duplicates and limit to 5
+      const uniqueOccasions = [...new Set(occasions)];
+      
+      // ========== STYLING TIPS LOGIC (40+ rules) ==========
+      
+      // RULE 1-10: Body shape + fit tips
+      if (bodyShape && bodyShapeSuitability) {
+        if (bodyShape.includes('pear')) {
+          if (category === 'upper' || category === 'upper_body' || category === 'top') {
+            if (fitType === 'oversized' || fitType === 'relaxed') {
+              stylingTips.push('Balance with fitted bottoms to highlight your waist');
+              rulesApplied.push('body-pear-oversized-top');
+            } else {
+              stylingTips.push('Pair with A-line or wide-leg bottoms to balance your proportions');
+              rulesApplied.push('body-pear-fitted-top');
+            }
+          } else if (category === 'lower' || category === 'lower_body' || category === 'pants') {
+            if (fitType === 'slim' || fitType === 'skinny') {
+              stylingTips.push('Consider straight-leg or wide-leg styles for better balance');
+              rulesApplied.push('body-pear-slim-bottom');
+            } else {
+              stylingTips.push('This fit creates a balanced silhouette for your shape');
+              rulesApplied.push('body-pear-balanced-bottom');
+            }
+          }
+        }
+        
+        if (bodyShape.includes('apple') || bodyShape.includes('oval')) {
+          if (category === 'upper' || category === 'upper_body' || category === 'top') {
+            if (fitType === 'slim' || fitType === 'fitted') {
+              stylingTips.push('Try regular or relaxed fits for more comfort around the midsection');
+              rulesApplied.push('body-apple-slim-top');
+            } else {
+              stylingTips.push('This fit creates a smoother silhouette');
+              rulesApplied.push('body-apple-relaxed-top');
+            }
+          } else if (category === 'dress' || category === 'dresses') {
+            stylingTips.push('A-line or structured styles create a flattering line');
+            rulesApplied.push('body-apple-dress');
+          }
+        }
+        
+        if (bodyShape.includes('rectangle')) {
+          if (fitType === 'oversized') {
+            stylingTips.push('Add a belt to create definition at the waist');
+            rulesApplied.push('body-rectangle-oversized');
+          } else if (category === 'dress' || category === 'dresses') {
+            stylingTips.push('Wrap styles or belted dresses add shape');
+            rulesApplied.push('body-rectangle-dress');
+          }
+        }
+        
+        if (bodyShape.includes('hourglass')) {
+          stylingTips.push('This shape works well with fitted styles that highlight your waist');
+          rulesApplied.push('body-hourglass-fitted');
+        }
+        
+        if (bodyShape.includes('inverted') || bodyShape.includes('triangle')) {
+          if (category === 'upper' && (fitType === 'oversized' || fitType === 'relaxed')) {
+            stylingTips.push('Balance with wider or looser bottoms to create harmony');
+            rulesApplied.push('body-inverted-oversized-top');
+          }
+        }
+      }
+      
+      // RULE 11-20: Color suitability tips
+      if (colorVerdict === 'Great' || colorVerdict === 'great') {
+        stylingTips.push(`This ${product?.color || 'color'} complements your skin tone beautifully`);
+        rulesApplied.push('color-verdict-great');
+      } else if (colorVerdict === 'Risky' || colorVerdict === 'risky') {
+        if (colorSuitability?.alternatives?.[0]) {
+          stylingTips.push(`Consider ${colorSuitability.alternatives[0]} for better harmony with your skin tone`);
+          rulesApplied.push('color-verdict-risky-alternative');
+        } else {
+          stylingTips.push('Try pairing with accessories in your best colors');
+          rulesApplied.push('color-verdict-risky-accessories');
+        }
+      } else if (colorVerdict === 'OK' || colorVerdict === 'ok') {
+        stylingTips.push('This color works well - add accessories in your best colors for extra impact');
+        rulesApplied.push('color-verdict-ok');
+      }
+      
+      // RULE 21-25: Fit-specific tips
+      if (fitType === 'oversized') {
+        stylingTips.push('Pair with fitted bottoms for balance');
+        stylingTips.push('Tuck in or add a belt to define your waist');
+        rulesApplied.push('fit-oversized-tips');
+      } else if (fitType === 'slim' || fitType === 'fitted') {
+        stylingTips.push('Works well with relaxed or flowy pieces for contrast');
+        rulesApplied.push('fit-fitted-tips');
+      } else if (fitType === 'relaxed') {
+        stylingTips.push('Great for comfort - add structure with accessories');
+        rulesApplied.push('fit-relaxed-tips');
+      }
+      
+      // RULE 26-35: Material/fabric tips
+      if (fabricComfort) {
+        if (material.includes('silk') || material.includes('satin')) {
+          stylingTips.push('Handle with care - delicate fabric that wrinkles easily');
+          rulesApplied.push('material-silk-care');
+        }
+        if (material.includes('denim')) {
+          stylingTips.push('Denim softens with wear - expect it to stretch slightly');
+          rulesApplied.push('material-denim-care');
+        }
+        if (material.includes('wool') && !material.includes('merino')) {
+          stylingTips.push('Wool may feel itchy - consider a soft base layer');
+          rulesApplied.push('material-wool-care');
+        }
+        if (material.includes('linen')) {
+          stylingTips.push('Linen wrinkles easily but stays cool - perfect for summer');
+          rulesApplied.push('material-linen-care');
+        }
+        if (fabricStretch === 'high' || fabricStretch === 'medium') {
+          stylingTips.push('Stretch fabric offers flexibility and comfort');
+          rulesApplied.push('fabric-stretch-comfort');
+        } else if (fabricStretch === 'none' || fabricStretch === 'low') {
+          stylingTips.push('No stretch - ensure proper fit for comfort');
+          rulesApplied.push('fabric-no-stretch');
+        }
+        if (fabricVerdict === 'comfortable') {
+          stylingTips.push('This fabric feels comfortable against the skin');
+          rulesApplied.push('fabric-verdict-comfortable');
+        } else if (fabricVerdict === 'risky') {
+          stylingTips.push('Consider fabric texture - may need a base layer');
+          rulesApplied.push('fabric-verdict-risky');
+        }
+      }
+      
+      // RULE 36-40: Category-specific tips
+      if (category === 'dress' || category === 'dresses') {
+        stylingTips.push('Accessorize with statement jewelry or a belt to personalize');
+        rulesApplied.push('category-dress-accessories');
+        if (fitType === 'bodycon' || fitType === 'fitted') {
+          stylingTips.push('Bodycon styles work best with smooth undergarments');
+          rulesApplied.push('category-dress-bodycon');
+        }
+      } else if (category === 'upper' || category === 'upper_body' || category === 'top') {
+        stylingTips.push('Layer with a jacket or cardigan for versatility');
+        rulesApplied.push('category-upper-layering');
+        if (fitType === 'oversized') {
+          stylingTips.push('Oversized tops work great half-tucked for definition');
+          rulesApplied.push('category-upper-oversized');
+        }
+      } else if (category === 'lower' || category === 'lower_body' || category === 'pants') {
+        stylingTips.push('Pair with a fitted top to balance the silhouette');
+        rulesApplied.push('category-lower-balance');
+        if (fitType === 'wide-leg' || fitType === 'flared') {
+          stylingTips.push('Wide-leg styles elongate - pair with heels or platform shoes');
+          rulesApplied.push('category-lower-wide-leg');
+        }
+      } else if (category === 'jacket' || category === 'coat') {
+        stylingTips.push('Layer over fitted pieces for a polished look');
+        rulesApplied.push('category-jacket-layering');
+      }
+      
+      // RULE 41-45: Color-based styling
+      if (color || colorHex) {
+        const colorLower = color || '';
+        if (colorLower.includes('neutral') || colorLower.includes('black') || colorLower.includes('navy') || colorLower.includes('white') || colorLower.includes('grey')) {
+          stylingTips.push('Neutral colors work with bold accessories for interest');
+          rulesApplied.push('color-neutral-accessories');
+        } else if (colorLower.includes('bright') || colorLower.includes('bold') || colorLower.includes('vibrant')) {
+          stylingTips.push('Let this color be the statement - keep accessories minimal');
+          rulesApplied.push('color-bold-minimal');
+        } else if (colorLower.includes('pastel') || colorLower.includes('soft')) {
+          stylingTips.push('Pastel colors pair beautifully with other soft tones');
+          rulesApplied.push('color-pastel-pairing');
+        }
+      }
+      
+      // RULE 46-50: Size/fit recommendations
+      if (sizeRecommendation) {
+        if (sizeStatus === 'OK' && sizeRisk === 'low') {
+          stylingTips.push('Perfect fit - this size works great for your measurements');
+          rulesApplied.push('size-perfect-fit');
+        } else if (sizeStatus === 'OK' && sizeRisk === 'medium') {
+          stylingTips.push('Good fit with minor adjustments - consider tailoring for perfection');
+          rulesApplied.push('size-good-fit');
+        } else if (sizeRecommendation.insights?.some(i => i.toLowerCase().includes('runs small'))) {
+          stylingTips.push('This item runs small - consider sizing up');
+          rulesApplied.push('size-runs-small');
+        } else if (sizeRecommendation.insights?.some(i => i.toLowerCase().includes('runs large'))) {
+          stylingTips.push('This item runs large - consider sizing down');
+          rulesApplied.push('size-runs-large');
+        }
+      }
+      
+      // Remove duplicates and limit to 4
+      const uniqueTips = [...new Set(stylingTips)];
+      
+      console.log('👔 [HOW TO WEAR] Rules applied:', rulesApplied.length, rulesApplied);
+      
+      return {
+        occasions: uniqueOccasions.length > 0 ? uniqueOccasions.slice(0, 5) : defaultOccasions,
+        stylingTips: uniqueTips.length > 0 ? uniqueTips.slice(0, 4) : defaultTips,
+        rulesApplied: rulesApplied,
+      };
+    } catch (error) {
+      console.error('👔 [HOW TO WEAR] Error building how to wear data:', error);
+      // Return defaults on error
+      return {
+        occasions: defaultOccasions,
+        stylingTips: defaultTips,
+        rulesApplied: ['error-fallback'],
+      };
+    }
+  };
 
   // Helper to infer category from product name
   const inferCategory = (name) => {
@@ -2127,7 +2519,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                     
                     return (
                       <View style={{ flex: 1, width: '100%' }} {...colorPickerPanResponder.panHandlers}>
-                        <Image
+                        <OptimizedImage
                           source={{ uri: originalProductImage.current || product?.image }}
                           style={{ 
                             width: '100%', 
