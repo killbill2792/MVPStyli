@@ -2109,7 +2109,23 @@ export default function App() {
                                 handleSetRoute('product');
                             }}
                         >
-                            <OptimizedImage source={{ uri: p.image }} style={styles.productImage} resizeMode="cover" />
+                            {(p.image || p.imageUrl) ? (
+                                <OptimizedImage 
+                                    source={{ uri: p.image || p.imageUrl }} 
+                                    style={styles.productImage} 
+                                    resizeMode="cover"
+                                    showErrorPlaceholder={true}
+                                    placeholder={
+                                        <View style={[styles.productImage, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#222' }]}>
+                                            <ActivityIndicator size="small" color="#666" />
+                                        </View>
+                                    }
+                                />
+                            ) : (
+                                <View style={[styles.productImage, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#222' }]}>
+                                    <Text style={{ color: '#666', fontSize: 14 }}>No Image</Text>
+                                </View>
+                            )}
                             <View style={styles.productInfo}>
                                 <Text style={styles.productBrand}>{p.brand || 'Brand'}</Text>
                                 <Text style={styles.productName} numberOfLines={1}>{p.name}</Text>
