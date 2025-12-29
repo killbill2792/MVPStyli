@@ -385,11 +385,11 @@ export async function saveColorProfile(userId: string, profile: ColorProfile | E
 }
 
 // Load color profile from user's profile
-export async function loadColorProfile(userId: string): Promise<ColorProfile | null> {
+export async function loadColorProfile(userId: string): Promise<ColorProfile | ExtendedColorProfile | null> {
   try {
     const { data, error } = await supabase
       .from('profiles')
-      .select('color_tone, color_depth, color_season, best_colors, avoid_colors')
+      .select('color_tone, color_depth, color_season, best_colors, avoid_colors, skin_tone_confidence, skin_hex')
       .eq('id', userId)
       .single();
 
@@ -403,7 +403,7 @@ export async function loadColorProfile(userId: string): Promise<ColorProfile | n
       return null;
     }
 
-    return {
+    const profile: any = {
       tone: data.color_tone || 'neutral',
       depth: data.color_depth || 'medium',
       season: data.color_season,
@@ -411,6 +411,16 @@ export async function loadColorProfile(userId: string): Promise<ColorProfile | n
       avoidColors: data.avoid_colors || [],
       description: getSeasonProfile(data.color_season).description
     };
+
+    // Add optional fields if present
+    if (data.skin_tone_confidence !== null && data.skin_tone_confidence !== undefined) {
+      profile.confidence = data.skin_tone_confidence;
+    }
+    if (data.skin_hex) {
+      profile.skinHex = data.skin_hex;
+    }
+
+    return profile;
   } catch (error) {
     console.error('Error loading color profile:', error);
     return null;

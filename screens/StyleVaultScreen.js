@@ -1377,7 +1377,7 @@ const StyleVaultScreen = () => {
                   )}
                   
                   {/* Success state - show verdict */}
-                  {!isAnalyzingFace && !faceAnalysisError && colorProfile && colorProfile.confidence !== undefined && (
+                  {!isAnalyzingFace && !faceAnalysisError && colorProfile && (colorProfile.tone || colorProfile.depth || colorProfile.season) && (
                     <>
                       {colorProfile.needsConfirmation && colorProfile.season ? (
                         <View>
@@ -1412,10 +1412,10 @@ const StyleVaultScreen = () => {
                     </>
                   )}
                   
-                  {/* Initial state - no photo uploaded yet */}
-                  {!isAnalyzingFace && !faceAnalysisError && (!colorProfile || colorProfile.confidence === undefined) && (
+                  {/* Initial state - no photo uploaded yet or no profile data */}
+                  {!isAnalyzingFace && !faceAnalysisError && (!colorProfile || (!colorProfile.tone && !colorProfile.depth && !colorProfile.season)) && (
                     <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20, color: '#9ca3af', fontStyle: 'italic' }]}>
-                      Upload a face photo to get color analysis
+                      {faceImage ? 'Re-upload face photo to get color analysis' : 'Upload a face photo to get color analysis'}
                     </Text>
                   )}
                 </View>
