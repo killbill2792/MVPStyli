@@ -423,8 +423,9 @@ const PodsScreen = ({ onBack, onCreatePod, userId, userName, params }) => {
                       selectedDuration;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
+    <View style={styles.container}>
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+        <View style={styles.header}>
         <Pressable onPress={onBack} style={styles.backButton}>
           <Text style={styles.backButtonText}>✕</Text>
         </Pressable>
