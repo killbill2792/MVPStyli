@@ -1160,11 +1160,11 @@ const styles = StyleSheet.create({
   },
   helpFloatingButton: {
     position: 'absolute',
-    bottom: 100,
+    top: 100, // Temporarily at top for testing
     right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 80, // Larger for testing
+    height: 80, // Larger for testing
+    borderRadius: 40,
     backgroundColor: '#ff0000', // Bright red for testing visibility
     justifyContent: 'center',
     alignItems: 'center',
