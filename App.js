@@ -1391,23 +1391,6 @@ const TryOn = () => {
           </Pressable>
         </View>
         
-        {/* URL Input - Compact */}
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          <TextInput
-            style={styles.urlInput}
-            placeholder="Paste product URL..."
-            placeholderTextColor="#999"
-            value={urlInput}
-            onChangeText={setUrlInput}
-            onSubmitEditing={handleUrlSubmit}
-          />
-          <Pressable 
-            style={styles.urlGoBtn} 
-            onPress={handleUrlSubmit}
-          >
-            <Text style={styles.urlGoText}>Go</Text>
-          </Pressable>
-        </View>
       </View>
 
       {/* Actions */}
@@ -1485,10 +1468,10 @@ const TryOn = () => {
           </View>
         </View>
 
-        {/* Main Actions Row - 3 Buttons - All same size */}
+        {/* Main Action - Try On Button Only */}
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <Pressable 
-              style={[styles.primaryBtn, (isProcessing || !selectedCategory) && styles.disabledBtn, { flex: 1, height: 40 }]} 
+              style={[styles.primaryBtn, (isProcessing || !selectedCategory) && styles.disabledBtn, { flex: 1, height: 50 }]} 
               onPress={() => {
                 console.log('🎯 Try On button pressed with selectedCategory:', selectedCategory);
                 handleTryOn(selectedCategory);
@@ -1498,22 +1481,8 @@ const TryOn = () => {
               {isProcessing ? (
                   <ActivityIndicator color="#000" size="small" />
               ) : (
-                  <Text style={[styles.primaryBtnText, { fontSize: 13 }]}>✨ Try On</Text>
+                  <Text style={[styles.primaryBtnText, { fontSize: 16, fontWeight: '600' }]}>✨ Try On</Text>
               )}
-          </Pressable>
-
-          <Pressable 
-              style={[styles.secondaryBtn, { flex: 1, height: 40 }]} 
-              onPress={() => setRoute('createpod', { imageUrl: result || selectedImage, product: currentProduct })}
-          >
-              <Text style={[styles.secondaryBtnText, { fontSize: 12 }]}>💬 Ask Pod</Text>
-          </Pressable>
-
-          <Pressable 
-              style={[styles.secondaryBtn, { flex: 1, height: 40 }]} 
-              onPress={() => setRoute('stylecraft')}
-          >
-              <Text style={[styles.secondaryBtnText, { fontSize: 12 }]}>✂️ Style</Text>
           </Pressable>
         </View>
       </View>
@@ -2135,12 +2104,20 @@ export default function App() {
 
           {!isCheckingAuth && route === 'shop' && (
             <>
-              <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: 100 }}>
-                {/* Header */}
-                <View style={{ padding: 20, paddingTop: 60 }}>
-                    <Text style={styles.headerTitle}>Shop</Text>
-                </View>
-                
+              {/* Sticky Search Bar */}
+              <View style={styles.stickySearchBar}>
+                <Pressable 
+                  style={styles.stickySearchBarContent}
+                  onPress={() => setRoute('chat')}
+                >
+                  <View style={styles.searchBarIconContainer}>
+                    <Text style={styles.searchBarIcon}>S</Text>
+                  </View>
+                  <Text style={styles.stickySearchBarText}>Search Styles by your Vibe, Color or Budget</Text>
+                </Pressable>
+              </View>
+              
+              <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: 100, paddingTop: 80 }}>
                 {/* Product Grid */}
                 <View style={styles.productGrid}>
                     {(allProducts || []).map((p) => (

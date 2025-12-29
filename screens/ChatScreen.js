@@ -13,7 +13,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   const { user } = state;
   const [searchQuery, setSearchQuery] = useState('');
   const [chatHistory, setChatHistory] = useState([
-    { type: 'ai', message: 'Hi! I\'m your AI shopping assistant. Ask me anything like "show me red polka dot dresses" or "what dress would suit me?" You can also paste a product URL to get details!' }
+    { type: 'ai', message: 'Discover Products using smart search.\n\nDescribe what you want, we\'ll find matching items from internet.\n\nEx: Find me a Red Polka Dots, Dresses under $50 for women, Pink dinner dress, Dresses for Miami vacation etc' }
   ]);
   const [isSearching, setIsSearching] = useState(false);
   const [uploadedImage, setUploadedImage] = useState(null);
@@ -434,7 +434,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   };
 
   const handleSearchSubmit = async () => {
-    if (!searchQuery.trim() && !uploadedImage) return;
+    if (!searchQuery.trim()) return;
 
     const userMessage = searchQuery.trim();
     setSearchQuery('');
@@ -443,8 +443,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
     // Add user message to chat
     const newUserMessage = {
       type: 'user',
-      message: userMessage || 'Image uploaded',
-      image: uploadedImage
+      message: userMessage
     };
     setChatHistory(prev => [...prev, newUserMessage]);
     
@@ -453,8 +452,6 @@ export default function ChatScreen({ onBack, onProductSelect }) {
     if (convId && !currentConversationId) {
       setCurrentConversationId(convId);
     }
-    
-    setUploadedImage(null);
 
     // Track search event
     if (user?.id && userMessage) {
@@ -551,7 +548,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         
         {/* Center: Title */}
         <Pressable onPress={onBack} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Text style={{ color: Colors.textPrimary, fontSize: 17, fontWeight: '600' }}>Stylit AI</Text>
+          <Text style={{ color: Colors.textPrimary, fontSize: 17, fontWeight: '600' }}>Stylit Shop</Text>
           <Text style={{ color: Colors.textSecondary, fontSize: 12 }}>▼</Text>
         </Pressable>
         
@@ -716,44 +713,12 @@ export default function ChatScreen({ onBack, onProductSelect }) {
           gap: Spacing.xs, 
           alignItems: 'center',
         }}>
-            {uploadedImage ? (
-              <Pressable
-                onPress={() => setUploadedImage(null)}
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: BorderRadius.sm,
-                  overflow: 'hidden',
-                }}
-              >
-                <Image 
-                  source={{ uri: uploadedImage }} 
-                  style={{ width: 40, height: 40 }} 
-                  resizeMode="cover"
-                />
-              </Pressable>
-            ) : (
-              <Pressable
-                onPress={handleImageUpload}
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: BorderRadius.sm,
-                  backgroundColor: Colors.backgroundSecondary,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}
-              >
-                <Text style={{ fontSize: 18 }}>📷</Text>
-              </Pressable>
-            )}
-            
             <TextInput
               ref={textInputRef}
               value={searchQuery}
               onChangeText={setSearchQuery}
               onSubmitEditing={handleSearchSubmit}
-              placeholder="Ask me anything or paste a URL..."
+              placeholder="Search Products by Style, Color or Price..."
               placeholderTextColor={Colors.textSecondary}
               style={{ 
                 flex: 1, 
@@ -774,9 +739,9 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             
             <Pressable 
               onPress={handleSearchSubmit}
-              disabled={isSearching || (!searchQuery.trim() && !uploadedImage)}
+              disabled={isSearching || !searchQuery.trim()}
               style={{ 
-                backgroundColor: (isSearching || (!searchQuery.trim() && !uploadedImage)) ? Colors.backgroundSecondary : primaryColor,
+                backgroundColor: (isSearching || !searchQuery.trim()) ? Colors.backgroundSecondary : primaryColor,
                 paddingHorizontal: Spacing.md, 
                 paddingVertical: Spacing.sm,
                   height: 40,
@@ -787,7 +752,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
               }}
             >
               <Text style={{ 
-                color: (isSearching || (!searchQuery.trim() && !uploadedImage)) ? Colors.textSecondary : Colors.textWhite,
+                color: (isSearching || !searchQuery.trim()) ? Colors.textSecondary : Colors.textWhite,
                 fontSize: Typography.sm,
                 fontWeight: Typography.semibold,
               }}>

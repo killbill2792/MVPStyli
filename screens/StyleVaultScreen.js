@@ -1307,7 +1307,12 @@ const StyleVaultScreen = () => {
                   <View style={{ alignItems: 'center' }}>
                     <Pressable onPress={() => setShowFacePhotoGuidelines(true)} disabled={isAnalyzingFace}>
                       <View style={{ position: 'relative' }}>
-                        {faceImage ? (
+                        {isAnalyzingFace ? (
+                          // Show analyzing state - hide old photo
+                          <View style={[styles.colorProfileFaceThumbnail, styles.colorProfileFacePlaceholder, { backgroundColor: 'rgba(99, 102, 241, 0.3)' }]}>
+                            <ActivityIndicator size="small" color="#6366f1" />
+                          </View>
+                        ) : faceImage ? (
                           <Image 
                             source={{ uri: faceImage }} 
                             style={styles.colorProfileFaceThumbnail}
@@ -1317,15 +1322,10 @@ const StyleVaultScreen = () => {
                             <Text style={styles.colorProfileFacePlaceholderText}>🎨</Text>
                           </View>
                         )}
-                        {isAnalyzingFace && (
-                          <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20 }]}>
-                            <ActivityIndicator size="small" color="#6366f1" />
-                          </View>
-                        )}
                       </View>
                     </Pressable>
                     <Text style={styles.colorProfileFaceLabel}>
-                      {faceImage ? 'Your Face Photo' : 'Add Face Photo'}
+                      {isAnalyzingFace ? 'Analyzing...' : (faceImage ? 'Your Face Photo' : 'Add Face Photo')}
                     </Text>
                   </View>
                 </View>
