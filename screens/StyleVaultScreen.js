@@ -3611,6 +3611,27 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
+  colorProfileFaceThumbnail: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 2,
+    borderColor: '#6366f1',
+  },
+  colorProfileFacePlaceholder: {
+    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  colorProfileFacePlaceholderText: {
+    fontSize: 18,
+  },
+  colorProfileFaceLabel: {
+    fontSize: 10,
+    color: '#999',
+    textAlign: 'center',
+    marginTop: 4,
+  },
   colorProfileEmpty: {
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderRadius: 12,
