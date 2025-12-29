@@ -269,7 +269,12 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
     colorPickerApiInProgress.current = true;
 
     try {
-      const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL || 'https://mvp-styli.vercel.app';
+      const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL;
+      if (!API_BASE) {
+        console.error('🎯 [MANUAL PICKER] API_BASE not configured');
+        Alert.alert('Error', 'API configuration missing. Please check environment variables.');
+        return;
+      }
       const apiUrl = `${API_BASE}/api/color`;
       console.log('🎯 [MANUAL PICKER] Calling API:', apiUrl);
       console.log('🎯 [MANUAL PICKER] Request body:', { mode: 'pick', imageUrl: imageUrl?.substring(0, 50) + '...', x: coords.imageX, y: coords.imageY, imageWidth: imageNaturalSize.width, imageHeight: imageNaturalSize.height });
