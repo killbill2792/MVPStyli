@@ -445,8 +445,8 @@ const StyleVaultScreen = () => {
                   
                   if (uploadedUrl && user?.id) {
                     await supabase.from('profiles').update({ face_image_url: uploadedUrl }).eq('id', user.id);
-                    setFaceImage(uploadedUrl);
-                    if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
+                  setFaceImage(uploadedUrl);
+                  if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
                   }
                   
                   if (profile && user?.id) {
@@ -459,7 +459,7 @@ const StyleVaultScreen = () => {
                         `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth • Suggested: ${profile.season} (${confidencePercent}% confidence)`,
                         'success'
                       );
-                    } else {
+                  } else {
                       showBanner(
                         `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth (${confidencePercent}% confidence). Try a daylight selfie for season suggestion.`,
                         'success'
@@ -503,8 +503,8 @@ const StyleVaultScreen = () => {
                 
                 if (uploadedUrl && user?.id) {
                   await supabase.from('profiles').update({ face_image_url: uploadedUrl }).eq('id', user.id);
-                  setFaceImage(uploadedUrl);
-                  if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
+                setFaceImage(uploadedUrl);
+                if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
                 }
                 
                 if (profile && user?.id) {
@@ -517,7 +517,7 @@ const StyleVaultScreen = () => {
                       `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth • Suggested: ${profile.season} (${confidencePercent}% confidence)`,
                       'success'
                     );
-                  } else {
+                } else {
                     showBanner(
                       `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth (${confidencePercent}% confidence). Try a daylight selfie for season suggestion.`,
                       'success'
@@ -532,11 +532,11 @@ const StyleVaultScreen = () => {
                   );
                   showBanner('✕ No face detected. Please upload a clear face photo.', 'error');
                 }
-                } catch (error) {
+              } catch (error) {
                   setIsAnalyzingFace(false);
                   console.error('Error processing face photo:', error);
                   Alert.alert('Error', `Failed to process photo: ${error.message || 'Unknown error'}`);
-                }
+              }
             }
           }
         },
@@ -1301,7 +1301,34 @@ const StyleVaultScreen = () => {
           {colorProfile && (
             <View style={[styles.section, { marginBottom: 20 }]}>
               <View style={styles.colorProfileSection}>
-                <Text style={styles.colorProfileTitle}>🎨 Your Colors</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <Text style={styles.colorProfileTitle}>🎨 Your Colors</Text>
+                  {/* Face Photo Thumbnail */}
+                  <View style={{ alignItems: 'center' }}>
+                    <Pressable onPress={() => setShowFacePhotoGuidelines(true)} disabled={isAnalyzingFace}>
+                      <View style={{ position: 'relative' }}>
+                        {faceImage ? (
+                          <Image 
+                            source={{ uri: faceImage }} 
+                            style={styles.colorProfileFaceThumbnail}
+                          />
+                        ) : (
+                          <View style={[styles.colorProfileFaceThumbnail, styles.colorProfileFacePlaceholder]}>
+                            <Text style={styles.colorProfileFacePlaceholderText}>🎨</Text>
+                          </View>
+                        )}
+                        {isAnalyzingFace && (
+                          <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20 }]}>
+                            <ActivityIndicator size="small" color="#6366f1" />
+                          </View>
+                        )}
+                      </View>
+                    </Pressable>
+                    <Text style={styles.colorProfileFaceLabel}>
+                      {faceImage ? 'Your Face Photo' : 'Add Face Photo'}
+                    </Text>
+                  </View>
+                </View>
                 
                 {/* Show detected attributes if available */}
                 {colorProfile.confidence !== undefined && (
@@ -1372,44 +1399,21 @@ const StyleVaultScreen = () => {
               <View style={styles.fitProfilePhotos}>
                 {/* Body Photo Thumbnail */}
                 <View style={{ alignItems: 'center' }}>
-                  <Pressable onPress={() => setShowBodyPhotoGuidelines(true)}>
-                    {bodyImage ? (
-                      <Image 
-                        source={{ uri: bodyImage }} 
-                        style={styles.fitProfilePhotoThumbnail}
-                      />
-                    ) : (
-                      <View style={[styles.fitProfilePhotoThumbnail, styles.fitProfilePhotoPlaceholder]}>
-                        <Text style={styles.fitProfilePhotoPlaceholderText}>📸</Text>
-                      </View>
-                    )}
-                  </Pressable>
+                <Pressable onPress={() => setShowBodyPhotoGuidelines(true)}>
+                  {bodyImage ? (
+                    <Image 
+                      source={{ uri: bodyImage }} 
+                      style={styles.fitProfilePhotoThumbnail}
+                    />
+                  ) : (
+                    <View style={[styles.fitProfilePhotoThumbnail, styles.fitProfilePhotoPlaceholder]}>
+                      <Text style={styles.fitProfilePhotoPlaceholderText}>📸</Text>
+                    </View>
+                  )}
+                </Pressable>
                   <Text style={[styles.fitProfilePhotoLabel, { marginTop: 4 }]}>Your Body Photo</Text>
                 </View>
                 
-                {/* Face Photo Thumbnail */}
-                <View style={{ alignItems: 'center' }}>
-                  <Pressable onPress={() => setShowFacePhotoGuidelines(true)} disabled={isAnalyzingFace}>
-                    <View style={{ position: 'relative' }}>
-                      {faceImage ? (
-                        <Image 
-                          source={{ uri: faceImage }} 
-                          style={styles.fitProfilePhotoThumbnail}
-                        />
-                      ) : (
-                        <View style={[styles.fitProfilePhotoThumbnail, styles.fitProfilePhotoPlaceholder]}>
-                          <Text style={styles.fitProfilePhotoPlaceholderText}>🎨</Text>
-                        </View>
-                      )}
-                      {isAnalyzingFace && (
-                        <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20 }]}>
-                          <ActivityIndicator size="small" color="#6366f1" />
-                        </View>
-                      )}
-                    </View>
-                  </Pressable>
-                  <Text style={[styles.fitProfilePhotoLabel, { marginTop: 4 }]}>Your Face Photo</Text>
-                </View>
               </View>
             </View>
             <View style={styles.fitProfileSummaryRow}>

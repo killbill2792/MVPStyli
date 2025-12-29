@@ -6,7 +6,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppProvider, useApp } from './lib/AppContext';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadImageAsync, uploadRemoteImage } from './lib/upload';
-import productsData from './data/products.json';
 import { fetchGarmentsAsProducts } from './lib/garmentUtils';
 import BottomBar from './components/BottomBar';
 import PodsScreen from './screens/PodsScreen';
@@ -1674,7 +1673,7 @@ export default function App() {
   const [savedFits, setSavedFits] = useState([]); // Saved outfits
   const [pendingInvite, setPendingInvite] = useState(null); // Pending invite from deep link
   const [routeStack, setRouteStack] = useState([]); // Navigation stack for back button
-  const [allProducts, setAllProducts] = useState(productsData); // Combined static + garment products
+  const [allProducts, setAllProducts] = useState([]); // Only garment products from API
   
   // Fetch garments and merge with static products
   useEffect(() => {
