@@ -551,7 +551,13 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
 
   useEffect(() => {
     if (visible) {
-      openSheet();
+      // Set requesting state immediately to show analyzing screen
+      setIsRequesting(true);
+      
+      // Open sheet after a brief delay to show analyzing state first
+      setTimeout(() => {
+        openSheet();
+      }, 100);
       
       // Check if color is already in product name/metadata
       const productColorFromName = inferColorFromName(product?.name || '');

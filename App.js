@@ -1675,23 +1675,19 @@ export default function App() {
   const [routeStack, setRouteStack] = useState([]); // Navigation stack for back button
   const [allProducts, setAllProducts] = useState([]); // Only garment products from API
   
-  // Fetch garments and merge with static products
+  // Fetch garments from API only (no static products)
   useEffect(() => {
     const loadGarments = async () => {
       try {
         console.log('🛍️ Loading garments from admin panel...');
         const garmentProducts = await fetchGarmentsAsProducts();
         
-        // Merge static products with garment products
-        // Garment products come first (newer/admin-added items)
-        const merged = [...garmentProducts, ...productsData];
-        
-        console.log(`🛍️ Total products: ${merged.length} (${garmentProducts.length} garments + ${productsData.length} static)`);
-        setAllProducts(merged);
+        console.log(`🛍️ Total products: ${garmentProducts.length} (all from API)`);
+        setAllProducts(garmentProducts);
       } catch (error) {
         console.error('Error loading garments:', error);
-        // Fallback to static products only
-        setAllProducts(productsData);
+        // No fallback - use empty array if API fails
+        setAllProducts([]);
       }
     };
     

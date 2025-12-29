@@ -1397,8 +1397,8 @@ const StyleVaultScreen = () => {
             <View style={styles.fitProfileHeaderRow}>
               <Text style={styles.fitProfileName}>Fit Profile</Text>
               <View style={styles.fitProfilePhotos}>
-                {/* Body Photo Thumbnail */}
-                <View style={{ alignItems: 'center' }}>
+                {/* Body Photo Thumbnail - Moved to right, increased size */}
+                <View style={{ alignItems: 'flex-end', marginLeft: 'auto' }}>
                 <Pressable onPress={() => setShowBodyPhotoGuidelines(true)}>
                   {bodyImage ? (
                     <Image 
@@ -3761,9 +3761,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   fitProfilePhotoThumbnail: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48, // Increased by 20% (40 * 1.2 = 48)
+    height: 48, // Increased by 20% (40 * 1.2 = 48)
+    borderRadius: 24,
     borderWidth: 2,
     borderColor: '#6366f1',
   },
