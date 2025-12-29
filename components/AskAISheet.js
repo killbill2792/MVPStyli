@@ -2473,7 +2473,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                 })()}
                 
                 <Pressable
-                  style={[styles.saveButton, isSavingMaterial && { opacity: 0.6 }]}
+                  style={styles.saveButton}
                   onPress={async () => {
                     if (userEnteredMaterial) {
                       const updatedProduct = {
