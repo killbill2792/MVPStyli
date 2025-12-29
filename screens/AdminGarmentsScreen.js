@@ -458,7 +458,12 @@ const AdminGarmentsScreen = ({ onBack }) => {
     setIsSamplingColor(true);
     
     try {
-      const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL || 'https://mvp-styli.vercel.app';
+      const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL;
+      if (!API_BASE) {
+        console.error('🎨 [ADMIN] API_BASE not configured');
+        Alert.alert('Error', 'API configuration missing. Please check environment variables.');
+        return null;
+      }
       const apiUrl = `${API_BASE}/api/color`;
       
       const response = await fetch(apiUrl, {

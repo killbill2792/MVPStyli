@@ -82,9 +82,10 @@ export function isUrl(query: string): boolean {
 export async function importProductFromUrl(url: string): Promise<NormalizedProduct> {
   // Try to get API URL from environment, fallback to default
   // In Expo, environment variables need EXPO_PUBLIC_ prefix
-  const apiUrl = process.env.EXPO_PUBLIC_API_URL || 
-                 process.env.API_URL || 
-                 'https://mvp-styli.vercel.app';
+  const apiUrl = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL || process.env.API_URL;
+  if (!apiUrl) {
+    throw new Error('API URL not configured');
+  }
   
   // Ensure no trailing slash
   const baseUrl = apiUrl.replace(/\/$/, '');
@@ -159,9 +160,10 @@ export async function importProductFromUrl(url: string): Promise<NormalizedProdu
  */
 export async function searchWebProducts(query: string): Promise<NormalizedProduct[]> {
   // Try to get API URL from environment, fallback to default
-  const apiUrl = process.env.EXPO_PUBLIC_API_URL || 
-                 process.env.API_URL || 
-                 'https://mvp-styli.vercel.app';
+  const apiUrl = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL || process.env.API_URL;
+  if (!apiUrl) {
+    throw new Error('API URL not configured');
+  }
   
   // Ensure no trailing slash
   const baseUrl = apiUrl.replace(/\/$/, '');

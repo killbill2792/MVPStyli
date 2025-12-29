@@ -88,7 +88,10 @@ export async function analyzeFaceForColorProfileFromLocalUri(
     console.log('🎨 [SKIN TONE CLIENT] Image uploaded:', uploadedUrl.substring(0, 100));
     
     // 4) Call server analysis with real faceBox
-    const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL || 'https://mvp-styli.vercel.app';
+    const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL;
+    if (!API_BASE) {
+      throw new Error('API_BASE not configured');
+    }
     const apiUrl = `${API_BASE}/api/analyze-skin-tone`;
     
     const startTime = Date.now();
@@ -199,7 +202,10 @@ export async function analyzeFaceForColorProfile(faceImageUrl: string): Promise<
     };
     
     // Step 2: Call server-side API to analyze skin tone
-    const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL || 'https://mvp-styli.vercel.app';
+    const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL;
+    if (!API_BASE) {
+      throw new Error('API_BASE not configured');
+    }
     const apiUrl = `${API_BASE}/api/analyze-skin-tone`;
     
     console.log('🎨 [SKIN TONE CLIENT] Calling API:', apiUrl);

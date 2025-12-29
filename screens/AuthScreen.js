@@ -14,7 +14,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useApp } from '../lib/AppContext';
 import { supabase } from '../lib/supabase';
-import { setupDemoDataForUser, getUserInfo } from '../lib/demoData';
 
 const AuthScreen = () => {
   const { setRoute, setUser } = useApp();

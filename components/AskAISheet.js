@@ -470,7 +470,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
   const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Only used for initial load, not for fit check
   // Removed unused state: fitAdvice, sizeAdvice, styleAdvice (replaced by fitSizeData)
   const [colorSuitability, setColorSuitability] = useState(null);
   const [bodyShapeSuitability, setBodyShapeSuitability] = useState(null);
@@ -493,8 +493,6 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
   const [parsedSizeChart, setParsedSizeChart] = useState(null);
   const [isDetectingColor, setIsDetectingColor] = useState(false);
   const [isParsingSizeChart, setIsParsingSizeChart] = useState(false);
-  const [isSavingSizeChart, setIsSavingSizeChart] = useState(false);
-  const [isSavingMaterial, setIsSavingMaterial] = useState(false);
   const [ocrParsingStatus, setOcrParsingStatus] = useState(null);
   const [manualSizeChartInput, setManualSizeChartInput] = useState({});
   const [showParsedDataConfirmation, setShowParsedDataConfirmation] = useState(false);
@@ -632,7 +630,6 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
     }
     
     requestInProgress.current = true;
-    setLoading(true);
     setIsRequesting(true);
     setIsCached(false);
     
@@ -1058,7 +1055,6 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       setBodyShapeSuitability({ status: 'INSUFFICIENT_DATA', verdict: null, reasons: ['Unable to analyze body shape'], alternatives: [] });
       setFabricComfort({ verdict: 'Need Fabric Info', insights: ['Unable to analyze fabric'], hasEnoughData: false });
     } finally {
-      setLoading(false);
       setIsRequesting(false);
       requestInProgress.current = false;
     }
@@ -1150,11 +1146,11 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
           bounces={true}
           nestedScrollEnabled={true}
         >
-          {loading ? (
+          {isRequesting && !fitSizeData ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#6366f1" />
               <Text style={styles.loadingText}>
-                {isRequesting ? 'Analyzing your perfect fit...' : 'Please wait...'}
+                Analyzing your perfect fit...
               </Text>
             </View>
           ) : (
@@ -1191,18 +1187,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                       )}
                       {fitSizeData?.missingGarment && (
                         <Pressable 
-                          style={[styles.addDataBtn, isSavingSizeChart && { opacity: 0.6 }]}
+                          style={styles.addDataBtn}
                           onPress={() => setShowGarmentInputModal(true)}
-                          disabled={isSavingSizeChart}
                         >
-                          {isSavingSizeChart ? (
-                            <>
-                              <ActivityIndicator size="small" color="#6366f1" style={{ marginRight: 8 }} />
-                              <Text style={styles.addDataBtnText}>Saving...</Text>
-                            </>
-                          ) : (
                           <Text style={styles.addDataBtnText}>📐 Add Garment Measurements →</Text>
-                          )}
                         </Pressable>
                       )}
                     </View>
@@ -1210,17 +1198,17 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                 ) : (
                   <>
                     {/* Loading Indicator */}
-                    {(isRequesting || isSavingSizeChart) && (
+                    {isRequesting && (
                       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, padding: 12, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 8 }}>
                         <ActivityIndicator size="small" color="#6366f1" style={{ marginRight: 8 }} />
                         <Text style={{ color: '#6366f1', fontSize: 13, fontWeight: '500' }}>
-                          {isSavingSizeChart ? 'Saving dimensions...' : 'Analyzing fit & size...'}
+                          Analyzing fit & size...
                         </Text>
                       </View>
                     )}
                     
                     {/* Status Label */}
-                    {!isRequesting && !isSavingSizeChart && (
+                    {!isRequesting && (
                     <View style={[
                       styles.verdictBadge,
                       fitSizeData?.status === 'Perfect Fit' && styles.verdictGood,
@@ -1233,7 +1221,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                     )}
 
                     {/* Recommended Size - Only show when not loading */}
-                    {!isRequesting && !isSavingSizeChart && !loading && (
+                    {!isRequesting && (
                       <>
                     {fitSizeData?.recommendedSize ? (
                       <View style={styles.sizeRecommendation}>
@@ -1252,7 +1240,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                     )}
 
                     {/* Measurement Deltas (2-5 bullets) - Only show when not loading */}
-                    {!isRequesting && !isSavingSizeChart && !loading && fitSizeData?.measurementDeltas && fitSizeData.measurementDeltas.length > 0 && (
+                    {!isRequesting && fitSizeData?.measurementDeltas && fitSizeData.measurementDeltas.length > 0 && (
                       <View style={styles.adviceSection}>
                         {fitSizeData.measurementDeltas.map((delta, idx) => (
                           <Text key={idx} style={styles.adviceItem}>• {delta}</Text>
@@ -1261,7 +1249,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                     )}
 
                     {/* Stylist Translation - Only show when not loading */}
-                    {!isRequesting && !isSavingSizeChart && !loading && fitSizeData?.stylistTranslation && (
+                    {!isRequesting && fitSizeData?.stylistTranslation && (
                       <View style={styles.stylistTranslationBox}>
                         <Text style={styles.stylistTranslationText}>{fitSizeData.stylistTranslation}</Text>
                       </View>
@@ -1460,34 +1448,26 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                   <View style={styles.missingDataBox}>
                     <Text style={styles.missingDataText}>{fabricComfort.insights?.[0] || 'Need Fabric Info'}</Text>
                     <Pressable 
-                      style={[styles.addDataBtn, isSavingMaterial && { opacity: 0.6 }]}
+                      style={styles.addDataBtn}
                       onPress={() => setShowMaterialInputModal(true)}
-                      disabled={isSavingMaterial}
                     >
-                      {isSavingMaterial ? (
-                        <>
-                          <ActivityIndicator size="small" color="#6366f1" style={{ marginRight: 8 }} />
-                          <Text style={styles.addDataBtnText}>Saving...</Text>
-                        </>
-                      ) : (
                       <Text style={styles.addDataBtnText}>🧵 Enter Material →</Text>
-                      )}
                     </Pressable>
                   </View>
                 ) : (
                   <>
                     {/* Loading Indicator - Always show when processing */}
-                    {(isRequesting || isSavingMaterial || loading) && (
+                    {isRequesting && (
                       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, padding: 12, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 8 }}>
                         <ActivityIndicator size="small" color="#6366f1" style={{ marginRight: 8 }} />
                         <Text style={{ color: '#6366f1', fontSize: 13, fontWeight: '500' }}>
-                          {isSavingMaterial ? 'Saving material...' : 'Analyzing fabric & comfort...'}
+                          Analyzing fabric & comfort...
                         </Text>
                       </View>
                     )}
                     
                     {/* Material Name Display with Edit Option - Only show when not loading */}
-                    {!isRequesting && !isSavingMaterial && !loading && product?.material && (
+                    {!isRequesting && product?.material && (
                       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, padding: 8, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 8 }}>
                         <Text style={[styles.adviceItem, { flex: 1, marginBottom: 0 }]}>
                           Material: <Text style={{ fontWeight: '600' }}>{product.material}</Text>
@@ -1502,7 +1482,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                     )}
                     
                     {/* Verdict and Insights - Only show when not loading */}
-                    {!isRequesting && !isSavingMaterial && !loading && (
+                    {!isRequesting && (
                   <>
                     <View style={[
                       styles.verdictBadge,
@@ -1674,7 +1654,12 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                           
                           // Call fit-check-utils API for parsing size chart
                           try {
-                            const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'https://mvpstyli-fresh.vercel.app';
+                            const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL;
+                            if (!API_BASE) {
+                              console.error('📊 [FRONTEND] API_BASE not configured');
+                              setOcrParsingStatus('Error: API configuration missing');
+                              return;
+                            }
                             console.log('📊 [FRONTEND] Uploading size chart image...');
                             console.log('📊 [FRONTEND] Image size:', blob.size, 'bytes');
                             console.log('📊 [FRONTEND] API endpoint:', `${API_BASE}/api/ocr-sizechart`);
@@ -1859,40 +1844,26 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                       <Text style={styles.saveButtonText}>✏️ Edit</Text>
                     </Pressable>
                     <Pressable
-                      style={[styles.saveButton, { flex: 1 }, isSavingSizeChart && { opacity: 0.6 }]}
+                      style={[styles.saveButton, { flex: 1 }]}
                       onPress={async () => {
-                        if (isSavingSizeChart) return;
-                        setIsSavingSizeChart(true);
-                        try {
-                          // User confirmed - use the parsed data
-                          setParsedSizeChart(pendingParsedData);
-                          const updatedProduct = {
-                            ...product,
-                            sizeChart: pendingParsedData,
-                          };
-                          // Update product state first
-                          setProduct(updatedProduct);
-                          // Close modals
-                          setShowParsedDataConfirmation(false);
-                          setPendingParsedData(null);
-                          setOcrParsingStatus(null);
-                          setShowGarmentInputModal(false);
-                          // Load insights immediately with updated product
-                          await loadInsights(true, updatedProduct);
-                        } finally {
-                          setIsSavingSizeChart(false);
-                        }
+                        // User confirmed - use the parsed data
+                        setParsedSizeChart(pendingParsedData);
+                        const updatedProduct = {
+                          ...product,
+                          sizeChart: pendingParsedData,
+                        };
+                        // Update product state first
+                        setProduct(updatedProduct);
+                        // Close modals
+                        setShowParsedDataConfirmation(false);
+                        setPendingParsedData(null);
+                        setOcrParsingStatus(null);
+                        setShowGarmentInputModal(false);
+                        // Load insights immediately with updated product
+                        await loadInsights(true, updatedProduct);
                       }}
-                      disabled={isSavingSizeChart}
                     >
-                      {isSavingSizeChart ? (
-                        <>
-                          <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
-                          <Text style={styles.saveButtonText}>Saving...</Text>
-                        </>
-                      ) : (
-                        <Text style={styles.saveButtonText}>✓ Confirm & Continue</Text>
-                      )}
+                      <Text style={styles.saveButtonText}>✓ Confirm & Continue</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -2513,37 +2484,23 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                 <Pressable
                   style={[styles.saveButton, isSavingMaterial && { opacity: 0.6 }]}
                   onPress={async () => {
-                    if (isSavingMaterial) return;
                     if (userEnteredMaterial) {
-                      setIsSavingMaterial(true);
-                      try {
                       const updatedProduct = {
                         ...product,
                         material: userEnteredMaterial,
                         fabric: userEnteredMaterial,
                         fabricStretch: hasStretch(userEnteredMaterial) ? getStretchLevel(userEnteredMaterial) : 'none',
                       };
-                        // Update product state first
+                      // Update product state first
                       setProduct(updatedProduct);
-                        // Close modal
+                      // Close modal
                       setShowMaterialInputModal(false);
-                        // Load insights immediately with updated product
-                        await loadInsights(true, updatedProduct);
-                      } finally {
-                        setIsSavingMaterial(false);
-                      }
+                      // Load insights immediately with updated product
+                      await loadInsights(true, updatedProduct);
                     }
                   }}
-                  disabled={isSavingMaterial}
                 >
-                  {isSavingMaterial ? (
-                    <>
-                      <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
-                      <Text style={styles.saveButtonText}>Saving...</Text>
-                    </>
-                  ) : (
                   <Text style={styles.saveButtonText}>Save Material</Text>
-                  )}
                 </Pressable>
               </View>
             </ScrollView>
