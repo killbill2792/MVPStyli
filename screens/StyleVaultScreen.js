@@ -437,6 +437,8 @@ const StyleVaultScreen = () => {
                 try {
                   const localUri = res.assets[0].uri;
                   setIsAnalyzingFace(true);
+                  // Clear old photo immediately when starting new analysis
+                  setFaceImage(null);
                   
                   // NEW: Analyze using local URI with face detection, then upload
                   const { profile, uploadedUrl } = await analyzeFaceForColorProfileFromLocalUri(localUri, uploadImageAsync);
@@ -1340,8 +1342,8 @@ const StyleVaultScreen = () => {
                   </View>
                 )}
                 
-                {/* Show detected attributes if available */}
-                {!isAnalyzingFace && colorProfile.confidence !== undefined && (
+                {/* Show detected attributes if available - only when not analyzing */}
+                {!isAnalyzingFace && colorProfile && colorProfile.confidence !== undefined && (
                   <View style={{ marginBottom: 12, padding: 12, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 8 }}>
                     <Text style={[styles.colorBestLabel, { fontSize: 12, marginBottom: 4 }]}>
                       Suggested from face photo:

@@ -2401,7 +2401,7 @@ const styles = StyleSheet.create({
   productGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    padding: 10,
+    padding: 15,
   },
   productCard: {
     width: '48%',
