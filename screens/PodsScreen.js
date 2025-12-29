@@ -424,6 +424,17 @@ const PodsScreen = ({ onBack, onCreatePod, userId, userName, params }) => {
 
   return (
     <View style={styles.container}>
+      {/* Floating Help Icon - At top level, outside SafeAreaView */}
+      <Pressable 
+        style={styles.helpFloatingButton}
+        onPress={() => {
+          console.log('🎯 Help button pressed!');
+          setShowHelpModal(true);
+        }}
+      >
+        <Text style={styles.helpFloatingButtonIcon}>?</Text>
+      </Pressable>
+      
       <SafeAreaView style={{ flex: 1, position: 'relative' }} edges={['top']}>
         <View style={styles.header}>
         <Pressable onPress={onBack} style={styles.backButton}>
