@@ -2111,13 +2111,17 @@ export default function App() {
                   onPress={() => setRoute('chat')}
                 >
                   <View style={styles.searchBarIconContainer}>
-                    <Text style={styles.searchBarIcon}>S</Text>
+                    <Image 
+                      source={require('./assets/icon.png')} 
+                      style={styles.searchBarIconImage}
+                      resizeMode="contain"
+                    />
                   </View>
                   <Text style={styles.stickySearchBarText}>Search Styles by your Vibe, Color or Budget</Text>
                 </Pressable>
               </View>
               
-              <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: 100, paddingTop: 80 }}>
+              <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: 100, paddingTop: 100 }}>
                 {/* Product Grid */}
                 <View style={styles.productGrid}>
                     {(allProducts || []).map((p) => (
@@ -2384,10 +2388,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     opacity: 0.5,
   },
-  searchBarIcon: {
-    color: '#6366f1',
-    fontSize: 18,
-    fontWeight: '700',
+  searchBarIconImage: {
+    width: 24,
+    height: 24,
+    opacity: 0.5,
   },
   stickySearchBarText: {
     flex: 1,

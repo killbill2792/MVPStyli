@@ -699,6 +699,74 @@ const PodsScreen = ({ onBack, onCreatePod, userId, userName, params }) => {
         )}
 
       </ScrollView>
+      
+      {/* Floating Help Icon */}
+      <Pressable 
+        style={styles.helpFloatingButton}
+        onPress={() => setShowHelpModal(true)}
+      >
+        <Text style={styles.helpFloatingButtonIcon}>?</Text>
+      </Pressable>
+      
+      {/* Help Modal */}
+      <Modal
+        visible={showHelpModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowHelpModal(false)}
+      >
+        <View style={styles.helpModalOverlay}>
+          <View style={styles.helpModalContent}>
+            <View style={styles.helpModalHeader}>
+              <Text style={styles.helpModalTitle}>What are Pods?</Text>
+              <Pressable onPress={() => setShowHelpModal(false)}>
+                <Text style={styles.helpModalClose}>✕</Text>
+              </Pressable>
+            </View>
+            
+            <ScrollView style={styles.helpModalScroll} showsVerticalScrollIndicator={true}>
+              <Text style={styles.helpModalIntro}>
+                Pods are a fun way to get fashion advice from your community! Share your outfit and get instant feedback.
+              </Text>
+              
+              <View style={styles.helpSection}>
+                <Text style={styles.helpSectionTitle}>👥 Friends Pod</Text>
+                <Text style={styles.helpSectionText}>
+                  Share with your friends only. Perfect for getting honest feedback from people you trust. Only friends you've added can see and vote on your pod.
+                </Text>
+              </View>
+              
+              <View style={styles.helpSection}>
+                <Text style={styles.helpSectionTitle}>👯 Style Twins Pod</Text>
+                <Text style={styles.helpSectionText}>
+                  Connect with users who have similar style preferences. Great for discovering new fashion ideas and getting advice from like-minded fashionistas.
+                </Text>
+              </View>
+              
+              <View style={styles.helpSection}>
+                <Text style={styles.helpSectionTitle}>🌍 Global Pod</Text>
+                <Text style={styles.helpSectionText}>
+                  Share with everyone! Your pod will be visible to all Stylit users. Get diverse opinions and reach a wider audience. Perfect for showcasing your style to the world.
+                </Text>
+              </View>
+              
+              <View style={styles.helpSection}>
+                <Text style={styles.helpSectionTitle}>⏱️ Duration</Text>
+                <Text style={styles.helpSectionText}>
+                  Choose how long your pod stays active (15, 30, 60, or 120 minutes). After the time expires, you'll see the final results and can no longer receive new votes.
+                </Text>
+              </View>
+              
+              <View style={styles.helpSection}>
+                <Text style={styles.helpSectionTitle}>💬 Voting</Text>
+                <Text style={styles.helpSectionText}>
+                  Viewers can vote with 🔥 (Love it!), 🤔 (Maybe), or ❌ (Not for me). You'll see real-time results as votes come in!
+                </Text>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
