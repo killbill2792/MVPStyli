@@ -1170,7 +1170,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.5,
     shadowRadius: 8,
     elevation: 10,
-    zIndex: 1000,
+    zIndex: 9999,
   },
   helpFloatingButtonIcon: {
     color: '#fff',
