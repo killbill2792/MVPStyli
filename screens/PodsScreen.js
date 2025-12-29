@@ -424,7 +424,7 @@ const PodsScreen = ({ onBack, onCreatePod, userId, userName, params }) => {
 
   return (
     <View style={styles.container}>
-      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+      <SafeAreaView style={{ flex: 1, position: 'relative' }} edges={['top']}>
         <View style={styles.header}>
         <Pressable onPress={onBack} style={styles.backButton}>
           <Text style={styles.backButtonText}>✕</Text>
