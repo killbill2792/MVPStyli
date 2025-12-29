@@ -407,7 +407,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
   const startNewChat = () => {
     setCurrentConversationId(null);
     setChatHistory([
-      { type: 'ai', message: 'Hi! I\'m your AI shopping assistant. Ask me anything like "show me red polka dot dresses" or "what dress would suit me?" You can also paste a product URL to get details!' }
+      { type: 'ai', message: 'Discover Products using smart search.\n\nDescribe what you want, we\'ll find matching items from internet.\n\nEx: Find me a Red Polka Dots, Dresses under $50 for women, Pink dinner dress, Dresses for Miami vacation etc' }
     ]);
     setShowHistorySidebar(false);
   };

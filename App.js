@@ -2121,7 +2121,7 @@ export default function App() {
                 </Pressable>
               </View>
               
-              <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: 100, paddingTop: 100 }}>
+              <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: 100, paddingTop: 105 }}>
                 {/* Product Grid */}
                 <View style={styles.productGrid}>
                     {(allProducts || []).map((p) => (
@@ -2391,7 +2391,7 @@ const styles = StyleSheet.create({
   searchBarIconImage: {
     width: 24,
     height: 24,
-    opacity: 0.5,
+    opacity: 0.8,
   },
   stickySearchBarText: {
     flex: 1,
