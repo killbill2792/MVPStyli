@@ -1259,7 +1259,7 @@ const TryOn = () => {
               visibility: 'private'
             });
           } catch (err) {
-            console.log('Error saving try-on to Supabase:', err);
+            console.log('Error saving try-on to Supabase:', err?.message || String(err));
           }
         }
         
@@ -1993,11 +1993,11 @@ export default function App() {
     if (user?.email === 'stylit@stylit.com' && user?.id) {
       // Run migrations (will check/create tables and setup friends)
       runMigrations().catch(err => {
-        console.log('Migrations error:', err);
+        console.log('Migrations error:', err?.message || String(err));
       });
       // Also run friends setup as backup
       setupStylitFriends(user.id).catch(err => {
-        console.log('Friends setup skipped:', err);
+        console.log('Friends setup skipped:', err?.message || String(err));
       });
     }
   }, [user?.email, user?.id]);

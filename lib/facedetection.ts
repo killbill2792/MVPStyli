@@ -18,7 +18,7 @@ async function loadFaceDetector() {
     console.log('📸 [FACE DETECTION] FaceDetector module loaded successfully');
     return FaceDetector;
   } catch (error) {
-    console.warn('📸 [FACE DETECTION] Failed to load expo-face-detector:', error);
+    console.warn('📸 [FACE DETECTION] Failed to load expo-face-detector:', error?.message || String(error));
     console.warn('📸 [FACE DETECTION] Native module may not be available. Face detection will be disabled.');
     faceDetectorLoaded = true; // Mark as loaded to prevent repeated attempts
     return null;
@@ -67,13 +67,30 @@ export async function detectFaceBoxFromUri(originalUri: string): Promise<FaceBox
     
     // Use expo-face-detector to detect faces
     // Options: fast mode for speed, detect only 1 face
-    const faces = await Detector.detectFacesAsync(resizedUri, {
-      mode: Detector.Constants.Mode.fast, // fast mode for speed
-      detectLandmarks: Detector.Constants.Landmarks.none, // we don't need landmarks
-      runClassifications: Detector.Constants.Classifications.none, // we don't need classifications
-      minDetectionInterval: 0,
-      tracking: false,
-    });
+    // Constants should be numeric values, but wrap in try-catch to handle any Symbol issues
+    let faces;
+    try {
+      faces = await Detector.detectFacesAsync(resizedUri, {
+        mode: Detector.Constants.Mode.fast,
+        detectLandmarks: Detector.Constants.Landmarks.none,
+        runClassifications: Detector.Constants.Classifications.none,
+        minDetectionInterval: 0,
+        tracking: false,
+      });
+    } catch (constantsError: any) {
+      // If Constants contain Symbols, try using numeric values directly
+      // Mode: 1 = fast, 0 = accurate
+      // Landmarks: 1 = none, 0 = all
+      // Classifications: 1 = none, 0 = all
+      console.warn('📸 [FACE DETECTION] Constants error, using numeric values:', constantsError?.message);
+      faces = await Detector.detectFacesAsync(resizedUri, {
+        mode: 1, // fast mode
+        detectLandmarks: 1, // none
+        runClassifications: 1, // none
+        minDetectionInterval: 0,
+        tracking: false,
+      });
+    }
     
     const detectionTime = Date.now() - startTime;
     console.log('📸 [FACE DETECTION] Detection completed in:', detectionTime, 'ms');
@@ -86,14 +103,19 @@ export async function detectFaceBoxFromUri(originalUri: string): Promise<FaceBox
 
     // Get the first face (we only need one)
     const face = faces.faces[0];
-    console.log('📸 [FACE DETECTION] Face data:', {
-      bounds: face.bounds,
-      rollAngle: face.rollAngle,
-      yawAngle: face.yawAngle,
-    });
-
+    
     // expo-face-detector returns bounds as { origin: { x, y }, size: { width, height } }
-    const bounds = face.bounds;
+    const bounds = face.bounds || {};
+    
+    // Log only serializable values to avoid Symbols
+    console.log('📸 [FACE DETECTION] Face data:', {
+      bounds: {
+        origin: bounds.origin ? { x: bounds.origin.x, y: bounds.origin.y } : null,
+        size: bounds.size ? { width: bounds.size.width, height: bounds.size.height } : null,
+      },
+      rollAngle: typeof face.rollAngle === 'number' ? face.rollAngle : null,
+      yawAngle: typeof face.yawAngle === 'number' ? face.yawAngle : null,
+    });
     const faceBox: FaceBox = {
       x: Math.max(0, Math.floor(bounds.origin.x)),
       y: Math.max(0, Math.floor(bounds.origin.y)),
@@ -107,7 +129,7 @@ export async function detectFaceBoxFromUri(originalUri: string): Promise<FaceBox
     return faceBox;
   } catch (error: any) {
     const errorTime = Date.now() - startTime;
-    console.error('📸 [FACE DETECTION] Error during face detection:', error);
+    console.error('📸 [FACE DETECTION] Error during face detection:', error?.message || String(error));
     console.error('📸 [FACE DETECTION] Error message:', error?.message || 'Unknown error');
     console.error('📸 [FACE DETECTION] Error time:', errorTime, 'ms');
     

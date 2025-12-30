@@ -72,7 +72,7 @@ async function createFriendship(userId1: string, userId2: string): Promise<boole
       console.log('Friends table does not exist. Please run createFriendsTable.sql');
       return false;
     }
-    console.error('Error creating friendship:', error);
+    console.error('Error creating friendship:', error?.message || String(error));
     return false;
   }
 }
@@ -130,7 +130,7 @@ export async function setupStylitFriends(stylitUserId?: string): Promise<void> {
     if (error?.message?.includes('does not exist') || error?.code === '42P01') {
       console.log('Friends table does not exist yet. Please run createFriendsTable.sql');
     } else {
-      console.error('Error setting up Stylit friends:', error);
+      console.error('Error setting up Stylit friends:', error?.message || String(error));
     }
   }
 }
