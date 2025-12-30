@@ -19,13 +19,15 @@
         "image": "./assets/splash.png",
         "resizeMode": "cover",
         "backgroundColor": "#000000"
-      }
+      },
+      "bundleIdentifier": "com.anonymous.MVPStyli"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
-      }
+      },
+      "package": "com.anonymous.MVPStyli"
     },
     "web": {
       "bundler": "metro",
@@ -34,7 +36,9 @@
     "updates": {
       "fallbackToCacheTimeout": 0
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "plugins": [
       [
         "expo-build-properties",
