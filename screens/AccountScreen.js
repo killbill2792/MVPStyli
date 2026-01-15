@@ -10,10 +10,13 @@ import {
   FlatList,
   TextInput,
   Alert,
+  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from '../lib/SimpleGradient';
 import { useApp } from '../lib/AppContext';
+import { supabase } from '../lib/supabase';
 import { Colors, Typography, Spacing, BorderRadius, CardStyles, TextStyles, ThemeColors, getCurrentThemeName, setTheme, setCustomColor, getCustomColor } from '../lib/designSystem';
 
 const { width, height } = Dimensions.get('window');
@@ -26,6 +29,13 @@ const AccountScreen = ({ tryOnResults = [] }) => {
   const [customColorInput, setCustomColorInput] = useState('');
   const [isSigningOut, setIsSigningOut] = useState(false);
   const currentTheme = getCurrentThemeName();
+  
+  // Settings modal states
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   
   // Initialize custom color input if custom theme is active
   useEffect(() => {
@@ -177,8 +187,8 @@ const AccountScreen = ({ tryOnResults = [] }) => {
         // Navigate to favorites
         Alert.alert('Favorites', 'Favorites feature coming soon!');
       } else if (section.id === 'settings') {
-        // Navigate to settings
-        Alert.alert('Settings', 'Settings feature coming soon!');
+        // Navigate to settings modal
+        setShowSettingsModal(true);
       } else if (section.id === 'help') {
         // Navigate to help
         Alert.alert('Help & Support', 'Help feature coming soon!');
@@ -511,6 +521,145 @@ const AccountScreen = ({ tryOnResults = [] }) => {
             </Pressable>
           </View>
         </ScrollView>
+        
+        {/* Settings Modal */}
+        <Modal
+          visible={showSettingsModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowSettingsModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Settings</Text>
+                <Pressable onPress={() => setShowSettingsModal(false)}>
+                  <Text style={styles.modalClose}>✕</Text>
+                </Pressable>
+              </View>
+              
+              <View style={{ padding: 20 }}>
+                {/* Change Password Option */}
+                <Pressable
+                  onPress={() => {
+                    setShowSettingsModal(false);
+                    setShowChangePasswordModal(true);
+                  }}
+                  style={styles.settingsOption}
+                >
+                  <Text style={styles.settingsOptionIcon}>🔐</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.settingsOptionTitle}>Change Password</Text>
+                    <Text style={styles.settingsOptionDesc}>Update your account password</Text>
+                  </View>
+                  <Text style={styles.settingsOptionArrow}>›</Text>
+                </Pressable>
+                
+                {/* Account Email - Display Only */}
+                <View style={[styles.settingsOption, { opacity: 0.7 }]}>
+                  <Text style={styles.settingsOptionIcon}>📧</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.settingsOptionTitle}>Email</Text>
+                    <Text style={styles.settingsOptionDesc}>{user?.email || 'Not set'}</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </View>
+        </Modal>
+        
+        {/* Change Password Modal */}
+        <Modal
+          visible={showChangePasswordModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowChangePasswordModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Change Password</Text>
+                <Pressable onPress={() => {
+                  setShowChangePasswordModal(false);
+                  setNewPassword('');
+                  setConfirmNewPassword('');
+                }}>
+                  <Text style={styles.modalClose}>✕</Text>
+                </Pressable>
+              </View>
+              
+              <View style={{ padding: 20 }}>
+                <Text style={{ color: '#9ca3af', fontSize: 14, marginBottom: 20 }}>
+                  Enter your new password below. Password must be at least 6 characters.
+                </Text>
+                
+                <TextInput
+                  style={styles.passwordInput}
+                  placeholder="New Password"
+                  placeholderTextColor="#6b7280"
+                  secureTextEntry
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  autoCapitalize="none"
+                />
+                
+                <TextInput
+                  style={[styles.passwordInput, { marginTop: 12 }]}
+                  placeholder="Confirm New Password"
+                  placeholderTextColor="#6b7280"
+                  secureTextEntry
+                  value={confirmNewPassword}
+                  onChangeText={setConfirmNewPassword}
+                  autoCapitalize="none"
+                />
+                
+                <Pressable
+                  onPress={async () => {
+                    if (newPassword.length < 6) {
+                      Alert.alert('Error', 'Password must be at least 6 characters');
+                      return;
+                    }
+                    if (newPassword !== confirmNewPassword) {
+                      Alert.alert('Error', 'Passwords do not match');
+                      return;
+                    }
+                    
+                    setIsChangingPassword(true);
+                    try {
+                      const { error } = await supabase.auth.updateUser({
+                        password: newPassword
+                      });
+                      
+                      if (error) {
+                        Alert.alert('Error', error.message);
+                      } else {
+                        Alert.alert('Success', 'Your password has been updated!');
+                        setShowChangePasswordModal(false);
+                        setNewPassword('');
+                        setConfirmNewPassword('');
+                      }
+                    } catch (err) {
+                      Alert.alert('Error', 'Failed to update password. Please try again.');
+                    } finally {
+                      setIsChangingPassword(false);
+                    }
+                  }}
+                  disabled={isChangingPassword || !newPassword || !confirmNewPassword}
+                  style={[
+                    styles.changePasswordBtn,
+                    { opacity: (isChangingPassword || !newPassword || !confirmNewPassword) ? 0.5 : 1 }
+                  ]}
+                >
+                  {isChangingPassword ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.changePasswordBtnText}>Update Password</Text>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
     </SafeAreaView>
   );
 };
@@ -741,6 +890,90 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   backButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#1a1a1a',
+    borderRadius: 20,
+    width: '100%',
+    maxWidth: 400,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  modalTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  modalClose: {
+    color: '#9ca3af',
+    fontSize: 24,
+    fontWeight: '300',
+  },
+  settingsOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  settingsOptionIcon: {
+    fontSize: 24,
+    marginRight: 16,
+  },
+  settingsOptionTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  settingsOptionDesc: {
+    color: '#9ca3af',
+    fontSize: 13,
+  },
+  settingsOptionArrow: {
+    color: '#6b7280',
+    fontSize: 24,
+    fontWeight: '300',
+  },
+  passwordInput: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 12,
+    padding: 16,
+    color: '#fff',
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  changePasswordBtn: {
+    backgroundColor: '#6366f1',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  changePasswordBtnText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',

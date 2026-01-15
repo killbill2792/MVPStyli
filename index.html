@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stylit</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #000;
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .loading {
+            text-align: center;
+        }
+    </style>
+    <script>
+        (function() {
+            // Check if we have a hash fragment with auth tokens
+            const hash = window.location.hash.substring(1);
+            
+            if (hash) {
+                // Parse the hash to determine the type
+                const params = new URLSearchParams(hash);
+                const type = params.get('type');
+                const accessToken = params.get('access_token');
+                const error = params.get('error');
+                
+                // Determine which page to redirect to
+                if (type === 'recovery' || (accessToken && hash.includes('recovery'))) {
+                    // Password reset
+                    window.location.href = '/reset_password.html' + window.location.hash;
+                    return;
+                } else if (type === 'signup' || type === 'email' || (accessToken && !type)) {
+                    // Email confirmation (default for signup)
+                    window.location.href = '/confirm_email.html' + window.location.hash;
+                    return;
+                } else if (error) {
+                    // Error case - try to determine from context
+                    if (hash.includes('reset') || hash.includes('recovery')) {
+                        window.location.href = '/reset_password.html' + window.location.hash;
+                    } else {
+                        window.location.href = '/confirm_email.html' + window.location.hash;
+                    }
+                    return;
+                }
+            }
+            
+            // No hash or unrecognized - redirect to main site or show homepage
+            // You can customize this to show your main landing page
+            document.body.innerHTML = '<div class="loading"><h1>Stylit</h1><p>Redirecting...</p></div>';
+            
+            // Optionally redirect to your main site
+            // window.location.href = 'https://stylit.ai';
+        })();
+    </script>
+</head>
+<body>
+    <div class="loading">
+        <h1>Stylit</h1>
+        <p>Loading...</p>
+    </div>
+</body>
+</html>

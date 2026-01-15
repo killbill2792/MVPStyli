@@ -4,7 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useApp } from '../lib/AppContext';
 import { Colors } from '../lib/designSystem';
 import { trackEvent } from '../lib/styleEngine';
-import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from '../lib/SimpleGradient';
 import BottomBar from '../components/BottomBar';
 import AskAISheet from '../components/AskAISheet';
 import { supabase } from '../lib/supabase';
@@ -305,7 +305,14 @@ const ProductScreen = ({ onBack }) => {
                     onPress={() => setShowFullImage(true)}
                     style={{ width: width, height: 500 }}
                   >
-                    <SafeImage source={{ uri: img }} style={styles.image} resizeMode="cover" />
+                    <SafeImage 
+                      source={{ uri: img }} 
+                      style={styles.image} 
+                      resizeMode="cover"
+                      width={width}  // Thumbnail width for gallery
+                      height={500}   // Thumbnail height for gallery
+                      quality={85}   // Good quality for product gallery
+                    />
                   </Pressable>
                 ))}
               </ScrollView>
@@ -330,7 +337,14 @@ const ProductScreen = ({ onBack }) => {
             </>
           ) : (
             <Pressable onPress={() => setShowFullImage(true)} style={{ flex: 1 }}>
-              <SafeImage source={{ uri: images[0] }} style={styles.image} resizeMode="cover" />
+              <SafeImage 
+                source={{ uri: images[0] }} 
+                style={styles.image} 
+                resizeMode="cover"
+                width={width}  // Thumbnail width for gallery
+                height={500}   // Thumbnail height for gallery
+                quality={85}   // Good quality for product gallery
+              />
             </Pressable>
           )}
           
@@ -709,12 +723,22 @@ const ProductScreen = ({ onBack }) => {
                         index,
                       })}
                       renderItem={({ item }) => (
-                        <SafeImage source={{ uri: item }} style={styles.fullImage} resizeMode="contain" />
+                        <SafeImage 
+                          source={{ uri: item }} 
+                          style={styles.fullImage} 
+                          resizeMode="contain"
+                          // No width/height = full-size image in modal
+                        />
                       )}
                       keyExtractor={(item, idx) => idx.toString()}
                     />
                   ) : (
-                    <SafeImage source={{ uri: images[0] }} style={styles.fullImage} resizeMode="contain" />
+                    <SafeImage 
+                      source={{ uri: images[0] }} 
+                      style={styles.fullImage} 
+                      resizeMode="contain"
+                      // No width/height = full-size image in modal
+                    />
                   )}
                   
                   {/* Top Overlay */}
@@ -1279,24 +1303,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalImageContainer: {
-    width: width - 20,
-    height: height - 120,
-    borderRadius: 24,
-    overflow: 'hidden',
+    flex: 1,
+    width: width,
     position: 'relative',
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#000',
+    justifyContent: 'center',
   },
   fullImage: {
-    width: width - 20,
-    height: height - 120,
+    width: width,
+    height: height,
   },
   modalTopOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    padding: 20,
-    paddingTop: 50,
+    padding: 16,
+    paddingTop: 60,
+    zIndex: 10,
   },
   modalCloseBtn: {
     width: 40,

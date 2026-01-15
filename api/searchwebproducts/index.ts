@@ -166,8 +166,30 @@ async function searchWithSerpAPI(query: string, apiKey: string): Promise<Normali
         }
       }
       
-      // Get image - SerpAPI returns thumbnail
-      const imageUrl = item.thumbnail || item.image || item.original_image || '';
+      // Get image - Prefer original_image over thumbnail (thumbnail URLs are often incomplete)
+      // Check all possible image fields and use the most complete one
+      let imageUrl = item.original_image || item.image || item.thumbnail || '';
+      
+      // If imageUrl is incomplete (ends with :tbn: or similar), try to find a better one
+      if (imageUrl && (imageUrl.endsWith(':tbn:') || (imageUrl.endsWith(':') && imageUrl.length < 100))) {
+        // Try other fields
+        if (item.image && !item.image.endsWith(':tbn:') && item.image.length > 50) {
+          imageUrl = item.image;
+        } else if (item.thumbnail && !item.thumbnail.endsWith(':tbn:') && item.thumbnail.length > 50) {
+          imageUrl = item.thumbnail;
+        } else if (item.pagemap?.cse_image?.[0]?.src) {
+          imageUrl = item.pagemap.cse_image[0].src;
+        } else if (item.pagemap?.metatags?.[0]?.['og:image']) {
+          imageUrl = item.pagemap.metatags[0]['og:image'];
+        }
+      }
+      
+      // Final validation - if still incomplete, log warning
+      if (imageUrl && (imageUrl.endsWith(':tbn:') || (imageUrl.endsWith(':') && imageUrl.length < 100))) {
+        console.warn('⚠️ API: Incomplete image URL detected:', imageUrl.substring(0, 100));
+        // Don't use incomplete URLs - set to empty string so it can be filtered out
+        imageUrl = '';
+      }
       
       // Detect category from title
       const category = detectCategoryFromText(item.title || '');
@@ -187,9 +209,22 @@ async function searchWithSerpAPI(query: string, apiKey: string): Promise<Normali
       };
     }).filter((p: NormalizedProduct) => {
       // Filter out products missing critical fields
-      const hasImage = p.imageUrl && p.imageUrl.length > 0;
+      // Also filter out products with incomplete image URLs
+      const hasImage = p.imageUrl && 
+                       p.imageUrl.length > 0 && 
+                       !p.imageUrl.endsWith(':tbn:') &&
+                       !(p.imageUrl.endsWith(':') && p.imageUrl.length < 100);
       const hasTitle = p.title && p.title.length > 0 && p.title !== 'Product';
       const hasUrl = p.productUrl && p.productUrl.length > 0;
+      
+      // Log filtered products for debugging
+      if (!hasImage && p.title) {
+        console.warn('⚠️ API: Filtering out product with incomplete/missing image:', {
+          title: p.title.substring(0, 50),
+          imageUrl: p.imageUrl ? p.imageUrl.substring(0, 100) : 'missing'
+        });
+      }
+      
       return hasImage && hasTitle && hasUrl;
     });
     

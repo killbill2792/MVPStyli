@@ -8,7 +8,7 @@ import {
   Share,
   ActivityIndicator
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from '../lib/SimpleGradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { 
   getPod, 
@@ -180,7 +180,12 @@ const PodLive = ({ podId, onBack, onRecap, userId }) => {
         marginHorizontal: 12,
         marginTop: insets.top + 8
       }]}>
-        <SafeImage source={getValidImageUri(pod.image_url)} style={styles.fullImage} resizeMode="cover" />
+        <SafeImage 
+          source={getValidImageUri(pod.image_url)} 
+          style={styles.fullImage} 
+          resizeMode="cover"
+          // No width/height = full-size image for pod live view
+        />
         
         {/* Product Thumbnail - if available */}
         {pod.product_url && (
@@ -189,11 +194,8 @@ const PodLive = ({ podId, onBack, onRecap, userId }) => {
           </View>
         )}
         
-        {/* Top Overlay */}
-        <LinearGradient
-            colors={['rgba(0,0,0,0.6)', 'transparent']}
-            style={styles.topOverlay}
-        >
+        {/* Top Content - No container background */}
+        <View style={styles.topOverlay}>
           <View style={styles.headerRow}>
               <View style={styles.userBadge}>
                   <Text style={styles.userName}>You</Text>
@@ -208,7 +210,7 @@ const PodLive = ({ podId, onBack, onRecap, userId }) => {
               </View>
           </View>
           <Text style={styles.questionText}>{pod.title}</Text>
-        </LinearGradient>
+        </View>
 
         {/* Bottom Controls Overlay - Inside the image card */}
         <LinearGradient 
@@ -309,7 +311,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   userBadge: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'transparent',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
@@ -406,14 +408,14 @@ const styles = StyleSheet.create({
   },
   actionBtn: {
     flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     paddingVertical: 0,
     height: 40,
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   actionBtnText: {
     color: '#fff',
@@ -422,26 +424,28 @@ const styles = StyleSheet.create({
   },
   glassBtn: {
     flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     paddingVertical: 0,
     height: 40,
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   destructBtn: {
     flex: 1,
-    backgroundColor: 'rgba(239,68,68,0.2)',
+    backgroundColor: 'rgba(239,68,68,0.6)',
     paddingVertical: 0,
     height: 40,
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.5)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   destructBtnText: {
-    color: '#f87171',
+    color: '#fff',
     fontWeight: '600',
     fontSize: 14,
   },

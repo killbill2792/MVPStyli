@@ -21,6 +21,9 @@ import { supabase } from '../lib/supabase';
 import { uploadImageAsync } from '../lib/upload';
 import { Colors, Typography, Spacing, BorderRadius, CardStyles, TextStyles } from '../lib/designSystem';
 import { SafeImage, OptimizedImage } from '../lib/OptimizedImage';
+import { SELECTABLE_TAGS, ALL_STYLE_TAGS } from '../lib/styleTaxonomy';
+import { logger } from '../lib/logger';
+const { getAvailableBrands, getBrandSizeChart, convertBrandChartToFitLogic } = require('../lib/brandSizeCharts');
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE;
 
@@ -67,9 +70,23 @@ const AdminGarmentsScreen = ({ onBack }) => {
     fit_type: 'regular', // slim | regular | relaxed | oversized
     fabric_stretch: 'none', // none | low | medium | high
     is_active: true,
-    tags: '',
+    tags: [], // Array of selected tags from taxonomy
     sizes: [], // Array of size objects: [{ size_label: 'S', chest_width: 50, ... }, ...]
   });
+  
+  // State for tag picker modal
+  const [showTagPicker, setShowTagPicker] = useState(false);
+  const [tagSearchQuery, setTagSearchQuery] = useState('');
+  
+  // State for size entry modal (brand/screenshot/manual)
+  const [showSizeEntryModal, setShowSizeEntryModal] = useState(false);
+  const [selectedSizeBrand, setSelectedSizeBrand] = useState(null);
+  const [isParsingSizeChart, setIsParsingSizeChart] = useState(false);
+  const [ocrParsingStatus, setOcrParsingStatus] = useState(null);
+  const [pendingParsedSizeData, setPendingParsedSizeData] = useState(null);
+  const [showParsedSizeConfirmation, setShowParsedSizeConfirmation] = useState(false);
+  const [manualSizeChartInput, setManualSizeChartInput] = useState({});
+  const [selectedSizes, setSelectedSizes] = useState([]); // Array of selected size indices
   
   // Color picker state
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -98,15 +115,15 @@ const AdminGarmentsScreen = ({ onBack }) => {
       if (filterCategory !== 'all') url += `&category=${filterCategory}`;
       if (filterGender !== 'all') url += `&gender=${filterGender}`;
 
-      console.log('Fetching garments from:', url);
+      logger.log('Fetching garments from:', url);
       const response = await fetch(url);
       
-      console.log('Response status:', response.status);
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+      logger.log('Response status:', response.status);
+      logger.log('Response headers:', Object.fromEntries(response.headers.entries()));
       
       // Always try to get text first to see what we're dealing with
       const text = await response.text();
-      console.log('Response text (first 500 chars):', text.substring(0, 500));
+      logger.log('Response text (first 500 chars):', text.substring(0, 500));
       
       // Handle different response types
       let data;
@@ -116,8 +133,8 @@ const AdminGarmentsScreen = ({ onBack }) => {
         try {
           data = JSON.parse(text);
         } catch (parseError) {
-          console.error('Failed to parse JSON response:', parseError);
-          console.error('Response text:', text);
+          logger.error('Failed to parse JSON response:', parseError);
+          logger.error('Response text:', text);
           throw new Error(`API returned invalid JSON (Status: ${response.status}). Response: ${text.substring(0, 200)}`);
         }
       } else {
@@ -125,9 +142,9 @@ const AdminGarmentsScreen = ({ onBack }) => {
         try {
           data = JSON.parse(text);
         } catch (parseError) {
-          console.error('Failed to parse response as JSON:', parseError);
-          console.error('Response status:', response.status);
-          console.error('Response text:', text);
+          logger.error('Failed to parse response as JSON:', parseError);
+          logger.error('Response status:', response.status);
+          logger.error('Response text:', text);
           
           // Check if it's an HTML error page (common with Vercel deployment issues)
           if (text.includes('<!DOCTYPE') || text.includes('<html')) {
@@ -152,8 +169,8 @@ const AdminGarmentsScreen = ({ onBack }) => {
         setGarments([]);
       }
     } catch (error) {
-      console.error('Error loading garments:', error);
-      console.error('Error stack:', error.stack);
+      logger.error('Error loading garments:', error);
+      logger.error('Error stack:', error.stack);
       Alert.alert(
         'Error Loading Garments', 
         error.message || 'Failed to load garments. Check console for details.',
@@ -188,7 +205,7 @@ const AdminGarmentsScreen = ({ onBack }) => {
               try {
                 return await uploadImageAsync(asset.uri);
               } catch (error) {
-                console.error('Failed to upload image:', error);
+                logger.error('Failed to upload image:', error);
                 return null;
               }
             })
@@ -218,14 +235,14 @@ const AdminGarmentsScreen = ({ onBack }) => {
 
           Alert.alert('Success', `${validUrls.length} image(s) uploaded successfully`);
         } catch (error) {
-          console.error('Upload error:', error);
+          logger.error('Upload error:', error);
           Alert.alert('Error', 'Failed to upload images');
         } finally {
           setSaving(false);
         }
       }
     } catch (error) {
-      console.error('Image picker error:', error);
+      logger.error('Image picker error:', error);
       Alert.alert('Error', 'Failed to pick images');
     }
   };
@@ -266,10 +283,11 @@ const AdminGarmentsScreen = ({ onBack }) => {
       fit_type: 'regular',
       fabric_stretch: 'none',
       is_active: true,
-      tags: '',
+      tags: [],
       sizes: [],
     });
     setMeasurementUnit('in'); // Default to inches since we store in inches
+    setTagSearchQuery('');
     setEditingGarment(null);
   };
   
@@ -387,7 +405,7 @@ const AdminGarmentsScreen = ({ onBack }) => {
       fit_type: garment.fit_type || 'regular',
       fabric_stretch: garment.fabric_stretch || 'none',
       is_active: garment.is_active !== false,
-      tags: Array.isArray(garment.tags) ? garment.tags.join(', ') : '',
+      tags: Array.isArray(garment.tags) ? garment.tags : [],
       sizes: sizes,
     });
     setPickedColorHex(garment.color_hex || '');
@@ -460,7 +478,7 @@ const AdminGarmentsScreen = ({ onBack }) => {
     try {
       const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL;
       if (!API_BASE) {
-        console.error('🎨 [ADMIN] API_BASE not configured');
+        logger.error('🎨 [ADMIN] API_BASE not configured');
         Alert.alert('Error', 'API configuration missing. Please check environment variables.');
         return null;
       }
@@ -502,7 +520,7 @@ const AdminGarmentsScreen = ({ onBack }) => {
         Alert.alert('Error', 'Failed to pick color from image');
       }
     } catch (error) {
-      console.error('Color pick error:', error);
+      logger.error('Color pick error:', error);
       Alert.alert('Error', 'Failed to pick color from image');
     } finally {
       setIsSamplingColor(false);
@@ -514,7 +532,7 @@ const AdminGarmentsScreen = ({ onBack }) => {
   // Confirm color pick - same logic as fit check
   const confirmColorPick = () => {
     if (livePickedColor) {
-      console.log('🎨 [ADMIN] Confirming color pick:', livePickedColor);
+      logger.log('🎨 [ADMIN] Confirming color pick:', livePickedColor);
       // Use color naming system to get the best name
       const { getNearestColorName } = require('../lib/colorNaming');
       const nearestColor = getNearestColorName(livePickedColor.hex);
@@ -534,7 +552,7 @@ const AdminGarmentsScreen = ({ onBack }) => {
       setMagnifierPosition(null);
       colorPickerImageUrlRef.current = null;
       
-      console.log('🎨 [ADMIN] Color saved:', {
+      logger.log('🎨 [ADMIN] Color saved:', {
         hex: livePickedColor.hex,
         name: colorName,
         rgb: livePickedColor.rgb,
@@ -564,16 +582,14 @@ const AdminGarmentsScreen = ({ onBack }) => {
       setSaving(true);
       const payload = { ...formData };
       
-      // Convert tags string to array
-      if (payload.tags && typeof payload.tags === 'string') {
-        payload.tags = payload.tags.split(',').map(t => t.trim()).filter(t => t);
-      } else if (!payload.tags) {
+      // Ensure tags is an array
+      if (!Array.isArray(payload.tags)) {
         payload.tags = [];
       }
 
       // Process sizes: convert to inches and store (all measurements stored in inches)
       const processedSizes = formData.sizes.map(size => {
-        const processedSize: any = {
+        const processedSize = {
           size_label: size.size_label,
         };
         
@@ -591,27 +607,39 @@ const AdminGarmentsScreen = ({ onBack }) => {
         
         // Process circumference fields - convert to inches if input is cm
         circumferenceFields.forEach(field => {
-          if (size[field] && size[field].trim() !== '' && !isNaN(size[field])) {
-            let value = parseFloat(size[field]);
-            // Convert to inches if input is in cm
-            if (measurementUnit === 'cm') {
-              value = value / 2.54; // cm to inches
+          const fieldValue = size[field];
+          // Handle both string and number values
+          if (fieldValue !== null && fieldValue !== undefined && fieldValue !== '') {
+            // Convert to string if it's a number, then check if it's a valid number
+            const stringValue = String(fieldValue).trim();
+            if (stringValue !== '' && !isNaN(stringValue)) {
+              let value = parseFloat(stringValue);
+              // Convert to inches if input is in cm
+              if (measurementUnit === 'cm') {
+                value = value / 2.54; // cm to inches
+              }
+              // Store in inches
+              processedSize[field] = value;
             }
-            // Store in inches
-            processedSize[field] = value;
           }
         });
         
         // Process length fields - convert to inches if input is cm
         lengthFields.forEach(field => {
-          if (size[field] && size[field].trim() !== '' && !isNaN(size[field])) {
-            let value = parseFloat(size[field]);
-            // Convert to inches if input is in cm
-            if (measurementUnit === 'cm') {
-              value = value / 2.54; // cm to inches
+          const fieldValue = size[field];
+          // Handle both string and number values
+          if (fieldValue !== null && fieldValue !== undefined && fieldValue !== '') {
+            // Convert to string if it's a number, then check if it's a valid number
+            const stringValue = String(fieldValue).trim();
+            if (stringValue !== '' && !isNaN(stringValue)) {
+              let value = parseFloat(stringValue);
+              // Convert to inches if input is in cm
+              if (measurementUnit === 'cm') {
+                value = value / 2.54; // cm to inches
+              }
+              // Store in inches
+              processedSize[field] = value;
             }
-            // Store in inches
-            processedSize[field] = value;
           }
         });
         
@@ -662,21 +690,26 @@ const AdminGarmentsScreen = ({ onBack }) => {
         data = await response.json();
       } else {
         const text = await response.text();
-        console.error('Non-JSON response:', text);
+        logger.error('Non-JSON response:', text);
         throw new Error(`Server error: ${response.status} ${response.statusText}`);
       }
       
       if (!response.ok) {
-        console.error('API error response:', data);
+        logger.error('API error response:', data);
         throw new Error(data.error || data.message || `Failed to save garment: ${response.status}`);
       }
 
       Alert.alert('Success', editingGarment ? 'Garment updated' : 'Garment created');
+      // Close all modals first
       setShowForm(false);
+      setShowTagPicker(false);
+      setShowSizeEntryModal(false);
+      // Reset form state
       resetForm();
+      // Reload garments
       loadGarments();
     } catch (error) {
-      console.error('Save error:', error);
+      logger.error('Save error:', error);
       Alert.alert('Error', error.message || 'Failed to save garment');
     } finally {
       setSaving(false);
@@ -935,16 +968,25 @@ const AdminGarmentsScreen = ({ onBack }) => {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={onBack} style={styles.backButton}>
+        <Pressable 
+          onPress={() => {
+            logger.log('🎨 [ADMIN] Back button pressed');
+            onBack && onBack();
+          }} 
+          style={styles.backButton}
+          disabled={saving || showForm}
+        >
           <Text style={styles.backButtonText}>← Back</Text>
         </Pressable>
         <Text style={styles.headerTitle}>Admin: Garments</Text>
         <Pressable
           style={styles.addButton}
           onPress={() => {
+            logger.log('🎨 [ADMIN] + Add button pressed');
             resetForm();
             setShowForm(true);
           }}
+          disabled={saving || showForm}
         >
           <Text style={styles.addButtonText}>+ Add</Text>
         </Pressable>
@@ -1033,10 +1075,23 @@ const AdminGarmentsScreen = ({ onBack }) => {
       />
 
       {/* Form Modal */}
-      <Modal visible={showForm} animationType="slide" presentationStyle="pageSheet">
+      <Modal 
+        visible={showForm} 
+        animationType="slide" 
+        presentationStyle="pageSheet"
+        onRequestClose={() => {
+          setShowForm(false);
+          setShowTagPicker(false);
+          setShowSizeEntryModal(false);
+        }}
+      >
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Pressable onPress={() => setShowForm(false)}>
+            <Pressable onPress={() => {
+              setShowForm(false);
+              setShowTagPicker(false);
+              setShowSizeEntryModal(false);
+            }}>
               <Text style={styles.modalCloseButton}>Cancel</Text>
             </Pressable>
             <Text style={styles.modalTitle}>
@@ -1200,11 +1255,30 @@ const AdminGarmentsScreen = ({ onBack }) => {
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Brand</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                  {['H&M', 'Nike', 'Adidas', 'Uniqlo', 'Zara', 'Banana Republic'].map((brand) => (
+                    <Pressable
+                      key={brand}
+                      style={[
+                        styles.brandChip,
+                        formData.brand === brand && styles.brandChipActive
+                      ]}
+                      onPress={() => setFormData({ ...formData, brand })}
+                    >
+                      <Text style={[
+                        styles.brandChipText,
+                        formData.brand === brand && styles.brandChipTextActive
+                      ]}>
+                        {brand}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
                 <TextInput
                   style={styles.input}
                   value={formData.brand}
                   onChangeText={(text) => setFormData({ ...formData, brand: text })}
-                  placeholder="Brand name"
+                  placeholder="Or enter brand name manually"
                   placeholderTextColor="#666"
                 />
               </View>
@@ -1254,15 +1328,15 @@ const AdminGarmentsScreen = ({ onBack }) => {
                     style={styles.colorPickerButton}
                     onPress={() => {
                       try {
-                        console.log('🎨 [ADMIN] Pick button clicked, image_url:', formData.image_url ? 'exists' : 'missing');
+                        logger.log('🎨 [ADMIN] Pick button clicked, image_url:', formData.image_url ? 'exists' : 'missing');
                         if (formData.image_url) {
-                          console.log('🎨 [ADMIN] Opening color picker modal');
+                          logger.log('🎨 [ADMIN] Opening color picker modal');
                           setShowColorPicker(true);
                         } else {
                           Alert.alert('Image Required', 'Please upload a product image first to pick a color from it.');
                         }
                       } catch (error) {
-                        console.error('🎨 [ADMIN] Error in pick button handler:', error);
+                        logger.error('🎨 [ADMIN] Error in pick button handler:', error);
                         Alert.alert('Error', 'Failed to open color picker. Please try again.');
                       }
                     }}
@@ -1285,25 +1359,31 @@ const AdminGarmentsScreen = ({ onBack }) => {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Size</Text>
-                <TextInput
-                  style={styles.input}
-                  value={formData.size}
-                  onChangeText={(text) => setFormData({ ...formData, size: text })}
-                  placeholder="e.g., M, L, XL"
-                  placeholderTextColor="#666"
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Tags (comma-separated)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={formData.tags}
-                  onChangeText={(text) => setFormData({ ...formData, tags: text })}
-                  placeholder="tag1, tag2, tag3"
-                  placeholderTextColor="#666"
-                />
+                <Text style={styles.inputLabel}>Style Tags</Text>
+                <Pressable
+                  style={[styles.input, { minHeight: 44, justifyContent: 'center' }]}
+                  onPress={() => {
+                    logger.log('🎨 [ADMIN] Style Tags button pressed, current showTagPicker:', showTagPicker);
+                    // Temporarily hide form modal to allow tag picker to show
+                    setShowForm(false);
+                    setShowTagPicker(true);
+                    logger.log('🎨 [ADMIN] Set showTagPicker to true, form modal hidden');
+                  }}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  disabled={saving}
+                >
+                  {formData.tags && formData.tags.length > 0 ? (
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+                      {formData.tags.map((tag, idx) => (
+                        <View key={idx} style={{ backgroundColor: Colors.primary + '20', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
+                          <Text style={{ color: Colors.primary, fontSize: 12 }}>{tag}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text style={{ color: '#666' }}>Tap to select tags</Text>
+                  )}
+                </Pressable>
               </View>
 
               <View style={[styles.inputGroup, styles.switchGroup]}>
@@ -1404,7 +1484,17 @@ const AdminGarmentsScreen = ({ onBack }) => {
                 
                 {formData.sizes.map((size, index) => renderSizeInputs(size, index))}
                 
-                <Pressable style={styles.addSizeButton} onPress={addSize}>
+                <Pressable 
+                  style={styles.addSizeButton} 
+                  onPress={() => {
+                    logger.log('🎨 [ADMIN] Add Size button pressed, current showSizeEntryModal:', showSizeEntryModal);
+                    // Temporarily hide form modal to allow size entry modal to show
+                    setShowForm(false);
+                    setShowSizeEntryModal(true);
+                    logger.log('🎨 [ADMIN] Set showSizeEntryModal to true, form modal hidden');
+                  }}
+                  disabled={saving}
+                >
                   <Text style={styles.addSizeButtonText}>+ Add Size</Text>
                 </Pressable>
               </View>
@@ -1418,7 +1508,7 @@ const AdminGarmentsScreen = ({ onBack }) => {
                 <View style={styles.colorPickerModalHeader}>
                   <Text style={styles.colorPickerModalTitle}>Pick Color from Product</Text>
                   <Pressable onPress={() => {
-                    console.log('🎨 [ADMIN] Closing color picker');
+                    logger.log('🎨 [ADMIN] Closing color picker');
                     setShowColorPicker(false);
                     setPickerTouchPosition(null);
                     setMagnifierPosition(null);
@@ -1454,7 +1544,7 @@ const AdminGarmentsScreen = ({ onBack }) => {
                                   handleManualColorPickerMove(locationX, locationY);
                                 }
                               } catch (error) {
-                                console.error('🎨 [ADMIN] Error in onPanResponderGrant:', error);
+                                logger.error('🎨 [ADMIN] Error in onPanResponderGrant:', error);
                               }
                             },
                             onPanResponderMove: (evt) => {
@@ -1464,7 +1554,7 @@ const AdminGarmentsScreen = ({ onBack }) => {
                                   handleManualColorPickerMove(locationX, locationY);
                                 }
                               } catch (error) {
-                                console.error('🎨 [ADMIN] Error in onPanResponderMove:', error);
+                                logger.error('🎨 [ADMIN] Error in onPanResponderMove:', error);
                               }
                             },
                             onPanResponderRelease: async (evt) => {
@@ -1474,7 +1564,7 @@ const AdminGarmentsScreen = ({ onBack }) => {
                                   await pickColorAtCoordinates(locationX, locationY);
                                 }
                               } catch (error) {
-                                console.error('🎨 [ADMIN] Error in onPanResponderRelease:', error);
+                                logger.error('🎨 [ADMIN] Error in onPanResponderRelease:', error);
                               }
                             },
                           });
@@ -1547,7 +1637,7 @@ const AdminGarmentsScreen = ({ onBack }) => {
                             </View>
                           );
                         } catch (error) {
-                          console.error('🎨 [ADMIN] Error creating PanResponder:', error);
+                          logger.error('🎨 [ADMIN] Error creating PanResponder:', error);
                           return (
                             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
                               <Text style={{ color: Colors.textSecondary }}>Error loading color picker. Please try again.</Text>
@@ -1590,6 +1680,423 @@ const AdminGarmentsScreen = ({ onBack }) => {
               </View>
             </View>
           )}
+        </SafeAreaView>
+      </Modal>
+
+      {/* Tag Picker Modal */}
+      <Modal 
+        visible={showTagPicker} 
+        animationType="slide" 
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowTagPicker(false)}
+        transparent={false}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Pressable onPress={() => {
+              logger.log('Closing tag picker modal');
+              setShowTagPicker(false);
+              // Reopen form modal
+              setShowForm(true);
+            }}>
+              <Text style={styles.modalCloseButton}>Cancel</Text>
+            </Pressable>
+            <Text style={styles.modalTitle}>Select Style Tags</Text>
+            <Pressable onPress={() => {
+              logger.log('Tag picker done, closing modal');
+              setShowTagPicker(false);
+              // Reopen form modal
+              setShowForm(true);
+            }}>
+              <Text style={[styles.modalCloseButton, { color: Colors.primary, fontWeight: '600' }]}>Done</Text>
+            </Pressable>
+          </View>
+          
+          {/* Search */}
+          <View style={{ padding: 16 }}>
+            <TextInput
+              style={styles.input}
+              value={tagSearchQuery}
+              onChangeText={setTagSearchQuery}
+              placeholder="Search tags..."
+              placeholderTextColor="#666"
+            />
+          </View>
+          
+          {/* Selected Tags */}
+          {formData.tags && formData.tags.length > 0 && (
+            <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+              <Text style={[styles.inputLabel, { marginBottom: 8 }]}>Selected ({formData.tags.length})</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {formData.tags.map((tag, idx) => (
+                  <Pressable
+                    key={idx}
+                    style={{ backgroundColor: Colors.primary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                    onPress={() => {
+                      const newTags = formData.tags.filter(t => t !== tag);
+                      setFormData({ ...formData, tags: newTags });
+                    }}
+                  >
+                    <Text style={{ color: '#fff', fontSize: 13 }}>{tag}</Text>
+                    <Text style={{ color: '#fff', fontSize: 16 }}>×</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          )}
+          
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+            {/* Tag Categories */}
+            {Object.entries(SELECTABLE_TAGS).map(([category, tags]) => {
+              const filteredTags = tagSearchQuery 
+                ? tags.filter(t => t.toLowerCase().includes(tagSearchQuery.toLowerCase()))
+                : tags;
+              
+              if (filteredTags.length === 0) return null;
+              
+              return (
+                <View key={category} style={{ marginBottom: 20 }}>
+                  <Text style={[styles.sectionTitle, { marginBottom: 10 }]}>
+                    {category.charAt(0).toUpperCase() + category.slice(1)}
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {filteredTags.map((tag) => {
+                      const isSelected = formData.tags?.includes(tag);
+                      return (
+                        <Pressable
+                          key={tag}
+                          style={{
+                            backgroundColor: isSelected ? Colors.primary : Colors.backgroundSecondary,
+                            paddingHorizontal: 12,
+                            paddingVertical: 6,
+                            borderRadius: 16,
+                            borderWidth: 1,
+                            borderColor: isSelected ? Colors.primary : '#444',
+                          }}
+                          onPress={() => {
+                            if (isSelected) {
+                              const newTags = formData.tags.filter(t => t !== tag);
+                              setFormData({ ...formData, tags: newTags });
+                            } else {
+                              const newTags = [...(formData.tags || []), tag];
+                              setFormData({ ...formData, tags: newTags });
+                            }
+                          }}
+                        >
+                          <Text style={{ color: isSelected ? '#fff' : '#ccc', fontSize: 13 }}>{tag}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              );
+            })}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Size Entry Modal - Brand/Screenshot/Manual */}
+      <Modal visible={showSizeEntryModal} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Pressable onPress={() => {
+              setShowSizeEntryModal(false);
+              setSelectedSizeBrand(null);
+              setPendingParsedSizeData(null);
+              setShowParsedSizeConfirmation(false);
+              setManualSizeChartInput({});
+              // Reopen form modal
+              setShowForm(true);
+            }}>
+              <Text style={styles.modalCloseButton}>Cancel</Text>
+            </Pressable>
+            <Text style={styles.modalTitle}>Add Size Chart</Text>
+            <View style={{ width: 60 }} />
+          </View>
+          
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+            {/* Option 1: Select Brand */}
+            <View style={styles.formSection}>
+              <Text style={styles.sectionTitle}>1. Select Brand</Text>
+              <Text style={styles.sectionSubtitle}>Choose from brands with consistent size charts</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+                {getAvailableBrands().map((brand) => (
+                  <Pressable
+                    key={brand}
+                    style={[
+                      styles.brandChip,
+                      selectedSizeBrand === brand && styles.brandChipActive
+                    ]}
+                    onPress={() => {
+                      setSelectedSizeBrand(brand);
+                      const category = formData.category === 'upper' ? 'upper_body' : 
+                                      formData.category === 'bottom' ? 'lower_body' : 
+                                      formData.category === 'dress' ? 'dresses' : 'upper_body';
+                      const brandChart = getBrandSizeChart(brand, category);
+                      if (brandChart) {
+                        const sizeChart = convertBrandChartToFitLogic(brandChart);
+                        setPendingParsedSizeData(sizeChart);
+                        setSelectedSizes([]); // Reset selected sizes
+                        setShowParsedSizeConfirmation(true);
+                      } else {
+                        Alert.alert('Brand Not Found', `Size chart for ${brand} in ${category} category is not available.`);
+                      }
+                    }}
+                  >
+                    <Text style={[
+                      styles.brandChipText,
+                      selectedSizeBrand === brand && styles.brandChipTextActive
+                    ]}>
+                      {brand}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            {/* Option 2: Upload Screenshot */}
+            <View style={styles.formSection}>
+              <Text style={styles.sectionTitle}>2. Upload Size Chart Screenshot</Text>
+              <Text style={styles.sectionSubtitle}>Take a photo of the size chart from the product page</Text>
+              <Pressable
+                style={styles.uploadButton}
+                onPress={async () => {
+                  try {
+                    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                    if (!permissionResult.granted) {
+                      Alert.alert('Permission needed', 'Please allow access to your photos');
+                      return;
+                    }
+
+                    const result = await ImagePicker.launchImageLibraryAsync({
+                      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                      allowsEditing: false,
+                      quality: 1,
+                    });
+
+                    if (!result.canceled && result.assets[0]) {
+                      setIsParsingSizeChart(true);
+                      setOcrParsingStatus('Preparing image...');
+                      const imageUri = result.assets[0].uri;
+                      
+                      try {
+                        setOcrParsingStatus('Converting image...');
+                        const response = await fetch(imageUri);
+                        const blob = await response.blob();
+                        
+                        const reader = new FileReader();
+                        reader.onloadend = async () => {
+                          const base64 = reader.result;
+                          
+                          try {
+                            const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL;
+                            if (!API_BASE) {
+                              setOcrParsingStatus('Error: API configuration missing');
+                              return;
+                            }
+                            
+                            setOcrParsingStatus('Analyzing screenshot...');
+                            
+                            const parseResponse = await fetch(`${API_BASE}/api/ocr-sizechart`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ imageBase64: base64 }),
+                            });
+                            
+                            if (!parseResponse.ok) {
+                              throw new Error(`OCR API error: ${parseResponse.status}`);
+                            }
+                            
+                            const parseData = await parseResponse.json();
+                            
+                            if (parseData.success && parseData.data) {
+                              setOcrParsingStatus('✓ Successfully parsed!');
+                              setPendingParsedSizeData(parseData.data);
+                              setSelectedSizes([]); // Reset selected sizes
+                              setShowParsedSizeConfirmation(true);
+                              setIsParsingSizeChart(false);
+                            } else {
+                              setOcrParsingStatus('Could not auto-parse. Please enter manually.');
+                              setManualSizeChartInput(parseData.structure || {
+                                sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
+                                measurements: ['chest', 'waist', 'hips', 'length', 'sleeve', 'shoulder', 'inseam', 'rise'],
+                              });
+                            }
+                          } catch (error) {
+                            logger.error('Error parsing size chart:', error);
+                            setOcrParsingStatus(`Error: ${error.message}`);
+                            setIsParsingSizeChart(false);
+                          }
+                        };
+                        reader.readAsDataURL(blob);
+                      } catch (error) {
+                        logger.error('Error processing image:', error);
+                        setOcrParsingStatus('Error processing image');
+                        setIsParsingSizeChart(false);
+                      }
+                    }
+                  } catch (error) {
+                    logger.error('Image picker error:', error);
+                    Alert.alert('Error', 'Failed to pick image');
+                  }
+                }}
+              >
+                <Text style={styles.uploadButtonText}>
+                  {isParsingSizeChart ? ocrParsingStatus || 'Processing...' : '📷 Upload Screenshot'}
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* Option 3: Manual Entry */}
+            <View style={styles.formSection}>
+              <Text style={styles.sectionTitle}>3. Enter Manually</Text>
+              <Text style={styles.sectionSubtitle}>Add sizes and measurements manually</Text>
+              <Pressable
+                style={styles.uploadButton}
+                onPress={() => {
+                  setManualSizeChartInput({
+                    sizes: ['S', 'M', 'L'],
+                    measurements: ['chest', 'waist', 'hips'],
+                  });
+                  // For manual entry, just add a default size
+                  addSize();
+                  setShowSizeEntryModal(false);
+                  // Reopen form modal
+                  setShowForm(true);
+                }}
+              >
+                <Text style={styles.uploadButtonText}>✏️ Enter Manually</Text>
+              </Pressable>
+            </View>
+
+            {/* Confirmation View for Brand/Screenshot */}
+            {showParsedSizeConfirmation && pendingParsedSizeData && Array.isArray(pendingParsedSizeData) && (
+              <View style={styles.formSection}>
+                <Text style={styles.sectionTitle}>Select Sizes to Add</Text>
+                <Text style={[styles.sectionSubtitle, { marginBottom: 12 }]}>
+                  Select one or more sizes to add to this product
+                </Text>
+                <ScrollView style={{ maxHeight: 400, marginTop: 12 }}>
+                  <View>
+                    {/* Header Row */}
+                    <View style={{ flexDirection: 'row', backgroundColor: Colors.primary, padding: 12, alignItems: 'center' }}>
+                      <View style={{ width: 50 }} />
+                      <Text style={[styles.inputLabel, { color: '#fff', flex: 1, textAlign: 'center' }]}>Size</Text>
+                      {pendingParsedSizeData[0]?.measurements && Object.keys(pendingParsedSizeData[0].measurements).slice(0, 4).map((m) => (
+                        <Text key={m} style={[styles.inputLabel, { color: '#fff', width: 70, marginLeft: 4, textAlign: 'center', fontSize: 11 }]}>
+                          {m.charAt(0).toUpperCase() + m.slice(1)}
+                        </Text>
+                      ))}
+                    </View>
+                    {/* Size Rows with Checkboxes */}
+                    {pendingParsedSizeData.map((item, idx) => {
+                      const isSelected = selectedSizes.includes(idx);
+                      return (
+                        <Pressable
+                          key={idx}
+                          style={{
+                            flexDirection: 'row',
+                            padding: 12,
+                            borderBottomWidth: 1,
+                            borderBottomColor: Colors.border,
+                            backgroundColor: isSelected ? Colors.primary + '20' : 'transparent',
+                            alignItems: 'center'
+                          }}
+                          onPress={() => {
+                            if (isSelected) {
+                              setSelectedSizes(prev => prev.filter(i => i !== idx));
+                            } else {
+                              setSelectedSizes(prev => [...prev, idx]);
+                            }
+                          }}
+                        >
+                          {/* Checkbox */}
+                          <View style={{
+                            width: 24,
+                            height: 24,
+                            borderRadius: 4,
+                            borderWidth: 2,
+                            borderColor: isSelected ? Colors.primary : Colors.border,
+                            backgroundColor: isSelected ? Colors.primary : 'transparent',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            marginRight: 8
+                          }}>
+                            {isSelected && <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>✓</Text>}
+                          </View>
+                          {/* Size Label */}
+                          <Text style={{ color: Colors.textPrimary, flex: 1, fontWeight: isSelected ? '600' : '400' }}>
+                            {item.size}
+                          </Text>
+                          {/* Measurements */}
+                          {item.measurements && Object.entries(item.measurements).slice(0, 4).map(([key, val]) => (
+                            <Text key={key} style={{ color: Colors.textPrimary, width: 70, marginLeft: 4, textAlign: 'center', fontSize: 12 }}>
+                              {typeof val === 'number' ? val.toFixed(1) : val}
+                            </Text>
+                          ))}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+                <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+                  <Pressable
+                    style={[styles.addSizeButton, { flex: 1, backgroundColor: Colors.error }]}
+                    onPress={() => {
+                      setShowParsedSizeConfirmation(false);
+                      setPendingParsedSizeData(null);
+                      setSelectedSizes([]);
+                    }}
+                  >
+                    <Text style={styles.addSizeButtonText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.addSizeButton, { flex: 1, opacity: selectedSizes.length === 0 ? 0.5 : 1 }]}
+                    disabled={selectedSizes.length === 0}
+                    onPress={() => {
+                      if (selectedSizes.length === 0) {
+                        Alert.alert('No Sizes Selected', 'Please select at least one size to add.');
+                        return;
+                      }
+                      
+                      // Convert only selected sizes to admin garment size format
+                      const newSizes = selectedSizes.map(idx => {
+                        const item = pendingParsedSizeData[idx];
+                        return {
+                          size_label: item.size,
+                          chest_circumference: item.measurements?.chest || '',
+                          waist_circumference: item.measurements?.waist || '',
+                          hip_circumference: item.measurements?.hips || item.measurements?.hip || '',
+                          garment_length_in: item.measurements?.length || '',
+                          shoulder_width_in: item.measurements?.shoulder || '',
+                          sleeve_length_in: item.measurements?.sleeve || '',
+                          inseam_in: item.measurements?.inseam || '',
+                          rise_in: item.measurements?.rise || '',
+                        };
+                      });
+                      
+                      setFormData({
+                        ...formData,
+                        sizes: [...formData.sizes, ...newSizes],
+                      });
+                      
+                      setShowSizeEntryModal(false);
+                      setSelectedSizeBrand(null);
+                      setPendingParsedSizeData(null);
+                      setShowParsedSizeConfirmation(false);
+                      setSelectedSizes([]);
+                      // Reopen form modal
+                      setShowForm(true);
+                    }}
+                  >
+                    <Text style={styles.addSizeButtonText}>
+                      ✓ Add {selectedSizes.length > 0 ? `${selectedSizes.length} Size${selectedSizes.length > 1 ? 's' : ''}` : 'Sizes'}
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+          </ScrollView>
         </SafeAreaView>
       </Modal>
     </SafeAreaView>
@@ -1807,6 +2314,27 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   radioButtonTextActive: {
+    color: Colors.textWhite,
+    fontWeight: Typography.semibold,
+  },
+  brandChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  brandChipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  brandChipText: {
+    ...TextStyles.body,
+    color: Colors.textSecondary,
+    fontSize: 13,
+  },
+  brandChipTextActive: {
     color: Colors.textWhite,
     fontWeight: Typography.semibold,
   },

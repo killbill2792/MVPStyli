@@ -11,7 +11,7 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from '../lib/SimpleGradient';
 import { Spacing, Colors, BorderRadius, Typography } from '../lib/designSystem';
 import { 
   getUserActivePods, 
@@ -60,6 +60,7 @@ const PodsHome = ({
   const [unreadCount, setUnreadCount] = useState(0);
   const [activeTab, setActiveTab] = useState('live'); // 'live', 'past', 'invited'
   const [loading, setLoading] = useState(true);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   useEffect(() => {
     loadPodsData();
@@ -68,7 +69,10 @@ const PodsHome = ({
   const loadPodsData = async () => {
     // Only fetch if we have a valid UUID
     if (userId && userId.length >= 30 && userId.includes('-')) {
-      setLoading(true);
+      // Only show loading spinner on initial load, not on subsequent refreshes
+      if (!initialLoadDone) {
+        setLoading(true);
+      }
       try {
         const [active, past, invited, notifs, unread] = await Promise.all([
           getUserActivePods(userId),
@@ -83,13 +87,17 @@ const PodsHome = ({
         const expiredActive = (active || []).filter(p => new Date(p.ends_at).getTime() <= now || p.status === 'expired');
         
         setActivePods(validActive);
-        // Combine and sort by created_at descending (most recent first)
+        // Combine and deduplicate by ID, then sort by created_at descending (most recent first)
         const allPastPods = [...(past || []), ...expiredActive];
-        allPastPods.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-        setPastPods(allPastPods);
+        const uniquePastPods = Array.from(
+          new Map(allPastPods.map(pod => [pod.id, pod])).values()
+        );
+        uniquePastPods.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        setPastPods(uniquePastPods);
         setInvitedPods(invited || []);
         setNotifications(notifs || []);
         setUnreadCount(unread || 0);
+        setInitialLoadDone(true);
       } catch (error) {
         console.error('Error loading pods:', error);
         setActivePods([]);
@@ -103,6 +111,7 @@ const PodsHome = ({
       setPastPods([]);
       setInvitedPods([]);
       setLoading(false);
+      setInitialLoadDone(true);
     }
   };
 
@@ -124,11 +133,20 @@ const PodsHome = ({
     return mode;
   };
 
-  const showStartCard = lastTryOn && !activePods.some(p => p.image_url === (lastTryOn.resultUrl || lastTryOn.image)) && !pastPods.some(p => p.image_url === (lastTryOn.resultUrl || lastTryOn.image));
+  // Only show the "Start from last try-on" card AFTER initial load is done
+  // This prevents the flicker where card shows briefly then disappears
+  const showStartCard = initialLoadDone && lastTryOn && !activePods.some(p => p.image_url === (lastTryOn.resultUrl || lastTryOn.image)) && !pastPods.some(p => p.image_url === (lastTryOn.resultUrl || lastTryOn.image));
 
   const ActivePodCard = ({ pod }) => (
     <Pressable style={styles.card} onPress={() => onPodLive(pod.id)}>
-      <SafeImage source={getValidImageUri(pod.image_url)} style={styles.cardImage} resizeMode="cover" />
+      <SafeImage 
+        source={getValidImageUri(pod.image_url)} 
+        style={styles.cardImage} 
+        resizeMode="cover"
+        width={300}  // Thumbnail width for pod cards
+        height={200} // Thumbnail height for pod cards
+        quality={85} // Good quality for pod cards
+      />
       <View style={styles.cardContent}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle} numberOfLines={1}>{pod.title}</Text>
@@ -184,7 +202,14 @@ const PodsHome = ({
         onPress={() => onPodRecap(pod.id)}
         onLongPress={() => setShowDeleteConfirm(true)}
       >
-        <SafeImage source={getValidImageUri(pod.image_url)} style={styles.cardImage} resizeMode="cover" />
+        <SafeImage 
+        source={getValidImageUri(pod.image_url)} 
+        style={styles.cardImage} 
+        resizeMode="cover"
+        width={300}  // Thumbnail width for pod cards
+        height={200} // Thumbnail height for pod cards
+        quality={85} // Good quality for pod cards
+      />
       <View style={styles.cardContent}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle} numberOfLines={1}>{pod.title}</Text>
@@ -242,7 +267,14 @@ const PodsHome = ({
           }
         }}
       >
-        <SafeImage source={getValidImageUri(pod.image_url)} style={styles.cardImage} resizeMode="cover" />
+        <SafeImage 
+        source={getValidImageUri(pod.image_url)} 
+        style={styles.cardImage} 
+        resizeMode="cover"
+        width={300}  // Thumbnail width for pod cards
+        height={200} // Thumbnail height for pod cards
+        quality={85} // Good quality for pod cards
+      />
         <View style={styles.cardContent}>
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle} numberOfLines={1}>{pod.title}</Text>
@@ -313,55 +345,84 @@ const PodsHome = ({
             </Pressable>
           </View>
           {notifications.length > 0 ? (
-            notifications.slice(0, 5).map((notif, index) => {
-              const podId = notif.payload?.pod_id;
-              const hasValidPod = podId && podId.length >= 30;
-              
-              return (
-                <Pressable 
-                  key={notif.id || index}
-                  style={[styles.notifItem, !notif.read && styles.notifUnread]}
-                  onPress={async () => {
-                    setShowNotifications(false);
-                    // Mark notification as read
-                    if (!notif.read && notif.id) {
-                      const { markNotificationRead } = await import('../lib/pods');
-                      await markNotificationRead(notif.id);
-                      // Update local state
-                      setNotifications(prev => 
-                        prev.map(n => n.id === notif.id ? { ...n, read: true } : n)
-                      );
-                      // Reload unread count
-                      const { getUnreadNotificationCount } = await import('../lib/pods');
-                      const newCount = await getUnreadNotificationCount(userId);
-                      setUnreadCount(newCount);
-                    }
-                    if (hasValidPod) {
-                      // Navigate to explore Friends tab to vote
-                      if (onPodGuest) {
-                        onPodGuest(podId);
-                      } else {
-                        // Switch to invited tab
-                        setActiveTab('invited');
+            <>
+              {notifications.slice(0, 5).map((notif, index) => {
+                const podId = notif.payload?.pod_id;
+                const hasValidPod = podId && podId.length >= 30;
+                
+                return (
+                  <Pressable 
+                    key={notif.id || index}
+                    style={[styles.notifItem, !notif.read && styles.notifUnread]}
+                    onPress={async () => {
+                      setShowNotifications(false);
+                      // Mark notification as read
+                      if (!notif.read && notif.id) {
+                        const { markNotificationRead } = await import('../lib/pods');
+                        await markNotificationRead(notif.id);
+                        // Update local state
+                        setNotifications(prev => 
+                          prev.map(n => n.id === notif.id ? { ...n, read: true } : n)
+                        );
+                        // Reload unread count
+                        const { getUnreadNotificationCount } = await import('../lib/pods');
+                        const newCount = await getUnreadNotificationCount(userId);
+                        setUnreadCount(newCount);
                       }
-                    }
+                      if (hasValidPod) {
+                        // Navigate to explore Friends tab to vote
+                        if (onPodGuest) {
+                          onPodGuest(podId);
+                        } else {
+                          // Switch to invited tab
+                          setActiveTab('invited');
+                        }
+                      }
+                    }}
+                  >
+                    <Text style={styles.notifMessage}>
+                      {/* Use enriched sender info if available */}
+                      {notif.payload?.fromUserName 
+                        ? `${notif.payload.fromUserName} invited you to vote` 
+                        : notif.payload?.message || '🔔 New notification'}
+                    </Text>
+                    <Text style={styles.notifTime}>
+                      {new Date(notif.created_at).toLocaleDateString()}
+                    </Text>
+                    {hasValidPod && (
+                      <Text style={styles.notifAction}>Tap to vote →</Text>
+                    )}
+                  </Pressable>
+                );
+              })}
+              {/* See All & Mark All Read buttons */}
+              <View style={styles.notifActions}>
+                {unreadCount > 0 && (
+                  <Pressable 
+                    style={styles.notifActionBtn}
+                    onPress={async () => {
+                      const { markAllNotificationsRead } = await import('../lib/pods');
+                      await markAllNotificationsRead(userId);
+                      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+                      setUnreadCount(0);
+                    }}
+                  >
+                    <Text style={styles.notifActionBtnText}>Mark all read</Text>
+                  </Pressable>
+                )}
+                <Pressable 
+                  style={[styles.notifActionBtn, styles.notifActionBtnPrimary]}
+                  onPress={() => {
+                    setShowNotifications(false);
+                    if (onInbox) onInbox();
                   }}
                 >
-                  <Text style={styles.notifMessage}>
-                    {/* Use enriched sender info if available */}
-                    {notif.payload?.fromUserName 
-                      ? `${notif.payload.fromUserName} invited you to vote` 
-                      : notif.payload?.message || '🔔 New notification'}
+                  <Text style={[styles.notifActionBtnText, styles.notifActionBtnTextPrimary]}>
+                    See all →
                   </Text>
-                  <Text style={styles.notifTime}>
-                    {new Date(notif.created_at).toLocaleDateString()}
-                  </Text>
-                  {hasValidPod && (
-                    <Text style={styles.notifAction}>Tap to vote →</Text>
-                  )}
                 </Pressable>
-              );
-            })
+              </View>
+            </>
           ) : (
             <Text style={styles.notifEmpty}>No notifications yet</Text>
           )}
@@ -398,6 +459,9 @@ const PodsHome = ({
                 source={getValidImageUri(lastTryOn.resultUrl || lastTryOn.userImage || lastTryOn.image)} 
                 style={styles.startImage} 
                 resizeMode="cover"
+                width={300}  // Thumbnail width for start image
+                height={300} // Thumbnail height for start image
+                quality={85} // Good quality for start image
               />
               <View style={styles.startContent}>
                 <Text style={styles.startTitle}>Start from last try-on</Text>
@@ -802,6 +866,33 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     marginTop: 4,
+  },
+  notifActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
+    gap: 8,
+  },
+  notifActionBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  notifActionBtnPrimary: {
+    backgroundColor: '#6366f1',
+  },
+  notifActionBtnText: {
+    color: '#9ca3af',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  notifActionBtnTextPrimary: {
+    color: '#fff',
   },
   deleteModal: {
     position: 'absolute',

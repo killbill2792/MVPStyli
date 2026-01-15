@@ -10,7 +10,7 @@ import {
   Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from '../lib/SimpleGradient';
 import { 
   getPod, 
   getPodVotes, 
@@ -21,6 +21,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { Colors, getColors } from '../lib/designSystem';
 import { SafeImage, OptimizedImage } from '../lib/OptimizedImage';
+import { Avatar } from '../components/Avatar';
 
 // Helper to parse image URI
 const getValidImageUri = (imageField) => {
@@ -143,9 +144,10 @@ const PodRecap = ({ podId, onBack, onStyleCraft, onShopSimilar, onViewProduct, o
   const voteCounts = getVoteCounts(votes);
 
   const getVerdict = (conf) => {
-    if (conf >= 70) return { text: "Green light ✅", color: '#10b981' };
-    if (conf >= 40) return { text: "Mixed feelings 🤔", color: '#f59e0b' };
-    return { text: "Not their favorite ❌", color: '#ef4444' };
+    if (conf >= 70) return { text: "🟢 Go for it", color: '#10b981' };
+    if (conf >= 40) return { text: "🟡 Mixed opinions", color: '#f59e0b' };
+    if (conf >= 1) return { text: "🔴 Not the one", color: '#ef4444' };
+    return { text: "⚪ No signal yet", color: '#6b7280' };
   };
 
   const verdict = getVerdict(confidence);
@@ -195,7 +197,14 @@ const PodRecap = ({ podId, onBack, onStyleCraft, onShopSimilar, onViewProduct, o
 
         {/* Image Thumbnail */}
         <Pressable onPress={() => setShowFullImage(true)} style={styles.imageCard}>
-            <SafeImage source={getValidImageUri(pod.image_url)} style={styles.thumbnail} resizeMode="cover" />
+            <SafeImage 
+              source={getValidImageUri(pod.image_url)} 
+              style={styles.thumbnail} 
+              resizeMode="cover"
+              width={300}  // Thumbnail width for pod recap
+              height={300} // Thumbnail height for pod recap
+              quality={85} // Good quality for pod images
+            />
             <View style={styles.imageOverlay}>
                 <Text style={styles.viewImageText}>View Outfit ↗</Text>
             </View>
@@ -238,13 +247,11 @@ const PodRecap = ({ podId, onBack, onStyleCraft, onShopSimilar, onViewProduct, o
                                     }
                                 }}
                             >
-                                {displayAvatar ? (
-                                    <SafeImage source={{ uri: displayAvatar }} style={styles.friendAvatar} />
-                                ) : (
-                                    <View style={styles.friendAvatarPlaceholder}>
-                                        <Text style={styles.friendAvatarText}>{(displayName || 'F')[0]}</Text>
-                                    </View>
-                                )}
+                                <Avatar 
+                                  imageUri={displayAvatar} 
+                                  name={displayName || 'Friend'} 
+                                  size={40}
+                                />
                                 <Text style={styles.friendName}>
                                     {displayName}
                                     {isGuest && <Text style={{ fontSize: 10, color: '#9ca3af' }}> (Guest)</Text>}
@@ -261,18 +268,46 @@ const PodRecap = ({ podId, onBack, onStyleCraft, onShopSimilar, onViewProduct, o
         {pod.audience !== 'style_twins' && comments.length > 0 && pod.owner_id === userId && (
             <View style={styles.commentsSection}>
                 <Text style={styles.sectionTitle}>Comments (Only you can see these)</Text>
-                {comments.slice(0, 5).map(c => {
-                    // Try multiple formats for profile lookup
+                {comments.map(c => {
+                    // Parse guest comment format: [Guest: Name] comment text
+                    let isGuestComment = false;
+                    let guestName = null;
+                    let commentBody = c.body || '';
+                    
+                    // Check if it's a guest comment from web (format: [Guest: Name] comment)
+                    if (commentBody.startsWith('[Guest:')) {
+                        isGuestComment = true;
+                        const match = commentBody.match(/^\[Guest:\s*([^\]]+)\]\s*(.*)$/);
+                        if (match) {
+                            guestName = match[1].trim();
+                            commentBody = match[2].trim();
+                        }
+                    } else if (c.guest_name) {
+                        // Guest comment from pod_votes (has guest_name field)
+                        isGuestComment = true;
+                        guestName = c.guest_name;
+                    } else if (c.id?.startsWith('guest-')) {
+                        // Guest comment from getPodComments mapping
+                        isGuestComment = true;
+                        guestName = c.guest_name || 'Guest';
+                    }
+                    
+                    // Try multiple formats for profile lookup (only for non-guest comments)
                     const authorIdStr = c.author_id ? String(c.author_id) : null;
-                    const profile = authorIdStr ? (commenterProfiles[authorIdStr] || commenterProfiles[c.author_id] || {}) : {};
-                    const isGuestComment = c.id?.startsWith('guest-') || c.guest_name || !c.author_id;
-                    const displayName = isGuestComment ? (c.guest_name || 'Guest') : (profile.name || 'Friend');
+                    const profile = (!isGuestComment && authorIdStr) ? (commenterProfiles[authorIdStr] || commenterProfiles[c.author_id] || {}) : {};
+                    const displayName = isGuestComment ? (guestName || 'Guest') : (profile.name || 'Friend');
                     
                     return (
                         <View key={c.id} style={styles.commentCard}>
                             <View style={styles.commentHeader}>
                                 {!isGuestComment && profile.avatar ? (
-                                    <SafeImage source={{ uri: profile.avatar }} style={styles.commentAvatar} />
+                                    <SafeImage 
+                                      source={{ uri: profile.avatar }} 
+                                      style={styles.commentAvatar}
+                                      width={40}  // Avatar size
+                                      height={40} // Avatar size
+                                      quality={85} // Good quality for avatars
+                                    />
                                 ) : !isGuestComment ? (
                                     <View style={styles.commentAvatarPlaceholder}>
                                         <Text style={styles.commentAvatarText}>{(profile.name || 'F')[0]}</Text>
@@ -287,7 +322,7 @@ const PodRecap = ({ podId, onBack, onStyleCraft, onShopSimilar, onViewProduct, o
                                     {isGuestComment && <Text style={{ fontSize: 11, color: '#9ca3af', marginLeft: 4 }}>(Guest)</Text>}
                                 </Text>
                             </View>
-                            <Text style={styles.commentBody}>"{c.body}"</Text>
+                            <Text style={styles.commentBody}>"{commentBody}"</Text>
                         </View>
                     );
                 })}
@@ -333,7 +368,12 @@ const PodRecap = ({ podId, onBack, onStyleCraft, onShopSimilar, onViewProduct, o
               
               {/* Image */}
               <View style={styles.exploreImageContainer}>
-                  <SafeImage source={getValidImageUri(pod.image_url)} style={styles.exploreFullImage} resizeMode="cover" />
+                  <SafeImage 
+                    source={getValidImageUri(pod.image_url)} 
+                    style={styles.exploreFullImage} 
+                    resizeMode="cover"
+                    // No width/height = full-size image in modal
+                  />
                   
                   {/* Gradient Overlay */}
                   <LinearGradient

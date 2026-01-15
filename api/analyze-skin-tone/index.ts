@@ -82,40 +82,153 @@ function rgbToHsv(r: number, g: number, b: number) {
 }
 
 /**
- * Lightweight skin-pixel check.
+ * Lab-based skin pixel check (more stable than RGB rules).
+ * Uses Lab color space for better skin tone detection across diverse lighting.
+ */
+function isLikelySkinPixelFromLab(lab: { l: number; a: number; b: number }): boolean {
+  const { l, a, b } = lab;
+  // Lab-based skin filtering - broad enough for many skin tones but excludes extreme colors
+  if (l < 18 || l > 92) return false; // Lightness range
+  if (a < -5 || a > 28) return false; // Red-green axis
+  if (b < 0 || b > 38) return false; // Yellow-blue axis
+  return true;
+}
+
+/**
+ * Lightweight RGB skin-pixel check (fallback for initial filtering).
  * Purpose: avoid sampling beard/eyes/lips/background.
- * Made more strict to avoid false positives on non-face images.
+ * Updated per spec: remove strict RGB minimums, use brightness check instead.
  */
 function isLikelySkinPixel(r: number, g: number, b: number) {
+  // Brightness check (replaces individual RGB minimums)
+  const brightness = r + g + b;
+  if (brightness < 60) return false; // Too dark
+
   // Balanced brightness range - skin can vary widely
-  const v = (r + g + b) / (3 * 255);
-  if (v < 0.12 || v > 0.90) return false; // Allow wider range for different skin tones
+  const v = brightness / (3 * 255);
+  if (v < 0.12 || v > 0.90) return false;
 
   // Skin typically has R > G > B, with R higher than B
   const rb = r - b;
-  if (rb < 5) return false; // More lenient for darker skin tones
-  if (r < 35 || g < 20 || b < 10) return false; // Lower minimums for darker skin
+  if (rb < 5) return false;
 
-  // Skin has moderate saturation - but allow wider range
+  // Skin has moderate saturation - allow wider range (per spec: >= 0.04, cap at 0.65)
   const { s } = rgbToHsv(r, g, b);
-  if (s < 0.08 || s > 0.60) return false; // Wider saturation range
+  if (s < 0.04 || s > 0.65) return false;
 
-  // Avoid extreme red (lips, red objects) - but be less strict
-  if (r > 220 && g < 80 && b < 80) return false; // Only reject very extreme red
+  // Avoid extreme red (lips, red objects)
+  if (r > 220 && g < 80 && b < 80) return false;
 
   // Skin typically has R >= G (skin is warm, not green-tinted)
-  // But allow some green for certain skin tones
-  if (r < g - 10) return false; // Allow small green component
+  if (r < g - 10) return false;
 
   // Additional check: skin typically has G closer to R than to B
-  // But make this less strict
   const rgDiff = Math.abs(r - g);
   const gbDiff = Math.abs(g - b);
-  if (gbDiff > rgDiff * 2.0) return false; // More lenient ratio
+  if (gbDiff > rgDiff * 2.0) return false;
 
   return true;
 }
 
+/**
+ * Apply gray-world lighting correction to skin samples.
+ * Uses face region RGB average as illuminant proxy.
+ * Returns corrected samples and correction metadata.
+ */
+function applyLightingCorrection(
+  samples: Array<{ r: number; g: number; b: number }>
+): {
+  corrected: Array<{ r: number; g: number; b: number }>;
+  gains: { r: number; g: number; b: number };
+  gainsClamped: boolean;
+} {
+  if (samples.length === 0) {
+    return { corrected: [], gains: { r: 1, g: 1, b: 1 }, gainsClamped: false };
+  }
+
+  // Compute mean RGB of skin samples (trimmed mean for robustness)
+  const sorted = [...samples].sort((a, b) => a.r + a.g + a.b - (b.r + b.g + b.b));
+  const trim = Math.floor(sorted.length * 0.1); // 10% trim
+  const kept = sorted.slice(trim, Math.max(trim + 1, sorted.length - trim));
+  
+  let sumR = 0, sumG = 0, sumB = 0;
+  for (const s of kept) {
+    sumR += s.r;
+    sumG += s.g;
+    sumB += s.b;
+  }
+  const n = kept.length || 1;
+  const rBar = sumR / n;
+  const gBar = sumG / n;
+  const bBar = sumB / n;
+
+  // Skip correction if too dark/invalid
+  if (rBar < 10 || gBar < 10 || bBar < 10) {
+    return { corrected: samples, gains: { r: 1, g: 1, b: 1 }, gainsClamped: false };
+  }
+
+  // Compute gains
+  const M = (rBar + gBar + bBar) / 3;
+  let gainR = M / rBar;
+  let gainG = M / gBar;
+  let gainB = M / bBar;
+
+  // Clamp gains to avoid crazy corrections
+  const minGain = 0.75;
+  const maxGain = 1.35;
+  let gainsClamped = false;
+  if (gainR < minGain || gainR > maxGain) {
+    gainR = clamp(gainR, minGain, maxGain);
+    gainsClamped = true;
+  }
+  if (gainG < minGain || gainG > maxGain) {
+    gainG = clamp(gainG, minGain, maxGain);
+    gainsClamped = true;
+  }
+  if (gainB < minGain || gainB > maxGain) {
+    gainB = clamp(gainB, minGain, maxGain);
+    gainsClamped = true;
+  }
+
+  // Apply correction to all samples
+  const corrected = samples.map(s => ({
+    r: clamp(Math.round(s.r * gainR), 0, 255),
+    g: clamp(Math.round(s.g * gainG), 0, 255),
+    b: clamp(Math.round(s.b * gainB), 0, 255),
+  }));
+
+  return {
+    corrected,
+    gains: { r: gainR, g: gainG, b: gainB },
+    gainsClamped,
+  };
+}
+
+/**
+ * Compute median of array
+ */
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid];
+}
+
+/**
+ * Compute Median Absolute Deviation (MAD)
+ */
+function mad(values: number[]): number {
+  if (values.length === 0) return 0;
+  const med = median(values);
+  const deviations = values.map(v => Math.abs(v - med));
+  return median(deviations);
+}
+
+/**
+ * Determine undertone using new stable logic with specific thresholds.
+ */
 function determineUndertoneFromLab(lab: { l: number; a: number; b: number }): {
   undertone: Undertone;
   confidence: number;
@@ -126,106 +239,109 @@ function determineUndertoneFromLab(lab: { l: number; a: number; b: number }): {
   const { a, b } = lab;
   const chroma = Math.sqrt(a * a + b * b);
 
-  // Improved undertone calculation based on LAB color space
-  // In LAB: positive a = red/magenta (cool), negative a = green (warm)
-  //         positive b = yellow (warm), negative b = blue (cool)
-  // For skin: warm = yellow/golden (positive b, slightly negative a)
-  //           cool = pink/rosy (positive a, slightly negative b)
-  
-  // More accurate warm/cool scoring
-  const warmScore = (b > 0 ? b / 20 : 0) + (a < 0 ? -a / 40 : 0);
-  const coolScore = (a > 0 ? a / 30 : 0) + (b < 0 ? -b / 25 : 0);
-  
-  // Calculate the dominant direction
-  const scoreDiff = warmScore - coolScore;
-  const absDiff = Math.abs(scoreDiff);
-  
-  let undertone: Undertone = 'neutral';
-  let confidence = 0.55;
+  // Compute signals
+  const warmAxis = b;
+  const coolAxis = a - 0.35 * b;
 
-  // More aggressive thresholds - be more sensitive to differences
-  // Use actual LAB values directly for better differentiation
-  // Warm: positive b (yellow) - even small values matter
-  // Cool: positive a (red/pink) - even small values matter
-  
-  // Lower thresholds to catch more variation
-  if (b > 1.5 && scoreDiff > 0.1) {
-    // Yellow component present = warm
+  // Undertone decision (per spec thresholds)
+  let undertone: Undertone;
+  if (b >= 12 || (b >= 8 && a <= 12)) {
     undertone = 'warm';
-    confidence = clamp(0.6 + Math.min(absDiff * 0.6, 0.3), 0.55, 0.92);
-  } else if (a > 1.5 && scoreDiff < -0.1) {
-    // Red/pink component present = cool
+  } else if (b <= 7 && a >= 14) {
     undertone = 'cool';
-    confidence = clamp(0.6 + Math.min(absDiff * 0.6, 0.3), 0.55, 0.92);
-  } else if (absDiff > 0.08) {
-    // Even small differences matter - use the stronger signal
-    undertone = scoreDiff > 0 ? 'warm' : 'cool';
-    confidence = clamp(0.55 + Math.min(absDiff * 0.5, 0.25), 0.5, 0.85);
   } else {
-    // Truly neutral - scores are very close
     undertone = 'neutral';
-    confidence = clamp(0.65 - (absDiff * 3), 0.5, 0.8);
   }
 
-  return { undertone, confidence, chroma, warmScore, coolScore };
-}
-
-function determineDepthFromL(l: number): { depth: Depth; confidence: number } {
-  // More nuanced depth detection with better thresholds
-  // Light: L > 65 (fair to light skin)
-  // Medium: 45 < L <= 65 (medium skin tones)
-  // Deep: L <= 45 (deep/dark skin)
+  // Undertone confidence
+  const deltaWarm = b - 10;
+  const deltaCool = (a - 13) - (b - 7) * 0.4;
   
-  if (l > 65) {
-    // Light skin tones
-    const lightness = (l - 65) / 35; // Normalize 65-100 range
-    return { depth: 'light', confidence: clamp(0.7 + lightness * 0.25, 0.65, 0.95) };
-  } else if (l <= 45) {
-    // Deep skin tones
-    const darkness = (45 - l) / 45; // Normalize 0-45 range
-    return { depth: 'deep', confidence: clamp(0.7 + darkness * 0.25, 0.65, 0.95) };
+  let conf_u: number;
+  if (undertone === 'warm') {
+    conf_u = clamp(0.55 + deltaWarm / 20, 0.55, 0.92);
+  } else if (undertone === 'cool') {
+    conf_u = clamp(0.55 + deltaCool / 18, 0.55, 0.92);
   } else {
-    // Medium skin tones (45 < L <= 65)
-    // Check if closer to light or deep
-    const distToLight = l - 45;
-    const distToDeep = 65 - l;
-    const minDist = Math.min(distToLight, distToDeep);
-    const confidence = clamp(0.65 + (minDist / 10) * 0.2, 0.65, 0.9);
-    return { depth: 'medium', confidence };
+    conf_u = clamp(0.62 - Math.abs(b - 10) / 18 - Math.abs(a - 13) / 22, 0.45, 0.78);
   }
+
+  // For compatibility with old code
+  const warmScore = warmAxis;
+  const coolScore = coolAxis;
+
+  return { undertone, confidence: conf_u, chroma, warmScore, coolScore };
 }
 
-function determineClarityFromSamples(samples: Array<{ r: number; g: number; b: number }>): {
+/**
+ * Determine depth using corrected L* thresholds (per spec: 68, 42).
+ */
+function determineDepthFromL(l: number, madL?: number): { depth: Depth; confidence: number } {
+  // Per spec thresholds
+  // Light: L > 68
+  // Medium: 42 < L <= 68
+  // Deep: L <= 42
+  
+  let depth: Depth;
+  if (l > 68) {
+    depth = 'light';
+  } else if (l <= 42) {
+    depth = 'deep';
+  } else {
+    depth = 'medium';
+  }
+
+  // Depth confidence
+  const dist = Math.min(Math.abs(l - 68), Math.abs(l - 42));
+  let conf_d = clamp(0.62 + dist / 28, 0.55, 0.92);
+  
+  // Subtract 0.06 if MAD_L noisy
+  if (madL !== undefined && madL > 10) {
+    conf_d = clamp(conf_d - 0.06, 0, 1);
+  }
+
+  return { depth, confidence: conf_d };
+}
+
+/**
+ * Determine clarity using Lab chroma (not HSV saturation).
+ * Per spec: C* = sqrt(a^2 + b^2)
+ */
+function determineClarityFromLab(lab: { a: number; b: number }, madB?: number): {
   clarity: Clarity;
   confidence: number;
-  avgSat: number;
+  chroma: number;
+  avgSat: number; // Still compute for debugging
 } {
-  if (samples.length === 0) return { clarity: 'muted', confidence: 0.5, avgSat: 0 };
+  // Compute chroma from corrected Lab
+  const chroma = Math.sqrt(lab.a * lab.a + lab.b * lab.b);
 
-  const sats = samples.map((s) => rgbToHsv(s.r, s.g, s.b).s);
-  const avgSat = sats.reduce((a, c) => a + c, 0) / sats.length;
-
-  let clarity: Clarity = 'muted';
-  // More nuanced clarity detection
-  // Skin tones have relatively low saturation, so thresholds are lower
-  // Vivid: high saturation (bright, clear skin)
-  // Clear: moderate saturation (clear but not overly bright)
-  // Muted: low saturation (soft, muted skin)
-  
-  // Adjusted thresholds based on typical skin saturation ranges
-  if (avgSat >= 0.16) {
-    clarity = 'vivid';
-  } else if (avgSat >= 0.08) {
+  // Clarity thresholds (per spec)
+  // Muted: C* < 18
+  // Clear: 18 <= C* < 26
+  // Vivid: C* >= 26
+  let clarity: Clarity;
+  if (chroma < 18) {
+    clarity = 'muted';
+  } else if (chroma < 26) {
     clarity = 'clear';
   } else {
-    clarity = 'muted';
+    clarity = 'vivid';
   }
 
-  // Calculate confidence based on distance from thresholds
-  const d1 = Math.min(Math.abs(avgSat - 0.08), Math.abs(avgSat - 0.16));
-  const confidence = clamp(0.6 + d1 * 1.5, 0.55, 0.9);
+  // Clarity confidence
+  const d = Math.min(Math.abs(chroma - 18), Math.abs(chroma - 26));
+  let conf_c = clamp(0.58 + d / 20, 0.50, 0.90);
+  
+  // Subtract 0.06 if MAD_b noisy
+  if (madB !== undefined && madB > 4.5) {
+    conf_c = clamp(conf_c - 0.06, 0, 1);
+  }
 
-  return { clarity, confidence, avgSat };
+  // Still compute avgSat for debugging (but don't use for clarity)
+  const avgSat = 0; // Will be computed from samples if needed
+
+  return { clarity, confidence: conf_c, chroma, avgSat };
 }
 
 /**
@@ -243,9 +359,9 @@ function estimateWarmLightingBias(avg: { r: number; g: number; b: number }) {
 }
 
 /**
- * NEW: Always return a Season.
- * - seasonConfidence is separate from overall confidence
- * - needsConfirmation tells UI to ask user to confirm/change
+ * Season selection with hard gating + numeric scoring (per spec).
+ * Rule 1: Gate by undertone when confident
+ * Rule 2: Score using 3 dimensions: L (depth), C* (clarity), undertone axis (b*)
  */
 function decideSeasonAlways(
   undertone: Undertone,
@@ -257,180 +373,137 @@ function decideSeasonAlways(
   warmLightingSeverity: number,
   labInfo?: { chroma: number; warmScore: number; coolScore: number },
   labValues?: { l: number; a: number; b: number },
-  avgSat?: number
+  avgSat?: number,
+  madB?: number,
+  madL?: number,
+  gainsClamped?: boolean
 ): { season: Season; seasonConfidence: number; needsConfirmation: boolean; reason: string } {
-  // Start from component avg
-  let base = (undertoneConfidence + depthConfidence + clarityConfidence) / 3;
-
-  // Lighting penalty (warm cast can fake warm undertone and vividness)
-  base = clamp(base - warmLightingSeverity * 0.15, 0, 1);
-
-  // --- Color Season Decision Logic ---
-  // Based on traditional color analysis theory:
-  // - Undertone (warm/cool/neutral) determines warm vs cool seasons
-  // - Depth/Value (light/medium/deep) determines light vs deep seasons
-  // - Clarity/Chroma (muted/clear/vivid) determines soft vs bright seasons
-  //
-  // Seasons:
-  // - Spring: Warm + Light + Clear/Vivid (bright warm)
-  // - Summer: Cool + Light/Medium + Muted (soft cool)
-  // - Autumn: Warm + Medium/Deep + Muted (warm earth tones)
-  // - Winter: Cool + Deep + Clear/Vivid (cool bright)
-  
-  let season: Season;
-  let reason = '';
-
-  // Use actual LAB values directly for scoring-based decision
   const l = labValues?.l ?? 50;
   const a = labValues?.a ?? 0;
   const b = labValues?.b ?? 0;
-  const saturation = avgSat ?? 0.1;
-  
-  // Calculate season scores directly from numeric values
-  // This approach is more sensitive to actual differences
-  let springScore = 0;
-  let summerScore = 0;
-  let autumnScore = 0;
-  let winterScore = 0;
-  
-  // Spring: Warm + Light + Clear/Vivid (bright warm)
-  // Key: Light skin with warm undertone and higher saturation
-  if (b > 0 || undertone === 'warm' || undertone === 'neutral') {
-    // Lightness scoring - spring prefers lighter
-    if (l > 65) springScore += 4;
-    else if (l > 55) springScore += 2;
-    else if (l > 50) springScore += 1;
-    
-    // Saturation scoring - spring needs higher saturation
-    if (saturation > 0.14) springScore += 4;
-    else if (saturation > 0.11) springScore += 2;
-    else if (saturation > 0.09) springScore += 1;
-    
-    // Yellow component - warm indicator
-    if (b > 6) springScore += 3;
-    else if (b > 3) springScore += 2;
-    else if (b > 1) springScore += 1;
-    
-    // Penalty for too dark
-    if (l < 50) springScore -= 2;
+  const C = labInfo?.chroma ?? Math.sqrt(a * a + b * b);
+
+  // Rule 1: Gate by undertone when confident
+  const allowedSeasons: Season[] = [];
+  if (undertoneConfidence >= 0.70) {
+    if (undertone === 'warm') {
+      allowedSeasons.push('spring', 'autumn');
+    } else if (undertone === 'cool') {
+      allowedSeasons.push('summer', 'winter');
+    } else {
+      // Neutral or low confidence - allow all 4
+      allowedSeasons.push('spring', 'summer', 'autumn', 'winter');
+    }
+  } else {
+    // Low confidence - allow all 4
+    allowedSeasons.push('spring', 'summer', 'autumn', 'winter');
   }
+
+  // Rule 2: Score using normalized scores (0..1)
+  // Warm score
+  const S_warm = clamp((b - 8) / 18, 0, 1);
   
-  // Summer: Cool + Light/Medium + Muted (soft cool)
-  // Key: Light to medium cool with lower saturation
-  if (a > 0 || undertone === 'cool' || undertone === 'neutral') {
-    // Lightness scoring
-    if (l > 60) summerScore += 3;
-    else if (l > 50) summerScore += 2;
-    else if (l > 45) summerScore += 1;
-    
-    // Lower saturation preferred
-    if (saturation < 0.10) summerScore += 4;
-    else if (saturation < 0.12) summerScore += 2;
-    else if (saturation < 0.14) summerScore += 1;
-    
-    // Pink/red component
-    if (a > 4) summerScore += 3;
-    else if (a > 2) summerScore += 2;
-    else if (a > 0.5) summerScore += 1;
-    
-    // Penalty for too dark or too saturated
-    if (l < 45) summerScore -= 2;
-    if (saturation > 0.15) summerScore -= 1;
+  // Cool score (with a support requirement)
+  const S_cool_base = clamp((14 - b) / 14, 0, 1);
+  const S_cool_support = clamp((a - 10) / 14, 0, 1);
+  const S_cool = S_cool_base * S_cool_support;
+  
+  // Light score
+  const S_light = clamp((l - 55) / 20, 0, 1);
+  
+  // Deep score
+  const S_deep = clamp((55 - l) / 20, 0, 1);
+  
+  // Vivid score
+  const S_vivid = clamp((C - 22) / 12, 0, 1);
+  
+  // Muted score
+  const S_muted = clamp((22 - C) / 10, 0, 1);
+
+  // Score seasons (per spec formulas)
+  let scoreSpring = 0;
+  let scoreSummer = 0;
+  let scoreAutumn = 0;
+  let scoreWinter = 0;
+
+  if (allowedSeasons.includes('spring')) {
+    // Spring (warm + light + vivid/clear)
+    scoreSpring = 0.45 * S_warm + 0.35 * S_light + 0.20 * S_vivid;
   }
-  
-  // Autumn: Warm + Medium/Deep + Muted (warm earth tones)
-  // Key: Medium to deep warm with lower saturation
-  if (b > 0 || undertone === 'warm' || undertone === 'neutral') {
-    // Medium to deep preferred
-    if (l < 60 && l > 45) autumnScore += 4;
-    else if (l < 65 && l > 40) autumnScore += 3;
-    else if (l < 50) autumnScore += 2;
-    else if (l < 70) autumnScore += 1;
-    
-    // Lower saturation preferred
-    if (saturation < 0.11) autumnScore += 4;
-    else if (saturation < 0.13) autumnScore += 2;
-    else if (saturation < 0.15) autumnScore += 1;
-    
-    // Yellow component
-    if (b > 4) autumnScore += 2;
-    else if (b > 2) autumnScore += 1;
-    
-    // Penalty for too light or too saturated
-    if (l > 65) autumnScore -= 2;
-    if (saturation > 0.14) autumnScore -= 2;
+
+  if (allowedSeasons.includes('summer')) {
+    // Summer (cool + light + muted)
+    scoreSummer = 0.45 * S_cool + 0.30 * S_light + 0.25 * S_muted;
   }
-  
-  // Winter: Cool + Deep + Clear/Vivid (cool bright)
-  // Key: Deep cool with higher saturation
-  if (a > 0 || undertone === 'cool' || undertone === 'neutral') {
-    // Deep preferred
-    if (l < 50) winterScore += 4;
-    else if (l < 55) winterScore += 3;
-    else if (l < 60) winterScore += 1;
-    
-    // Higher saturation preferred
-    if (saturation > 0.12) winterScore += 4;
-    else if (saturation > 0.10) winterScore += 2;
-    else if (saturation > 0.08) winterScore += 1;
-    
-    // Red/pink component
-    if (a > 4) winterScore += 3;
-    else if (a > 2) winterScore += 2;
-    else if (a > 0.5) winterScore += 1;
-    
-    // Penalty for too light or too muted
-    if (l > 60) winterScore -= 2;
-    if (saturation < 0.10) winterScore -= 2;
+
+  if (allowedSeasons.includes('autumn')) {
+    // Autumn (warm + medium/deep + muted)
+    scoreAutumn = 0.45 * S_warm + 0.30 * (1 - S_light) + 0.25 * S_muted;
   }
-  
-  // Find the season with highest score
+
+  if (allowedSeasons.includes('winter')) {
+    // Winter (cool + deep + vivid)
+    scoreWinter = 0.45 * S_cool + 0.30 * S_deep + 0.25 * S_vivid;
+  }
+
+  // Find winner
   const scores = [
-    { season: 'spring' as Season, score: springScore },
-    { season: 'summer' as Season, score: summerScore },
-    { season: 'autumn' as Season, score: autumnScore },
-    { season: 'winter' as Season, score: winterScore }
+    { season: 'spring' as Season, score: scoreSpring },
+    { season: 'summer' as Season, score: scoreSummer },
+    { season: 'autumn' as Season, score: scoreAutumn },
+    { season: 'winter' as Season, score: scoreWinter },
   ];
-  
+
   scores.sort((a, b) => b.score - a.score);
-  season = scores[0].season;
-  
-  // Generate detailed reason
+  const season = scores[0].season;
   const topScore = scores[0].score;
   const secondScore = scores[1].score;
-  const scoreDiff = topScore - secondScore;
+  const top2Diff = topScore - secondScore;
+
+  // Generate reason
+  const reason = `${season.toUpperCase()} (scores: S=${scoreSpring.toFixed(3)}, Su=${scoreSummer.toFixed(3)}, A=${scoreAutumn.toFixed(3)}, W=${scoreWinter.toFixed(3)}, L:${l.toFixed(1)}, a:${a.toFixed(1)}, b:${b.toFixed(1)}, C:${C.toFixed(1)}, undertone:${undertone}, depth:${depth}, clarity:${clarity})`;
+
+  // Overall confidence (per spec)
+  let conf_overall = 0.45 * undertoneConfidence + 0.30 * depthConfidence + 0.25 * clarityConfidence;
   
-  reason = `${season.toUpperCase()} (scores: Spring=${springScore}, Summer=${summerScore}, Autumn=${autumnScore}, Winter=${winterScore}, winner=${topScore}, L:${l.toFixed(1)}, a:${a.toFixed(1)}, b:${b.toFixed(1)}, sat:${saturation.toFixed(3)}, undertone:${undertone}, depth:${depth}, clarity:${clarity})`;
-  
-  // If scores are very close, mark as needing confirmation
-  if (scoreDiff < 2) {
-    reason += ` [Close: ${scores[1].season}=${secondScore}]`;
+  // Apply penalties
+  if ((madB !== undefined && madB > 4.5) || (madL !== undefined && madL > 10)) {
+    conf_overall = clamp(conf_overall - 0.08, 0, 1);
   }
+  if (gainsClamped) {
+    conf_overall = clamp(conf_overall - 0.06, 0, 1);
+  }
+  conf_overall = clamp(conf_overall, 0, 0.95);
+
+  // Season confidence (per spec)
+  let conf_season = conf_overall;
   
-  // Log all scores for debugging
-  console.log('🎨 Season Scores:', {
-    spring: springScore,
-    summer: summerScore,
-    autumn: autumnScore,
-    winter: winterScore,
-    winner: season,
-    l, a, b, saturation, undertone, depth, clarity
-  });
+  // Add/subtract based on conditions
+  if (topScore >= 0.70) {
+    conf_season = clamp(conf_season + 0.05, 0, 1);
+  }
+  if (undertone === 'neutral') {
+    conf_season = clamp(conf_season - 0.10, 0, 1);
+  }
+  if (top2Diff < 0.08) {
+    conf_season = clamp(conf_season - 0.08, 0, 1);
+  }
+  if (undertoneConfidence < 0.70) {
+    conf_season = clamp(conf_season - 0.08, 0, 1);
+  }
 
-  // seasonConfidence: penalize if undertone is neutral (because season split depends on it)
-  let seasonConfidence = base;
-  if (undertone === 'neutral') seasonConfidence = clamp(seasonConfidence - 0.12, 0, 1);
-
-  // penalize ambiguous clarity boundaries slightly
-  if (clarityConfidence < 0.65) seasonConfidence = clamp(seasonConfidence - 0.05, 0, 1);
-
-  // needsConfirmation rule
+  // needsConfirmation (per spec)
   const needsConfirmation =
-    undertone === 'neutral' || seasonConfidence < 0.72 || warmLightingSeverity > 0.35;
+    undertone === 'neutral' ||
+    conf_season < 0.72 ||
+    top2Diff < 0.08 ||
+    (madB !== undefined && madB > 4.5) ||
+    (madL !== undefined && madL > 10) ||
+    gainsClamped === true;
 
   return {
     season,
-    seasonConfidence: Math.round(clamp(seasonConfidence, 0, 0.95) * 100) / 100,
+    seasonConfidence: Math.round(clamp(conf_season, 0, 0.95) * 100) / 100,
     needsConfirmation,
     reason,
   };
@@ -620,7 +693,13 @@ async function detectFaceWithEnhancedHeuristic(
   }
 }
 
-async function sampleSkinFromFace(faceImage: Buffer) {
+async function sampleSkinFromFace(faceImage: Buffer): Promise<{
+  allSamples: Array<{ r: number; g: number; b: number }>;
+  skinSamples: Array<{ r: number; g: number; b: number }>;
+  correctedSamples: Array<{ r: number; g: number; b: number }>;
+  correctionGains: { r: number; g: number; b: number };
+  gainsClamped: boolean;
+}> {
   const { data, info } = await sharp(faceImage)
     .resize(160, 160, { fit: 'fill' })
     .raw()
@@ -656,7 +735,28 @@ async function sampleSkinFromFace(faceImage: Buffer) {
     }
   }
 
-  return { allSamples: all, skinSamples: skin };
+  // Apply lighting correction to skin samples
+  const { corrected, gains, gainsClamped } = applyLightingCorrection(skin);
+
+  // Filter corrected samples using Lab-based check
+  const correctedSkin: Array<{ r: number; g: number; b: number }> = [];
+  for (const px of corrected) {
+    const lab = rgbToLab(px.r, px.g, px.b);
+    if (isLikelySkinPixelFromLab(lab)) {
+      correctedSkin.push(px);
+    }
+  }
+
+  // Use corrected skin samples if we have enough, otherwise fall back to corrected (all)
+  const finalCorrected = correctedSkin.length >= 30 ? correctedSkin : corrected;
+
+  return {
+    allSamples: all,
+    skinSamples: skin,
+    correctedSamples: finalCorrected,
+    correctionGains: gains,
+    gainsClamped,
+  };
 }
 
 function trimmedMean(samples: Array<{ r: number; g: number; b: number }>, trimRatio = 0.15) {
@@ -833,13 +933,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const crop = clampFaceBoxToBounds(actualFaceBox, imageWidth, imageHeight);
     const faceImage = await sharp(imageBuffer).extract(crop).toBuffer();
 
-    // Sample skin
-    const { allSamples, skinSamples } = await sampleSkinFromFace(faceImage);
+    // Sample skin (with lighting correction)
+    const { allSamples, skinSamples, correctedSamples, correctionGains, gainsClamped } = await sampleSkinFromFace(faceImage);
     
     console.log('🎨 [SKIN TONE API] Sampling complete:', {
       totalSamples: allSamples.length,
       skinSamples: skinSamples.length,
+      correctedSamples: correctedSamples.length,
       skinRatio: allSamples.length > 0 ? skinSamples.length / allSamples.length : 0,
+      correctionGains,
+      gainsClamped,
     });
     
     // Face detection validation: stricter thresholds to avoid false positives
@@ -878,11 +981,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
     
-    // Only use skin samples if we have enough - don't fall back to all samples
-    // This ensures we're only analyzing actual skin, not random pixels
-    const useSamples = skinSamples.length >= minSkinSamples ? skinSamples : [];
+    // Use corrected samples for analysis (per spec: Step A - lighting correction before Lab)
+    const useSamples = correctedSamples.length >= 30 ? correctedSamples : skinSamples;
     if (useSamples.length === 0) {
-      console.error('🎨 [SKIN TONE API] ERROR: Not enough skin samples after validation');
+      console.error('🎨 [SKIN TONE API] ERROR: Not enough corrected samples after validation');
       return res.status(400).json({ 
         error: 'FACE_NOT_DETECTED',
         message: 'No face detected in image. Please upload a clear face photo with good lighting.',
@@ -892,31 +994,61 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         minRequired: minSkinSamples,
       });
     }
-    console.log('🎨 [SKIN TONE API] Using samples:', useSamples.length);
+    console.log('🎨 [SKIN TONE API] Using corrected samples:', useSamples.length);
     
-    const skinRgb = trimmedMean(useSamples, 0.18);
+    // Step C: Use robust stats (median/trimmed mean) + outlier removal
+    // Convert all corrected samples to Lab
+    const labSamples = useSamples.map(s => rgbToLab(s.r, s.g, s.b));
+    
+    // Compute median Lab values (per spec: use median for L*, a*, b*)
+    const lValues = labSamples.map(l => l.l);
+    const aValues = labSamples.map(l => l.a);
+    const bValues = labSamples.map(l => l.b);
+    
+    const medianL = median(lValues);
+    const medianA = median(aValues);
+    const medianB = median(bValues);
+    
+    // Compute MAD for dispersion (per spec)
+    const madL = mad(lValues);
+    const madA = mad(aValues);
+    const madB = mad(bValues);
+    
+    // Check if noisy (per spec thresholds)
+    const isNoisy = madB > 4.5 || madL > 10;
+    
+    console.log('🎨 [SKIN TONE API] Robust stats:', {
+      medianLab: { l: medianL.toFixed(2), a: medianA.toFixed(2), b: medianB.toFixed(2) },
+      mad: { l: madL.toFixed(2), a: madA.toFixed(2), b: madB.toFixed(2) },
+      isNoisy,
+    });
+    
+    // Use median Lab for analysis
+    const lab = { l: medianL, a: medianA, b: medianB };
+    
+    // Compute RGB from median Lab for display (approximate)
+    const skinRgb = trimmedMean(useSamples, 0.20); // 20% trimmed mean for RGB display
     const hex = rgbToHex(skinRgb.r, skinRgb.g, skinRgb.b);
     
-    console.log('🎨 [SKIN TONE API] Skin RGB:', skinRgb, 'HEX:', hex);
-
-    const lab = rgbToLab(skinRgb.r, skinRgb.g, skinRgb.b);
-    console.log('🎨 [SKIN TONE API] LAB values:', {
+    console.log('🎨 [SKIN TONE API] Skin RGB (for display):', skinRgb, 'HEX:', hex);
+    console.log('🎨 [SKIN TONE API] LAB values (median):', {
       l: Math.round(lab.l * 10) / 10,
       a: Math.round(lab.a * 10) / 10,
       b: Math.round(lab.b * 10) / 10,
     });
     
+    // Determine undertone, depth, clarity using corrected median Lab
     const undertoneInfo = determineUndertoneFromLab(lab);
     const { undertone, confidence: undertoneConfidence } = undertoneInfo;
     console.log('🎨 [SKIN TONE API] Undertone:', undertone, 'Confidence:', undertoneConfidence);
 
-    const { depth, confidence: depthConfidence } = determineDepthFromL(lab.l);
+    const { depth, confidence: depthConfidence } = determineDepthFromL(lab.l, madL);
     console.log('🎨 [SKIN TONE API] Depth:', depth, 'Confidence:', depthConfidence);
     
-    const { clarity, confidence: clarityConfidence, avgSat } = determineClarityFromSamples(useSamples);
-    console.log('🎨 [SKIN TONE API] Clarity:', clarity, 'Confidence:', clarityConfidence, 'Avg Saturation:', avgSat);
+    const { clarity, confidence: clarityConfidence, chroma, avgSat } = determineClarityFromLab(lab, madB);
+    console.log('🎨 [SKIN TONE API] Clarity:', clarity, 'Confidence:', clarityConfidence, 'Chroma:', chroma);
 
-    // Season: ALWAYS decide
+    // Season: ALWAYS decide (with new hard gating + numeric scoring)
     const seasonDecision = decideSeasonAlways(
       undertone,
       depth,
@@ -925,9 +1057,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       depthConfidence,
       clarityConfidence,
       lighting.severity,
-      { chroma: undertoneInfo.chroma, warmScore: undertoneInfo.warmScore, coolScore: undertoneInfo.coolScore },
+      { chroma, warmScore: undertoneInfo.warmScore, coolScore: undertoneInfo.coolScore },
       lab,
-      avgSat
+      avgSat,
+      madB,
+      madL,
+      gainsClamped
     );
 
     // Debug logging - comprehensive season decision
@@ -936,6 +1071,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       undertone,
       depth,
       clarity,
+      chroma,
       avgSat,
       undertoneConfidence,
       depthConfidence,
@@ -945,15 +1081,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       season: seasonDecision.season,
       reason: seasonDecision.reason,
       seasonConfidence: seasonDecision.seasonConfidence,
+      needsConfirmation: seasonDecision.needsConfirmation,
       lab: { l: Math.round(lab.l * 10) / 10, a: Math.round(lab.a * 10) / 10, b: Math.round(lab.b * 10) / 10 },
+      mad: { l: madL.toFixed(2), a: madA.toFixed(2), b: madB.toFixed(2) },
+      isNoisy,
+      gainsClamped,
     });
 
-    // Overall confidence (not just season), penalize heavy warm lighting slightly
-    const overallConfidence = clamp(
-      (undertoneConfidence + depthConfidence + clarityConfidence) / 3 - lighting.severity * 0.08,
-      0,
-      0.95
-    );
+    // Overall confidence (per spec: 0.45*conf_u + 0.30*conf_d + 0.25*conf_c)
+    let overallConfidence = 0.45 * undertoneConfidence + 0.30 * depthConfidence + 0.25 * clarityConfidence;
+    
+    // Apply penalties (per spec)
+    if (isNoisy) {
+      overallConfidence = clamp(overallConfidence - 0.08, 0, 1);
+    }
+    if (gainsClamped) {
+      overallConfidence = clamp(overallConfidence - 0.06, 0, 1);
+    }
+    overallConfidence = clamp(overallConfidence, 0, 0.95);
 
     const timeTaken = Date.now() - startTime;
     console.log('🎨 [SKIN TONE API] ========== ANALYSIS COMPLETE ==========');
@@ -991,16 +1136,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           isWarm: lighting.isWarm,
           warmIndex: lighting.warmIndex,
           severity: Math.round(lighting.severity * 100) / 100,
+          correctionGains: correctionGains,
+          gainsClamped,
         },
         sampling: {
           totalSamples: allSamples.length,
           skinSamples: skinSamples.length,
-          used: skinSamples.length >= 40 ? 'skinSamples' : 'fallbackAllSamples',
+          correctedSamples: correctedSamples.length,
+          used: 'correctedSamples',
           avgSat: Math.round(avgSat * 1000) / 1000,
+          chroma: Math.round(chroma * 100) / 100,
+        },
+        robustStats: {
+          medianLab: { l: Math.round(medianL * 10) / 10, a: Math.round(medianA * 10) / 10, b: Math.round(medianB * 10) / 10 },
+          mad: { l: Math.round(madL * 100) / 100, a: Math.round(madA * 100) / 100, b: Math.round(madB * 100) / 100 },
+          isNoisy,
         },
         seasonReason: seasonDecision.reason,
         undertoneMeta: {
-          chroma: Math.round(undertoneInfo.chroma * 100) / 100,
+          chroma: Math.round(chroma * 100) / 100,
           warmScore: Math.round(undertoneInfo.warmScore * 1000) / 1000,
           coolScore: Math.round(undertoneInfo.coolScore * 1000) / 1000,
           undertoneConfidence: Math.round(undertoneConfidence * 100) / 100,

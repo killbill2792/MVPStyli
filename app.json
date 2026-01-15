@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "MVPStyli",
+    "name": "Stylit",
     "slug": "MVPStyli",
-    "scheme": "mvpstyli",
+    "scheme": "stylit",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
@@ -20,14 +20,24 @@
         "resizeMode": "cover",
         "backgroundColor": "#000000"
       },
-      "bundleIdentifier": "com.anonymous.MVPStyli"
+      "bundleIdentifier": "ai.stylit.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationQueriesSchemes": [
+          "whatsapp",
+          "instagram",
+          "tiktok",
+          "sms",
+          "mailto"
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
       },
-      "package": "com.anonymous.MVPStyli"
+      "package": "ai.stylit.app"
     },
     "web": {
       "bundler": "metro",
@@ -39,18 +49,25 @@
     "assetBundlePatterns": [
       "**/*"
     ],
+    "newArchEnabled": true,
     "plugins": [
       [
         "expo-build-properties",
         {
           "ios": {
-            "newArchEnabled": false
+            "newArchEnabled": true,
+            "deploymentTarget": "15.1"
           },
           "android": {
-            "newArchEnabled": false
+            "newArchEnabled": true
           }
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "a3c43d00-e9b0-4ec8-a9e4-4d4f8d6c86f9"
+      }
+    }
   }
 }

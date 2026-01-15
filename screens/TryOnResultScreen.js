@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, Dimensions, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../lib/AppContext';
-import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from '../lib/SimpleGradient';
 import { supabase } from '../lib/supabase';
 import { trackEvent } from '../lib/styleEngine';
 import AskAISheet from '../components/AskAISheet';
@@ -11,7 +11,7 @@ import { SafeImage, OptimizedImage } from '../lib/OptimizedImage';
 const { width, height } = Dimensions.get('window');
 
 const TryOnResultScreen = () => {
-  const { state, setRoute, setSavedFits, setBannerMessage, setBannerType, setCurrentProduct } = useApp();
+  const { state, setRoute, goBack, setSavedFits, setBannerMessage, setBannerType, setCurrentProduct } = useApp();
   const { processingResult, currentProduct, user, savedFits, tryOnHistory, routeParams } = state;
   
   // State for AI Sheet
@@ -70,8 +70,8 @@ const TryOnResultScreen = () => {
     return (
       <View style={styles.container}>
         <Text style={styles.text}>No result available.</Text>
-        <Pressable onPress={() => setRoute('tryon')} style={styles.btn}>
-          <Text style={styles.btnText}>Back to Try On</Text>
+        <Pressable onPress={() => goBack()} style={styles.btn}>
+          <Text style={styles.btnText}>Go Back</Text>
         </Pressable>
       </View>
     );
@@ -81,17 +81,19 @@ const TryOnResultScreen = () => {
     <View style={styles.container}>
       {/* Full Screen Image Layout */}
       <View style={styles.imageContainer}>
-        <SafeImage source={{ uri: processingResult }} style={styles.image} resizeMode="cover" />
+        <SafeImage 
+          source={{ uri: processingResult }} 
+          style={styles.image} 
+          resizeMode="cover"
+          // No width/height = full-size image for try-on result
+        />
         
-        {/* Top Overlay */}
-        <LinearGradient
-            colors={['rgba(0,0,0,0.6)', 'transparent']}
-            style={styles.topOverlay}
-        >
+        {/* Top Content - No container background */}
+        <View style={styles.topOverlay}>
             <View style={styles.badge}>
                 <Text style={styles.badgeText}>✨ Try-On Result</Text>
             </View>
-        </LinearGradient>
+        </View>
             
         {/* Product Thumbnail */}
         {originalImageUrl ? (
@@ -110,9 +112,12 @@ const TryOnResultScreen = () => {
             >
             <SafeImage 
               source={{ uri: originalImageUrl }} 
-                style={styles.productThumbImage} 
-              resizeMode="contain" 
-              />
+              style={styles.productThumbImage} 
+              resizeMode="contain"
+              width={80}  // Thumbnail size for product image
+              height={80} // Thumbnail size for product image
+              quality={85} // Good quality for thumbnails
+            />
               <View style={styles.productThumbBadge}>
                 <Text style={styles.productThumbText}>Original</Text>
               </View>
@@ -155,7 +160,7 @@ const TryOnResultScreen = () => {
       </View>
       
       {/* Close Button */}
-      <Pressable style={styles.closeBtn} onPress={() => setRoute('tryon')}>
+      <Pressable style={styles.closeBtn} onPress={() => goBack()}>
         <Text style={{ color: '#fff', fontSize: 24 }}>✕</Text>
       </Pressable>
 
@@ -204,7 +209,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   badge: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(139, 92, 246, 0.3)', // Purple/AI-related color with transparency
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,

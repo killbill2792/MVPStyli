@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Pressable, StyleSheet, Alert, StatusBar, TextInput, ScrollView, Modal, ActivityIndicator, Dimensions, FlatList, Animated, PanResponder, KeyboardAvoidingView, Platform, InteractionManager, Linking } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Alert, StatusBar, TextInput, ScrollView, Modal, ActivityIndicator, Dimensions, FlatList, Animated, PanResponder, KeyboardAvoidingView, Platform, InteractionManager, Linking, Image, RefreshControl } from 'react-native';
 import { SafeAreaView, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from './lib/SimpleGradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppProvider, useApp } from './lib/AppContext';
 import * as ImagePicker from 'expo-image-picker';
@@ -10,7 +10,6 @@ import { fetchGarmentsAsProducts } from './lib/garmentUtils';
 import BottomBar from './components/BottomBar';
 import PodsScreen from './screens/PodsScreen';
 import StyleCraftScreen from './screens/StyleCraftScreen';
-import AccountScreen from './screens/AccountScreen';
 import StyleVaultScreen from './screens/StyleVaultScreen';
 import PodLive from './screens/PodLive';
 import PodGuest from './screens/PodGuest';
@@ -34,6 +33,9 @@ import { sendFriendRequest, areFriends } from './lib/friends';
 import { createPodInvites } from './lib/pods';
 import { submitVote as submitVoteToDB } from './lib/pods';
 import { SafeImage, OptimizedImage } from './lib/OptimizedImage';
+import { Avatar } from './components/Avatar';
+import { checkNewArchitecture, verifyFabricComponents } from './lib/newArchCheck';
+import { logger } from './lib/logger';
 
 const { width, height } = Dimensions.get('window');
 
@@ -45,7 +47,7 @@ function generateUUID() {
 }
 
 // iOS-style Swipeable Banner Component
-const BannerNotification = ({ message, type, onDismiss, onPress }) => {
+const BannerNotification = ({ message, type, onDismiss, onPress, isTryOn = false }) => {
   const translateY = useRef(new Animated.Value(-100)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
@@ -114,6 +116,9 @@ const BannerNotification = ({ message, type, onDismiss, onPress }) => {
     type === 'error' ? '#ef4444' :
     '#3b82f6';
 
+  // Only show sparkle for Try On notifications
+  const showSparkle = isTryOn && type === 'success';
+
   return (
     <Animated.View
       style={[
@@ -129,13 +134,93 @@ const BannerNotification = ({ message, type, onDismiss, onPress }) => {
       <Pressable onPress={onPress} style={styles.bannerPressable}>
         <View style={styles.bannerContent}>
           {type === 'processing' && <ActivityIndicator size="small" color="#fff" style={{ marginRight: 12 }} />}
-          {type === 'success' && <Text style={styles.bannerIcon}>✨</Text>}
+          {showSparkle && <Text style={styles.bannerIcon}>✨</Text>}
           {type === 'error' && <Text style={styles.bannerIcon}>⚠️</Text>}
           <Text style={styles.bannerText}>{message}</Text>
         </View>
       </Pressable>
     </Animated.View>
   );
+};
+
+// Helper function to get vote breakdown for single image pods
+const getVoteBreakdown = (voteCounts) => {
+  if (!voteCounts || voteCounts.total === 0) return { winner: null, percentage: 0, isTie: false, allVotes: null };
+  
+  const yesPercent = Math.round((voteCounts.yes / voteCounts.total) * 100);
+  const maybePercent = Math.round((voteCounts.maybe / voteCounts.total) * 100);
+  const noPercent = Math.round((voteCounts.no / voteCounts.total) * 100);
+  const maxPercent = Math.max(yesPercent, maybePercent, noPercent);
+  
+  const allVotes = {
+    fire: { emoji: '🔥', percent: yesPercent },
+    maybe: { emoji: '🤔', percent: maybePercent },
+    no: { emoji: '❌', percent: noPercent }
+  };
+  
+  // Check for ties
+  const winners = [];
+  if (yesPercent === maxPercent && yesPercent > 0) winners.push({ type: 'fire', emoji: '🔥', percent: yesPercent });
+  if (maybePercent === maxPercent && maybePercent > 0) winners.push({ type: 'maybe', emoji: '🤔', percent: maybePercent });
+  if (noPercent === maxPercent && noPercent > 0) winners.push({ type: 'no', emoji: '❌', percent: noPercent });
+  
+  if (winners.length > 1) {
+    return { winners, percentage: maxPercent, isTie: true, allVotes };
+  } else if (winners.length === 1) {
+    return { winner: winners[0], percentage: maxPercent, isTie: false, allVotes };
+  }
+  return { winner: null, percentage: 0, isTie: false, allVotes };
+};
+
+// Helper function to get percentage label for ended pods (single image) - based on winner type
+const getPercentageLabelWithWinner = (breakdown) => {
+  if (!breakdown || !breakdown.winner) {
+    if (breakdown && breakdown.isTie) {
+      return { text: '⚖️ Opinion Split', color: '#000', bg: 'rgba(251, 191, 36, 0.9)', border: 'rgba(251, 191, 36, 1)' };
+    }
+    return { text: '🚥 No Signal', color: '#fff', bg: 'rgba(107, 114, 128, 0.6)', border: 'rgba(107, 114, 128, 0.8)' };
+  }
+  
+  const { winner, percentage } = breakdown;
+  
+  // Fire (yes) votes won
+  if (winner.type === 'fire') {
+    if (percentage >= 90) return { text: '🔥 Everyone\'s Favorite', color: '#fff', bg: 'rgba(249, 115, 22, 0.6)', border: 'rgba(249, 115, 22, 0.8)' };
+    if (percentage >= 70) return { text: '❤️‍🔥 Most Were Into It', color: '#fff', bg: 'rgba(236, 72, 153, 0.6)', border: 'rgba(236, 72, 153, 0.8)' };
+    if (percentage >= 40) return { text: '♥️ Leaning Yes', color: '#fff', bg: 'rgba(249, 115, 22, 0.5)', border: 'rgba(249, 115, 22, 0.7)' };
+    return { text: '❣️ Some Liked It', color: '#fff', bg: 'rgba(249, 115, 22, 0.4)', border: 'rgba(249, 115, 22, 0.6)' };
+  }
+  
+  // Maybe votes won
+  if (winner.type === 'maybe') {
+    return { text: '🤔 Mixed Feelings', color: '#fff', bg: 'rgba(251, 191, 36, 0.6)', border: 'rgba(251, 191, 36, 0.8)' };
+  }
+  
+  // No (X) votes won
+  if (winner.type === 'no') {
+    if (percentage >= 70) return { text: '😬 Didn\'t Vibe', color: '#fff', bg: 'rgba(239, 68, 68, 0.6)', border: 'rgba(239, 68, 68, 0.8)' };
+    return { text: '❌ Not Their Favorite', color: '#fff', bg: 'rgba(239, 68, 68, 0.5)', border: 'rgba(239, 68, 68, 0.7)' };
+  }
+  
+  return { text: '🚥 No Signal', color: '#fff', bg: 'rgba(107, 114, 128, 0.6)', border: 'rgba(107, 114, 128, 0.8)' };
+};
+
+// Helper function for multi-image pods (backwards compatibility)
+const getPercentageLabel = (percentage) => {
+  if (percentage >= 90) return { text: '🔥 Clear Winner', color: '#fff', bg: 'rgba(249, 115, 22, 0.6)', border: 'rgba(249, 115, 22, 0.8)' };
+  if (percentage >= 70) return { text: '👍 Strong Pick', color: '#fff', bg: 'rgba(236, 72, 153, 0.6)', border: 'rgba(236, 72, 153, 0.8)' };
+  if (percentage >= 40) return { text: '⚖️ Close Call', color: '#fff', bg: 'rgba(245, 158, 11, 0.6)', border: 'rgba(245, 158, 11, 0.8)' };
+  if (percentage >= 1) return { text: '📊 Split Votes', color: '#fff', bg: 'rgba(107, 114, 128, 0.6)', border: 'rgba(107, 114, 128, 0.8)' };
+  return { text: '🚥 No Signal', color: '#fff', bg: 'rgba(107, 114, 128, 0.6)', border: 'rgba(107, 114, 128, 0.8)' };
+};
+
+// Helper function to get highest vote percentage for single image pods
+const getHighestVotePercentage = (voteCounts) => {
+  if (!voteCounts || voteCounts.total === 0) return 0;
+  const yesPercent = Math.round((voteCounts.yes / voteCounts.total) * 100);
+  const maybePercent = Math.round((voteCounts.maybe / voteCounts.total) * 100);
+  const noPercent = Math.round((voteCounts.no / voteCounts.total) * 100);
+  return Math.max(yesPercent, maybePercent, noPercent);
 };
 
 // Explore Component
@@ -146,20 +231,49 @@ function Explore() {
   const [activeTab, setActiveTab] = useState('friends'); // 'friends', 'twins', 'global'
   const [pods, setPods] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [votedPodIds, setVotedPodIds] = useState(new Set());
+  const [refreshing, setRefreshing] = useState(false);
+  
+  // FIX: Track voted pods at parent level to persist across FlatList virtualization
+  // This prevents flickering when items remount
+  const localVoteStateRef = useRef(new Map()); // Map<podId, { voted: string, hasVoted: bool, hasCommented: bool }>
+  
+  // FlatList ref for auto-scroll after voting
+  const flatListRef = useRef(null);
+  
+  // Auto-scroll to next card after voting
+  const scrollToNextCard = (currentIndex) => {
+    if (flatListRef.current && currentIndex < pods.length - 1) {
+      // Small delay for vote animation to complete
+      setTimeout(() => {
+        flatListRef.current?.scrollToIndex({
+          index: currentIndex + 1,
+          animated: true,
+        });
+      }, 800);
+    }
+  };
 
   // Fetch pods based on active tab
   useEffect(() => {
-    loadPods();
+    loadPods(false);
   }, [activeTab, user?.id]);
+  
+  // Pull-to-refresh handler
+  const onRefresh = async () => {
+    await loadPods(true);
+  };
 
-  const loadPods = async () => {
-    setLoading(true);
+  const loadPods = async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     try {
       let fetchedPods = [];
       const userId = user?.id;
       
-      // FIX: Get all pods (including voted ones) - we'll sort them by live/ended
+      // Get all pods (including voted ones) - we'll sort them by new logic
       if (activeTab === 'friends') {
         const { getFriendsTabPods } = await import('./lib/pods');
         fetchedPods = await getFriendsTabPods(userId);
@@ -232,34 +346,83 @@ function Explore() {
           productUrl: pod.product_url,
         };
       })
-      .filter(item => item !== null) // Remove null items
-      .sort((a, b) => {
-        // FIX: Sort by: 1) Live pods first (regardless of vote status), 2) Ended pods (latest first)
-        const aIsLive = a.isLive;
-        const bIsLive = b.isLive;
-        
-        // Live pods come first
-        if (aIsLive && !bIsLive) return -1;
-        if (!aIsLive && bIsLive) return 1;
-        
-        // For ended pods, sort by latest first (ends_at descending)
-        if (!aIsLive && !bIsLive) {
-          const aPod = fetchedPods.find(p => p.id === a.podId);
-          const bPod = fetchedPods.find(p => p.id === b.podId);
-          if (aPod?.ends_at && bPod?.ends_at) {
-            return new Date(bPod.ends_at) - new Date(aPod.ends_at);
+      .filter(item => item !== null); // Remove null items
+      
+      // Check vote/comment status for each pod
+      const podsWithStatus = await Promise.all(
+        feedItems.map(async (item) => {
+          let hasVoted = false;
+          let hasCommented = false;
+          
+          if (userId && item.podId) {
+            const { hasUserVoted, hasUserCommentedOnPod } = await import('./lib/pods');
+            hasVoted = await hasUserVoted(item.podId, userId);
+            hasCommented = await hasUserCommentedOnPod(item.podId, userId);
           }
+          
+          return {
+            ...item,
+            hasVoted,
+            hasCommented,
+          };
+        })
+      );
+      
+      // Helper function to determine pod tier for sorting
+      // User's requested order:
+      // 1. Live Pods - Where I have neither voted or commented
+      // 2. Live pods - Where one of votes or comments is missing
+      // 3. Ended Pods - Pods I didn't vote and comment
+      // 4. Ended pods - Pods I missed one of vote or comment
+      // 5. Ended Pods - Pods I have voted and commented
+      // 6. Live Pods - Where I both voted and commented
+      const getPodTier = (item, tab) => {
+        const hasVoted = item.hasVoted || false;
+        const hasCommented = item.hasCommented || false;
+        const isLive = item.isLive;
+        
+        if (isLive) {
+          // Live pods
+          if (!hasVoted && !hasCommented) return 1; // Tier 1: Neither voted nor commented
+          if (!hasVoted || !hasCommented) return 2; // Tier 2: Missing one (vote or comment)
+          return 6; // Tier 6: Both voted and commented
+        } else {
+          // Ended pods
+          if (!hasVoted && !hasCommented) return 3; // Tier 3: Didn't vote and comment
+          if (!hasVoted || !hasCommented) return 4; // Tier 4: Missed one (vote or comment)
+          return 5; // Tier 5: Voted and commented
+        }
+      };
+      
+      // NEW SORTING LOGIC matching user requirements
+      const sortedPods = podsWithStatus.sort((a, b) => {
+        const aPod = fetchedPods.find(p => p.id === a.podId);
+        const bPod = fetchedPods.find(p => p.id === b.podId);
+        
+        // Get tiers for both pods
+        const aTier = getPodTier(a, activeTab);
+        const bTier = getPodTier(b, activeTab);
+        
+        // Sort by tier first (lower tier = higher priority)
+        if (aTier !== bTier) {
+          return aTier - bTier;
+        }
+        
+        // Same tier - sort by created_at (most recent first)
+        if (aPod?.created_at && bPod?.created_at) {
+          return new Date(bPod.created_at).getTime() - new Date(aPod.created_at).getTime();
         }
         
         return 0;
       });
       
-      setPods(feedItems);
+      setPods(sortedPods);
     } catch (error) {
-      console.error('Error loading pods:', error);
+      logger.error('Error loading pods:', error);
       setPods([]);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -291,135 +454,102 @@ function Explore() {
           newSet.add(podIdStr);
           return newSet;
         } catch (e) {
-          console.warn('Error updating votedPodIds:', e);
+          logger.warn('Error updating votedPodIds:', e);
           return prev;
         }
       });
       
       // FIX: Don't remove pods from feed - keep them visible even after voting
     } catch (error) {
-      console.error('Error in handleVoteComplete:', error);
+      logger.error('Error in handleVoteComplete:', error);
     }
+  };
+
+  // FIX: Don't update pods array after voting - this causes flickering
+  // Local component state (hasVoted, voted) already handles the UI
+  // The pods array will be re-sorted on next manual refresh (pull to refresh)
+  const handleInteractionComplete = (podId, newHasVoted, newHasCommented) => {
+    // No-op: don't update pods array to prevent flickering
+    // Local FeedItem state handles the voted status
+    // Sorting happens on next loadPods() call (pull to refresh)
   };
 
   // FIX: Show all pods (including voted ones) - sorted by live/ended
   const filteredFeed = pods;
 
-  const FeedItem = ({ item, onVoteComplete, showComments = false }) => {
+  const FeedItem = ({ item, index, onVoteComplete, onInteractionComplete, showComments = false, onRefresh, loadPods, localVoteStateRef, scrollToNextCard }) => {
     const { state } = useApp();
     const { user } = state;
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
-    const [voted, setVoted] = useState(null);
-    const [userVoteChoice, setUserVoteChoice] = useState(null); // Store the actual vote choice (yes/maybe/no)
     const [commentText, setCommentText] = useState('');
     const [commentSubmitted, setCommentSubmitted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [voteCounts, setVoteCounts] = useState(null); // For ended pods
+    const [isTagExpanded, setIsTagExpanded] = useState(false); // Local state for tag expansion
     
-    // FIX: Track if both vote and comment are done (for friends tab)
-    const [hasVoted, setHasVoted] = useState(false);
-    const [hasCommented, setHasCommented] = useState(false);
+    // FIX: Get persisted vote state from parent ref (survives FlatList virtualization)
+    const podId = item.podId || item.id;
+    const persistedState = localVoteStateRef?.current?.get(podId);
     
-    // FIX: Check if user has already voted when component loads
+    // Initialize from persisted state first, then item data, then defaults
+    const [hasVoted, setHasVoted] = useState(persistedState?.hasVoted ?? item.hasVoted ?? false);
+    const [hasCommented, setHasCommented] = useState(persistedState?.hasCommented ?? item.hasCommented ?? false);
+    const [voted, setVoted] = useState(persistedState?.voted ?? null);
+    const [userVoteChoice, setUserVoteChoice] = useState(persistedState?.choice ?? null);
+    
+    const initialCheckDoneRef = useRef(false);
+    
+    // Only fetch vote details once on mount if user has already voted (to get the vote type)
     useEffect(() => {
-      const checkUserVote = async () => {
-        if (!user?.id || !item.podId) return;
+      if (initialCheckDoneRef.current) return;
+      initialCheckDoneRef.current = true;
+      
+      // Skip if we already have persisted vote state
+      if (persistedState?.voted) return;
+      
+      // If we already know user voted (from item data), fetch the vote type
+      const loadVoteDetails = async () => {
+        if (!user?.id || !podId) return;
         
-        try {
-          const { getPodVotes } = await import('./lib/pods');
-          const votes = await getPodVotes(item.podId || item.id);
-          const userVote = votes.find(v => v.voter_id === user.id);
-          
-          if (userVote) {
-            setHasVoted(true);
-            // Map choice back to UI type
-            if (userVote.choice === 'yes') {
-              if (userVote.metadata?.selectedOption) {
-                // Multi-image vote
-                setVoted(userVote.metadata.selectedOption);
-              } else {
-                setVoted('fire');
+        // Only fetch if hasVoted is true but we don't know the vote type yet
+        if ((item.hasVoted || hasVoted) && !voted) {
+          try {
+            const { getPodVotes } = await import('./lib/pods');
+            const votes = await getPodVotes(podId);
+            const userVote = votes.find(v => v.voter_id === user.id);
+            
+            if (userVote && !voted) {
+              // Map choice back to UI type
+              let voteType = null;
+              if (userVote.choice === 'yes') {
+                if (userVote.metadata?.selectedOption) {
+                  voteType = userVote.metadata.selectedOption;
+                } else {
+                  voteType = 'fire';
+                }
+              } else if (userVote.choice === 'maybe') {
+                voteType = 'maybe';
+              } else if (userVote.choice === 'no') {
+                voteType = 'x';
               }
-            } else if (userVote.choice === 'maybe') {
-              setVoted('maybe');
-            } else if (userVote.choice === 'no') {
-              setVoted('x');
+              
+              if (voteType) {
+                setVoted(voteType);
+                setUserVoteChoice(userVote.choice);
+                // Persist to parent ref
+                if (localVoteStateRef?.current) {
+                  localVoteStateRef.current.set(podId, { voted: voteType, hasVoted: true, hasCommented, choice: userVote.choice });
+                }
+              }
             }
-            setUserVoteChoice(userVote.choice);
+          } catch (error) {
+            logger.error('Error loading vote details:', error);
           }
-          
-          // Check if user has commented
-          if (showComments) {
-            const { getPodComments } = await import('./lib/pods');
-            const comments = await getPodComments(item.podId || item.id, user.id);
-            const userComment = comments.find(c => c.author_id === user.id);
-            if (userComment) {
-              setHasCommented(true);
-              setCommentSubmitted(true);
-            }
-          }
-        } catch (error) {
-          console.error('Error checking user vote:', error);
         }
       };
       
-      checkUserVote();
-    }, [user?.id, item.podId, item.id, showComments]);
-    
-    // FIX: Remove pod from feed only after both vote AND comment (if comments required) AND only for live pods
-    // Ended pods should stay visible to show results
-    useEffect(() => {
-      // Don't remove ended pods - they should stay visible to show results
-      if (!item.isLive) {
-        return;
-      }
-      
-      if (showComments) {
-        // For friends tab: require both vote and comment
-        if (hasVoted && hasCommented) {
-          setTimeout(() => {
-            if (onVoteComplete && typeof onVoteComplete === 'function') {
-              try {
-                const podIdToRemove = item.podId || item.id;
-                if (podIdToRemove) {
-                  requestAnimationFrame(() => {
-                    try {
-                      onVoteComplete(String(podIdToRemove));
-                    } catch (e) {
-                      console.warn('Non-critical UI update error:', e);
-                    }
-                  });
-                }
-              } catch (e) {
-                console.warn('Non-critical callback error:', e);
-              }
-            }
-          }, 1500);
-        }
-      } else {
-        // For other tabs: only require vote
-        if (hasVoted) {
-          setTimeout(() => {
-            if (onVoteComplete && typeof onVoteComplete === 'function') {
-              try {
-                const podIdToRemove = item.podId || item.id;
-                if (podIdToRemove) {
-                  requestAnimationFrame(() => {
-                    try {
-                      onVoteComplete(String(podIdToRemove));
-                    } catch (e) {
-                      console.warn('Non-critical UI update error:', e);
-                    }
-                  });
-                }
-              } catch (e) {
-                console.warn('Non-critical callback error:', e);
-              }
-            }
-          }, 1500);
-        }
-      }
-    }, [hasVoted, hasCommented, showComments, item.isLive, item.podId, item.id, onVoteComplete]);
+      loadVoteDetails();
+    }, []); // Empty deps - only run once on mount
     
     const scaleAnims = {
         fire: useRef(new Animated.Value(1)).current,
@@ -433,12 +563,22 @@ function Explore() {
     const handleVote = async (type) => {
       // FIX: Disable voting on ended pods (read-only recaps)
       if (!item.isLive) {
-        console.log('Pod has ended - voting disabled');
+        logger.log('Pod has ended - voting disabled');
         return;
       }
-      if (voted || isSubmitting) return;
+      // FIX: Prevent double voting using local state
+      if (voted || hasVoted || isSubmitting) return;
+      
+      // Update local state immediately
+      const voteType = String(type);
       setIsSubmitting(true);
-      setVoted(String(type)); // Ensure type is always a string
+      setVoted(voteType);
+      setHasVoted(true);
+      
+      // FIX: Persist to parent ref to survive FlatList virtualization
+      if (localVoteStateRef?.current) {
+        localVoteStateRef.current.set(podId, { voted: voteType, hasVoted: true, hasCommented, choice: null });
+      }
       
       // Safely animate if the animation ref exists
       try {
@@ -450,7 +590,7 @@ function Explore() {
           ]).start();
         }
       } catch (animError) {
-        console.warn('Animation error (non-critical):', animError);
+        logger.warn('Animation error (non-critical):', animError);
       }
 
       // Map vote type to database choice
@@ -480,7 +620,7 @@ function Explore() {
         
         // Ensure all parameters are properly typed before passing
         if (!podId || podId === '') {
-          console.error('Invalid podId:', podId);
+          logger.error('Invalid podId:', podId);
           setIsSubmitting(false);
           return;
         }
@@ -492,11 +632,18 @@ function Explore() {
           await submitVoteToDB(podId, choice, userId);
         }
         
-        // FIX: Mark as voted - useEffect will handle removal when both vote and comment are done
+        // FIX: Mark as done submitting
         setIsSubmitting(false);
-        setHasVoted(true);
+        
+        // FIX: Don't refresh the entire feed after voting - just update local state
+        // hasVoted was already set at the start of handleVote
+        
+        // Auto-scroll to next card (only if not in friends tab where comment is required)
+        if (!showComments && scrollToNextCard && typeof index === 'number') {
+          scrollToNextCard(index);
+        }
       } catch (error) {
-        console.error('Error submitting vote:', error);
+        logger.error('Error submitting vote:', error);
         setIsSubmitting(false);
       }
     };
@@ -504,23 +651,36 @@ function Explore() {
     const handleSubmitComment = async () => {
       // FIX: Don't allow comments on ended pods
       if (!item.isLive) {
-        console.log('Pod has ended - commenting disabled');
+        logger.log('Pod has ended - commenting disabled');
         return;
       }
       
-      if (!commentText.trim() || commentSubmitted) return;
+      if (!commentText.trim() || commentSubmitted || hasCommented) return;
       
       try {
         const { addComment } = await import('./lib/pods');
-        const success = await addComment(item.podId || item.id, user?.id, commentText.trim());
+        const success = await addComment(podId, user?.id, commentText.trim());
         if (success) {
-          setCommentSubmitted(true);
+          // Set hasCommented immediately
           setHasCommented(true);
           setCommentText('');
-          // FIX: useEffect will handle removal when both vote and comment are done
+          // Show "Comment sent" message for 1 second
+          setCommentSubmitted(true);
+          setTimeout(() => setCommentSubmitted(false), 1000);
+          
+          // FIX: Persist to parent ref to survive FlatList virtualization
+          if (localVoteStateRef?.current) {
+            const current = localVoteStateRef.current.get(podId) || {};
+            localVoteStateRef.current.set(podId, { ...current, hasCommented: true });
+          }
+          
+          // Auto-scroll to next card after comment is submitted (for friends tab)
+          if (scrollToNextCard && typeof index === 'number') {
+            scrollToNextCard(index);
+          }
         }
       } catch (error) {
-        console.error('Error submitting comment:', error);
+        logger.error('Error submitting comment:', error);
       }
     };
 
@@ -534,7 +694,7 @@ function Explore() {
             const counts = getVoteCounts(votes);
             setVoteCounts(counts);
           } catch (error) {
-            console.error('Error loading vote counts:', error);
+            logger.error('Error loading vote counts:', error);
           }
         };
         loadVoteCounts();
@@ -549,11 +709,135 @@ function Explore() {
     const TAB_HEADER_HEIGHT = 50; // Top tabs height
     const availableHeight = height - insets.top - insets.bottom - BOTTOM_BAR_HEIGHT - TAB_HEADER_HEIGHT;
 
+    // For ended multi-image pods: find winning image (but DON'T reorder)
+    const displayImages = item.images; // Keep original order
+    let winningImageIndex = null;
+    let winningPercentage = 0;
+    let isTie = false;
+    let tiedImages = [];
+    
+    if (!item.isLive && voteCounts && item.images.length > 1) {
+      const allPercentages = item.images.map((_, idx) => {
+        const type = (idx + 1).toString();
+        const optionVotes = voteCounts.multiImageCounts?.[type] || 0;
+        return { idx, type, percentage: voteCounts.total > 0 ? Math.round((optionVotes / voteCounts.total) * 100) : 0 };
+      });
+      const maxPercentage = Math.max(...allPercentages.map(p => p.percentage));
+      const winners = allPercentages.filter(p => p.percentage === maxPercentage && p.percentage > 0);
+      
+      if (winners.length > 1) {
+        isTie = true;
+        tiedImages = winners;
+      } else if (winners.length === 1) {
+        winningImageIndex = winners[0].idx;
+        winningPercentage = winners[0].percentage;
+      }
+    }
+
+    // Handle tag expansion toggle (local state - no refresh)
+    const handleTagPress = () => {
+      if (isTagExpanded) {
+        setIsTagExpanded(false);
+      } else {
+        setIsTagExpanded(true);
+        // Auto-revert after 2 seconds
+        setTimeout(() => {
+          setIsTagExpanded(false);
+        }, 2000);
+      }
+    };
+
+    // Get vote breakdown for single image pods
+    const singleImageBreakdown = !item.isLive && voteCounts && item.images.length === 1 ? getVoteBreakdown(voteCounts) : null;
+
     return (
       <View style={{ height: availableHeight, marginBottom: 20, borderRadius: 24, overflow: 'hidden', backgroundColor: '#1a1a1a' }}>
-        {/* Image Carousel */}
+        {/* Top-left tag for ended pods */}
+        {!item.isLive && voteCounts && (
+          (() => {
+            let tagLabel = '';
+            let expandedLabel = '';
+            let tagBg = '';
+            let tagBorder = '';
+            let canTap = false;
+            
+            if (item.images.length > 1) {
+              // Multi-image pod
+              if (isTie) {
+                // Show tied images: "⚖️ 1 & 3 Tie"
+                const tiedNumbers = tiedImages.map(t => t.idx + 1).join(' & ');
+                tagLabel = `⚖️ ${tiedNumbers} Tie`;
+                expandedLabel = tiedImages.map(t => `${t.idx + 1}: ${t.percentage}%`).join(' | ');
+                tagBg = 'rgba(245, 158, 11, 0.6)';
+                tagBorder = 'rgba(245, 158, 11, 0.8)';
+                canTap = true;
+              } else if (winningImageIndex !== null && winningPercentage > 0) {
+                const label = getPercentageLabel(winningPercentage);
+                tagLabel = `${winningImageIndex + 1}/${item.images.length} received most votes`;
+                expandedLabel = `${winningImageIndex + 1}/${item.images.length} got ${winningPercentage}%`;
+                tagBg = label.bg;
+                tagBorder = label.border;
+                canTap = true;
+              } else {
+                tagLabel = '🚥 No Signal';
+                tagBg = 'rgba(107, 114, 128, 0.6)';
+                tagBorder = 'rgba(107, 114, 128, 0.8)';
+                canTap = false;
+              }
+            } else {
+              // Single image pod - use winner-aware label
+              if (singleImageBreakdown) {
+                const label = getPercentageLabelWithWinner(singleImageBreakdown);
+                tagLabel = label.text;
+                tagBg = label.bg;
+                tagBorder = label.border;
+                
+                if (singleImageBreakdown.isTie && singleImageBreakdown.winners) {
+                  // Tie - show both icons with percentages
+                  expandedLabel = singleImageBreakdown.winners.map(w => `${w.emoji} ${w.percent}%`).join(' | ');
+                  canTap = true;
+                } else if (singleImageBreakdown.winner) {
+                  // Single winner - show icon with percentage
+                  expandedLabel = `${singleImageBreakdown.winner.emoji} ${singleImageBreakdown.winner.percent}%`;
+                  canTap = true;
+                }
+              } else {
+                tagLabel = '🚥 No Signal';
+                tagBg = 'rgba(107, 114, 128, 0.6)';
+                tagBorder = 'rgba(107, 114, 128, 0.8)';
+                canTap = false;
+              }
+            }
+            
+            return (
+              <Pressable
+                onPress={() => canTap ? handleTagPress() : null}
+                disabled={!canTap}
+                style={{
+                  position: 'absolute',
+                  top: 16,
+                  left: 16,
+                  zIndex: 10,
+                  backgroundColor: tagBg,
+                  borderWidth: 1,
+                  borderColor: tagBorder,
+                  borderRadius: 12,
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                  maxWidth: width - 60,
+                }}
+              >
+                <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>
+                  {isTagExpanded && expandedLabel ? expandedLabel : tagLabel}
+                </Text>
+              </Pressable>
+            );
+          })()
+        )}
+
+        {/* Image Carousel - Keep original order */}
         <View style={{ flex: 1 }}>
-          {item.images.length > 1 ? (
+          {displayImages.length > 1 ? (
             <ScrollView 
               horizontal={true}
               pagingEnabled={true}
@@ -567,18 +851,35 @@ function Explore() {
               style={{ flex: 1 }}
               contentContainerStyle={{ flexGrow: 1 }}
             >
-              {item.images.map((img, idx) => {
+              {displayImages.map((img, idx) => {
                 const imageSource = img && typeof img === 'string' ? { uri: img } : null;
+                const imageNumber = idx + 1;
+                const isWinningImage = winningImageIndex === idx;
+                
                 return (
                   <View key={idx} style={{ width: width - 20, height: '100%' }}>
                     <SafeImage 
                       source={imageSource} 
-                      style={{ width: '100%', height: '100%', resizeMode: 'cover' }} 
+                      style={{ width: '100%', height: '100%', resizeMode: 'cover' }}
+                      width={width - 20}
+                      height={availableHeight}
                     />
                     
-                    {/* Image Label if multiple */}
-                    <View style={{ position: 'absolute', top: 20, left: 20, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 12, width: 30, height: 30, justifyContent: 'center', alignItems: 'center' }}>
-                      <Text style={{ color: '#fff', fontWeight: 'bold' }}>{idx + 1}</Text>
+                    {/* Image number label in top-right for all multi-image pods */}
+                    <View style={{ 
+                      position: 'absolute', 
+                      top: 16, 
+                      right: 16, 
+                      backgroundColor: isWinningImage && !item.isLive ? 'rgba(34, 197, 94, 0.8)' : 'rgba(0,0,0,0.6)', 
+                      borderRadius: 12, 
+                      paddingHorizontal: 10, 
+                      paddingVertical: 6,
+                      borderWidth: isWinningImage && !item.isLive ? 1 : 0,
+                      borderColor: 'rgba(255,255,255,0.3)'
+                    }}>
+                      <Text style={{ color: '#fff', fontWeight: '600', fontSize: 12 }}>
+                        {imageNumber}/{item.images.length}{isWinningImage && !item.isLive ? ' ★' : ''}
+                      </Text>
                     </View>
                   </View>
                 );
@@ -587,7 +888,9 @@ function Explore() {
           ) : (
             <SafeImage 
               source={item.images[0] && typeof item.images[0] === 'string' ? { uri: item.images[0] } : null} 
-              style={{ width: '100%', height: '100%', resizeMode: 'cover' }} 
+              style={{ width: '100%', height: '100%', resizeMode: 'cover' }}
+              width={width - 20}
+              height={availableHeight}
             />
           )}
           
@@ -614,173 +917,169 @@ function Explore() {
           colors={['transparent', 'rgba(0,0,0,0.9)']}
           style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 20, paddingTop: 60 }}
         >
-          {/* Question & Time */}
-          <View style={{ marginBottom: 20 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <Pressable 
-                style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}
-                onPress={() => {
-                  if (item.userId && setRoute) {
-                    setRoute('userprofile', { userId: item.userId });
-                  }
-                }}
-              >
-                {item.userAvatar && (
-                  <SafeImage 
-                    source={{ uri: item.userAvatar }} 
-                    style={{ width: 20, height: 20, borderRadius: 10, marginRight: 6 }} 
+          {/* For ended pods: username and title at bottom, no voting UI */}
+          {!item.isLive ? (
+            <View style={{ marginTop: 'auto' }}>
+              <View style={{ 
+                backgroundColor: 'rgba(0, 0, 0, 0.5)', 
+                paddingHorizontal: 12, 
+                paddingVertical: 8, 
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: 'rgba(255, 255, 255, 0.15)',
+                alignSelf: 'flex-start',
+                marginBottom: 12,
+              }}>
+                <Text style={{ color: '#fff', fontSize: 20, fontWeight: '700', textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>{item.question}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Pressable 
+                  style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}
+                  onPress={() => {
+                    if (item.userId && setRoute) {
+                      setRoute('userprofile', { userId: item.userId });
+                    }
+                  }}
+                >
+                  <Avatar 
+                    imageUri={item.userAvatar} 
+                    name={item.user} 
+                    size={20}
+                    style={{ marginRight: 6 }}
                   />
-                )}
-                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>{item.user}</Text>
-              </Pressable>
-              <Text style={{ color: item.timeLeft === 'Ended' ? '#ef4444' : '#fbbf24', fontWeight: '700', fontSize: 12 }}>{item.timeLeft}</Text>
-            </View>
-            <Text style={{ color: '#fff', fontSize: 20, fontWeight: '700' }}>{item.question}</Text>
-          </View>
-
-          {/* Voting Actions or Results */}
-          {!item.isLive && voteCounts ? (
-            // FIX: Show vote percentages for ended pods
-            <View style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingVertical: 10 }}>
-              {item.images.length > 1 ? (
-                // Multi-image results - need to fetch actual votes with metadata
-                item.images.map((_, idx) => {
-                  const type = (idx + 1).toString();
-                  // For now, show placeholder - proper counting requires fetching votes with metadata
-                  // This will be improved when we load votes in useEffect
-                  return (
-                    <View key={type} style={{ alignItems: 'center' }}>
-                      <Text style={{ fontSize: 24, color: '#fff', fontWeight: 'bold', marginBottom: 4 }}>{type}</Text>
-                      <Text style={{ fontSize: 14, color: '#9ca3af' }}>
-                        {voteCounts.total > 0 ? Math.round((voteCounts.yes / item.images.length / voteCounts.total) * 100) : 0}%
-                      </Text>
-                    </View>
-                  );
-                })
-              ) : (
-                // Single image results
-                <>
-                  <View style={{ alignItems: 'center' }}>
-                    <Text style={{ fontSize: 32, marginBottom: 4 }}>🔥</Text>
-                    <Text style={{ fontSize: 14, color: '#9ca3af' }}>
-                      {voteCounts.total > 0 ? Math.round((voteCounts.yes / voteCounts.total) * 100) : 0}%
-                    </Text>
-                  </View>
-                  <View style={{ alignItems: 'center' }}>
-                    <Text style={{ fontSize: 32, marginBottom: 4 }}>🤔</Text>
-                    <Text style={{ fontSize: 14, color: '#9ca3af' }}>
-                      {voteCounts.total > 0 ? Math.round((voteCounts.maybe / voteCounts.total) * 100) : 0}%
-                    </Text>
-                  </View>
-                  <View style={{ alignItems: 'center' }}>
-                    <Text style={{ fontSize: 32, marginBottom: 4 }}>❌</Text>
-                    <Text style={{ fontSize: 14, color: '#9ca3af' }}>
-                      {voteCounts.total > 0 ? Math.round((voteCounts.no / voteCounts.total) * 100) : 0}%
-                    </Text>
-                  </View>
-                </>
-              )}
-            </View>
-          ) : item.isLive && hasVoted && voted ? (
-            // FIX: Show user's vote after they've voted (live pod only)
-            <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 10 }}>
-              <View style={{ alignItems: 'center', backgroundColor: 'rgba(16, 185, 129, 0.2)', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.4)' }}>
-                {item.images.length > 1 ? (
-                  <Text style={{ fontSize: 24, color: '#10b981', fontWeight: 'bold' }}>You voted: {voted}</Text>
-                ) : (
-                  <Text style={{ fontSize: 18, color: '#10b981', fontWeight: '600' }}>
-                    You voted: {voted === 'fire' ? '🔥' : voted === 'maybe' ? '🤔' : '❌'}
-                  </Text>
-                )}
+                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>{item.user}</Text>
+                </Pressable>
+                <Text style={{ color: '#ef4444', fontWeight: '700', fontSize: 12 }}>Ended</Text>
               </View>
             </View>
-          ) : item.isLive && !hasVoted ? (
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          ) : (
+            <>
+              {/* Question & Time - for live pods */}
+              <View style={{ marginBottom: 20 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <Pressable 
+                    style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}
+                    onPress={() => {
+                      if (item.userId && setRoute) {
+                        setRoute('userprofile', { userId: item.userId });
+                      }
+                    }}
+                  >
+                    <Avatar 
+                      imageUri={item.userAvatar} 
+                      name={item.user} 
+                      size={20}
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>{item.user}</Text>
+                  </Pressable>
+                  <Text style={{ color: '#fbbf24', fontWeight: '700', fontSize: 12 }}>{item.timeLeft}</Text>
+                </View>
+                <View style={{ 
+                  backgroundColor: 'rgba(0, 0, 0, 0.5)', 
+                  paddingHorizontal: 12, 
+                  paddingVertical: 8, 
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: 'rgba(255, 255, 255, 0.15)',
+                  alignSelf: 'flex-start',
+                }}>
+                  <Text style={{ color: '#fff', fontSize: 20, fontWeight: '700', textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>{item.question}</Text>
+                </View>
+              </View>
+
+              {/* Show user's vote after they've voted (live pod only) */}
+              {hasVoted && voted ? (
+                <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 10 }}>
+                  <View style={{ alignItems: 'center', backgroundColor: 'rgba(16, 185, 129, 0.2)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.4)' }}>
+                    {item.images.length > 1 ? (
+                      <Text style={{ fontSize: 18, color: '#10b981', fontWeight: '600' }}>You voted: {voted}</Text>
+                    ) : (
+                      <Text style={{ fontSize: 18, color: '#10b981', fontWeight: '600' }}>
+                        You voted: {voted === 'fire' ? '🔥' : voted === 'maybe' ? '🤔' : '❌'}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              ) : null}
+            </>
+          )}
+          
+          {/* Voting Actions - Only show for live pods when user hasn't voted */}
+          {item.isLive && !hasVoted && !voted && (
+            <View style={{ alignItems: 'center' }}>
               {item.images.length > 1 ? (
-                // Multi-image voting (1, 2, 3...)
-                item.images.map((_, idx) => {
-                    const type = (idx + 1).toString();
-                    const isSelected = voted === type;
-                    const isOtherSelected = voted && !isSelected;
-                    
-                    if (isOtherSelected) return null;
-
-                    return (
-                        <Pressable 
-                          key={type}
-                          onPress={() => handleVote(type)}
-                          disabled={Boolean(!item.isLive || hasVoted || Boolean(voted) || Boolean(isSubmitting))} // FIX: Disable if already voted
-                          style={{ 
-                            alignItems: 'center', 
-                            flex: voted ? 1 : 0,
-                            marginHorizontal: voted ? 0 : 10,
-                            opacity: (!item.isLive || hasVoted || voted || isSubmitting) ? 0.5 : 1 // FIX: Visual feedback
-                          }}
-                        >
-                          <Animated.View style={{ 
-                            width: 60, 
-                            height: 60, 
-                            borderRadius: 30, 
-                            backgroundColor: isSelected ? 'transparent' : 'rgba(255,255,255,0.1)', 
-                            justifyContent: 'center', 
-                            alignItems: 'center',
-                            borderWidth: 1,
-                            borderColor: 'rgba(255,255,255,0.3)',
-                            transform: [{ scale: (scaleAnims[type] && typeof scaleAnims[type] === 'object') ? scaleAnims[type] : 1 }]
-                          }}>
-                            <Text style={{ fontSize: 24, color: '#fff', fontWeight: 'bold' }}>{type}</Text>
-                          </Animated.View>
-                        </Pressable>
-                    );
-                })
-              ) : (
-                // Single image voting (Fire, Maybe, X)
-                ['fire', 'maybe', 'x'].map((type) => {
-                  const isSelected = voted === type;
-                  const isOtherSelected = voted && !isSelected;
-                  
-                  // If voted, hide others
-                  if (isOtherSelected) return null;
-
-                  const emoji = type === 'fire' ? '🔥' : type === 'maybe' ? '🤔' : '❌';
-                  
-                  return (
-                    <Pressable 
-                      key={type}
-                      onPress={() => handleVote(type)}
-                      disabled={Boolean(!item.isLive || hasVoted || Boolean(voted) || Boolean(isSubmitting))} // FIX: Disable if already voted
-                      style={{ 
-                        alignItems: 'center', 
-                        flex: voted ? 1 : 0,
-                        opacity: (!item.isLive || hasVoted || voted || isSubmitting) ? 0.5 : 1 // FIX: Visual feedback
+                // Multi-image voting - Just fire icon with look number badge
+                // Clean and consistent with single-image voting
+                <Pressable 
+                  onPress={() => handleVote((currentImageIndex + 1).toString())}
+                  disabled={Boolean(isSubmitting)}
+                  style={{ 
+                    alignItems: 'center',
+                    opacity: isSubmitting ? 0.5 : 1,
+                  }}
+                >
+                  <View style={{ position: 'relative' }}>
+                    <Text style={{ fontSize: 50 }}>🔥</Text>
+                    {/* Look number badge - gradient like fire symbol */}
+                    <LinearGradient
+                      colors={['#f97316', '#ea580c', '#dc2626']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={{
+                        position: 'absolute',
+                        bottom: -2,
+                        right: -8,
+                        width: 24,
+                        height: 24,
+                        borderRadius: 12,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        opacity: 0.7,
                       }}
                     >
-                      <Animated.View style={{ 
-                        width: 60, 
-                        height: 60, 
-                        borderRadius: 30, 
-                        // Transparent background for emoji only
-                        justifyContent: 'center', 
-                        alignItems: 'center',
-                        transform: [{ scale: (scaleAnims[type] && typeof scaleAnims[type] === 'object') ? scaleAnims[type] : 1 }]
-                      }}>
-                        <Text style={{ fontSize: 40 }}>{emoji}</Text>
-                      </Animated.View>
-                    </Pressable>
-                  );
-                })
+                      <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{currentImageIndex + 1}</Text>
+                    </LinearGradient>
+                  </View>
+                  <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 4 }}>Tap to vote</Text>
+                </Pressable>
+              ) : (
+                // Single image voting (Fire, Maybe, X)
+                <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 20 }}>
+                  {['fire', 'maybe', 'x'].map((type) => {
+                    const emoji = type === 'fire' ? '🔥' : type === 'maybe' ? '🤔' : '❌';
+                    
+                    return (
+                      <Pressable 
+                        key={type}
+                        onPress={() => handleVote(type)}
+                        disabled={Boolean(isSubmitting)}
+                        style={{ 
+                          alignItems: 'center',
+                          opacity: isSubmitting ? 0.5 : 1
+                        }}
+                      >
+                        <Animated.View style={{ 
+                          width: 60, 
+                          height: 60, 
+                          borderRadius: 30, 
+                          justifyContent: 'center', 
+                          alignItems: 'center',
+                          transform: [{ scale: (scaleAnims[type] && typeof scaleAnims[type] === 'object') ? scaleAnims[type] : 1 }]
+                        }}>
+                          <Text style={{ fontSize: 40 }}>{emoji}</Text>
+                        </Animated.View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
               )}
             </View>
-          ) : null}
+          )}
           
-          {/* Comments for Friends - Only show for live pods where user hasn't voted/commented yet */}
-          {activeTab === 'friends' && item.isLive && !hasVoted && !hasCommented && (
+          {/* Comments for Friends - Only show for live pods where user has voted but hasn't commented yet */}
+          {activeTab === 'friends' && item.isLive && hasVoted && !hasCommented && (
              <View style={{ marginTop: 20 }}>
-                {commentSubmitted ? (
-                  <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.2)', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
-                    <Text style={{ color: '#10b981', fontSize: 13, textAlign: 'center' }}>✓ Comment sent! (Only visible to {item.user})</Text>
-                  </View>
-                ) : (
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     <TextInput 
                       placeholder="Reply to your friend..."
@@ -788,11 +1087,11 @@ function Explore() {
                       value={commentText}
                       onChangeText={setCommentText}
                       onSubmitEditing={handleSubmitComment}
-                      editable={Boolean(item.isLive && !hasVoted)} // FIX: Disable commenting on ended pods or after voting
+                      editable={Boolean(item.isLive && !hasCommented && !commentSubmitted)} // FIX: Disable while submitting
                       returnKeyType="send"
                       style={{ 
                         flex: 1,
-                        backgroundColor: 'rgba(255,255,255,0.1)', 
+                        backgroundColor: 'rgba(0,0,0,0.3)', 
                         padding: 12, 
                         borderRadius: 12, 
                         color: '#fff',
@@ -802,21 +1101,32 @@ function Explore() {
                     />
                     <Pressable
                       onPress={handleSubmitComment}
-                      disabled={Boolean(!item.isLive || hasVoted || !commentText.trim() || commentSubmitted)} // FIX: Disable on ended pods, after voting, or if already submitted
+                      disabled={Boolean(!item.isLive || hasCommented || !commentText.trim() || commentSubmitted)} // FIX: Disable if already commented
                       style={{
-                        backgroundColor: commentText.trim() ? '#fff' : 'rgba(255,255,255,0.2)',
+                        backgroundColor: commentText.trim() ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.2)',
                         paddingHorizontal: 16,
                         paddingVertical: 12,
                         borderRadius: 12,
                         justifyContent: 'center',
                         alignItems: 'center',
+                        borderWidth: 1,
+                        borderColor: 'rgba(255,255,255,0.15)',
+                        opacity: (!item.isLive || hasCommented || !commentText.trim() || commentSubmitted) ? 0.5 : 1
                       }}
                     >
-                      <Text style={{ color: commentText.trim() ? '#000' : '#999', fontWeight: '600', fontSize: 14 }}>Send</Text>
+                      <Text style={{ color: commentText.trim() ? '#fff' : '#999', fontWeight: '600', fontSize: 14 }}>Send</Text>
                     </Pressable>
                   </View>
-                )}
              </View>
+          )}
+          
+          {/* Show "Comment sent" message for 1 second after submission */}
+          {activeTab === 'friends' && item.isLive && hasCommented && commentSubmitted && (
+            <View style={{ marginTop: 20 }}>
+              <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.2)', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' }}>
+                <Text style={{ color: '#10b981', fontSize: 13, textAlign: 'center' }}>✓ Comment sent! (Only visible to {item.user})</Text>
+              </View>
+            </View>
           )}
         </LinearGradient>
       </View>
@@ -896,13 +1206,20 @@ function Explore() {
         </View>
       ) : (
         <FlatList 
+          ref={flatListRef}
           data={filteredFeed}
           keyExtractor={item => item.id}
-          renderItem={({ item }) => (
+          renderItem={({ item, index }) => (
             <FeedItem 
               item={item} 
+              index={index}
               onVoteComplete={handleVoteComplete}
+              onInteractionComplete={handleInteractionComplete}
               showComments={Boolean(activeTab === 'friends')}
+              onRefresh={onRefresh}
+              loadPods={loadPods}
+              localVoteStateRef={localVoteStateRef}
+              scrollToNextCard={scrollToNextCard}
             />
           )}
           contentContainerStyle={{ paddingHorizontal: 10, paddingBottom: 80 }}
@@ -910,8 +1227,24 @@ function Explore() {
           snapToInterval={availableHeight + 20}
           snapToAlignment="start"
           decelerationRate="fast"
-          onRefresh={loadPods}
-          refreshing={Boolean(loading)}
+          // FIX: Prevent virtualization from unmounting items
+          removeClippedSubviews={false}
+          windowSize={21}
+          maxToRenderPerBatch={10}
+          onScrollToIndexFailed={(info) => {
+            // Handle scroll to index failure gracefully
+            setTimeout(() => {
+              flatListRef.current?.scrollToIndex({ index: info.index, animated: true });
+            }, 100);
+          }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#fff"
+              colors={["#fff"]}
+            />
+          }
         />
       )}
     </KeyboardAvoidingView>
@@ -957,7 +1290,7 @@ const TryOn = () => {
       };
       const autoCategory = categoryMap[currentProduct.category] || null;
       if (autoCategory) {
-        console.log('🔍 Auto-detected category from product:', autoCategory);
+        logger.log('🔍 Auto-detected category from product:', autoCategory);
         setSelectedCategory(autoCategory);
       }
     } else if (!isCategoryManuallySelected && currentProduct?.name) {
@@ -972,7 +1305,7 @@ const TryOn = () => {
         autoCategory = 'upper_body';
       }
       if (autoCategory) {
-        console.log('🔍 Auto-detected category from name:', autoCategory);
+        logger.log('🔍 Auto-detected category from name:', autoCategory);
         setSelectedCategory(autoCategory);
       }
     }
@@ -1039,7 +1372,7 @@ const TryOn = () => {
     const validCategories = ['upper_body', 'lower_body', 'dresses'];
     const categoryToUse = validCategories.includes(categoryParam) ? categoryParam : null;
     
-    console.log('🚀 handleTryOn called with:', { categoryParam, categoryToUse, selectedCategory });
+    logger.log('🚀 handleTryOn called with:', { categoryParam, categoryToUse, selectedCategory });
 
     if (!twinUrl) {
       Alert.alert("Add your photo", "Please upload a photo of yourself first.", [
@@ -1056,12 +1389,12 @@ const TryOn = () => {
       return;
     }
     if (!categoryToUse) {
-      console.log('❌ No valid category - showing alert. categoryParam was:', categoryParam);
+      logger.log('❌ No valid category - showing alert. categoryParam was:', categoryParam);
       Alert.alert("Select Category", "Please select an item type (Upper Body, Lower Body, or Dresses) before trying on.");
       return;
     }
     
-    console.log('✅ Valid category selected:', categoryToUse);
+    logger.log('✅ Valid category selected:', categoryToUse);
 
     setIsProcessing(true);
     setResult(null);
@@ -1082,7 +1415,7 @@ const TryOn = () => {
       // Upload human image if it's a local URI
       let humanUrlToUse = twinUrl;
       if (twinUrl && twinUrl.startsWith('file://')) {
-        console.log('Uploading human image...');
+        logger.log('Uploading human image...');
         try {
           const uploadedUrl = await uploadImageAsync(twinUrl);
           if (!uploadedUrl || typeof uploadedUrl !== 'string') {
@@ -1093,8 +1426,8 @@ const TryOn = () => {
           // Save this permanent URL to profile as body_image_url
           if (user?.id) {
             supabase.from('profiles').update({ body_image_url: humanUrlToUse }).eq('id', user.id).then(({ error }) => {
-                if (error) console.log('Error saving body image to profile:', error);
-                else console.log('Body image saved to profile');
+                if (error) logger.log('Error saving body image to profile:', error);
+                else logger.log('Body image saved to profile');
             });
             // Update local user state
             setUser(prev => ({ ...prev, body_image_url: humanUrlToUse }));
@@ -1102,15 +1435,15 @@ const TryOn = () => {
             setTwinUrl(humanUrlToUse);
           }
           
-          console.log('Human image uploaded successfully:', humanUrlToUse);
+          logger.log('Human image uploaded successfully:', humanUrlToUse);
         } catch (uploadError) {
-          console.error('Error uploading human image:', uploadError);
+          logger.error('Error uploading human image:', uploadError);
           setIsProcessing(false);
           Alert.alert("Upload Error", "Failed to upload your photo. Please try again.");
           return;
         }
       } else if (!twinUrl || (!twinUrl.startsWith('http') && !twinUrl.startsWith('file://'))) {
-        console.error('Invalid human image URL:', twinUrl);
+        logger.error('Invalid human image URL:', twinUrl);
         setIsProcessing(false);
         Alert.alert("Invalid Image", "Please upload a valid photo.");
         return;
@@ -1119,22 +1452,22 @@ const TryOn = () => {
       // Upload garment image if it's a local URI
       let garmentUrlToUse = selectedImage;
       if (selectedImage && selectedImage.startsWith('file://')) {
-        console.log('Uploading garment image...');
+        logger.log('Uploading garment image...');
         try {
           const uploadedUrl = await uploadImageAsync(selectedImage);
           if (!uploadedUrl || typeof uploadedUrl !== 'string') {
             throw new Error('Upload returned invalid URL');
           }
           garmentUrlToUse = uploadedUrl;
-          console.log('Garment image uploaded successfully:', garmentUrlToUse);
+          logger.log('Garment image uploaded successfully:', garmentUrlToUse);
         } catch (uploadError) {
-          console.error('Error uploading garment image:', uploadError);
+          logger.error('Error uploading garment image:', uploadError);
           setIsProcessing(false);
           Alert.alert("Upload Error", "Failed to upload outfit image. Please try again.");
           return;
         }
       } else if (!selectedImage || (!selectedImage.startsWith('http') && !selectedImage.startsWith('file://'))) {
-        console.error('Invalid garment image URL:', selectedImage);
+        logger.error('Invalid garment image URL:', selectedImage);
         setIsProcessing(false);
         Alert.alert("Invalid Image", "Please select a valid outfit image.");
         return;
@@ -1142,7 +1475,7 @@ const TryOn = () => {
 
       // Ensure URLs are valid strings
       if (!humanUrlToUse || !garmentUrlToUse || typeof humanUrlToUse !== 'string' || typeof garmentUrlToUse !== 'string') {
-        console.error('Invalid URLs after processing:', { humanUrlToUse, garmentUrlToUse });
+        logger.error('Invalid URLs after processing:', { humanUrlToUse, garmentUrlToUse });
         setIsProcessing(false);
         Alert.alert("Error", "Failed to prepare images. Please try again.");
         return;
@@ -1151,8 +1484,8 @@ const TryOn = () => {
       // categoryToUse is already validated - use it directly
       const category = categoryToUse;
       
-      console.log('📤 SENDING TO REPLICATE API - Category:', category);
-      console.log('Starting try-on API call with:', { 
+      logger.log('📤 SENDING TO REPLICATE API - Category:', category);
+      logger.log('Starting try-on API call with:', { 
         humanUrlToUse: humanUrlToUse.substring(0, 50) + '...', 
         garmentUrlToUse: garmentUrlToUse.substring(0, 50) + '...', 
         category 
@@ -1165,15 +1498,15 @@ const TryOn = () => {
         if (!job || !job.jobId) {
           throw new Error('Invalid job response from API');
         }
-        console.log('🎉 Try-on job started:', job.jobId);
-        console.log('📋 API confirmed category sent:', job.categorySent);
+        logger.log('🎉 Try-on job started:', job.jobId);
+        logger.log('📋 API confirmed category sent:', job.categorySent);
         
         // Alert if category mismatch (for debugging)
         if (job.categorySent && job.categorySent !== category) {
-          console.error('⚠️ CATEGORY MISMATCH! Sent:', category, 'API says:', job.categorySent);
+          logger.error('⚠️ CATEGORY MISMATCH! Sent:', category, 'API says:', job.categorySent);
         }
       } catch (apiError) {
-        console.error('Try-on API error:', apiError);
+        logger.error('Try-on API error:', apiError);
         setIsProcessing(false);
         Alert.alert("Try-On Error", apiError.message || "Failed to start try-on. Please check your connection and try again.");
         return;
@@ -1204,24 +1537,24 @@ const TryOn = () => {
                               status.resultUrl.includes('replicate.com');
         
         if (isReplicateUrl) {
-          console.log('📤 Replicate URL detected, uploading to Supabase immediately...');
+          logger.log('📤 Replicate URL detected, uploading to Supabase immediately...');
           try {
             finalResultUrl = await uploadRemoteImage(status.resultUrl);
-            console.log('✅ Replicate image uploaded to Supabase, permanent URL:', finalResultUrl);
+            logger.log('✅ Replicate image uploaded to Supabase, permanent URL:', finalResultUrl);
             
             // Verify it's a Supabase URL, not still a Replicate URL
             if (finalResultUrl.includes('replicate')) {
               throw new Error('Upload failed - still a Replicate URL');
             }
           } catch (e) {
-            console.error("❌ Failed to upload Replicate image to Supabase:", e);
+            logger.error("❌ Failed to upload Replicate image to Supabase:", e);
             setBannerMessage("Failed to save image. Please try again.");
             setBannerType('error');
             setIsProcessing(false);
             return; // Don't save if upload failed
           }
         } else {
-          console.log('✅ Using permanent URL (not Replicate):', finalResultUrl);
+          logger.log('✅ Using permanent URL (not Replicate):', finalResultUrl);
         }
 
         // Only use the permanent URL from here on
@@ -1259,7 +1592,7 @@ const TryOn = () => {
               visibility: 'private'
             });
           } catch (err) {
-            console.log('Error saving try-on to Supabase:', err?.message || String(err));
+            logger.log('Error saving try-on to Supabase:', err?.message || String(err));
           }
         }
         
@@ -1298,7 +1631,7 @@ const TryOn = () => {
         }, 5000);
       }
     } catch (error) {
-      console.error("AI Try-On Error:", error);
+      logger.error("AI Try-On Error:", error);
       setBannerMessage("Something went wrong. Please try again.");
       setBannerType('error');
       setTimeout(() => {
@@ -1379,9 +1712,16 @@ const TryOn = () => {
             <Pressable onPress={() => {
                 setShowBodyPhotoGuidelines(true);
             }}>
-                {twinUrl ? (
+                    {twinUrl ? (
                   <View>
-                    <OptimizedImage source={{ uri: twinUrl }} style={styles.userThumbnail} resizeMode="cover" />
+                    <OptimizedImage 
+                      source={{ uri: twinUrl }} 
+                      style={styles.userThumbnail} 
+                      resizeMode="cover"
+                      width={80}  // Thumbnail size
+                      height={80} // Thumbnail size
+                      quality={85}
+                    />
                     <Pressable 
                       style={{ position: 'absolute', top: -5, right: -5, backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: 10, width: 20, height: 20, justifyContent: 'center', alignItems: 'center' }}
                       onPress={(e) => {
@@ -1407,7 +1747,7 @@ const TryOn = () => {
             <Pressable 
               style={[styles.categorySelectorOption, selectedCategory === 'upper_body' && styles.categorySelectorOptionSelected]}
               onPress={() => {
-                console.log('👆 User selected category: upper_body');
+                logger.log('👆 User selected category: upper_body');
                 setSelectedCategory('upper_body');
                 setIsCategoryManuallySelected(true);
               }}
@@ -1419,7 +1759,7 @@ const TryOn = () => {
             <Pressable 
               style={[styles.categorySelectorOption, selectedCategory === 'lower_body' && styles.categorySelectorOptionSelected]}
               onPress={() => {
-                console.log('👆 User selected category: lower_body');
+                logger.log('👆 User selected category: lower_body');
                 setSelectedCategory('lower_body');
                 setIsCategoryManuallySelected(true);
               }}
@@ -1431,7 +1771,7 @@ const TryOn = () => {
             <Pressable 
               style={[styles.categorySelectorOption, selectedCategory === 'dresses' && styles.categorySelectorOptionSelected]}
               onPress={() => {
-                console.log('👆 User selected category: dresses');
+                logger.log('👆 User selected category: dresses');
                 setSelectedCategory('dresses');
                 setIsCategoryManuallySelected(true);
               }}
@@ -1448,7 +1788,7 @@ const TryOn = () => {
           <Pressable 
               style={[styles.primaryBtn, (isProcessing || !selectedCategory) && styles.disabledBtn, { flex: 1, height: 50 }]} 
               onPress={() => {
-                console.log('🎯 Try On button pressed with selectedCategory:', selectedCategory);
+                logger.log('🎯 Try On button pressed with selectedCategory:', selectedCategory);
                 handleTryOn(selectedCategory);
               }}
               disabled={Boolean(isProcessing || !selectedCategory)}
@@ -1529,7 +1869,7 @@ const TryOn = () => {
                 style={[styles.categoryModalButton, styles.categoryModalButtonConfirm, !pendingCategory && styles.categoryModalButtonDisabled]}
                 onPress={() => {
                   if (pendingCategory) {
-                    console.log('👆 User confirmed category from modal:', pendingCategory);
+                    logger.log('👆 User confirmed category from modal:', pendingCategory);
                     setSelectedCategory(pendingCategory); // Update the on-screen selector too
                     setIsCategoryManuallySelected(true);
                     setShowCategoryModal(false);
@@ -1555,22 +1895,22 @@ const TryOn = () => {
         type="body"
         onClose={() => setShowBodyPhotoGuidelines(false)}
         onContinue={async () => {
-          console.log('📸 onContinue START in TryOn');
+          logger.log('📸 onContinue START in TryOn');
           // Don't close modal yet - open ImagePicker first
           const res = await ImagePicker.launchImageLibraryAsync({ 
             mediaTypes: ['images'],
             allowsEditing: false,
             quality: 0.8
           });
-          console.log('📸 ImagePicker returned:', res.canceled ? 'CANCELLED' : 'SELECTED');
+          logger.log('📸 ImagePicker returned:', res.canceled ? 'CANCELLED' : 'SELECTED');
           // Now close the modal
           setShowBodyPhotoGuidelines(false);
           
           if (!res.canceled && res.assets && res.assets[0]) {
             try {
-              console.log('📸 Uploading image...');
+              logger.log('📸 Uploading image...');
               const uploadedUrl = await uploadImageAsync(res.assets[0].uri);
-              console.log('📸 Uploaded URL:', uploadedUrl);
+              logger.log('📸 Uploaded URL:', uploadedUrl);
               if (user?.id) {
                 await supabase.from('profiles').update({ body_image_url: uploadedUrl }).eq('id', user.id);
               }
@@ -1583,7 +1923,7 @@ const TryOn = () => {
                 setBannerType(null);
               }, 3000);
             } catch (error) {
-              console.error('❌ Error saving body photo:', error);
+              logger.error('❌ Error saving body photo:', error);
               setBannerMessage('Failed to save photo');
               setBannerType('error');
               setTimeout(() => {
@@ -1592,7 +1932,7 @@ const TryOn = () => {
               }, 3000);
             }
           } else {
-            console.log('📸 No image selected or cancelled');
+            logger.log('📸 No image selected or cancelled');
           }
         }}
       />
@@ -1612,24 +1952,68 @@ export default function App() {
   const [tryOnHistory, setTryOnHistory] = useState([]);
   const [currentProduct, setCurrentProduct] = useState(null);
   const [priceTracking, setPriceTracking] = useState({}); // Store price tracking: { productId: { price, productId } }
+  
+  // Load price tracking from AsyncStorage on app start
+  useEffect(() => {
+    const loadPriceTracking = async () => {
+      try {
+        const stored = await AsyncStorage.getItem('price_tracking');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setPriceTracking(parsed);
+          logger.log('Loaded price tracking from storage:', Object.keys(parsed).length, 'products');
+        }
+      } catch (error) {
+        logger.error('Error loading price tracking:', error);
+      }
+    };
+    loadPriceTracking();
+  }, []);
+  
+  // Save price tracking to AsyncStorage whenever it changes
+  useEffect(() => {
+    const savePriceTracking = async () => {
+      try {
+        await AsyncStorage.setItem('price_tracking', JSON.stringify(priceTracking));
+        logger.log('Saved price tracking to storage');
+      } catch (error) {
+        logger.error('Error saving price tracking:', error);
+      }
+    };
+    if (Object.keys(priceTracking).length > 0) {
+      savePriceTracking();
+    }
+  }, [priceTracking]);
+  
   const [bannerMessage, setBannerMessage] = useState(null); // Banner message state
   const [bannerType, setBannerType] = useState(null); // 'processing' or 'success'
   const [savedFits, setSavedFits] = useState([]); // Saved outfits
   const [pendingInvite, setPendingInvite] = useState(null); // Pending invite from deep link
   const [routeStack, setRouteStack] = useState([]); // Navigation stack for back button
   const [allProducts, setAllProducts] = useState([]); // Only garment products from API
+  const [filterGender, setFilterGender] = useState('all'); // 'all', 'men', 'women', 'unisex'
+  const [filterCategory, setFilterCategory] = useState('all'); // 'all', 'upper', 'bottom', 'dress'
+  
+  // Check New Architecture status on app start
+  useEffect(() => {
+    checkNewArchitecture();
+    verifyFabricComponents();
+  }, []);
   
   // Fetch garments from API only (no static products)
   useEffect(() => {
     const loadGarments = async () => {
       try {
-        console.log('🛍️ Loading garments from admin panel...');
-        const garmentProducts = await fetchGarmentsAsProducts();
+        logger.log('🛍️ Loading garments from admin panel...');
+        const garmentProducts = await fetchGarmentsAsProducts({
+          gender: filterGender !== 'all' ? filterGender : undefined,
+          category: filterCategory !== 'all' ? filterCategory : undefined,
+        });
         
-        console.log(`🛍️ Total products: ${garmentProducts.length} (all from API)`);
+        logger.log(`🛍️ Total products: ${garmentProducts.length} (all from API)`);
         setAllProducts(garmentProducts);
       } catch (error) {
-        console.error('Error loading garments:', error);
+        logger.error('Error loading garments:', error);
         // No fallback - use empty array if API fails
         setAllProducts([]);
       }
@@ -1639,14 +2023,14 @@ export default function App() {
     if (route === 'shop' || route === null) {
       loadGarments();
     }
-  }, [route]);
+  }, [route, filterGender, filterCategory]);
   
   // Check for existing Supabase session on startup
   useEffect(() => {
     const loadUserData = async (userId) => {
       // Load try-on history
       try {
-        console.log('Loading try-on history for user:', userId);
+        logger.log('Loading try-on history for user:', userId);
         const { data: tryOns, error: tryOnError } = await supabase
           .from('try_on_history')
           .select('*')
@@ -1654,9 +2038,9 @@ export default function App() {
           .order('created_at', { ascending: false });
         
         if (tryOnError) {
-          console.log('Error fetching try-on history:', tryOnError.message);
+          logger.log('Error fetching try-on history:', tryOnError.message);
         } else if (tryOns && tryOns.length > 0) {
-          console.log('Loaded', tryOns.length, 'try-ons');
+          logger.log('Loaded', tryOns.length, 'try-ons');
           const validTryOns = tryOns.filter(item => {
             const url = item.result_url || item.resultUrl;
             // Filter out Replicate URLs (they expire) - only show permanent Supabase URLs
@@ -1664,7 +2048,7 @@ export default function App() {
             const isReplicateUrl = url && (url.includes('replicate.delivery') || url.includes('replicate.com'));
             
             if (isReplicateUrl) {
-              console.log('⚠️ Filtering out expired Replicate URL from try-on history:', item.id);
+              logger.log('⚠️ Filtering out expired Replicate URL from try-on history:', item.id);
             }
             
             return hasValidUrl && !isReplicateUrl;
@@ -1679,16 +2063,16 @@ export default function App() {
             createdAt: item.created_at || item.createdAt
           })));
         } else {
-          console.log('No try-on history found');
+          logger.log('No try-on history found');
           setTryOnHistory([]); 
         }
       } catch (e) {
-        console.log('Error loading try-on history on init:', e);
+        logger.log('Error loading try-on history on init:', e);
       }
 
       // Load saved fits
       try {
-        console.log('Loading saved fits for user:', userId);
+        logger.log('Loading saved fits for user:', userId);
         const { data: fits, error: fitsError } = await supabase
           .from('saved_fits')
           .select('*')
@@ -1696,9 +2080,9 @@ export default function App() {
           .order('created_at', { ascending: false });
         
         if (fitsError) {
-          console.log('Error fetching saved fits:', fitsError.message);
+          logger.log('Error fetching saved fits:', fitsError.message);
         } else if (fits && fits.length > 0) {
-          console.log('Loaded', fits.length, 'saved fits');
+          logger.log('Loaded', fits.length, 'saved fits');
           const validFits = fits.filter(item => 
             (item.image_url || item.image) && typeof (item.image_url || item.image) === 'string'
           );
@@ -1711,11 +2095,11 @@ export default function App() {
             createdAt: item.created_at || item.createdAt
           })));
         } else {
-          console.log('No saved fits found');
+          logger.log('No saved fits found');
           setSavedFits([]);
         }
       } catch (e) {
-        console.log('Error loading saved fits on init:', e);
+        logger.log('Error loading saved fits on init:', e);
       }
     };
 
@@ -1739,6 +2123,7 @@ export default function App() {
             name: profile?.name || session.user.user_metadata?.name,
             avatar_url: profile?.avatar_url,
             body_image_url: profile?.body_image_url, // Load body image
+            face_image_url: profile?.face_image_url, // Load face image
           });
           
           // Auto-fill body image for try-on
@@ -1749,20 +2134,20 @@ export default function App() {
           await loadUserData(userId);
           
           // Refresh style profile
-          refreshStyleProfile(userId).catch(e => console.log('Style profile refresh error:', e));
+          refreshStyleProfile(userId).catch(e => logger.log('Style profile refresh error:', e));
           
-          console.log('Restored session for:', session.user.email);
+          logger.log('Restored session for:', session.user.email);
           setRoute('shop'); // User is logged in, go to shop
         } else {
           // No session - show login screen
-          console.log('No session found, showing login screen');
+          logger.log('No session found, showing login screen');
           setRoute('auth'); // Show login screen
           // Still create anonymous user for try-on history
           let userId = null;
           try {
             userId = await AsyncStorage.getItem('anonymous_user_id');
           } catch (e) {
-            console.log('Error getting anonymous ID:', e);
+            logger.log('Error getting anonymous ID:', e);
           }
 
           if (!userId) {
@@ -1770,16 +2155,16 @@ export default function App() {
             try {
                 await AsyncStorage.setItem('anonymous_user_id', userId);
             } catch (e) {
-                console.log('Error saving anonymous ID:', e);
+                logger.log('Error saving anonymous ID:', e);
             }
           }
 
-          console.log('Using anonymous user ID:', userId);
+          logger.log('Using anonymous user ID:', userId);
           setUser({ id: userId, email: null });
           await loadUserData(userId);
         }
       } catch (error) {
-        console.log('Session check error:', error);
+        logger.log('Session check error:', error);
         // Fallback to login screen
         setRoute('auth');
         const userId = generateUUID();
@@ -1793,7 +2178,7 @@ export default function App() {
     
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event);
+      logger.log('Auth state changed:', event);
       if (event === 'SIGNED_IN' && session?.user) {
         const userId = session.user.id;
         
@@ -1821,7 +2206,7 @@ export default function App() {
         await loadUserData(userId);
         
         // Refresh style profile
-        refreshStyleProfile(userId).catch(e => console.log('Style profile refresh error:', e));
+        refreshStyleProfile(userId).catch(e => logger.log('Style profile refresh error:', e));
         
         // Claim pending invite if exists (load from AsyncStorage)
         const storedInvite = await AsyncStorage.getItem('pendingInvite');
@@ -1830,7 +2215,7 @@ export default function App() {
             const invite = JSON.parse(storedInvite);
             const result = await claimInvite(invite, userId);
             if (result.success) {
-              console.log('Invite claimed successfully:', result.message);
+              logger.log('Invite claimed successfully:', result.message);
               setPendingInvite(null);
               await AsyncStorage.removeItem('pendingInvite');
               setBannerMessage('✓ Connected with friend!');
@@ -1842,14 +2227,16 @@ export default function App() {
               
               // If it's a pod invite, navigate to the pod
               if (invite.type === 'pod' && invite.podId) {
-                setRoute('podlive', { id: invite.podId });
-                return; // Don't navigate to shop, go to pod instead
+                // Navigate to shop first, then to pod so back works correctly
+                setRoute('shop');
+                setTimeout(() => handleSetRoute('podlive', { id: invite.podId }), 100);
+                return; // Don't navigate to shop again
               }
             } else {
-              console.log('Failed to claim invite:', result.message);
+              logger.log('Failed to claim invite:', result.message);
             }
           } catch (error) {
-            console.error('Error claiming invite:', error);
+            logger.error('Error claiming invite:', error);
           }
         }
         
@@ -1857,7 +2244,7 @@ export default function App() {
         setRoute('shop');
       } else if (event === 'SIGNED_OUT') {
         // Clear user data and go to login screen
-        console.log('Signed out, going to login screen');
+        logger.log('Signed out, going to login screen');
         
         // 1. Clear all user-dependent state first
         setUser(null);
@@ -1887,7 +2274,7 @@ export default function App() {
         setUser({ id: userId, email: null });
         
         // Don't await this, let it happen
-        loadUserData(userId).catch(e => console.log('Error loading anon data:', e));
+        loadUserData(userId).catch(e => logger.log('Error loading anon data:', e));
       }
     });
     
@@ -1901,12 +2288,14 @@ export default function App() {
       try {
         const initialUrl = await Linking.getInitialURL();
         if (initialUrl) {
-          console.log('App opened from deep link:', initialUrl);
+          logger.log('App opened from deep link:', initialUrl);
+          
+          // Handle regular deep links (pods, invites, etc.)
           const parsed = parseDeepLink(initialUrl);
           if (parsed) {
             setPendingInvite(parsed);
             await AsyncStorage.setItem('pendingInvite', JSON.stringify(parsed));
-            console.log('Stored pending invite:', parsed);
+            logger.log('Stored pending invite:', parsed);
             
             // If user is not logged in, ensure we're on auth screen
             if (!user?.email) {
@@ -1916,7 +2305,7 @@ export default function App() {
               try {
                 const result = await claimInvite(parsed, user.id);
                 if (result.success) {
-                  console.log('Invite claimed successfully:', result.message);
+                  logger.log('Invite claimed successfully:', result.message);
                   setPendingInvite(null);
                   await AsyncStorage.removeItem('pendingInvite');
                   setBannerMessage('✓ Connected with friend!');
@@ -1928,17 +2317,19 @@ export default function App() {
                   
                   // If it's a pod invite, navigate to the pod
                   if (parsed.type === 'pod' && parsed.podId) {
-                    setRoute('podlive', { id: parsed.podId });
+                    // Navigate to shop first, then to pod so back works correctly
+                    setRoute('shop');
+                    setTimeout(() => handleSetRoute('podlive', { id: parsed.podId }), 100);
                   }
                 }
               } catch (error) {
-                console.error('Error claiming invite:', error);
+                logger.error('Error claiming invite:', error);
               }
             }
           }
         }
       } catch (error) {
-        console.error('Error handling initial URL:', error);
+        logger.error('Error handling initial URL:', error);
       }
     };
 
@@ -1946,12 +2337,14 @@ export default function App() {
 
     // Listen for deep links while app is running
     const subscription = Linking.addEventListener('url', async (event) => {
-      console.log('Deep link received:', event.url);
+      logger.log('Deep link received:', event.url);
+      
+      // Handle regular deep links (pods, invites, etc.)
       const parsed = parseDeepLink(event.url);
       if (parsed) {
         setPendingInvite(parsed);
         await AsyncStorage.setItem('pendingInvite', JSON.stringify(parsed));
-        console.log('Stored pending invite:', parsed);
+        logger.log('Stored pending invite:', parsed);
         
         // If user is not logged in, go to auth screen
         if (!user?.email) {
@@ -1961,7 +2354,7 @@ export default function App() {
           try {
             const result = await claimInvite(parsed, user.id);
             if (result.success) {
-              console.log('Invite claimed successfully:', result.message);
+              logger.log('Invite claimed successfully:', result.message);
               setPendingInvite(null);
               await AsyncStorage.removeItem('pendingInvite');
               setBannerMessage('✓ Connected with friend!');
@@ -1973,11 +2366,13 @@ export default function App() {
               
               // If it's a pod invite, navigate to the pod
               if (parsed.type === 'pod' && parsed.podId) {
-                setRoute('podlive', { id: parsed.podId });
+                // Navigate to shop first, then to pod so back works correctly
+                setRoute('shop');
+                setTimeout(() => handleSetRoute('podlive', { id: parsed.podId }), 100);
               }
             }
           } catch (error) {
-            console.error('Error claiming invite:', error);
+            logger.error('Error claiming invite:', error);
           }
         }
       }
@@ -1993,11 +2388,11 @@ export default function App() {
     if (user?.email === 'stylit@stylit.com' && user?.id) {
       // Run migrations (will check/create tables and setup friends)
       runMigrations().catch(err => {
-        console.log('Migrations error:', err?.message || String(err));
+        logger.log('Migrations error:', err?.message || String(err));
       });
       // Also run friends setup as backup
       setupStylitFriends(user.id).catch(err => {
-        console.log('Friends setup skipped:', err?.message || String(err));
+        logger.log('Friends setup skipped:', err?.message || String(err));
       });
     }
   }, [user?.email, user?.id]);
@@ -2083,10 +2478,10 @@ export default function App() {
               <View style={styles.stickySearchBar}>
                 <Pressable 
                   style={styles.stickySearchBarContent}
-                  onPress={() => setRoute('chat')}
+                  onPress={() => handleSetRoute('chat')}
                 >
                   <View style={styles.searchBarIconContainer}>
-                    <OptimizedImage 
+                    <Image 
                       source={require('./assets/icon.png')} 
                       style={styles.searchBarIconImage}
                       resizeMode="contain"
@@ -2094,9 +2489,58 @@ export default function App() {
                   </View>
                   <Text style={styles.stickySearchBarText}>Search Styles by your Vibe, Color or Budget</Text>
                 </Pressable>
-                </View>
+              </View>
+              
+              {/* Filter Bar */}
+              <View style={styles.filterBar}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
+                  {/* Gender Filter */}
+                  <View style={styles.filterGroup}>
+                    <Text style={styles.filterLabel}>Gender:</Text>
+                    {['all', 'men', 'women', 'unisex'].map((gender) => (
+                      <Pressable
+                        key={gender}
+                        style={[
+                          styles.filterChip,
+                          filterGender === gender && styles.filterChipActive
+                        ]}
+                        onPress={() => setFilterGender(gender)}
+                      >
+                        <Text style={[
+                          styles.filterChipText,
+                          filterGender === gender && styles.filterChipTextActive
+                        ]}>
+                          {gender === 'all' ? 'All' : gender.charAt(0).toUpperCase() + gender.slice(1)}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  
+                  {/* Category Filter */}
+                  <View style={styles.filterGroup}>
+                    <Text style={styles.filterLabel}>Category:</Text>
+                    {['all', 'upper', 'bottom', 'dress'].map((category) => (
+                      <Pressable
+                        key={category}
+                        style={[
+                          styles.filterChip,
+                          filterCategory === category && styles.filterChipActive
+                        ]}
+                        onPress={() => setFilterCategory(category)}
+                      >
+                        <Text style={[
+                          styles.filterChipText,
+                          filterCategory === category && styles.filterChipTextActive
+                        ]}>
+                          {category === 'all' ? 'All' : category.charAt(0).toUpperCase() + category.slice(1)}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </ScrollView>
+              </View>
                 
-              <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: 100, paddingTop: 105 }}>
+              <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: 100, paddingTop: 180 }}>
                 {/* Product Grid */}
                 <View style={styles.productGrid}>
                     {(allProducts || []).map((p) => (
@@ -2104,7 +2548,7 @@ export default function App() {
                             key={p.id} 
                             style={styles.productCard}
                             onPress={() => {
-                                console.log('🛒 Shop: selecting product:', p.name);
+                                logger.log('🛒 Shop: selecting product:', p.name);
                                 setCurrentProduct(p);
                                 handleSetRoute('product');
                             }}
@@ -2114,6 +2558,9 @@ export default function App() {
                                     source={{ uri: p.image || p.imageUrl }} 
                                     style={styles.productImage} 
                                     resizeMode="cover"
+                                    width={300}  // Thumbnail width for Supabase transformations
+                                    height={300} // Thumbnail height for Supabase transformations
+                                    quality={85} // Good quality for product thumbnails
                                     showErrorPlaceholder={true}
                                     placeholder={
                                         <View style={[styles.productImage, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#222' }]}>
@@ -2136,27 +2583,16 @@ export default function App() {
                 </View>
               </ScrollView>
               
-              {/* Floating AI Chat Button */}
-              <Pressable 
-                style={styles.aiChatBtn}
-                onPress={() => setRoute('chat')}
-              >
-                <LinearGradient
-                    colors={['#6366f1', '#8b5cf6']}
-                    style={styles.aiChatGradient}
-                >
-                    <Text style={{ fontSize: 24 }}>✨</Text>
-                </LinearGradient>
-              </Pressable>
+              {/* Floating AI Chat Button - Removed per user request */}
 
-              <BottomBar route={route} go={setRoute} />
+              <BottomBar route={route} go={handleSetRoute} />
             </>
           )}
 
           {!isCheckingAuth && route === 'feed' && (
             <>
               <Explore />
-              <BottomBar route={route} go={setRoute} />
+              <BottomBar route={route} go={handleSetRoute} />
             </>
           )}
 
@@ -2190,12 +2626,12 @@ export default function App() {
                 onPodLive={(id) => handleSetRoute('podlive', { id: String(id) })}
                 onPodRecap={(id) => handleSetRoute('podrecap', { id: String(id) })}
                 onPodGuest={(id) => handleSetRoute('podguest', { id: String(id) })}
-                onInbox={() => setRoute('inbox')}
+                onInbox={() => handleSetRoute('inbox')}
                 userId={user?.id}
                 userEmail={user?.email}
                 lastTryOn={tryOnHistory[0]}
               />
-              <BottomBar route={route} go={setRoute} />
+              <BottomBar route={route} go={handleSetRoute} />
             </>
           )}
 
@@ -2203,12 +2639,12 @@ export default function App() {
             <PodsScreen 
                 onBack={goBack}
                 onCreatePod={(id) => {
-                  console.log('onCreatePod called with id:', id, 'type:', typeof id);
+                  logger.log('onCreatePod called with id:', id, 'type:', typeof id);
                   if (id && id !== 'undefined' && String(id).length >= 30) {
-                    console.log('Navigating to podlive with id:', id);
+                    logger.log('Navigating to podlive with id:', id);
                     handleSetRoute('podlive', { id: String(id) });
                   } else {
-                    console.error('Invalid pod ID received:', id, 'length:', id?.length);
+                    logger.error('Invalid pod ID received:', id, 'length:', id?.length);
                     Alert.alert('Error', 'Failed to create pod. Please try again.');
                   }
                 }}
@@ -2233,7 +2669,7 @@ export default function App() {
               <BottomBar route="podshome" go={(newRoute) => {
                 // If navigating to podshome, keep the podlive routeParams
                 if (newRoute === 'podshome') {
-                  setRoute('podshome');
+                  handleSetRoute('podshome');
                 } else {
                   setRoute(newRoute);
                 }
@@ -2246,7 +2682,7 @@ export default function App() {
                 podId={String(routeParams.id)}
                 onBack={goBack}
                 onViewProduct={(url) => {
-                  setRoute('product', { url });
+                  handleSetRoute('product', { url });
                 }}
                 onUserProfile={(uid) => {
                   handleSetRoute('userprofile', { userId: uid });
@@ -2275,8 +2711,8 @@ export default function App() {
           {!isCheckingAuth && route === 'inbox' && (
             <Inbox 
                 onBack={goBack}
-                onPodLive={(id) => setRoute('podlive', { id })}
-                onPodRecap={(id) => setRoute('podrecap', { id })}
+                onPodLive={(id) => handleSetRoute('podlive', { id })}
+                onPodRecap={(id) => handleSetRoute('podrecap', { id })}
                 userId={user?.id}
             />
           )}
@@ -2286,7 +2722,7 @@ export default function App() {
                 onBack={goBack}
                 onProductSelect={(p) => {
                     setCurrentProduct(p);
-                    setRoute('product');
+                    handleSetRoute('product');
                 }}
             />
           )}
@@ -2294,19 +2730,19 @@ export default function App() {
           {!isCheckingAuth && route === 'stylecraft' && (
             <>
               <StyleCraftScreen />
-              <BottomBar route={route} go={setRoute} />
+              <BottomBar route={route} go={handleSetRoute} />
             </>
           )}
 
           {!isCheckingAuth && route === 'account' && (
             <>
               <StyleVaultScreen />
-              <BottomBar route={route} go={setRoute} />
+              <BottomBar route={route} go={handleSetRoute} />
             </>
           )}
 
           {!isCheckingAuth && route === 'admingarments' && (
-            <AdminGarmentsScreen onBack={() => setRoute('account')} />
+            <AdminGarmentsScreen onBack={() => goBack()} />
           )}
 
           {/* Global Banner Notification - Rendered LAST to be on top of everything */}
@@ -2315,13 +2751,14 @@ export default function App() {
               <BannerNotification 
                 message={bannerMessage} 
                 type={bannerType}
+                isTryOn={!!processingResult && bannerType === 'success'}
                 onDismiss={() => {
                   setBannerMessage(null);
                   setBannerType(null);
                 }}
                 onPress={() => {
                   if (bannerType === 'success' && processingResult) {
-                    setRoute('tryonresult');
+                    handleSetRoute('tryonresult');
                     setBannerMessage(null);
                     setBannerType(null);
                   }
@@ -2377,17 +2814,64 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(99, 102, 241, 0.3)',
     justifyContent: 'center',
     alignItems: 'center',
-    opacity: 0.5,
+    overflow: 'hidden',
   },
   searchBarIconImage: {
     width: 24,
     height: 24,
-    opacity: 0.8,
   },
   stickySearchBarText: {
     flex: 1,
     color: '#9ca3af',
     fontSize: 14,
+  },
+  filterBar: {
+    position: 'absolute',
+    top: 120,
+    left: 0,
+    right: 0,
+    zIndex: 999,
+    backgroundColor: '#000',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  filterScroll: {
+    flexGrow: 0,
+  },
+  filterGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 24,
+  },
+  filterLabel: {
+    color: '#9ca3af',
+    fontSize: 13,
+    fontWeight: '600',
+    marginRight: 8,
+  },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    marginRight: 8,
+  },
+  filterChipActive: {
+    backgroundColor: '#6D6DF6',
+    borderColor: '#6D6DF6',
+  },
+  filterChipText: {
+    color: '#9ca3af',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  filterChipTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
   productGrid: {
     flexDirection: 'row',
@@ -2508,10 +2992,11 @@ const styles = StyleSheet.create({
   },
   bannerNotification: {
     marginTop: 50,
-    marginHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 10,
     paddingHorizontal: 18,
     borderRadius: 16,
+    alignSelf: 'center',
+    opacity: 0.8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
@@ -2519,7 +3004,7 @@ const styles = StyleSheet.create({
     elevation: 25,
   },
   bannerPressable: {
-    width: '100%',
+    alignSelf: 'center',
   },
   bannerContent: {
     flexDirection: 'row',
@@ -2532,8 +3017,8 @@ const styles = StyleSheet.create({
   },
   bannerText: {
     color: '#fff',
-    fontWeight: '600',
-    fontSize: 18,
+    fontWeight: '400',
+    fontSize: 14,
     textAlign: 'center',
   },
   searchText: {

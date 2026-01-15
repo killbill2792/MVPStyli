@@ -7,13 +7,15 @@ import {
   ScrollView,
   Dimensions,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from '../lib/SimpleGradient';
 import { supabase } from '../lib/supabase';
 import { useApp } from '../lib/AppContext';
 import { sendFriendRequest, areFriends, hasSentFriendRequest, unfriend } from '../lib/friends';
 import { SafeImage, OptimizedImage } from '../lib/OptimizedImage';
+import { Avatar } from '../components/Avatar';
 
 const { width } = Dimensions.get('window');
 
@@ -27,6 +29,7 @@ const UserProfileScreen = ({ userId, onBack, onPodGuest, onViewTryOn }) => {
   const [loading, setLoading] = useState(true);
   const [friendStatus, setFriendStatus] = useState('none'); // 'none', 'sent', 'friends'
   const [isSendingRequest, setIsSendingRequest] = useState(false);
+  const [isUnfriending, setIsUnfriending] = useState(false);
   const [showUnfriendDropdown, setShowUnfriendDropdown] = useState(false);
 
   useEffect(() => {
@@ -172,22 +175,12 @@ const UserProfileScreen = ({ userId, onBack, onPodGuest, onViewTryOn }) => {
             colors={['#6366f1', '#8b5cf6', '#ec4899']}
             style={styles.avatarGradient}
           >
-            <View style={styles.avatar}>
-              {profile.avatar_url ? (
-                <OptimizedImage 
-                  source={{ uri: profile.avatar_url }} 
-                  style={styles.avatarImage} 
-                  resizeMode="cover"
-                  onError={() => {
-                    // Clear avatar_url on error so letter shows
-                    setProfile(prev => ({ ...prev, avatar_url: null }));
-                  }}
-                />
-              ) : null}
-              {!profile.avatar_url && (
-                <Text style={styles.avatarText}>{(profile.name || 'U')[0].toUpperCase()}</Text>
-              )}
-            </View>
+            <Avatar 
+              imageUri={profile.avatar_url} 
+              name={profile.name || 'User'} 
+              size={120}
+              showGradient={true}
+            />
           </LinearGradient>
           
           <Text style={styles.profileName}>{profile.name || 'User'}</Text>
@@ -232,23 +225,37 @@ const UserProfileScreen = ({ userId, onBack, onPodGuest, onViewTryOn }) => {
               {showUnfriendDropdown && friendStatus === 'friends' && (
                 <View style={styles.unfriendDropdown}>
                   <Pressable
-                    style={styles.unfriendOption}
+                    style={[styles.unfriendOption, isUnfriending && styles.unfriendOptionDisabled]}
                     onPress={async () => {
-                      if (currentUser?.id && userId) {
+                      if (currentUser?.id && userId && !isUnfriending) {
+                        setIsUnfriending(true);
                         try {
+                          console.log('Unfriending:', currentUser.id, userId);
                           const success = await unfriend(currentUser.id, userId);
+                          console.log('Unfriend result:', success);
                           if (success) {
+                            // Immediately update UI state
                             setFriendStatus('none');
                             setShowUnfriendDropdown(false);
-                            // Optionally show a success message
+                            // Re-check friend status to ensure it's correct
+                            await checkFriendStatus();
+                          } else {
+                            console.error('Failed to unfriend - function returned false');
+                            Alert.alert('Error', 'Failed to unfriend. Please try again.');
                           }
                         } catch (error) {
                           console.error('Error unfriending:', error);
+                          Alert.alert('Error', 'An error occurred while unfriending. Please try again.');
+                        } finally {
+                          setIsUnfriending(false);
                         }
                       }
                     }}
+                    disabled={isUnfriending}
                   >
-                    <Text style={styles.unfriendOptionText}>Unfriend</Text>
+                    <Text style={styles.unfriendOptionText}>
+                      {isUnfriending ? 'Unfriending...' : 'Unfriend'}
+                    </Text>
                   </Pressable>
                 </View>
               )}
@@ -267,7 +274,14 @@ const UserProfileScreen = ({ userId, onBack, onPodGuest, onViewTryOn }) => {
                   style={styles.podCard}
                   onPress={() => onPodGuest && onPodGuest(pod.id)}
                 >
-                  <OptimizedImage source={{ uri: pod.image_url }} style={styles.podImage} resizeMode="cover" />
+                  <OptimizedImage 
+                    source={{ uri: pod.image_url }} 
+                    style={styles.podImage} 
+                    resizeMode="cover"
+                    width={200}  // Thumbnail width for user profile pods
+                    height={200} // Thumbnail height for user profile pods
+                    quality={85} // Good quality for pod images
+                  />
                   <View style={styles.podOverlay}>
                     <Text style={styles.podTitle} numberOfLines={2}>{pod.title}</Text>
                   </View>
@@ -288,7 +302,14 @@ const UserProfileScreen = ({ userId, onBack, onPodGuest, onViewTryOn }) => {
                   style={styles.tryOnCard}
                   onPress={() => onViewTryOn && onViewTryOn(tryOn)}
                 >
-                  <OptimizedImage source={{ uri: tryOn.result_url }} style={styles.tryOnImage} resizeMode="cover" />
+                  <OptimizedImage 
+                    source={{ uri: tryOn.result_url }} 
+                    style={styles.tryOnImage} 
+                    resizeMode="cover"
+                    width={200}  // Thumbnail width for try-on history
+                    height={200} // Thumbnail height for try-on history
+                    quality={85} // Good quality for try-on images
+                  />
                 </Pressable>
               ))}
             </ScrollView>
@@ -511,10 +532,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     alignItems: 'center',
   },
+  unfriendOptionDisabled: {
+    opacity: 0.5,
+  },
   unfriendOptionText: {
     color: '#ef4444',
     fontSize: 14,
     fontWeight: '600',
+  },
+  unfriendOptionDisabled: {
+    opacity: 0.5,
   },
 });
 

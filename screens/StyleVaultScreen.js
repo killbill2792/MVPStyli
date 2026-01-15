@@ -19,7 +19,7 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from '../lib/SimpleGradient';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../lib/AppContext';
 import { Colors, Typography, Spacing, BorderRadius, CardStyles, TextStyles } from '../lib/designSystem';
@@ -35,6 +35,7 @@ import PhotoGuidelinesScreen from '../components/PhotoGuidelinesScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { cmToInches, inchesToCm, parseMeasurementToInches, formatInchesAsFraction, parseHeightToInches } from '../lib/measurementUtils';
 import { SafeImage, OptimizedImage } from '../lib/OptimizedImage';
+import { Avatar } from '../components/Avatar';
 
 // Helper to parse image URI from potential JSON string
 const getValidImageUri = (imageField) => {
@@ -110,6 +111,18 @@ const StyleVaultScreen = () => {
   const [profilePic, setProfilePic] = useState(user?.avatar_url || null);
   const [bodyImage, setBodyImage] = useState(user?.body_image_url || twinUrl || null);
   const [faceImage, setFaceImage] = useState(user?.face_image_url || null);
+  
+  // Update images when user object changes (e.g., after login)
+  useEffect(() => {
+    if (user?.body_image_url) {
+      setBodyImage(user.body_image_url);
+    } else if (twinUrl) {
+      setBodyImage(twinUrl);
+    }
+    if (user?.face_image_url) {
+      setFaceImage(user.face_image_url);
+    }
+  }, [user?.body_image_url, user?.face_image_url, twinUrl]);
   const [isAnalyzingFace, setIsAnalyzingFace] = useState(false);
   const [faceAnalysisError, setFaceAnalysisError] = useState(null);
   const [colorProfile, setColorProfile] = useState(null);
@@ -150,6 +163,7 @@ const StyleVaultScreen = () => {
   // For showing dropdown picker
   const [showPrivacyPicker, setShowPrivacyPicker] = useState(null); // { type: 'tryon' | 'pod', id: string }
   const [styleProfile, setStyleProfile] = useState(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true); // Loading state for initial profile data
   const [fullScreenImage, setFullScreenImage] = useState(null); // Added for saved fits
   const [showBodyPhotoGuidelines, setShowBodyPhotoGuidelines] = useState(false);
   const [showFacePhotoGuidelines, setShowFacePhotoGuidelines] = useState(false);
@@ -161,6 +175,14 @@ const StyleVaultScreen = () => {
   const [isSearchingFriends, setIsSearchingFriends] = useState(false); // Loading state for friend search
   const [sentRequests, setSentRequests] = useState([]); // Friend requests sent by user
   const [receivedRequests, setReceivedRequests] = useState([]); // Friend requests received by user
+  const [localPendingRequests, setLocalPendingRequests] = useState(new Set()); // Track locally pending requests for immediate UI update
+  const [isUploadingBodyPhoto, setIsUploadingBodyPhoto] = useState(false); // Loading state for body photo upload
+  
+  // Password change modal states
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   // Generate style summary for Identity section
   const getStyleSummary = () => {
@@ -195,46 +217,148 @@ const StyleVaultScreen = () => {
     return parts.length > 0 ? parts.join(' • ') : null;
   };
 
-  // Body shape prediction function
+  // Improved body shape prediction function - gender-aware and more accurate
   const predictBodyShape = (profile) => {
+    const gender = (profile.gender || '').toLowerCase();
     const chest = parseFloat(profile.chest) || 0;
     const waist = parseFloat(profile.waist) || 0;
     const hips = parseFloat(profile.hips) || 0;
     const shoulder = parseFloat(profile.shoulder) || 0;
     
     // Need at least waist and hips for prediction
-    if (!waist || !hips) return null;
+    if (!waist || !hips || waist <= 0 || hips <= 0) return null;
     
+    // Use chest for men, but for women we should ideally use bust
+    // Since we only have chest, we'll use it for both but adjust thresholds
+    const bustOrChest = chest || 0;
+    
+    // Calculate ratios and differences
     const waistToHipRatio = waist / hips;
-    const chestToHipRatio = chest / hips;
+    const bustToHipRatio = bustOrChest / hips;
     const shoulderToHipRatio = shoulder / hips;
+    const waistToBustRatio = waist / (bustOrChest || 1);
     
-    // Hourglass: waist is significantly smaller than both chest and hips
-    if (waistToHipRatio < 0.75 && chestToHipRatio > 0.9 && chestToHipRatio < 1.1) {
-      return 'Hourglass';
-    }
+    // Absolute differences (in inches) - more reliable than ratios alone
+    const waistHipDiff = hips - waist;
+    const bustHipDiff = hips - bustOrChest;
+    const bustWaistDiff = bustOrChest - waist;
+    const shoulderHipDiff = (shoulder || 0) - hips;
     
-    // Pear: hips are larger than chest and shoulders
-    if (hips > chest && (shoulderToHipRatio < 0.9 || !shoulder)) {
-      return 'Pear';
-    }
+    const isFemale = gender === 'female' || gender === 'f' || gender === 'woman' || gender === 'women';
+    const isMale = gender === 'male' || gender === 'm' || gender === 'man' || gender === 'men';
     
-    // Apple: waist is close to or larger than chest/hips
-    if (waistToHipRatio > 0.85 && waist >= chest * 0.95) {
-      return 'Apple';
-    }
-    
-    // Inverted Triangle: shoulders/chest are larger than hips
-    if (shoulderToHipRatio > 1.1 || (chest > hips && chestToHipRatio > 1.1)) {
-      return 'Inverted Triangle';
-    }
-    
-    // Rectangle: relatively straight proportions
-    if (waistToHipRatio > 0.75 && waistToHipRatio < 0.85) {
+    // ========== FEMALE BODY SHAPES ==========
+    if (isFemale) {
+      // Hourglass: Waist is 8-10 inches smaller than bust AND hips
+      // Bust and hips are within 1 inch of each other
+      // Waist is clearly defined (waist-to-hip ratio < 0.75)
+      if (waistHipDiff >= 8 && Math.abs(bustOrChest - hips) <= 1.5 && waistToHipRatio < 0.75) {
+        return 'Hourglass';
+      }
+      
+      // Pear/Triangle: Hips are 2+ inches wider than bust
+      // Waist is smaller than hips but not as defined as hourglass
+      if (bustHipDiff >= 2 && waistHipDiff >= 5 && waistToHipRatio < 0.80) {
+        return 'Pear';
+      }
+      
+      // Apple/Oval: Waist is close to or larger than bust/hips
+      // Waist is within 2 inches of bust or larger
+      if (waistToHipRatio >= 0.85 && (waist >= bustOrChest * 0.95 || Math.abs(waist - bustOrChest) <= 2)) {
+        return 'Apple';
+      }
+      
+      // Inverted Triangle: Shoulders/bust are wider than hips
+      // Shoulders or bust are 2+ inches wider than hips
+      if ((shoulderHipDiff >= 2 || bustHipDiff <= -2) && shoulderToHipRatio > 1.05) {
+        return 'Inverted Triangle';
+      }
+      
+      // Rectangle: Waist is within 2-3 inches of bust and hips
+      // Relatively straight proportions
+      if (waistToHipRatio >= 0.75 && waistToHipRatio < 0.85 && 
+          Math.abs(waist - bustOrChest) <= 3 && waistHipDiff < 8) {
+        return 'Rectangle';
+      }
+      
+      // Default classification based on ratios if absolute differences don't match
+      if (waistToHipRatio < 0.75 && bustToHipRatio > 0.90 && bustToHipRatio < 1.10) {
+        return 'Hourglass';
+      }
+      if (bustToHipRatio < 0.90 && waistToHipRatio < 0.80) {
+        return 'Pear';
+      }
+      if (waistToHipRatio >= 0.85) {
+        return 'Apple';
+      }
+      if (shoulderToHipRatio > 1.05 || bustToHipRatio > 1.10) {
+        return 'Inverted Triangle';
+      }
+      
+      // Final fallback
       return 'Rectangle';
     }
     
-    // Default to Rectangle if we can't determine
+    // ========== MALE BODY SHAPES ==========
+    if (isMale) {
+      // For men, body shapes are typically:
+      // - Rectangle: Straight proportions
+      // - Triangle: Wider shoulders, narrower waist/hips (athletic)
+      // - Oval: Larger waist relative to chest/shoulders
+      // - Inverted Triangle: Very broad shoulders, narrow waist (V-shape)
+      
+      // Inverted Triangle (V-shape): Shoulders/chest much wider than waist/hips
+      // Athletic build - shoulders 3+ inches wider than hips
+      if (shoulderHipDiff >= 3 && waistToHipRatio < 0.90) {
+        return 'Inverted Triangle';
+      }
+      
+      // Rectangle: Relatively straight - waist within 2-4 inches of chest
+      // Waist-to-hip ratio between 0.85-0.95
+      if (waistToHipRatio >= 0.85 && waistToHipRatio <= 0.95 && 
+          Math.abs(waist - bustOrChest) <= 4) {
+        return 'Rectangle';
+      }
+      
+      // Oval/Apple: Waist is close to or larger than chest
+      // Waist-to-hip ratio > 0.95
+      if (waistToHipRatio > 0.95 && waist >= bustOrChest * 0.95) {
+        return 'Apple';
+      }
+      
+      // Triangle: Hips wider than shoulders (less common in men)
+      if (hips > bustOrChest && (shoulder || 0) < hips) {
+        return 'Pear';
+      }
+      
+      // Default for men
+      return 'Rectangle';
+    }
+    
+    // ========== GENDER NOT SPECIFIED - Use neutral logic ==========
+    // Use more conservative thresholds that work for both
+    
+    // Hourglass (works for both, but more common in women)
+    if (waistHipDiff >= 7 && Math.abs(bustOrChest - hips) <= 2 && waistToHipRatio < 0.75) {
+      return 'Hourglass';
+    }
+    
+    // Pear: Hips wider than bust/chest
+    if (bustHipDiff >= 1.5 && waistToHipRatio < 0.80) {
+      return 'Pear';
+    }
+    
+    // Apple: Waist close to or larger than bust/chest
+    if (waistToHipRatio >= 0.85 && waist >= bustOrChest * 0.95) {
+      return 'Apple';
+    }
+    
+    // Inverted Triangle: Shoulders/chest wider than hips
+    if ((shoulderHipDiff >= 1.5 || bustHipDiff <= -1.5) && (shoulderToHipRatio > 1.05 || bustToHipRatio > 1.05)) {
+      return 'Inverted Triangle';
+    }
+    
+    // Rectangle: Default fallback
     return 'Rectangle';
   };
 
@@ -246,7 +370,21 @@ const StyleVaultScreen = () => {
         setFitProfile(prev => ({ ...prev, bodyShape: predicted }));
       }
     }
-  }, [fitProfile.chest, fitProfile.waist, fitProfile.hips, fitProfile.shoulder, isBodyShapeManuallySet]);
+  }, [fitProfile.chest, fitProfile.waist, fitProfile.hips, fitProfile.shoulder, fitProfile.gender, isBodyShapeManuallySet]);
+
+  // Load profile data on mount and when user changes
+  useEffect(() => {
+    if (user?.id) {
+      loadProfileData();
+    }
+  }, [user?.id]);
+
+  // Reload profile data when fit profile modal opens to ensure latest data is shown
+  useEffect(() => {
+    if (showFitProfile && user?.id) {
+      loadProfileData();
+    }
+  }, [showFitProfile, user?.id]);
 
   // Helper function to show banner notifications
   const showBanner = (message, type = 'success') => {
@@ -345,14 +483,30 @@ const StyleVaultScreen = () => {
   
   // Load all user data from Supabase on mount
   useEffect(() => {
-    if (user?.id) {
-      loadProfileData();
-      loadTryOnHistory();
-      loadSavedFits();
-      loadFriends();
-      loadStyleProfile();
-      loadUserColorProfile();
-    }
+    const loadAllData = async () => {
+      if (user?.id) {
+        setIsLoadingProfile(true);
+        try {
+          // Load critical profile data first (parallel)
+          await Promise.all([
+            loadProfileData(),
+            loadStyleProfile(),
+            loadUserColorProfile(),
+          ]);
+        } catch (error) {
+          console.error('Error loading profile data:', error);
+        } finally {
+          setIsLoadingProfile(false);
+        }
+        // Load non-critical data after
+        loadTryOnHistory();
+        loadSavedFits();
+        loadFriends();
+      } else {
+        setIsLoadingProfile(false);
+      }
+    };
+    loadAllData();
   }, [user?.id]);
 
   // Handler for body photo upload after guidelines
@@ -369,20 +523,28 @@ const StyleVaultScreen = () => {
     setShowBodyPhotoGuidelines(false);
     
     if (!res.canceled && res.assets && res.assets[0]) {
+      // Set loading state immediately and show local image
+      setIsUploadingBodyPhoto(true);
+      const localUri = res.assets[0].uri;
+      setBodyImage(localUri); // Show local image immediately
+      
       try {
         console.log('📸 Uploading image...');
-        const uploadedUrl = await uploadImageAsync(res.assets[0].uri);
+        const uploadedUrl = await uploadImageAsync(localUri);
         console.log('📸 Uploaded URL:', uploadedUrl);
         if (user?.id) {
            await supabase.from('profiles').update({ body_image_url: uploadedUrl }).eq('id', user.id);
         }
-        setBodyImage(uploadedUrl);
+        setBodyImage(uploadedUrl); // Update to remote URL
         if (setUser) setUser(prev => ({ ...prev, body_image_url: uploadedUrl }));
         if (setTwinUrl) setTwinUrl(uploadedUrl);
         showBanner('✓ Body photo saved!', 'success');
       } catch (error) {
         console.error('❌ Error saving body photo:', error);
+        setBodyImage(null); // Clear on error
         showBanner('Failed to upload photo', 'error');
+      } finally {
+        setIsUploadingBodyPhoto(false);
       }
     } else {
       console.log('📸 No image selected or cancelled');
@@ -411,14 +573,24 @@ const StyleVaultScreen = () => {
               if (!res.canceled && res.assets[0]) {
                 try {
                   const localUri = res.assets[0].uri;
-                  // Clear old photo and error state immediately when starting new analysis
+                  // Clear old photo, error state, and color profile immediately when starting new analysis
+                  // This ensures we don't show stale/cached results
                   setFaceImage(null);
                   setFaceAnalysisError(null);
+                  setColorProfile(null); // Clear any previous profile to ensure only API results are shown
                   setIsAnalyzingFace(true);
                   
+                  console.log('🎨 [FACE UPLOAD] ========== STARTING NEW ANALYSIS (CAMERA) ==========');
+                  console.log('🎨 [FACE UPLOAD] Cleared previous profile - will only show API results');
+                  console.log('🎨 [FACE UPLOAD] Local URI:', localUri.substring(0, 100));
+                  
                   // NEW: Analyze using local URI with face detection, then upload
+                  // This will call the API and wait for results - no fallback
                   const { profile, uploadedUrl } = await analyzeFaceForColorProfileFromLocalUri(localUri, uploadImageAsync);
                   
+                  console.log('🎨 [FACE UPLOAD] Analysis complete (camera), profile:', profile ? 'exists' : 'null');
+                  
+                  // Only set analyzing to false after we've processed the results
                   setIsAnalyzingFace(false);
                   
                   if (uploadedUrl && user?.id) {
@@ -427,7 +599,14 @@ const StyleVaultScreen = () => {
                     if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
                   }
                   
+                  // Only show results if API returned a valid profile (no fallback)
                   if (profile && user?.id) {
+                    console.log('🎨 [FACE UPLOAD] Saving profile from API (camera):', {
+                      tone: profile.tone,
+                      depth: profile.depth,
+                      season: profile.season,
+                      confidence: profile.confidence
+                    });
                     await saveColorProfile(user.id, profile);
                     setColorProfile(profile);
                     setFaceAnalysisError(null); // Clear any previous errors
@@ -445,7 +624,9 @@ const StyleVaultScreen = () => {
                       );
                     }
                   } else {
-                    // No face detected - set error state
+                    // No face detected or API failed - set error state
+                    // Do NOT show any fallback results
+                    console.log('🎨 [FACE UPLOAD] No profile returned from API (camera) - face not detected or API error');
                     setIsAnalyzingFace(false);
                     setFaceAnalysisError('No face detected. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.');
                     Alert.alert(
@@ -456,7 +637,9 @@ const StyleVaultScreen = () => {
                     showBanner('✕ No face detected. Please upload a clear face photo.', 'error');
                   }
                 } catch (error) {
+                  console.error('🎨 [FACE UPLOAD] Error in analysis (camera):', error);
                   setIsAnalyzingFace(false);
+                  setColorProfile(null); // Ensure no stale profile is shown
                   setFaceAnalysisError(`Failed to process photo: ${error.message || 'Unknown error'}`);
                   console.error('Error processing face photo:', error);
                   Alert.alert('Error', `Failed to process photo: ${error.message || 'Unknown error'}`);
@@ -479,14 +662,24 @@ const StyleVaultScreen = () => {
             if (!res.canceled && res.assets[0]) {
               try {
                 const localUri = res.assets[0].uri;
-                // Clear old photo and error state immediately when starting new analysis
+                // Clear old photo, error state, and color profile immediately when starting new analysis
+                // This ensures we don't show stale/cached results
                 setFaceImage(null);
                 setFaceAnalysisError(null);
+                setColorProfile(null); // Clear any previous profile to ensure only API results are shown
                 setIsAnalyzingFace(true);
                 
+                console.log('🎨 [FACE UPLOAD] ========== STARTING NEW ANALYSIS ==========');
+                console.log('🎨 [FACE UPLOAD] Cleared previous profile - will only show API results');
+                console.log('🎨 [FACE UPLOAD] Local URI:', localUri.substring(0, 100));
+                
                 // NEW: Analyze using local URI with face detection, then upload
+                // This will call the API and wait for results - no fallback
                 const { profile, uploadedUrl } = await analyzeFaceForColorProfileFromLocalUri(localUri, uploadImageAsync);
                 
+                console.log('🎨 [FACE UPLOAD] Analysis complete, profile:', profile ? 'exists' : 'null');
+                
+                // Only set analyzing to false after we've processed the results
                 setIsAnalyzingFace(false);
                 
                 if (uploadedUrl && user?.id) {
@@ -495,7 +688,14 @@ const StyleVaultScreen = () => {
                   if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
                 }
                 
+                // Only show results if API returned a valid profile (no fallback)
                 if (profile && user?.id) {
+                  console.log('🎨 [FACE UPLOAD] Saving profile from API:', {
+                    tone: profile.tone,
+                    depth: profile.depth,
+                    season: profile.season,
+                    confidence: profile.confidence
+                  });
                   await saveColorProfile(user.id, profile);
                   setColorProfile(profile);
                   setFaceAnalysisError(null); // Clear any previous errors
@@ -513,7 +713,9 @@ const StyleVaultScreen = () => {
                     );
                   }
                 } else {
-                  // No face detected - set error state
+                  // No face detected or API failed - set error state
+                  // Do NOT show any fallback results
+                  console.log('🎨 [FACE UPLOAD] No profile returned from API - face not detected or API error');
                   setIsAnalyzingFace(false);
                   setFaceAnalysisError('No face detected. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.');
                   Alert.alert(
@@ -524,7 +726,9 @@ const StyleVaultScreen = () => {
                   showBanner('✕ No face detected. Please upload a clear face photo.', 'error');
                 }
               } catch (error) {
+                console.error('🎨 [FACE UPLOAD] Error in analysis:', error);
                 setIsAnalyzingFace(false);
+                setColorProfile(null); // Ensure no stale profile is shown
                 setFaceAnalysisError(`Failed to process photo: ${error.message || 'Unknown error'}`);
                 console.error('Error processing face photo:', error);
                 Alert.alert('Error', `Failed to process photo: ${error.message || 'Unknown error'}`);
@@ -539,9 +743,23 @@ const StyleVaultScreen = () => {
 
   const loadUserColorProfile = async () => {
     if (!user?.id) return;
+    // Only load from database if we're not currently analyzing
+    // This prevents showing cached results during analysis
+    if (isAnalyzingFace) {
+      console.log('🎨 [COLOR PROFILE] Skipping database load - analysis in progress');
+      return;
+    }
     const profile = await loadColorProfile(user.id);
     if (profile) {
+      console.log('🎨 [COLOR PROFILE] Loaded from database:', {
+        tone: profile.tone,
+        depth: profile.depth,
+        season: profile.season,
+        source: 'database'
+      });
       setColorProfile(profile);
+    } else {
+      console.log('🎨 [COLOR PROFILE] No profile found in database');
     }
   };
 
@@ -638,14 +856,20 @@ const StyleVaultScreen = () => {
               };
             });
             setSentRequests(sent);
+            // Sync local pending requests with server state
+            setLocalPendingRequests(new Set(sent.map(req => req.friend_id)));
           } else {
             setSentRequests([]);
+            // Clear local pending requests if none are pending
+            setLocalPendingRequests(new Set());
           }
         } else {
           setSentRequests([]);
+          setLocalPendingRequests(new Set());
         }
       } else {
         setSentRequests([]);
+        setLocalPendingRequests(new Set());
       }
       
       // Load received friend requests (only pending, exclude already accepted)
@@ -893,46 +1117,64 @@ const StyleVaultScreen = () => {
         setFaceImage(loadedFaceImage);
         
         // Helper to convert inches to display unit
-        // Default display unit is inches, but we'll convert based on current toggle
+        // Returns raw numeric string (not formatted) so it can be edited properly
         const convertForDisplay = (inchesValue, fallbackOldValue, isHeight = false) => {
+          let inches = null;
+          
+          // First, try to get inches from new field
           if (inchesValue != null && inchesValue !== '') {
-            const inches = Number(inchesValue);
-            if (!isNaN(inches)) {
-              // Special handling for height: convert to feet.inches format for display
-              if (isHeight) {
-                const feet = Math.floor(inches / 12);
-                const remainingInches = Math.round(inches % 12);
-                return `${feet}.${remainingInches}`; // e.g., "5.4" for 5'4"
-              }
-              // Convert to cm for display if needed (default is inches)
-              return measurementUnit === 'cm' ? (inches * 2.54).toFixed(1) : inches.toFixed(2);
+            const num = Number(inchesValue);
+            if (!isNaN(num) && num > 0) {
+              inches = num;
             }
           }
+          
           // Fallback to old field if new field doesn't exist
-          if (fallbackOldValue != null && fallbackOldValue !== '') {
+          if (inches == null && fallbackOldValue != null && fallbackOldValue !== '') {
             const oldValue = Number(fallbackOldValue);
-            if (!isNaN(oldValue)) {
+            if (!isNaN(oldValue) && oldValue > 0) {
               // For height fallback, try to parse it
               if (isHeight) {
                 const parsed = parseHeightToInches(oldValue);
                 if (parsed != null) {
-                  const feet = Math.floor(parsed / 12);
-                  const remainingInches = Math.round(parsed % 12);
-                  return `${feet}.${remainingInches}`;
+                  inches = parsed;
+                } else {
+                  // Old values were likely in cm, convert to inches
+                  inches = oldValue / 2.54;
                 }
+              } else {
+                // Old values were in cm, convert to inches
+                inches = oldValue / 2.54;
               }
-              // Old values were in cm, convert to inches then to display unit
-              const inches = oldValue / 2.54;
-              return measurementUnit === 'cm' ? oldValue.toFixed(1) : inches.toFixed(2);
             }
           }
-          return '';
+          
+          if (inches == null || inches <= 0) {
+            return '';
+          }
+          
+          // Special handling for height: convert to feet.inches format for display
+          if (isHeight) {
+            const feet = Math.floor(inches / 12);
+            const remainingInches = Math.round(inches % 12);
+            return `${feet}.${remainingInches}`; // e.g., "5.4" for 5'4"
+          }
+          
+          // Convert to display unit (cm or inches) - return as string without excessive decimals
+          if (measurementUnit === 'cm') {
+            const cm = inches * 2.54;
+            // Remove trailing zeros but keep at least one decimal place if needed
+            return cm % 1 === 0 ? cm.toString() : parseFloat(cm.toFixed(1)).toString();
+          } else {
+            // Return inches - remove trailing zeros but keep precision
+            return inches % 1 === 0 ? inches.toString() : parseFloat(inches.toFixed(2)).toString();
+          }
         };
         
         // Set measurement unit based on what's in the database (default to inches)
         // If old cm fields exist, user might prefer cm, but we'll default to inches
         const hasOldFields = data.chest || data.waist || data.hips;
-        if (hasOldFields && !data.chest_circ_in) {
+        if (hasOldFields && !data.chest_in) {
           // Old data exists, might want to show in cm initially
           // But we'll default to inches for consistency
         }
@@ -942,13 +1184,13 @@ const StyleVaultScreen = () => {
           gender: data.gender || '',
           topSize: data.top_size || '',
           bottomSize: data.bottom_size || '',
-          chest: convertForDisplay(data.chest_circ_in, data.chest),
-          waist: convertForDisplay(data.waist_circ_in, data.waist),
-          hips: convertForDisplay(data.hip_circ_in, data.hips),
-          shoulder: convertForDisplay(data.shoulder_width_in, data.shoulder),
-          sleeve: convertForDisplay(data.sleeve_length_in, data.sleeve),
+          chest: convertForDisplay(data.chest_in, data.chest_circ_in, data.chest),
+          waist: convertForDisplay(data.waist_in, data.waist_circ_in, data.waist),
+          hips: convertForDisplay(data.hips_in, data.hip_circ_in, data.hips),
+          shoulder: convertForDisplay(data.shoulder_in, data.shoulder_width_in, data.shoulder),
+          sleeve: convertForDisplay(data.sleeve_in, data.sleeve_length_in, data.sleeve),
           inseam: convertForDisplay(data.inseam_in, data.inseam),
-          thigh: convertForDisplay(data.thigh_circ_in, data.thigh),
+          thigh: convertForDisplay(data.thigh_in, data.thigh_circ_in, data.thigh),
           fit_preference: data.fit_preference || '',
           notes: data.notes || '',
           bodyShape: data.body_shape || ''
@@ -1032,8 +1274,15 @@ const StyleVaultScreen = () => {
         p.status !== 'live' || new Date(p.ends_at).getTime() <= now
       );
       
+      // Combine past pods and deduplicate by ID, then sort by created_at (most recent first)
+      const allPastPods = [...expiredFromActive, ...(past || [])];
+      const uniquePastPods = Array.from(
+        new Map(allPastPods.map(pod => [pod.id, pod])).values()
+      );
+      uniquePastPods.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      
       setActivePods(trulyActive);
-      setPastPods([...expiredFromActive, ...(past || [])]);
+      setPastPods(uniquePastPods);
     } catch (error) {
       console.error('Error loading pods:', error);
     }
@@ -1084,7 +1333,14 @@ const StyleVaultScreen = () => {
         onPress={handlePress}
         onLongPress={() => handleDeleteSavedFit(fit)}
     >
-      <SafeImage source={imageSource} style={styles.fitImage} resizeMode="cover" />
+      <SafeImage 
+        source={imageSource} 
+        style={styles.fitImage} 
+        resizeMode="cover"
+        width={160}  // Thumbnail width for saved fits
+        height={200} // Thumbnail height for saved fits
+        quality={85} // Good quality for saved fits
+      />
       <View style={styles.fitInfo}>
         <Text style={styles.fitTitle} numberOfLines={1}>{fit.title}</Text>
         {fit.price && <Text style={styles.fitPrice}>${fit.price}</Text>}
@@ -1107,7 +1363,14 @@ const StyleVaultScreen = () => {
     const imageSource = board.coverImage && typeof board.coverImage === 'string' ? { uri: board.coverImage } : { uri: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400' };
     return (
     <Pressable style={styles.boardCard}>
-      <SafeImage source={imageSource} style={styles.boardImage} resizeMode="cover" />
+      <SafeImage 
+        source={imageSource} 
+        style={styles.boardImage} 
+        resizeMode="cover"
+        width={200}  // Thumbnail width for boards
+        height={240} // Thumbnail height for boards
+        quality={85} // Good quality for boards
+      />
       <View style={styles.boardOverlay}>
         <Text style={styles.boardTitle}>{board.name}</Text>
         <Text style={styles.boardCount}>{board.fitCount} fits</Text>
@@ -1135,7 +1398,14 @@ const StyleVaultScreen = () => {
           }
         }}
       >
-        <SafeImage source={imageSource} style={styles.podImage} resizeMode="cover" />
+        <SafeImage 
+          source={imageSource} 
+          style={styles.podImage} 
+          resizeMode="cover"
+          width={200}  // Thumbnail width for pods
+          height={200} // Thumbnail height for pods
+          quality={85} // Good quality for pods
+        />
         <View style={styles.podInfo}>
           <Text style={styles.podTitle} numberOfLines={1}>{pod.title}</Text>
           <Text style={styles.podMode}>{pod.audience === 'friends' ? '👥 Friends' : pod.audience === 'style_twins' ? '🧬 Twins' : '🌍 Global'}</Text>
@@ -1234,11 +1504,13 @@ const StyleVaultScreen = () => {
           )}
           
           {/* AI-generated style summary */}
-          {getStyleSummary() && (
+          {isLoadingProfile ? (
+            <View style={{ marginTop: 8, height: 14, width: 200, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 4 }} />
+          ) : getStyleSummary() ? (
             <Text style={[styles.subtitle, { fontSize: 11, marginTop: 8, color: '#9ca3af', fontStyle: 'italic' }]}>
               {getStyleSummary()}
             </Text>
-          )}
+          ) : null}
         </View>
 
         {/* SECTION 2: YOUR STYLE DNA */}
@@ -1295,8 +1567,8 @@ const StyleVaultScreen = () => {
             )}
           </View>
 
-          {/* Your Colors */}
-          {colorProfile && (
+          {/* Your Colors - Always show, but with different content for new users */}
+          {!isLoadingProfile && (
             <View style={[styles.section, { marginBottom: 20 }]}>
               <View style={styles.colorProfileSection}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -1329,61 +1601,74 @@ const StyleVaultScreen = () => {
                   </View>
                 </View>
                 
-                {/* Always show "Suggested from face photo" section with different states */}
-                <View style={{ marginBottom: 12, padding: 12, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 8 }}>
-                  <Text style={[styles.colorBestLabel, { fontSize: 12, marginBottom: 4 }]}>
-                    Suggested from face photo:
-                  </Text>
-                  
-                  {/* Analyzing state */}
-                  {isAnalyzingFace && (
-                    <View style={{ alignItems: 'center', paddingVertical: 8 }}>
-                      <ActivityIndicator size="small" color="#6366f1" style={{ marginBottom: 8 }} />
-                      <Text style={[styles.colorBestList, { fontSize: 13, textAlign: 'center', color: '#9ca3af' }]}>
-                        Analyzing your face photo...
-                      </Text>
-                      <Text style={[styles.colorBestList, { fontSize: 12, textAlign: 'center', marginTop: 4, color: '#6b7280' }]}>
-                        Detecting undertone, depth, and season
-                      </Text>
-                    </View>
-                  )}
-                  
-                  {/* Error state */}
-                  {!isAnalyzingFace && faceAnalysisError && (
-                    <View style={{ paddingVertical: 8 }}>
-                      <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20, color: '#ef4444' }]}>
-                        {faceAnalysisError}
-                      </Text>
-                    </View>
-                  )}
-                  
-                  {/* Success state - show verdict */}
-                  {!isAnalyzingFace && !faceAnalysisError && colorProfile && (colorProfile.tone || colorProfile.depth || colorProfile.season) && (
+                {/* Show different content based on state */}
+                {!colorProfile && !isAnalyzingFace && !faceAnalysisError ? (
+                  /* New user - no color profile yet */
+                  <View style={{ marginBottom: 12, padding: 12, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 8 }}>
+                    <Text style={[styles.colorBestLabel, { fontSize: 12, marginBottom: 4 }]}>
+                      Get your color analysis:
+                    </Text>
+                    <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20, color: '#9ca3af' }]}>
+                      Add a face photo to discover your color season, undertone, and best colors to wear.
+                    </Text>
+                  </View>
+                ) : (
+                  /* Existing user or analyzing - show "Suggested from face photo" section */
+                  <View style={{ marginBottom: 12, padding: 12, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 8 }}>
+                    <Text style={[styles.colorBestLabel, { fontSize: 12, marginBottom: 4 }]}>
+                      Suggested from face photo:
+                    </Text>
+                    
+                    {/* Analyzing state */}
+                    {isAnalyzingFace && (
+                      <View style={{ alignItems: 'center', paddingVertical: 8 }}>
+                        <ActivityIndicator size="small" color="#6366f1" style={{ marginBottom: 8 }} />
+                        <Text style={[styles.colorBestList, { fontSize: 13, textAlign: 'center', color: '#9ca3af' }]}>
+                          Analyzing your face photo...
+                        </Text>
+                        <Text style={[styles.colorBestList, { fontSize: 12, textAlign: 'center', marginTop: 4, color: '#6b7280' }]}>
+                          Detecting undertone, depth, and season
+                        </Text>
+                      </View>
+                    )}
+                    
+                    {/* Error state */}
+                    {!isAnalyzingFace && faceAnalysisError && (
+                      <View style={{ paddingVertical: 8 }}>
+                        <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20, color: '#ef4444' }]}>
+                          {faceAnalysisError}
+                        </Text>
+                      </View>
+                    )}
+                    
+                    {/* Success state - show verdict */}
+                    {!isAnalyzingFace && !faceAnalysisError && colorProfile && (colorProfile.tone || colorProfile.depth || colorProfile.season) && (
                     <>
-                      {colorProfile.needsConfirmation && colorProfile.season ? (
+                      {colorProfile.season ? (
                         <View>
                           <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20, marginBottom: 8 }]}>
                             {colorProfile.tone ? `• Undertone: ${colorProfile.tone.charAt(0).toUpperCase() + colorProfile.tone.slice(1)}` : ''}
                             {colorProfile.depth ? `\n• Depth: ${colorProfile.depth.charAt(0).toUpperCase() + colorProfile.depth.slice(1)}` : ''}
                             {colorProfile.season ? `\n• Suggested Season: ${colorProfile.season.charAt(0).toUpperCase() + colorProfile.season.slice(1)}` : ''}
                             {colorProfile.seasonConfidence ? `\n• Confidence: ${Math.round(colorProfile.seasonConfidence * 100)}%` : ''}
+                            {colorProfile.confidence ? `\n• Overall Confidence: ${Math.round(colorProfile.confidence * 100)}%` : ''}
                           </Text>
-                          <Text style={[styles.colorBestList, { fontSize: 12, lineHeight: 18, color: '#f59e0b', fontStyle: 'italic', marginTop: 4 }]}>
-                            We detected {colorProfile.season}, please confirm or adjust.
-                          </Text>
+                          {colorProfile.needsConfirmation ? (
+                            <Text style={[styles.colorBestList, { fontSize: 12, lineHeight: 18, color: '#f59e0b', fontStyle: 'italic', marginTop: 4 }]}>
+                              This is a suggested season. If you think the results are wrong, please update your season manually or upload another photo.
+                            </Text>
+                          ) : (
+                            <Text style={[styles.colorBestList, { fontSize: 12, lineHeight: 18, color: '#666', fontStyle: 'italic', marginTop: 4 }]}>
+                              This is a suggested season. If you think the results are wrong, please update your season manually.
+                            </Text>
+                          )}
                         </View>
-                      ) : colorProfile.season ? (
-                        <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20 }]}>
-                          {colorProfile.tone ? `• Undertone: ${colorProfile.tone.charAt(0).toUpperCase() + colorProfile.tone.slice(1)}` : ''}
-                          {colorProfile.depth ? `\n• Depth: ${colorProfile.depth.charAt(0).toUpperCase() + colorProfile.depth.slice(1)}` : ''}
-                          {colorProfile.season ? `\n• Suggested Season: ${colorProfile.season.charAt(0).toUpperCase() + colorProfile.season.slice(1)}` : ''}
-                          {colorProfile.seasonConfidence ? `\n• Confidence: ${Math.round(colorProfile.seasonConfidence * 100)}%` : ''}
-                        </Text>
                       ) : (
                         <View>
                           <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20, marginBottom: 8 }]}>
                             {colorProfile.tone ? `${colorProfile.tone.charAt(0).toUpperCase() + colorProfile.tone.slice(1)} undertone` : ''}
                             {colorProfile.depth ? ` • ${colorProfile.depth.charAt(0).toUpperCase() + colorProfile.depth.slice(1)} depth` : ''}
+                            {colorProfile.confidence ? `\n• Confidence: ${Math.round(colorProfile.confidence * 100)}%` : ''}
                           </Text>
                           <Text style={[styles.colorBestList, { fontSize: 12, lineHeight: 18, color: '#666', fontStyle: 'italic' }]}>
                             Season unclear (lighting/photo variation). You can choose manually or upload another photo.
@@ -1393,13 +1678,14 @@ const StyleVaultScreen = () => {
                     </>
                   )}
                   
-                  {/* Initial state - no photo uploaded yet or no profile data */}
-                  {!isAnalyzingFace && !faceAnalysisError && (!colorProfile || (!colorProfile.tone && !colorProfile.depth && !colorProfile.season)) && (
+                  {/* Initial state - no photo uploaded yet or no profile data (only show if we have a colorProfile but no data) */}
+                  {!isAnalyzingFace && !faceAnalysisError && colorProfile && (!colorProfile.tone && !colorProfile.depth && !colorProfile.season) && (
                     <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20, color: '#9ca3af', fontStyle: 'italic' }]}>
                       {faceImage ? 'Re-upload face photo to get color analysis' : 'Upload a face photo to get color analysis'}
                     </Text>
                   )}
                 </View>
+                )}
                 
                 {/* Hide color profile details while analyzing */}
                 {!isAnalyzingFace && colorProfile && (
@@ -1438,11 +1724,18 @@ const StyleVaultScreen = () => {
                 <View style={{ alignItems: 'flex-end', marginLeft: 'auto' }}>
                 <Pressable onPress={() => setShowBodyPhotoGuidelines(true)}>
                   {bodyImage ? (
-                    <OptimizedImage 
-                      source={{ uri: bodyImage }} 
-                      style={styles.fitProfilePhotoThumbnail}
-                      onError={() => setBodyImage(null)}
-                    />
+                    <View style={styles.fitProfilePhotoThumbnail}>
+                      <OptimizedImage 
+                        source={{ uri: bodyImage }} 
+                        style={styles.fitProfilePhotoImage}
+                        onError={() => setBodyImage(null)}
+                      />
+                      {isUploadingBodyPhoto && (
+                        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' }}>
+                          <ActivityIndicator size="large" color="#6366f1" />
+                        </View>
+                      )}
+                    </View>
                   ) : null}
                   {!bodyImage && (
                     <View style={[styles.fitProfilePhotoThumbnail, styles.fitProfilePhotoPlaceholder]}>
@@ -1542,7 +1835,14 @@ const StyleVaultScreen = () => {
                     }}
                     onLongPress={() => handleDeleteTryOn(item)}
                   >
-                    <SafeImage source={{ uri: item.resultUrl }} style={styles.tryOnImage} resizeMode="cover" />
+                    <SafeImage 
+                      source={{ uri: item.resultUrl }} 
+                      style={styles.tryOnImage} 
+                      resizeMode="cover"
+                      width={200}  // Thumbnail width for try-on cards
+                      height={280} // Thumbnail height for try-on cards
+                      quality={85} // Good quality for try-on thumbnails
+                    />
                     
                     <View style={styles.tryOnOverlay}>
                       {/* Privacy Toggle */}
@@ -1596,7 +1896,10 @@ const StyleVaultScreen = () => {
                           <SafeImage 
                             source={{ uri: item.productImage || item.image }} 
                             style={styles.tryOnProductThumbImg} 
-                            resizeMode="cover" 
+                            resizeMode="cover"
+                            width={60}  // Small thumbnail for product overlay
+                            height={60} // Small thumbnail for product overlay
+                            quality={85} // Good quality for small thumbnails
                           />
                           <View style={styles.tryOnProductThumbBadge}>
                             <Text style={styles.tryOnProductThumbText}>Original</Text>
@@ -1835,56 +2138,83 @@ const StyleVaultScreen = () => {
                   const sentRequest = sentRequests.find(r => r.friend_id === profile.id);
                   const requestStatus = sentRequest?.status || (isAlreadyFriend ? 'accepted' : null);
                   
+                  const isLocallyPending = localPendingRequests.has(profile.id);
+                  const effectiveRequestStatus = isLocallyPending ? 'pending' : requestStatus;
+                  
                   return (
                     <View key={profile.id} style={styles.friendSearchResultItem}>
-                      {profile.avatar_url ? (
-                        <SafeImage source={{ uri: profile.avatar_url }} style={styles.friendSearchAvatar} />
-                      ) : (
-                        <View style={[styles.friendSearchAvatar, styles.friendItemAvatarPlaceholder]}>
-                          <Text style={styles.friendItemAvatarText}>
-                            {profile.name?.charAt(0)?.toUpperCase() || profile.email?.charAt(0)?.toUpperCase() || 'U'}
-                          </Text>
+                      <Pressable
+                        onPress={() => {
+                          if (profile.id && setRoute) {
+                            setRoute('userprofile', { userId: profile.id });
+                          }
+                        }}
+                        style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+                      >
+                        {profile.avatar_url ? (
+                          <SafeImage source={{ uri: profile.avatar_url }} style={styles.friendSearchAvatar} />
+                        ) : (
+                          <View style={[styles.friendSearchAvatar, styles.friendItemAvatarPlaceholder]}>
+                            <Text style={styles.friendItemAvatarText}>
+                              {profile.name?.charAt(0)?.toUpperCase() || profile.email?.charAt(0)?.toUpperCase() || 'U'}
+                            </Text>
+                          </View>
+                        )}
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                          <Text style={styles.friendItemName}>{profile.name || profile.email?.split('@')[0] || 'User'}</Text>
+                          <Text style={[styles.friendItemName, { fontSize: 12, color: '#9ca3af', marginTop: 2 }]}>{profile.email}</Text>
                         </View>
-                      )}
-                      <View style={{ flex: 1, marginLeft: 12 }}>
-                        <Text style={styles.friendItemName}>{profile.name || profile.email?.split('@')[0] || 'User'}</Text>
-                        <Text style={[styles.friendItemName, { fontSize: 12, color: '#9ca3af', marginTop: 2 }]}>{profile.email}</Text>
-                      </View>
+                      </Pressable>
                       <Pressable
                         style={[
                           styles.friendAddBtn,
-                          requestStatus === 'pending' && styles.friendAddBtnPending,
-                          requestStatus === 'accepted' && styles.friendAddBtnAccepted
+                          effectiveRequestStatus === 'pending' && styles.friendAddBtnPending,
+                          effectiveRequestStatus === 'accepted' && styles.friendAddBtnAccepted
                         ]}
                         onPress={async () => {
-                          if (isAlreadyFriend || requestStatus === 'accepted') return;
+                          if (isAlreadyFriend || effectiveRequestStatus === 'accepted') return;
                           
                           if (user?.id && profile.id) {
+                            // Immediately update local state to show pending
+                            setLocalPendingRequests(prev => new Set(prev).add(profile.id));
+                            
                             try {
                               const { sendFriendRequest } = await import('../lib/friends');
                               const result = await sendFriendRequest(user.id, profile.id);
                               if (result.success) {
                                 showBanner(result.isMutual ? '✓ Friend added!' : '✓ Friend request sent!', 'success');
-                                setFriendSearchInput('');
-                                setFriendSearchResults([]);
-                                loadFriends();
+                                // Reload friends to get updated request status
+                                await loadFriends();
+                                // Keep local pending state since request was successful
                               } else {
+                                // Remove from local pending if request failed
+                                setLocalPendingRequests(prev => {
+                                  const next = new Set(prev);
+                                  next.delete(profile.id);
+                                  return next;
+                                });
                                 Alert.alert('Error', 'Could not add friend. They may already be your friend or you already sent a request.');
                               }
                             } catch (error) {
+                              // Remove from local pending if request failed
+                              setLocalPendingRequests(prev => {
+                                const next = new Set(prev);
+                                next.delete(profile.id);
+                                return next;
+                              });
                               console.error('Error adding friend:', error);
                               Alert.alert('Error', 'Failed to add friend. Please try again.');
                             }
                           }
                         }}
-                        disabled={requestStatus === 'pending' || isAlreadyFriend}
+                        disabled={effectiveRequestStatus === 'pending' || isAlreadyFriend}
                       >
                         <Text style={[
                           styles.friendAddBtnText,
-                          requestStatus === 'pending' && styles.friendAddBtnTextPending,
-                          requestStatus === 'accepted' && styles.friendAddBtnTextAccepted
+                          effectiveRequestStatus === 'pending' && styles.friendAddBtnTextPending,
+                          effectiveRequestStatus === 'accepted' && styles.friendAddBtnTextAccepted
                         ]}>
-                          {requestStatus === 'pending' ? 'Pending' : requestStatus === 'accepted' ? 'Added' : 'Add'}
+                          {effectiveRequestStatus === 'pending' ? 'Pending' : effectiveRequestStatus === 'accepted' ? 'Added' : 'Add'}
                         </Text>
                       </Pressable>
                     </View>
@@ -1907,16 +2237,12 @@ const StyleVaultScreen = () => {
                       }
                     }}
                   >
-                    {friend.friend_avatar ? (
-                      <SafeImage source={{ uri: friend.friend_avatar }} style={styles.friendItemAvatar} />
-                    ) : (
-                      <View style={[styles.friendItemAvatar, styles.friendItemAvatarPlaceholder]}>
-                        <Text style={styles.friendItemAvatarText}>
-                          {friend.friend_name?.charAt(0)?.toUpperCase() || 'F'}
-                        </Text>
-                      </View>
-                    )}
-                    <Text style={styles.friendItemName}>{friend.friend_name || 'Friend'}</Text>
+                    <Avatar 
+                      imageUri={friend.friend_avatar || null} 
+                      name={friend.friend_name || 'Friend'} 
+                      size={40}
+                    />
+                    <Text style={[styles.friendItemName, { marginLeft: 12 }]}>{friend.friend_name || 'Friend'}</Text>
                     <Text style={styles.friendItemArrow}>→</Text>
                   </Pressable>
                 ))}
@@ -1998,8 +2324,16 @@ const StyleVaultScreen = () => {
                                   });
                               }
                               
+                              // Immediately update local state
+                              setReceivedRequests(prev => prev.filter(r => r.id !== request.id));
+                              setLocalPendingRequests(prev => {
+                                const next = new Set(prev);
+                                next.delete(request.user_id);
+                                return next;
+                              });
+                              
                               showBanner('✓ Friend request accepted!', 'success');
-                              // Reload to refresh all lists (this will remove from received and add to friends)
+                              // Reload to refresh all lists (this will add to friends)
                               await loadFriends();
                             } catch (error) {
                               console.error('Error accepting request:', error);
@@ -2020,6 +2354,9 @@ const StyleVaultScreen = () => {
                                 .from('friends')
                                 .delete()
                                 .eq('id', request.id);
+                              
+                              // Immediately update local state
+                              setReceivedRequests(prev => prev.filter(r => r.id !== request.id));
                               
                               showBanner('Friend request rejected', 'success');
                               // Reload to refresh all lists
@@ -2057,7 +2394,7 @@ const StyleVaultScreen = () => {
           <Pressable
             style={styles.supportItem}
             onPress={async () => {
-              const email = 'support@stylit.ai';
+              const email = 'raj@stylit.ai';
               const url = `mailto:${email}`;
               try {
                 const canOpen = await Linking.canOpenURL(url);
@@ -2149,6 +2486,23 @@ const StyleVaultScreen = () => {
 
       {/* Account Actions */}
       <View style={styles.section}>
+        {/* Change Password */}
+        <RowItem
+          icon="🔐"
+          title="Change Password"
+          subtitle="Update your account password"
+          onPress={() => setShowChangePasswordModal(true)}
+        />
+        
+        {/* Account Email - Display Only */}
+        <RowItem
+          icon="📧"
+          title="Email"
+          subtitle={user?.email || 'Not set'}
+          onPress={null}
+          showChevron={false}
+        />
+        
         <Pressable
           style={styles.signOutButton}
           onPress={() => {
@@ -2530,27 +2884,82 @@ const StyleVaultScreen = () => {
                       return measurementUnit === 'cm' ? num / 2.54 : num;
                     };
                     
-                    await supabase.from('profiles').upsert({
+                    // Build update object - try new _in columns first, fallback to old TEXT columns
+                    const heightInches = convertToInches(fitProfile.height, true);
+                    const chestInches = convertToInches(fitProfile.chest);
+                    const waistInches = convertToInches(fitProfile.waist);
+                    const hipsInches = convertToInches(fitProfile.hips);
+                    const shoulderInches = convertToInches(fitProfile.shoulder);
+                    const sleeveInches = convertToInches(fitProfile.sleeve);
+                    const inseamInches = convertToInches(fitProfile.inseam);
+                    const thighInches = convertToInches(fitProfile.thigh);
+                    
+                    // Base update data (always works)
+                    const baseData = {
                       id: user.id,
                       gender: fitProfile.gender,
                       body_shape: fitProfile.bodyShape || finalBodyShape,
-                      // Store in new circumference fields (inches)
-                      // Height needs special parsing for "5.4" = 5'4" = 64 inches
-                      height_in: convertToInches(fitProfile.height, true),
                       top_size: fitProfile.topSize,
                       bottom_size: fitProfile.bottomSize,
-                      chest_circ_in: convertToInches(fitProfile.chest),
-                      waist_circ_in: convertToInches(fitProfile.waist),
-                      hip_circ_in: convertToInches(fitProfile.hips),
-                      shoulder_width_in: convertToInches(fitProfile.shoulder),
-                      sleeve_length_in: convertToInches(fitProfile.sleeve),
-                      inseam_in: convertToInches(fitProfile.inseam),
-                      thigh_circ_in: convertToInches(fitProfile.thigh),
                       fit_preference: fitProfile.fit_preference,
                       notes: fitProfile.notes,
-                      updated_at: new Date().toISOString()
-                    });
-                    showBanner('✓ Fit profile saved!', 'success');
+                      updated_at: new Date().toISOString(),
+                    };
+                    
+                    // Try to save to new _in columns first
+                    let updateData = {
+                      ...baseData,
+                      height_in: heightInches,
+                      chest_in: chestInches,
+                      waist_in: waistInches,
+                      hips_in: hipsInches,
+                      shoulder_in: shoulderInches,
+                      sleeve_in: sleeveInches,
+                      inseam_in: inseamInches,
+                      thigh_in: thighInches,
+                    };
+                    
+                    // Use old TEXT columns directly (these always exist in the schema)
+                    // This avoids PGRST204 errors for new _in columns that may not exist
+                    const fallbackData = {
+                      ...baseData,
+                      height: heightInches != null ? String(heightInches) : null,
+                      chest: chestInches != null ? String(chestInches) : null,
+                      waist: waistInches != null ? String(waistInches) : null,
+                      hips: hipsInches != null ? String(hipsInches) : null,
+                      shoulder: shoulderInches != null ? String(shoulderInches) : null,
+                      sleeve: sleeveInches != null ? String(sleeveInches) : null,
+                      inseam: inseamInches != null ? String(inseamInches) : null,
+                      thigh: thighInches != null ? String(thighInches) : null,
+                    };
+                    
+                    console.log('💾 Saving fit profile for user:', user.id);
+                    console.log('💾 Data to save:', fallbackData);
+                    
+                    let saveError = null;
+                    try {
+                      // Use upsert with onConflict to handle both new and existing users
+                      const { error } = await supabase
+                        .from('profiles')
+                        .upsert(fallbackData, { onConflict: 'id' });
+                      saveError = error;
+                      
+                      if (error) {
+                        console.error('💾 Upsert error:', error);
+                      }
+                    } catch (err) {
+                      console.error('💾 Save threw exception:', err);
+                      saveError = err;
+                    }
+                    
+                    if (saveError) {
+                      console.error('Error saving profile:', saveError);
+                      showBanner('Failed to save profile', 'error');
+                    } else {
+                      // Reload profile data to ensure UI is in sync
+                      await loadProfileData();
+                      showBanner('✓ Fit profile saved!', 'success');
+                    }
                   }
                   setShowFitProfile(false);
                 } catch (error) {
@@ -2646,16 +3055,24 @@ const StyleVaultScreen = () => {
 
       {/* Edit Profile Modal (Name + Avatar only) */}
       <Modal visible={showEditProfileModal} transparent={true} animationType="slide">
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Profile</Text>
-              <Pressable onPress={() => setShowEditProfileModal(false)}>
-                <Text style={styles.modalClose}>✕</Text>
-              </Pressable>
-            </View>
-            
-            <ScrollView style={styles.modalScroll}>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Edit Profile</Text>
+                <Pressable onPress={() => setShowEditProfileModal(false)}>
+                  <Text style={styles.modalClose}>✕</Text>
+                </Pressable>
+              </View>
+              
+              <ScrollView 
+                style={styles.modalScroll}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ paddingBottom: 20 }}
+              >
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Profile Picture</Text>
                 <Pressable 
@@ -2677,18 +3094,12 @@ const StyleVaultScreen = () => {
                     }
                   }}
                 >
-                  <LinearGradient
-                    colors={['#6366f1', '#8b5cf6', '#ec4899']}
-                    style={styles.avatarGradient}
-                  >
-                    <View style={styles.avatar}>
-                      {profilePic && typeof profilePic === 'string' ? (
-                        <SafeImage source={{ uri: profilePic }} style={styles.avatarImage} resizeMode="cover" />
-                      ) : (
-                        <Text style={styles.avatarText}>{username ? username[0].toUpperCase() : 'U'}</Text>
-                      )}
-                    </View>
-                  </LinearGradient>
+                  <Avatar 
+                    imageUri={profilePic} 
+                    name={username || 'User'} 
+                    size={120}
+                    showGradient={true}
+                  />
                 </Pressable>
               </View>
 
@@ -2741,9 +3152,10 @@ const StyleVaultScreen = () => {
               >
                 <Text style={styles.saveBtnText}>Save Changes</Text>
               </Pressable>
-            </ScrollView>
+              </ScrollView>
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Full Screen Image Modal */}
@@ -2763,6 +3175,111 @@ const StyleVaultScreen = () => {
             </Pressable>
           </View>
         </View>
+      </Modal>
+      
+      {/* Change Password Modal */}
+      <Modal
+        visible={showChangePasswordModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => {
+          setShowChangePasswordModal(false);
+          setNewPassword('');
+          setConfirmNewPassword('');
+        }}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Change Password</Text>
+                <Pressable onPress={() => {
+                  setShowChangePasswordModal(false);
+                  setNewPassword('');
+                  setConfirmNewPassword('');
+                }}>
+                  <Text style={styles.modalClose}>✕</Text>
+                </Pressable>
+              </View>
+              
+              <ScrollView 
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ padding: 20 }}
+              >
+                <Text style={{ color: '#9ca3af', fontSize: 14, marginBottom: 20 }}>
+                  Enter your new password below. Password must be at least 6 characters.
+                </Text>
+                
+                <TextInput
+                  style={styles.passwordInput}
+                  placeholder="New Password"
+                  placeholderTextColor="#6b7280"
+                  secureTextEntry
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  autoCapitalize="none"
+                />
+                
+                <TextInput
+                  style={[styles.passwordInput, { marginTop: 12 }]}
+                  placeholder="Confirm New Password"
+                  placeholderTextColor="#6b7280"
+                  secureTextEntry
+                  value={confirmNewPassword}
+                  onChangeText={setConfirmNewPassword}
+                  autoCapitalize="none"
+                />
+                
+                <Pressable
+                  onPress={async () => {
+                    if (newPassword.length < 6) {
+                      Alert.alert('Error', 'Password must be at least 6 characters');
+                      return;
+                    }
+                    if (newPassword !== confirmNewPassword) {
+                      Alert.alert('Error', 'Passwords do not match');
+                      return;
+                    }
+                    
+                    setIsChangingPassword(true);
+                    try {
+                      const { error } = await supabase.auth.updateUser({
+                        password: newPassword
+                      });
+                      
+                      if (error) {
+                        Alert.alert('Error', error.message);
+                      } else {
+                        Alert.alert('Success', 'Your password has been updated!');
+                        setShowChangePasswordModal(false);
+                        setNewPassword('');
+                        setConfirmNewPassword('');
+                      }
+                    } catch (err) {
+                      Alert.alert('Error', 'Failed to update password. Please try again.');
+                    } finally {
+                      setIsChangingPassword(false);
+                    }
+                  }}
+                  disabled={isChangingPassword || !newPassword || !confirmNewPassword}
+                  style={[
+                    styles.changePasswordBtn,
+                    { opacity: (isChangingPassword || !newPassword || !confirmNewPassword) ? 0.5 : 1 }
+                  ]}
+                >
+                  {isChangingPassword ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.changePasswordBtnText}>Update Password</Text>
+                  )}
+                </Pressable>
+              </ScrollView>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -3826,6 +4343,11 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 2,
     borderColor: '#6366f1',
+    overflow: 'hidden',
+  },
+  fitProfilePhotoImage: {
+    width: '100%',
+    height: '100%',
   },
   fitProfilePhotoPlaceholder: {
     backgroundColor: 'rgba(99, 102, 241, 0.2)',
@@ -4056,6 +4578,27 @@ const styles = StyleSheet.create({
   },
   radioButtonTextActive: {
     color: '#fff',
+    fontWeight: '600',
+  },
+  passwordInput: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 12,
+    padding: 16,
+    color: '#fff',
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  changePasswordBtn: {
+    backgroundColor: '#6366f1',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  changePasswordBtnText: {
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '600',
   },
 });

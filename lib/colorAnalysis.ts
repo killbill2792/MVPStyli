@@ -48,61 +48,49 @@ const COLOR_SEASONS = {
   }
 };
 
-// NEW: Analyze face from local URI with face detection, then upload
+// NEW: Analyze face from local URI using server-side face detection
+// Server-side detection is the primary method - no client-side detection needed
 export async function analyzeFaceForColorProfileFromLocalUri(
   localUri: string,
   uploadFn: (uri: string) => Promise<string>
 ): Promise<{ profile: ExtendedColorProfile | null; uploadedUrl: string | null }> {
   try {
-    console.log('🎨 [SKIN TONE CLIENT] ========== STARTING FACE ANALYSIS (LOCAL URI) ==========');
+    console.log('🎨 [SKIN TONE CLIENT] ========== STARTING FACE ANALYSIS (SERVER-SIDE) ==========');
     console.log('🎨 [SKIN TONE CLIENT] Local URI:', localUri.substring(0, 100));
     
-    // Import face detection
-    const { detectFaceBoxFromUri } = require('./facedetection');
-    // @ts-ignore
-    const ImageManipulator = require('expo-image-manipulator');
-    
-    // 1) Normalize/rescale image for consistent results
-    const resized = await ImageManipulator.manipulateAsync(
-      localUri,
-      [{ resize: { width: 768 } }], // higher than detector, still fine
-      { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG }
-    );
-    
-    console.log('🎨 [SKIN TONE CLIENT] Image resized to:', resized.width, 'x', resized.height);
-    
-    // 2) Detect face on resized image (important: same image coords!)
-    const faceBox = await detectFaceBoxFromUri(resized.uri);
-    
-    if (!faceBox) {
-      console.warn('🎨 [SKIN TONE CLIENT] No face detected in image');
-      // Still upload the image for storage, but return null profile
-      const uploadedUrl = await uploadFn(resized.uri);
-      return { profile: null, uploadedUrl };
-    }
-    
-    console.log('🎨 [SKIN TONE CLIENT] Face detected:', faceBox);
-    
-    // 3) Upload the SAME resized image
-    const uploadedUrl = await uploadFn(resized.uri);
+    // 1) Upload the image first (server will detect face)
+    console.log('🎨 [SKIN TONE CLIENT] Uploading image for server-side face detection...');
+    const uploadedUrl = await uploadFn(localUri);
     console.log('🎨 [SKIN TONE CLIENT] Image uploaded:', uploadedUrl.substring(0, 100));
     
-    // 4) Call server analysis with real faceBox
+    // 2) Call server analysis - server will detect face and analyze
     const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL;
     if (!API_BASE) {
       throw new Error('API_BASE not configured');
     }
     const apiUrl = `${API_BASE}/api/analyze-skin-tone`;
     
+    console.log('🎨 [SKIN TONE CLIENT] Calling API:', apiUrl);
+    console.log('🎨 [SKIN TONE CLIENT] Request payload:', {
+      imageUrl: uploadedUrl.substring(0, 100) + '...',
+      hasImageUrl: !!uploadedUrl,
+      imageUrlLength: uploadedUrl.length
+    });
+    
     const startTime = Date.now();
+    console.log('🎨 [SKIN TONE CLIENT] API call started at:', new Date().toISOString());
+    
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
-        imageUrl: uploadedUrl, 
-        faceBox: faceBox // REAL face box, not heuristic
+        imageUrl: uploadedUrl,
+        // No faceBox - server will detect face automatically
       }),
     });
+    
+    console.log('🎨 [SKIN TONE CLIENT] API response received at:', new Date().toISOString());
+    console.log('🎨 [SKIN TONE CLIENT] Response status:', response.status, response.statusText);
     
     const timeTaken = Date.now() - startTime;
     
@@ -158,6 +146,8 @@ export async function analyzeFaceForColorProfileFromLocalUri(
       avoidColors: seasonData?.avoidColors || [],
       description: seasonData?.description || 'Color analysis complete',
       confidence: analysis.confidence || 0,
+      seasonConfidence: analysis.seasonConfidence,
+      needsConfirmation: analysis.needsConfirmation,
       skinHex: analysis.hex,
       clarity: analysis.clarity,
     };
@@ -165,16 +155,16 @@ export async function analyzeFaceForColorProfileFromLocalUri(
     return { profile, uploadedUrl };
   } catch (error: any) {
     console.error('🎨 [SKIN TONE CLIENT] Error in analyzeFaceForColorProfileFromLocalUri:', error);
-    // Try to upload anyway for storage
+    console.error('🎨 [SKIN TONE CLIENT] Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    // NO FALLBACK - only return what API gives us
+    // Try to upload image for storage, but return null profile
     try {
-      // @ts-ignore
-      const ImageManipulator = require('expo-image-manipulator');
-      const resized = await ImageManipulator.manipulateAsync(
-        localUri,
-        [{ resize: { width: 768 } }],
-        { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG }
-      );
-      const uploadedUrl = await uploadFn(resized.uri);
+      const uploadedUrl = await uploadFn(localUri);
+      console.log('🎨 [SKIN TONE CLIENT] Image uploaded for storage, but no profile (API failed)');
       return { profile: null, uploadedUrl };
     } catch (uploadError) {
       console.error('🎨 [SKIN TONE CLIENT] Failed to upload image:', uploadError);
@@ -189,30 +179,17 @@ export async function analyzeFaceForColorProfile(faceImageUrl: string): Promise<
     console.log('🎨 [SKIN TONE CLIENT] ========== STARTING FACE ANALYSIS ==========');
     console.log('🎨 [SKIN TONE CLIENT] Image URL:', faceImageUrl.substring(0, 100) + (faceImageUrl.length > 100 ? '...' : ''));
     
-    // Step 1: Use heuristic face region (works for selfies and portraits)
-    // For selfies: face is typically in center, upper 60% of image
-    // The API will refine this based on actual image dimensions
-    console.log('🎨 [SKIN TONE CLIENT] Using heuristic face region (works for selfies/portraits)');
+    // Server-side face detection is the primary method
+    console.log('🎨 [SKIN TONE CLIENT] Using server-side face detection and analysis');
     
-    const faceBox = {
-      x: -1, // Signal to API to use heuristic (center-upper region)
-      y: -1,
-      width: -1,
-      height: -1,
-    };
-    
-    // Step 2: Call server-side API to analyze skin tone
+    // Call server-side API to detect face and analyze skin tone
     const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL;
     if (!API_BASE) {
       throw new Error('API_BASE not configured');
     }
     const apiUrl = `${API_BASE}/api/analyze-skin-tone`;
     
-    console.log('🎨 [SKIN TONE CLIENT] Calling API:', apiUrl);
-    console.log('🎨 [SKIN TONE CLIENT] Request payload:', {
-      imageUrl: faceImageUrl.substring(0, 80) + '...',
-      faceBox,
-    });
+    console.log('🎨 [SKIN TONE CLIENT] Calling server-side API:', apiUrl);
     
     const startTime = Date.now();
     const response = await fetch(apiUrl, {
@@ -220,7 +197,7 @@ export async function analyzeFaceForColorProfile(faceImageUrl: string): Promise<
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         imageUrl: faceImageUrl,
-        faceBox: faceBox, // May be heuristic (-1 values) if face detection failed
+        // No faceBox - server will detect face automatically
       }),
     });
     
@@ -269,6 +246,8 @@ export async function analyzeFaceForColorProfile(faceImageUrl: string): Promise<
       avoidColors: seasonData.avoidColors,
       description: seasonData.description,
       confidence: analysis.confidence,
+      seasonConfidence: analysis.seasonConfidence,
+      needsConfirmation: analysis.needsConfirmation,
       skinHex: analysis.hex,
       clarity: analysis.clarity,
     };
@@ -391,14 +370,14 @@ export async function loadColorProfile(userId: string): Promise<ColorProfile | E
       .from('profiles')
       .select('color_tone, color_depth, color_season, best_colors, avoid_colors, skin_tone_confidence, skin_hex')
       .eq('id', userId)
-      .single();
+      .maybeSingle(); // Use maybeSingle() instead of single() to handle new users without profiles
 
     if (error) {
       console.error('Error loading color profile:', error);
       return null;
     }
     
-    // If no color_season but we have color_tone, still return a partial profile
+    // If no data (new user without profile) or no color_season/color_tone, return null
     if (!data || (!data.color_season && !data.color_tone)) {
       return null;
     }

@@ -11,7 +11,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from '../lib/SimpleGradient';
 import { useApp } from '../lib/AppContext';
 import { supabase } from '../lib/supabase';
 
@@ -20,31 +20,18 @@ const AuthScreen = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [usePhone, setUsePhone] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const validateEmail = (email) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   };
 
-  const validatePhone = (phone) => {
-    return /^\+?[1-9]\d{1,14}$/.test(phone.replace(/\s/g, ''));
-  };
-
   const handleSignUp = async () => {
-    if (usePhone) {
-      if (!phone || !validatePhone(phone)) {
-        Alert.alert('Invalid Phone', 'Please enter a valid phone number');
-        return;
-      }
-    } else {
-      if (!email || !validateEmail(email)) {
-        Alert.alert('Invalid Email', 'Please enter a valid email address');
-        return;
-      }
+    if (!email || !validateEmail(email)) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address');
+      return;
     }
 
     if (!password || password.length < 6) {
@@ -59,24 +46,17 @@ const AuthScreen = () => {
 
     setLoading(true);
     try {
-      if (usePhone) {
-        const { data, error } = await supabase.auth.signUp({
-          phone: phone,
-          password: password,
-        });
-        if (error) throw error;
-        Alert.alert('Success', 'Account created! Please verify your phone number.');
-        setIsLogin(true);
-      } else {
-        const { data, error } = await supabase.auth.signUp({
-          email: email,
-          password: password,
-        });
-        if (error) throw error;
-        
-        Alert.alert('Success', 'Account created! You can sign in now (email verification bypassed for testing).');
-        setIsLogin(true);
-      }
+      const { data, error } = await supabase.auth.signUp({
+        email: email,
+        password: password,
+        options: {
+          emailRedirectTo: 'https://www.stylit.ai/confirm_email',
+        },
+      });
+      if (error) throw error;
+      
+      Alert.alert('Success', 'Account created! Please check your email to verify your account.');
+      setIsLogin(true);
     } catch (error) {
       Alert.alert('Sign Up Error', error.message || 'Failed to create account');
     } finally {
@@ -85,16 +65,9 @@ const AuthScreen = () => {
   };
 
   const handleLogin = async () => {
-    if (usePhone) {
-      if (!phone || !validatePhone(phone)) {
-        Alert.alert('Invalid Phone', 'Please enter a valid phone number');
-        return;
-      }
-    } else {
-      if (!email || !validateEmail(email)) {
-        Alert.alert('Invalid Email', 'Please enter a valid email address');
-        return;
-      }
+    if (!email || !validateEmail(email)) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address');
+      return;
     }
 
     if (!password) {
@@ -104,22 +77,11 @@ const AuthScreen = () => {
 
     setLoading(true);
     try {
-      let authData;
-      if (usePhone) {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          phone: phone,
-          password: password,
-        });
-        if (error) throw error;
-        authData = data;
-      } else {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: email,
-          password: password,
-        });
-        if (error) throw error;
-        authData = data;
-      }
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password,
+      });
+      if (error) throw error;
       
       // Wait for auth state change to complete before navigating
       // The onAuthStateChange listener in App.js will handle navigation
@@ -135,11 +97,6 @@ const AuthScreen = () => {
   };
 
   const handleForgotPassword = async () => {
-    if (usePhone) {
-      Alert.alert('Phone Reset', 'Password reset via phone is not available yet. Please contact support.');
-      return;
-    }
-
     if (!email || !validateEmail(email)) {
       Alert.alert('Invalid Email', 'Please enter a valid email address');
       return;
@@ -148,7 +105,7 @@ const AuthScreen = () => {
     setLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'stylit://reset-password',
+        redirectTo: 'https://www.stylit.ai/reset_password',
       });
       if (error) throw error;
       Alert.alert('Email Sent', 'Check your email for password reset instructions');
@@ -190,9 +147,14 @@ const AuthScreen = () => {
                 onPress={handleForgotPassword}
                 disabled={loading}
               >
-                <Text style={styles.primaryButtonText}>
-                  {loading ? 'Sending...' : 'Send Reset Link'}
-                </Text>
+                <LinearGradient
+                  colors={['#6366f1', '#8b5cf6']}
+                  style={styles.gradientButton}
+                >
+                  <Text style={styles.primaryButtonText}>
+                    {loading ? 'Sending...' : 'Send Reset Link'}
+                  </Text>
+                </LinearGradient>
               </Pressable>
 
               <Pressable
@@ -223,48 +185,16 @@ const AuthScreen = () => {
           </View>
 
           <View style={styles.form}>
-            {/* Toggle between Email and Phone */}
-            <View style={styles.toggleContainer}>
-              <Pressable
-                style={[styles.toggleButton, !usePhone && styles.toggleButtonActive]}
-                onPress={() => setUsePhone(false)}
-              >
-                <Text style={[styles.toggleText, !usePhone && styles.toggleTextActive]}>
-                  Email
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[styles.toggleButton, usePhone && styles.toggleButtonActive]}
-                onPress={() => setUsePhone(true)}
-              >
-                <Text style={[styles.toggleText, usePhone && styles.toggleTextActive]}>
-                  Phone
-                </Text>
-              </Pressable>
-            </View>
-
-            {usePhone ? (
-              <TextInput
-                style={styles.input}
-                placeholder="Phone Number"
-                placeholderTextColor="#999"
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-                autoComplete="tel"
-              />
-            ) : (
-              <TextInput
-                style={styles.input}
-                placeholder="Email"
-                placeholderTextColor="#999"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-              />
-            )}
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              placeholderTextColor="#999"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+            />
 
             <TextInput
               style={styles.input}
@@ -323,15 +253,15 @@ const AuthScreen = () => {
               onPress={() => {
                 setIsLogin(!isLogin);
                 setEmail('');
-                setPhone('');
                 setPassword('');
                 setConfirmPassword('');
               }}
             >
               <Text style={styles.linkText}>
-                {isLogin
-                  ? "Don't have an account? Sign Up"
-                  : 'Already have an account? Login'}
+                {isLogin ? "Don't have an account? " : 'Already have an account? '}
+                <Text style={styles.linkTextHighlight}>
+                  {isLogin ? 'Sign Up' : 'Login'}
+                </Text>
               </Text>
             </Pressable>
           </View>
@@ -370,29 +300,6 @@ const styles = StyleSheet.create({
   },
   form: {
     width: '100%',
-  },
-  toggleContainer: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 20,
-  },
-  toggleButton: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  toggleButtonActive: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  toggleText: {
-    color: '#9ca3af',
-    fontWeight: '600',
-  },
-  toggleTextActive: {
-    color: '#fff',
   },
   input: {
     backgroundColor: 'rgba(255,255,255,0.05)',
@@ -436,6 +343,10 @@ const styles = StyleSheet.create({
   linkText: {
     color: '#9ca3af',
     fontSize: 14,
+  },
+  linkTextHighlight: {
+    color: '#6366f1',
+    fontWeight: '600',
   },
 });
 

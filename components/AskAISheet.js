@@ -14,7 +14,7 @@ import {
   FlatList,
   Alert,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from '../lib/SimpleGradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../lib/AppContext';
 import { loadColorProfile } from '../lib/colorAnalysis';
@@ -102,9 +102,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         console.log('🎨 [CLIENT COLOR] Product color updated:', { name, hex, nearestMatch: nearestColor.hex });
         
         // Reload insights with new color after a short delay
+        // Pass updatedProduct to ensure loadInsights uses the new color
         setTimeout(() => {
           console.log('🎨 [CLIENT COLOR] Reloading insights with new color');
-          loadInsights(true);
+          loadInsights(true, updatedProduct);
         }, 500);
       } else {
         console.warn('🎨 [CLIENT COLOR] Color detection failed or returned unknown:', {
@@ -485,6 +486,8 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
   const [isCached, setIsCached] = useState(false);
   const [isRequesting, setIsRequesting] = useState(false); // Client-side throttling
   const requestInProgress = useRef(false); // Prevent multiple simultaneous requests
+  const [userProfileDataState, setUserProfileDataState] = useState(null); // Store user profile for UI access
+  const [colorProfileState, setColorProfileState] = useState(null); // Store color profile for UI access
   
   // New state for missing data inputs
   const [showGarmentInputModal, setShowGarmentInputModal] = useState(false);
@@ -659,11 +662,13 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         
         if (!error && profileData) {
           userProfileData = profileData;
+          setUserProfileDataState(profileData); // Store in state for UI access
           console.log('Loaded user profile for AI:', userProfileData);
         }
         
         // Load color profile
         colorProfile = await loadColorProfile(user.id);
+        setColorProfileState(colorProfile); // Store in state for UI access
       }
 
       // Build user profile for API (for fit/style)
@@ -716,11 +721,11 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
           : (userProfileData?.height != null ? parseHeightToInches(userProfileData.height) : null),
         weightKg: getNumericValue(userProfileData?.weight_kg) ?? getNumericValue(userProfileData?.weight),
         // Check new circumference fields first (these are in inches already)
-        chestIn: getNumericValue(userProfileData?.chest_circ_in) ?? getNumericValue(userProfileData?.chest_in) ?? getNumericValue(userProfileData?.chest),
-        bustIn: getNumericValue(userProfileData?.bust_circ_in) ?? getNumericValue(userProfileData?.bust_in) ?? getNumericValue(userProfileData?.chest_circ_in) ?? getNumericValue(userProfileData?.chest_in) ?? getNumericValue(userProfileData?.chest),
-        waistIn: getNumericValue(userProfileData?.waist_circ_in) ?? getNumericValue(userProfileData?.waist_in) ?? getNumericValue(userProfileData?.waist),
-        hipsIn: getNumericValue(userProfileData?.hip_circ_in) ?? getNumericValue(userProfileData?.hips_in) ?? getNumericValue(userProfileData?.hips),
-        shoulderIn: getNumericValue(userProfileData?.shoulder_width_in) ?? getNumericValue(userProfileData?.shoulder_in) ?? getNumericValue(userProfileData?.shoulder),
+        chestIn: getNumericValue(userProfileData?.chest_in) ?? getNumericValue(userProfileData?.chest_circ_in) ?? getNumericValue(userProfileData?.chest),
+        bustIn: getNumericValue(userProfileData?.chest_in) ?? getNumericValue(userProfileData?.bust_in) ?? getNumericValue(userProfileData?.bust_circ_in) ?? getNumericValue(userProfileData?.chest),
+        waistIn: getNumericValue(userProfileData?.waist_in) ?? getNumericValue(userProfileData?.waist_circ_in) ?? getNumericValue(userProfileData?.waist),
+        hipsIn: getNumericValue(userProfileData?.hips_in) ?? getNumericValue(userProfileData?.hip_circ_in) ?? getNumericValue(userProfileData?.hips),
+        shoulderIn: getNumericValue(userProfileData?.shoulder_in) ?? getNumericValue(userProfileData?.shoulder_width_in) ?? getNumericValue(userProfileData?.shoulder),
         inseamIn: getNumericValue(userProfileData?.inseam_in) ?? getNumericValue(userProfileData?.inseam),
         gender: userProfileData?.gender || null,
       };
@@ -902,18 +907,18 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       console.log('🎨 Final suitability profile:', userProfileForSuitability);
       
       // Get color - check multiple possible fields
-      // IMPORTANT: Check product.color first (this is what ProductScreen passes)
-      // Also check detectedColor and userEnteredColor (from auto-detection or manual input)
-      const productColorRaw = product?.color || product?.color_raw || product?.primaryColor || detectedColor || userEnteredColor || null;
+      // IMPORTANT: Use productToUse (which may be productOverride) for color values
+      // Priority: pickedColorName > detectedColor > productToUse.color > userEnteredColor > inferred
+      const productColorRaw = pickedColorName || detectedColor || productToUse?.color || productToUse?.color_raw || productToUse?.primaryColor || userEnteredColor || null;
       const productColor = (productColorRaw && String(productColorRaw).trim() !== '' && String(productColorRaw).trim() !== 'null' && String(productColorRaw).trim() !== 'undefined')
         ? String(productColorRaw).trim()
-        : (inferColor(product?.name) || null);
+        : (inferColor(productToUse?.name) || null);
       
       // If we have a detected/entered color but product doesn't have it, update product
-      if ((detectedColor || userEnteredColor) && !product?.color && productColor) {
+      if ((detectedColor || userEnteredColor || pickedColorName) && !productToUse?.color && productColor) {
         console.log('🎨 [FIT CHECK] Updating product color from detected/entered:', productColor);
         const updatedProduct = {
-          ...product,
+          ...productToUse,
           color: productColor,
         };
         setProduct(updatedProduct);
@@ -922,25 +927,26 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       // LOG: Color detection for debugging
       console.log('🎨 [FIT CHECK] Product color check:', {
         productColor: productColor,
-        productColorRaw: product?.color,
-        productColor_raw: product?.color_raw,
-        productPrimaryColor: product?.primaryColor,
-        productName: product?.name,
-        inferred: inferColor(product?.name),
         detectedColor: detectedColor,
+        pickedColorName: pickedColorName,
+        productToUseColor: productToUse?.color,
+        productToUseColorRaw: productToUse?.color_raw,
+        productToUsePrimaryColor: productToUse?.primaryColor,
+        productToUseName: productToUse?.name,
+        inferred: inferColor(productToUse?.name),
         userEnteredColor: userEnteredColor,
         hasColor: !!productColor && productColor !== 'unknown',
-        productObjectColor: product?.color,
       });
       
       // Get colorHex as source of truth (fallback to primaryColor for UI display)
-      const productColorHex = product?.colorHex || detectedColorHex || null;
+      // Priority: detected/picked hex > productToUse colorHex
+      const productColorHex = detectedColorHex || pickedColorHex || productToUse?.colorHex || null;
       
       const productForSuitability = {
-        primaryColor: productColor, // For UI display/fallback
-        colorHex: productColorHex, // Source of truth for color logic
+        primaryColor: productColor, // For UI display/fallback - includes detected/picked colors
+        colorHex: productColorHex, // Source of truth for color logic - includes detected/picked hex
         category: fitLogicCategory, // Use same category mapping
-        fitType: product?.fit || product?.fitType || null,
+        fitType: productToUse?.fit || productToUse?.fitType || null,
       };
       
       console.log('🎨 Input to styleSuitability - productForSuitability:', JSON.stringify(productForSuitability, null, 2));
@@ -1682,23 +1688,23 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                   </View>
 
                   {/* Color Display: Swatch + Name + Hex */}
-                  {(product?.color || detectedColor || userEnteredColor) ? (
+                  {(pickedColorName || detectedColor || product?.color || userEnteredColor) ? (
                     <View style={styles.colorDisplayRow}>
                       {/* Circular Color Swatch */}
                       <View style={[
                         styles.colorSwatch,
                         {
-                          backgroundColor: detectedColorHex || pickedColorHex || product?.colorHex || '#808080',
+                          backgroundColor: pickedColorHex || detectedColorHex || product?.colorHex || '#808080',
                         }
                       ]} />
                       
                       {/* Color Name and Hex */}
                       <View style={{ flex: 1 }}>
                         <Text style={styles.colorNameText}>
-                          Name: {product?.color || detectedColor || userEnteredColor}
+                          Name: {pickedColorName || detectedColor || product?.color || userEnteredColor}
                         </Text>
                         <Text style={styles.colorHexText}>
-                          HEX: {(detectedColorHex || pickedColorHex || product?.colorHex || '#808080').toUpperCase()}
+                          HEX: {(pickedColorHex || detectedColorHex || product?.colorHex || '#808080').toUpperCase()}
                         </Text>
                       </View>
                     </View>
@@ -1733,7 +1739,9 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                     <Text style={styles.missingDataText}>
                       {colorSuitability.reasons?.[0]?.includes('Color Profile') 
                         ? 'Need Color Info: Set your Color Profile (undertone + depth)'
-                        : 'Need Color Info: Product color not detected'}
+                        : (pickedColorName || detectedColor || product?.color) 
+                          ? 'Need Color Info: Set your Color Profile to get personalized color feedback'
+                          : 'Need Color Info: Product color not detected'}
                     </Text>
                     <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                       {colorSuitability.reasons?.[0]?.includes('Color Profile') && (
@@ -1744,7 +1752,26 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                             setRoute('account');
                           }}
                         >
-                          <Text style={styles.addDataBtnText}>Set Color Profile →</Text>
+                          <Text style={styles.addDataBtnText}>
+                            {userProfileDataState?.face_image_url || colorProfileState 
+                              ? 'Set Color Profile →' 
+                              : 'Upload Face Photo →'}
+                          </Text>
+                        </Pressable>
+                      )}
+                      {!colorSuitability.reasons?.[0]?.includes('Color Profile') && (pickedColorName || detectedColor || product?.color) && (
+                        <Pressable 
+                          style={styles.addDataBtn}
+                          onPress={() => {
+                            closeSheet();
+                            setRoute('account');
+                          }}
+                        >
+                          <Text style={styles.addDataBtnText}>
+                            {userProfileDataState?.face_image_url || colorProfileState 
+                              ? 'Set Color Profile →' 
+                              : 'Upload Face Photo →'}
+                          </Text>
                         </Pressable>
                       )}
                     </View>
@@ -1985,22 +2012,16 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                       ]}
                       onPress={() => {
                         setSelectedBrand(item);
-                        // Auto-apply brand size chart
+                        // Get brand size chart and show for confirmation
                         const category = product?.category || 'upper_body';
                         const brandChart = getBrandSizeChart(item, category);
                         if (brandChart) {
                           const sizeChart = convertBrandChartToFitLogic(brandChart);
-                          setParsedSizeChart(sizeChart);
-                          // Update product with size chart and reload insights
-                          const updatedProduct = {
-                            ...product,
-                            sizeChart: sizeChart,
-                            brand: item,
-                          };
-                          // Trigger reload with new data
-                          setTimeout(() => {
-                            loadInsights(true);
-                          }, 100);
+                          // Store sizeChart array directly for confirmation view
+                          setPendingParsedData(sizeChart);
+                          setShowParsedDataConfirmation(true);
+                        } else {
+                          Alert.alert('Brand Not Found', `Size chart for ${item} in ${category} category is not available. Please use manual entry or screenshot.`);
                         }
                       }}
                     >

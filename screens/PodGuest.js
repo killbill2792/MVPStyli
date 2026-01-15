@@ -11,7 +11,7 @@ import {
   Keyboard,
   ScrollView,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from '../lib/SimpleGradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { 
   getPod, 
@@ -26,6 +26,7 @@ import { Colors, Spacing } from '../lib/designSystem';
 import { supabase } from '../lib/supabase';
 import { useApp } from '../lib/AppContext';
 import { SafeImage, OptimizedImage } from '../lib/OptimizedImage';
+import { Avatar } from '../components/Avatar';
 
 const { width, height } = Dimensions.get('window');
 const BOTTOM_BAR_HEIGHT = 70;
@@ -40,6 +41,7 @@ const PodGuest = ({ podId, onBack, onRecap, userId }) => {
   const [userVote, setUserVote] = useState(null);
   const [newComment, setNewComment] = useState('');
   const [commentSubmitted, setCommentSubmitted] = useState(false);
+  const [hasCommented, setHasCommented] = useState(false);
   const [showVoteSuccess, setShowVoteSuccess] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [inviterInfo, setInviterInfo] = useState(null); // { name, avatar, id }
@@ -163,6 +165,29 @@ const PodGuest = ({ podId, onBack, onRecap, userId }) => {
     }
   };
 
+  // Check if user has already commented - only check once on mount, same pattern as voting
+  // Use hasUserCommentedOnPod which bypasses visibility restrictions
+  useEffect(() => {
+    const checkIfUserCommented = async () => {
+      if (!podId || !userId || podId === 'undefined' || podId.length < 30 || hasCommented) return;
+      
+      try {
+        const { hasUserCommentedOnPod } = await import('../lib/pods');
+        const userHasCommented = await hasUserCommentedOnPod(podId, userId);
+        if (userHasCommented) {
+          setHasCommented(true);
+          setCommentSubmitted(false); // Don't show "sent" message on load
+        }
+      } catch (error) {
+        console.error('Error checking user comment:', error);
+      }
+    };
+    
+    if (pod && userId && !hasCommented) {
+      checkIfUserCommented();
+    }
+  }, [pod, podId, userId, hasCommented]);
+
   const handleVote = async (choice) => {
     if (hasVoted) return;
     
@@ -184,12 +209,18 @@ const PodGuest = ({ podId, onBack, onRecap, userId }) => {
       return;
     }
     
-    if (!newComment.trim() || commentSubmitted) return;
+    if (!newComment.trim() || commentSubmitted || hasCommented) return; // Prevent multiple submissions
     
     const success = await addComment(podId, userId, newComment.trim());
     if (success) {
-      setCommentSubmitted(true);
+      // Set hasCommented immediately - same pattern as voting (setHasVoted)
+      setHasCommented(true);
       setNewComment('');
+      // Show "Comment sent" message for 1 second
+      setCommentSubmitted(true);
+      setTimeout(() => {
+        setCommentSubmitted(false);
+      }, 1000);
       Keyboard.dismiss();
     }
   };
@@ -226,6 +257,7 @@ const PodGuest = ({ podId, onBack, onRecap, userId }) => {
     <KeyboardAvoidingView 
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
       <View style={[styles.feedItem, { paddingTop: insets.top + 10 }]}>
         {/* Image Container - Explore Style */}
@@ -242,7 +274,14 @@ const PodGuest = ({ podId, onBack, onRecap, userId }) => {
             >
               {podImages.filter(img => img && typeof img === 'string').map((img, idx) => (
                 <View key={idx} style={{ width: width - 20, height: '100%' }}>
-                  <SafeImage source={{ uri: img }} style={styles.image} resizeMode="cover" />
+                  <SafeImage 
+                    source={{ uri: img }} 
+                    style={styles.image} 
+                    resizeMode="cover"
+                    width={width}  // Full width for pod images
+                    height={400}   // Thumbnail height for pod images
+                    quality={85}   // Good quality for pod images
+                  />
                   {/* Image Label */}
                   <View style={styles.imageLabel}>
                     <Text style={styles.imageLabelText}>{idx + 1}</Text>
@@ -252,7 +291,14 @@ const PodGuest = ({ podId, onBack, onRecap, userId }) => {
             </ScrollView>
           ) : (
             (podImages[0] || pod.image_url) ? (
-              <SafeImage source={{ uri: podImages[0] || pod.image_url }} style={styles.image} resizeMode="cover" />
+              <SafeImage 
+                source={{ uri: podImages[0] || pod.image_url }} 
+                style={styles.image} 
+                resizeMode="cover"
+                width={width}  // Full width for pod images
+                height={400}   // Thumbnail height for pod images
+                quality={85}   // Good quality for pod images
+              />
             ) : (
               <View style={[styles.image, { backgroundColor: '#333', justifyContent: 'center', alignItems: 'center' }]}>
                 <Text style={{ color: '#888', fontSize: 16 }}>No image</Text>
@@ -275,30 +321,25 @@ const PodGuest = ({ podId, onBack, onRecap, userId }) => {
             </View>
           )}
           
-          {/* Top Gradient */}
-          <LinearGradient
-            colors={['rgba(0,0,0,0.7)', 'transparent']}
-            style={styles.topGradient}
-          >
+          {/* Top Content - No container background */}
+          <View style={styles.topGradient}>
             {/* User Info Row - Adjusted to avoid X button */}
-            <View style={[styles.userRow, { marginLeft: 50 }]}>
-              {displayAvatar ? (
-                <SafeImage source={{ uri: displayAvatar }} style={styles.avatar} />
-              ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <Text style={styles.avatarText}>{displayName[0]?.toUpperCase() || 'S'}</Text>
-                </View>
-              )}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, marginLeft: 50 }}>
               <Pressable 
-                style={styles.userInfo}
+                style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}
                 onPress={() => {
                   if (displayUserId && setRoute) {
                     setRoute('userprofile', { userId: displayUserId });
                   }
                 }}
               >
-                <Text style={styles.userName}>{displayName}</Text>
-                <Text style={styles.podMode}>{getModeLabel(pod.audience)}</Text>
+                <Avatar 
+                  imageUri={displayAvatar} 
+                  name={displayName || 'User'} 
+                  size={20}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>{displayName}</Text>
               </Pressable>
               <View style={styles.timerBadge}>
                 <Text style={styles.timerText}>{isEnded ? '🔴 Ended' : `⏱ ${formatTime(timeLeft)}`}</Text>
@@ -307,7 +348,7 @@ const PodGuest = ({ podId, onBack, onRecap, userId }) => {
 
             {/* Question/Title */}
             <Text style={styles.podQuestion}>{pod.title}</Text>
-          </LinearGradient>
+          </View>
 
           {/* Bottom Gradient with Voting */}
           <LinearGradient
@@ -364,12 +405,9 @@ const PodGuest = ({ podId, onBack, onRecap, userId }) => {
               </View>
             )}
 
-            {/* Comment Input - for friends and global (even after voting) */}
-            {!isEnded && pod.audience !== 'style_twins' && (
+            {/* Comment Input - for friends and global (enabled until pod ends, even after voting) */}
+            {!isEnded && pod.audience !== 'style_twins' && !hasCommented && (
               <View style={styles.commentContainer}>
-                {commentSubmitted ? (
-                  <Text style={styles.commentSubmittedText}>✓ Comment sent</Text>
-                ) : (
                   <View style={styles.commentInputRow}>
                     <TextInput
                       style={styles.commentInput}
@@ -379,14 +417,26 @@ const PodGuest = ({ podId, onBack, onRecap, userId }) => {
                       onChangeText={setNewComment}
                       returnKeyType="send"
                       onSubmitEditing={handleSubmitComment}
+                      editable={!isEnded && !commentSubmitted && !hasCommented}
                     />
-                    {newComment.trim() && (
-                      <Pressable style={styles.sendBtn} onPress={handleSubmitComment}>
-                        <Text style={styles.sendBtnText}>Send</Text>
-                      </Pressable>
-                    )}
+                    <Pressable
+                      onPress={handleSubmitComment}
+                      disabled={!newComment.trim() || commentSubmitted || hasCommented}
+                      style={[
+                        styles.sendBtn,
+                        (!newComment.trim() || commentSubmitted || hasCommented) && { opacity: 0.5 }
+                      ]}
+                    >
+                      <Text style={styles.sendBtnText}>Send</Text>
+                    </Pressable>
                   </View>
-                )}
+              </View>
+            )}
+            
+            {/* Show "Comment sent" message for 1 second after submission */}
+            {!isEnded && pod.audience !== 'style_twins' && hasCommented && commentSubmitted && (
+              <View style={styles.commentContainer}>
+                <Text style={styles.commentSubmittedText}>✓ Comment sent</Text>
               </View>
             )}
 
@@ -406,21 +456,34 @@ const PodGuest = ({ podId, onBack, onRecap, userId }) => {
           </LinearGradient>
 
           {/* Product Thumbnail if available */}
-          {(pod.product_image || pod.product_url) && (
+          {pod.product_image && pod.product_url && (
             <Pressable 
               style={[styles.productThumb, { top: 70, right: 16 }]} // Position below header
-              onPress={() => {
-                if (pod.product_url) {
-                   Linking.openURL(pod.product_url);
-                } else {
-                   Alert.alert('Original Product', 'This is the outfit used for the try-on.');
+              onPress={async () => {
+                try {
+                  if (pod.product_url) {
+                    const canOpen = await Linking.canOpenURL(pod.product_url);
+                    if (canOpen) {
+                      await Linking.openURL(pod.product_url);
+                    } else {
+                      Alert.alert('Error', 'Cannot open this URL.');
+                    }
+                  } else {
+                    Alert.alert('Original Product', 'This is the outfit used for the try-on.');
+                  }
+                } catch (error) {
+                  console.error('Error opening product URL:', error);
+                  Alert.alert('Error', 'Failed to open product link.');
                 }
               }}
             >
               <SafeImage 
-                source={{ uri: pod.product_image || 'https://via.placeholder.com/50' }} 
+                source={{ uri: pod.product_image }} 
                 style={{ width: 40, height: 40, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' }}
                 resizeMode="cover"
+                width={40}  // Small thumbnail for product overlay
+                height={40} // Small thumbnail for product overlay
+                quality={85} // Good quality for small thumbnails
               />
               <View style={{ position: 'absolute', bottom: -5, right: -5, backgroundColor: '#000', borderRadius: 6, paddingHorizontal: 4 }}>
                 <Text style={{ color: '#fff', fontSize: 8 }}>Original</Text>
@@ -553,15 +616,15 @@ const styles = StyleSheet.create({
     gap: 24,
   },
   voteBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
   },
   voteEmoji: {
-    fontSize: 28,
+    fontSize: 40,
   },
   votedFeedback: {
     alignItems: 'center',
@@ -585,27 +648,35 @@ const styles = StyleSheet.create({
   },
   commentInput: {
     flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     color: '#fff',
     fontSize: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
   },
   sendBtn: {
-    backgroundColor: '#6366f1',
+    backgroundColor: 'rgba(0,0,0,0.3)',
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
   },
   sendBtnText: {
     color: '#fff',
     fontWeight: '600',
+    fontSize: 14,
   },
   commentSubmittedText: {
     color: '#10b981',
     fontSize: 14,
     textAlign: 'center',
+    paddingVertical: 10,
   },
   endedContainer: {
     alignItems: 'center',

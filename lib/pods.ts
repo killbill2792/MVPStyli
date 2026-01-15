@@ -268,8 +268,56 @@ export const getPodComments = async (podId: string, viewerId?: string): Promise<
           guest_name: v.guest_name, // Store guest name for display
         }));
       
-      // Combine regular comments and guest comments, sort by created_at
-      const allComments = [...(comments || []), ...guestComments].sort((a, b) => 
+      // Filter out comments from pod_comments that are duplicates of guest comments
+      // Guest comments might be stored in BOTH pod_comments (with [Guest: Name] prefix) AND pod_votes
+      const filteredRegularComments = (comments || []).filter(c => {
+        const body = c.body || '';
+        // If this comment starts with [Guest:, it's likely a duplicate of a guest vote comment
+        if (body.startsWith('[Guest:')) {
+          // Extract the actual comment text after [Guest: Name]
+          const match = body.match(/^\[Guest:\s*([^\]]+)\]\s*(.*)$/);
+          if (match) {
+            const guestName = match[1].trim();
+            const actualComment = match[2].trim().toLowerCase();
+            // Check if we have the same comment in guestComments
+            const isDuplicate = guestComments.some(gc => {
+              const gcBody = (gc.body || '').trim().toLowerCase();
+              const gcName = (gc.guest_name || '').trim();
+              return gcBody === actualComment && gcName.toLowerCase() === guestName.toLowerCase();
+            });
+            if (isDuplicate) {
+              return false; // Skip this duplicate
+            }
+          }
+        }
+        return true;
+      });
+      
+      // Combine filtered regular comments and guest comments
+      const allRawComments = [...filteredRegularComments, ...guestComments];
+      
+      // Additional deduplication by body content and time
+      const seen = new Set<string>();
+      const uniqueComments = allRawComments.filter(c => {
+        // Normalize body - strip [Guest: Name] prefix if present
+        let bodyNormalized = (c.body || '').trim().toLowerCase();
+        const guestMatch = bodyNormalized.match(/^\[guest:\s*[^\]]+\]\s*(.*)$/i);
+        if (guestMatch) {
+          bodyNormalized = guestMatch[1].trim();
+        }
+        
+        const timeWindow = Math.floor(new Date(c.created_at).getTime() / 60000); // 1 minute window
+        const guestKey = c.guest_name || c.author_id || 'unknown';
+        const uniqueKey = `${bodyNormalized}-${guestKey}-${timeWindow}`;
+        
+        if (seen.has(uniqueKey)) {
+          return false; // Skip duplicate
+        }
+        seen.add(uniqueKey);
+        return true;
+      });
+      
+      const allComments = uniqueComments.sort((a, b) => 
         new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       );
       
@@ -302,11 +350,37 @@ export const addComment = async (podId: string, authorId: string, body: string):
   }
 };
 
+// Check if user has already commented on a pod
+// This is a direct check that bypasses visibility restrictions
+// Used to determine if comment box should be shown
+export const hasUserCommentedOnPod = async (podId: string, userId: string): Promise<boolean> => {
+  try {
+    if (!podId || !userId) return false;
+    
+    const { data, error } = await supabase
+      .from('pod_comments')
+      .select('id')
+      .eq('pod_id', podId)
+      .eq('author_id', userId)
+      .limit(1);
+    
+    if (error) throw error;
+    return data && data.length > 0;
+  } catch (error) {
+    console.error('Error checking if user commented:', error);
+    return false;
+  }
+};
+
 // Get user's active pods
 export const getUserActivePods = async (userId: string): Promise<Pod[]> => {
   try {
     console.log('Fetching active pods for user:', userId);
     
+    const now = new Date().toISOString();
+    
+    // Query pods that are live (status = 'live')
+    // We'll filter by ends_at client-side as well to ensure custom duration pods are included
     const { data, error } = await supabase
       .from('pods')
       .select('*')
@@ -319,8 +393,16 @@ export const getUserActivePods = async (userId: string): Promise<Pod[]> => {
       throw error;
     }
     
+    // Client-side filter: Only pods that haven't ended yet (based on ends_at timestamp)
+    // This ensures custom duration pods are included
+    const nowTime = new Date().getTime();
+    const activePods = (data || []).filter(pod => {
+      const endsAtTime = new Date(pod.ends_at).getTime();
+      return endsAtTime > nowTime;
+    });
+    
     // Filter out pods with invalid or missing image URLs
-    const validPods = (data || []).filter(pod => {
+    const validPods = activePods.filter(pod => {
       const hasValidImage = pod.image_url && 
                            typeof pod.image_url === 'string' && 
                            pod.image_url.startsWith('http');
@@ -330,7 +412,7 @@ export const getUserActivePods = async (userId: string): Promise<Pod[]> => {
       return hasValidImage;
     });
     
-    console.log('Active pods fetched successfully:', validPods.length, 'valid out of', data?.length || 0);
+    console.log('Active pods fetched successfully:', validPods.length, 'valid out of', data?.length || 0, 'total');
     return validPods;
   } catch (error) {
     console.error('Error fetching user active pods:', error);
@@ -344,11 +426,14 @@ export const getUserPastPods = async (userId: string): Promise<Pod[]> => {
   try {
     console.log('Fetching past pods for user:', userId);
     
+    const now = new Date().toISOString();
+    
+    // Get all pods owned by user
+    // Query all pods first, then filter client-side to catch pods that ended naturally
     const { data, error } = await supabase
       .from('pods')
       .select('*')
       .eq('owner_id', userId)
-      .eq('status', 'expired')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -367,8 +452,15 @@ export const getUserPastPods = async (userId: string): Promise<Pod[]> => {
       return hasValidImage;
     });
     
-    console.log('Past pods fetched successfully:', validPods.length, 'valid out of', data?.length || 0);
-    return validPods;
+    // Double-check: Only include pods that have actually ended (ends_at < now)
+    const nowTime = new Date().getTime();
+    const trulyPastPods = validPods.filter(pod => {
+      const endsAtTime = new Date(pod.ends_at).getTime();
+      return endsAtTime <= nowTime; // Only include pods that have actually ended
+    });
+    
+    console.log('Past pods fetched successfully:', trulyPastPods.length, 'valid out of', data?.length || 0);
+    return trulyPastPods;
   } catch (error) {
     console.error('Error fetching user past pods:', error);
     return [];
@@ -641,11 +733,25 @@ export const calculateConfidence = (votes: PodVote[]): number => {
 // Includes both app votes (voter_id) and guest votes (guest_id)
 export const getVoteCounts = (votes: PodVote[]) => {
   // Count all votes regardless of source (app or web guest)
+  const yes = votes.filter(v => v.choice === 'yes').length;
+  const maybe = votes.filter(v => v.choice === 'maybe').length;
+  const no = votes.filter(v => v.choice === 'no').length;
+  
+  // For multi-image pods, count votes by selectedOption (1, 2, 3, etc.)
+  const multiImageCounts: { [key: string]: number } = {};
+  votes.forEach(vote => {
+    if (vote.choice === 'yes' && vote.metadata?.selectedOption) {
+      const option = vote.metadata.selectedOption;
+      multiImageCounts[option] = (multiImageCounts[option] || 0) + 1;
+    }
+  });
+  
   return {
-    yes: votes.filter(v => v.choice === 'yes').length,
-    maybe: votes.filter(v => v.choice === 'maybe').length,
-    no: votes.filter(v => v.choice === 'no').length,
+    yes,
+    maybe,
+    no,
     total: votes.length,
+    multiImageCounts, // Add multi-image vote counts
     // Optional: breakdown by source
     appVotes: votes.filter(v => v.voter_id && !v.guest_id).length,
     guestVotes: votes.filter(v => v.guest_id).length,
@@ -758,48 +864,105 @@ export const getFriendsTabPods = async (userId: string): Promise<Pod[]> => {
 };
 
 // Get pods for Style Twins tab
+// IMPROVED LOGIC: Show pods to users who are good at the pod's style
+// With fallback for new users and low match counts
 export const getTwinsTabPods = async (userId: string): Promise<Pod[]> => {
+  const MIN_PODS_TO_SHOW = 5; // Minimum pods to show, fill with fallback if needed
+  
   try {
-    // 1. Get similar users (Style Twins)
-    const twins = await getStyleTwins(userId);
-    const twinIds = twins.map(t => t.user_id);
-
-    // 2. If no twins found (new user), fall back to standard "style_twins" audience query
-    if (twinIds.length === 0) {
-       // FIX: Include ended pods from last 7 days as recaps
-       const sevenDaysAgo = new Date();
-       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-       
-       const { data, error } = await supabase
-        .from('pods')
-        .select('*')
-        .eq('audience', 'style_twins')
-        .neq('owner_id', userId || '')
-        .or(`status.eq.live,ends_at.gte.${sevenDaysAgo.toISOString()}`) // Live or ended in last 7 days
-        .order('created_at', { ascending: false })
-        .limit(20);
-       if (error) throw error;
-       return enrichPodsWithOwner(data || []);
-    }
-
-    // 3. Fetch public pods from these twins
-    // FIX: Only show style_twins audience, not global_mix (to avoid leaking Global pods)
-    // FIX: Include ended pods from last 7 days as recaps
+    // 1. Get all style_twins audience pods (live or ended in last 7 days)
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     
-    const { data, error } = await supabase
+    const { data: allTwinsPods, error: fetchError } = await supabase
       .from('pods')
       .select('*')
-      .in('owner_id', twinIds) // Pods from my twins
-      .eq('audience', 'style_twins') // Only style_twins, not global_mix
+      .eq('audience', 'style_twins')
       .neq('owner_id', userId || '')
-      .or(`status.eq.live,ends_at.gte.${sevenDaysAgo.toISOString()}`) // Live or ended in last 7 days
+      .or(`status.eq.live,ends_at.gte.${sevenDaysAgo.toISOString()}`)
       .order('created_at', { ascending: false })
-      .limit(20);
-
-    if (error) throw error;
-    return enrichPodsWithOwner(data || []);
+      .limit(100);
+    
+    if (fetchError) throw fetchError;
+    if (!allTwinsPods || allTwinsPods.length === 0) {
+      return [];
+    }
+    
+    // 2. Check if user has a style profile
+    const { data: userProfile } = await supabase
+      .from('user_style_profile')
+      .select('top_style_tags, top_colors, top_categories')
+      .eq('user_id', userId)
+      .single();
+    
+    const hasStyleProfile = userProfile && (
+      (userProfile.top_style_tags?.length > 0) ||
+      (userProfile.top_colors?.length > 0) ||
+      (userProfile.top_categories?.length > 0)
+    );
+    
+    // 3. For each pod, check if current user is good at that pod's style
+    const matchingPods: Pod[] = [];
+    const fallbackPods: Pod[] = []; // Pods that don't match but can be shown as fallback
+    
+    for (const pod of allTwinsPods) {
+      const podTags = pod.product_tags || [];
+      const podColors = pod.product_colors || [];
+      const podCategory = pod.product_category || null;
+      
+      // If pod has no style metadata, add to fallback
+      if (podTags.length === 0 && podColors.length === 0 && !podCategory) {
+        fallbackPods.push(pod);
+        continue;
+      }
+      
+      // If user has no style profile, add to fallback (new users see all pods)
+      if (!hasStyleProfile) {
+        fallbackPods.push(pod);
+        continue;
+      }
+      
+      // Check if current user is good at this pod's style
+      const { data: styleMatch, error: matchError } = await supabase.rpc('get_users_good_at_style', {
+        pod_tags: podTags,
+        pod_colors: podColors,
+        pod_category: podCategory
+      });
+      
+      if (matchError) {
+        console.error('Error checking style match:', matchError);
+        fallbackPods.push(pod);
+        continue;
+      }
+      
+      // Check if current user is in the list of users good at this style
+      const userMatches = styleMatch?.some((match: any) => match.user_id === userId) || false;
+      
+      if (userMatches) {
+        matchingPods.push(pod);
+      } else {
+        fallbackPods.push(pod);
+      }
+    }
+    
+    // 4. If user has no profile or few matching pods, add fallbacks
+    let finalPods = [...matchingPods];
+    
+    if (!hasStyleProfile || matchingPods.length < MIN_PODS_TO_SHOW) {
+      // For new users: show all pods as discovery
+      // For established users with few matches: add some variety
+      const neededFallbacks = MIN_PODS_TO_SHOW - matchingPods.length;
+      const fallbacksToAdd = fallbackPods.slice(0, Math.max(neededFallbacks, 3));
+      finalPods = [...matchingPods, ...fallbacksToAdd];
+    }
+    
+    // 5. Remove duplicates and limit
+    const uniquePods = finalPods.filter((pod, idx, arr) => 
+      arr.findIndex(p => p.id === pod.id) === idx
+    );
+    
+    // 6. Enrich with owner info and return
+    return enrichPodsWithOwner(uniquePods.slice(0, 20));
   } catch (error) {
     console.error('Error fetching twins tab pods:', error);
     return [];
@@ -944,6 +1107,22 @@ export const markAllNotificationsRead = async (userId: string): Promise<boolean>
     return true;
   } catch (error) {
     console.error('Error marking all notifications read:', error);
+    return false;
+  }
+};
+
+// Clear all notifications for a user
+export const clearAllNotifications = async (userId: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('notifications')
+      .delete()
+      .eq('user_id', userId);
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Error clearing notifications:', error);
     return false;
   }
 };

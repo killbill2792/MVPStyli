@@ -199,16 +199,53 @@ export default function ChatScreen({ onBack, onProductSelect }) {
             return hasImage && hasName;
           });
           
-          // Normalize product structure
-          products = products.map(p => ({
-            id: p.id || `prod_${idx}_${Math.random().toString(36).substr(2, 9)}`,
-            name: p.name || p.title || 'Product',
-            price: p.price,
-            image: p.image || p.imageUrl, // Use image or imageUrl
-            brand: p.brand,
-            url: p.url || p.buyUrl || p.productUrl,
-            category: p.category
-          }));
+          // Normalize product structure - ensure image is always set if available
+          products = products.map(p => {
+            // Extract image URL - check all possible fields
+            let imgUrl = p.image || p.imageUrl || p.images?.[0] || null;
+            
+            // Ensure imgUrl is a string and not truncated
+            if (imgUrl && typeof imgUrl === 'string') {
+              imgUrl = imgUrl.trim();
+              // Check if URL looks incomplete (ends with :tbn: or similar incomplete patterns)
+              if (imgUrl.endsWith(':tbn:') || (imgUrl.endsWith(':') && imgUrl.length < 100)) {
+                console.warn('⚠️ ChatScreen: Incomplete image URL detected:', imgUrl);
+                // Try to get full URL from images array if available
+                if (p.images && Array.isArray(p.images) && p.images.length > 0) {
+                  const fullUrl = p.images.find(img => 
+                    img && typeof img === 'string' && 
+                    !img.endsWith(':tbn:') && 
+                    !img.endsWith(':') &&
+                    img.length > 50
+                  );
+                  if (fullUrl) {
+                    imgUrl = fullUrl.trim();
+                    console.log('✅ ChatScreen: Using full URL from images array');
+                  }
+                }
+                // If still incomplete, set to null to show placeholder
+                if (imgUrl.endsWith(':tbn:') || (imgUrl.endsWith(':') && imgUrl.length < 100)) {
+                  console.warn('⚠️ ChatScreen: Image URL still incomplete, using placeholder');
+                  const productName = p.name || p.title || 'Product';
+                  const placeholderName = encodeURIComponent(productName.substring(0, 30));
+                  imgUrl = `https://via.placeholder.com/300x400/333333/FFFFFF?text=${placeholderName}`;
+                }
+              }
+            } else {
+              imgUrl = null;
+            }
+            
+            return {
+              id: p.id || `prod_${idx}_${Math.random().toString(36).substr(2, 9)}`,
+              name: p.name || p.title || 'Product',
+              price: p.price,
+              image: imgUrl, // Set image field
+              imageUrl: imgUrl, // Also set imageUrl for compatibility
+              brand: p.brand,
+              url: p.url || p.buyUrl || p.productUrl,
+              category: p.category
+            };
+          });
           
           console.log(`✅ Message ${idx} final products:`, products.length);
           
@@ -305,16 +342,22 @@ export default function ChatScreen({ onBack, onProductSelect }) {
       let productsToSave = null;
       if (message.products && message.products.length > 0) {
         // Only keep essential fields that can be serialized
-        productsToSave = message.products.map(p => ({
-          id: p.id || `prod_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          name: p.name || p.title || 'Product',
-          price: p.price,
-          image: p.image || p.imageUrl, // Support both field names
-          brand: p.brand,
-          url: p.url || p.buyUrl || p.productUrl,
-          category: p.category
-        }));
-        console.log('📦 Products to save:', productsToSave.map(p => ({ name: p.name, hasImage: !!p.image })));
+        productsToSave = message.products.map(p => {
+          // Extract image URL - check all possible fields
+          const imgUrl = p.image || p.imageUrl || p.images?.[0] || null;
+          
+          return {
+            id: p.id || `prod_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            name: p.name || p.title || 'Product',
+            price: p.price,
+            image: imgUrl, // Set image field
+            imageUrl: imgUrl, // Also set imageUrl for compatibility
+            brand: p.brand,
+            url: p.url || p.buyUrl || p.productUrl,
+            category: p.category
+          };
+        });
+        console.log('📦 Products to save:', productsToSave.map(p => ({ name: p.name, hasImage: !!p.image, imageUrl: p.image?.substring(0, 30) })));
       }
       
       console.log('💾 Saving message:', { 
@@ -601,18 +644,25 @@ export default function ChatScreen({ onBack, onProductSelect }) {
                   borderTopRightRadius: BorderRadius.sm,
                   maxWidth: '80%'
                 }}>
-                  {msg.image && (
-                    <OptimizedImage 
-                      source={{ uri: msg.image }} 
-                      style={{ 
-                        width: 200, 
-                        height: 200, 
-                        borderRadius: BorderRadius.md, 
-                        marginBottom: Spacing.sm 
-                      }} 
-                      resizeMode="cover"
-                    />
-                  )}
+                  {(() => {
+                    // Safely extract image URL - ensure it's a valid string
+                    const imgUrl = msg.image;
+                    const isValidUrl = imgUrl && typeof imgUrl === 'string' && imgUrl.trim().length > 0;
+                    
+                    return isValidUrl ? (
+                      <OptimizedImage 
+                        source={{ uri: imgUrl.trim() }} 
+                        style={{ 
+                          width: 200, 
+                          height: 200, 
+                          borderRadius: BorderRadius.md, 
+                          marginBottom: Spacing.sm 
+                        }} 
+                        resizeMode="cover"
+                        showErrorPlaceholder={false}
+                      />
+                    ) : null;
+                  })()}
                   {msg.message && (
                     <Text style={{ ...TextStyles.body, color: Colors.primary }}>
                       {msg.message}
@@ -641,53 +691,131 @@ export default function ChatScreen({ onBack, onProductSelect }) {
                       gap: Spacing.sm,
                       marginTop: Spacing.sm
                     }}>
-                      {msg.products.map((product, pIdx) => (
-                        <Pressable
-                          key={product.id || pIdx}
-                          onPress={() => handleProductPress(product)}
-                          style={{
-                            width: '48%',
-                            backgroundColor: Colors.background,
-                            borderRadius: BorderRadius.md,
-                            overflow: 'hidden',
-                            borderWidth: 1,
-                            borderColor: Colors.border,
-                          }}
-                        >
-                          {(product.image || product.imageUrl) ? (
-                            <OptimizedImage 
-                              source={{ uri: product.image || product.imageUrl }} 
-                              style={{ 
+                      {msg.products.map((product, pIdx) => {
+                        // Safely extract product properties to avoid Symbol issues
+                        let productId, productName, productPrice, productImage;
+                        try {
+                          productId = product?.id || `prod_${pIdx}`;
+                          productName = product?.name || product?.title || 'Product';
+                          productPrice = product?.price;
+                          // Extract image URL safely - check both image and imageUrl fields
+                          const img1 = product?.image;
+                          const img2 = product?.imageUrl;
+                          
+                          // Debug: Log product data to see what we have
+                          if (pIdx === 0) {
+                            console.log('🖼️ ChatScreen: Product data sample:', {
+                              id: productId,
+                              name: productName,
+                              hasImage: !!img1,
+                              hasImageUrl: !!img2,
+                              imageType: typeof img1,
+                              imageUrlType: typeof img2,
+                              imageValue: img1 ? String(img1) : null, // Full URL, not truncated
+                              imageUrlValue: img2 ? String(img2) : null, // Full URL, not truncated
+                              imageLength: img1 ? String(img1).length : 0,
+                              imageUrlLength: img2 ? String(img2).length : 0,
+                            });
+                          }
+                          
+                          productImage = (img1 && typeof img1 === 'string' && img1.trim()) 
+                            ? img1.trim() 
+                            : (img2 && typeof img2 === 'string' && img2.trim()) 
+                              ? img2.trim() 
+                              : null;
+                          
+                          // Check if URL is incomplete (ends with :tbn: or similar)
+                          if (productImage && (
+                            productImage.endsWith(':tbn:') || 
+                            (productImage.endsWith(':') && productImage.length < 100) ||
+                            productImage.length < 20
+                          )) {
+                            console.warn('⚠️ ChatScreen: Incomplete image URL detected:', productImage);
+                            // Try to use a placeholder image service instead
+                            // Use product name to generate a placeholder
+                            const placeholderName = encodeURIComponent(productName.substring(0, 30));
+                            productImage = `https://via.placeholder.com/300x400/333333/FFFFFF?text=${placeholderName}`;
+                            console.log('✅ ChatScreen: Using placeholder image instead');
+                          }
+                          
+                          if (pIdx === 0) {
+                            console.log('🖼️ ChatScreen: Extracted image URL (full):', productImage);
+                            console.log('🖼️ ChatScreen: Extracted image URL length:', productImage ? productImage.length : 0);
+                          }
+                        } catch (e) {
+                          console.warn('ChatScreen: Error extracting product properties:', e?.message);
+                          productId = `prod_${pIdx}`;
+                          productName = 'Product';
+                          productPrice = null;
+                          productImage = null;
+                        }
+                        
+                        return (
+                          <Pressable
+                            key={productId}
+                            onPress={() => handleProductPress(product)}
+                            style={{
+                              width: '48%',
+                              backgroundColor: Colors.background,
+                              borderRadius: BorderRadius.md,
+                              overflow: 'hidden',
+                              borderWidth: 1,
+                              borderColor: Colors.border,
+                            }}
+                          >
+                            {productImage ? (
+                              <OptimizedImage
+                                source={{ uri: productImage }} 
+                                style={{ 
+                                  width: '100%', 
+                                  height: 150,
+                                  backgroundColor: Colors.backgroundSecondary
+                                }}
+                                resizeMode="cover"
+                                width={300}  // Thumbnail width for product cards
+                                height={150} // Thumbnail height for product cards
+                                quality={85}  // Good quality for product cards
+                                showErrorPlaceholder={true}
+                                placeholder={
+                                  <View style={{ 
+                                    width: '100%', 
+                                    height: 150,
+                                    backgroundColor: Colors.backgroundSecondary,
+                                    justifyContent: 'center',
+                                    alignItems: 'center'
+                                  }}>
+                                    <ActivityIndicator size="small" color={Colors.textSecondary} />
+                                  </View>
+                                }
+                                onError={() => {
+                                  console.warn('🖼️ ChatScreen: OptimizedImage failed to load:', productImage?.substring(0, 100));
+                                }}
+                              />
+                            ) : (
+                              <View style={{ 
                                 width: '100%', 
                                 height: 150,
-                                backgroundColor: Colors.backgroundSecondary
-                              }}
-                              resizeMode="cover"
-                            />
-                          ) : (
-                            <View style={{ 
-                              width: '100%', 
-                              height: 150,
-                              backgroundColor: Colors.backgroundSecondary,
-                              justifyContent: 'center',
-                              alignItems: 'center'
-                            }}>
-                              <Text style={{ ...TextStyles.caption, color: Colors.textSecondary }}>No Image</Text>
+                                backgroundColor: Colors.backgroundSecondary,
+                                justifyContent: 'center',
+                                alignItems: 'center'
+                              }}>
+                                <Text style={{ ...TextStyles.caption, color: Colors.textSecondary }}>No Image</Text>
+                              </View>
+                            )}
+                            <View style={{ padding: Spacing.sm }}>
+                              <Text 
+                                style={{ ...TextStyles.small, fontWeight: Typography.semibold }}
+                                numberOfLines={1}
+                              >
+                                {productName}
+                              </Text>
+                              <Text style={{ ...TextStyles.caption, color: Colors.primary, marginTop: 2 }}>
+                                ${productPrice || 'N/A'}
+                              </Text>
                             </View>
-                          )}
-                          <View style={{ padding: Spacing.sm }}>
-                            <Text 
-                              style={{ ...TextStyles.small, fontWeight: Typography.semibold }}
-                              numberOfLines={1}
-                            >
-                              {product.name}
-                            </Text>
-                            <Text style={{ ...TextStyles.caption, color: Colors.primary, marginTop: 2 }}>
-                              ${product.price || 'N/A'}
-                            </Text>
-                          </View>
-                        </Pressable>
-                      ))}
+                          </Pressable>
+                        );
+                      })}
                     </View>
                   )}
                 </View>

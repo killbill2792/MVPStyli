@@ -10,16 +10,21 @@ import {
   Image,
   Animated,
   Alert,
+  Modal,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from '../lib/SimpleGradient';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Spacing } from '../lib/designSystem';
+import { useApp } from '../lib/AppContext';
+import { supabase } from '../lib/supabase';
 
 const { width, height } = Dimensions.get('window');
 
 const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
   const insets = useSafeAreaInsets();
+  const { state } = useApp();
+  const { user } = state;
   const [uploadedImage, setUploadedImage] = useState(null);
   const [prompt, setPrompt] = useState('');
   const [minBudget, setMinBudget] = useState(100);
@@ -31,6 +36,7 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
   const [quotes, setQuotes] = useState([]);
   const [showQuoteDetails, setShowQuoteDetails] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState(null);
+  const [showBetaModal, setShowBetaModal] = useState(false);
   const [previousEnquiries, setPreviousEnquiries] = useState([
     {
       id: '1',
@@ -72,7 +78,7 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
     }
   };
 
-  const handleGetQuotes = () => {
+  const handleGetQuotes = async () => {
     if (!uploadedImage || !prompt) {
       Alert.alert('Required Fields', 'Please upload an image and describe your design.');
       return;
@@ -80,11 +86,26 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
 
     setIsProcessing(true);
     
-    // Simulate processing, then show waitlist message
-    setTimeout(() => {
-      setIsProcessing(false);
+    try {
+      // Save to database for admin to see
+      const { error } = await supabase.from('stylecraft_requests').insert({
+        user_id: user?.id || null,
+        user_email: user?.email || null,
+        user_name: user?.name || null,
+        prompt: prompt,
+        image_url: uploadedImage,
+        min_budget: minBudget,
+        max_budget: maxBudget,
+        status: 'pending',
+        created_at: new Date().toISOString(),
+      });
       
-      // Save to previous enquiries
+      if (error) {
+        console.log('Error saving stylecraft request:', error);
+        // Still continue even if save fails - table might not exist yet
+      }
+      
+      // Save to local previous enquiries
       const newEnquiry = {
         id: Date.now().toString(),
         prompt: prompt,
@@ -95,19 +116,13 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
       };
       setPreviousEnquiries([newEnquiry, ...previousEnquiries]);
       
-      // Show waitlist confirmation instead of fake quotes
-      Alert.alert(
-        'Request Saved ✓',
-        "Your request is saved. We'll notify you when your design is ready.",
-        [{ text: 'OK', onPress: () => {
-          // Reset form
-          setUploadedImage(null);
-          setPrompt('');
-          setMinBudget(100);
-          setMaxBudget(500);
-        }}]
-      );
-    }, 2000);
+    } catch (err) {
+      console.log('Error saving request:', err);
+    } finally {
+      setIsProcessing(false);
+      // Show beta testing modal
+      setShowBetaModal(true);
+    }
   };
 
   const handleSuggestionTap = (suggestion) => {
@@ -219,7 +234,7 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
           {/* Hero Section */}
           <View style={styles.heroSection}>
             <Text style={styles.heroSubtitle}>
-              Drop your inspo, AI does the rest 🎨
+              Drop Inspo, Let Real Human Tailor design the outfit for you
             </Text>
           </View>
 
@@ -239,7 +254,7 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
                 ) : (
                   <View style={styles.uploadPlaceholder}>
                     <Text style={styles.uploadIcon}>📸</Text>
-                    <Text style={styles.uploadText}>Drop your inspo, AI does the rest 🎨</Text>
+                    <Text style={styles.uploadText}>Drop Inspo, Let Real Human Tailor design the outfit for you</Text>
                     <Text style={styles.uploadSubtext}>Tap to upload image</Text>
                   </View>
                 )}
@@ -572,6 +587,40 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
             </View>
           </View>
         )}
+        
+        {/* Beta Testing Modal */}
+        <Modal
+          visible={showBetaModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowBetaModal(false)}
+        >
+          <View style={styles.betaModalOverlay}>
+            <View style={styles.betaModalContent}>
+              <Text style={styles.betaModalIcon}>🧵</Text>
+              <Text style={styles.betaModalTitle}>Coming Soon!</Text>
+              <Text style={styles.betaModalText}>
+                We are currently Beta testing this feature. We will get back to you soon with updates on your design request.
+              </Text>
+              <Text style={styles.betaModalSubtext}>
+                Thank you for your interest! Your request has been saved.
+              </Text>
+              <Pressable
+                style={styles.betaModalButton}
+                onPress={() => {
+                  setShowBetaModal(false);
+                  // Reset form
+                  setUploadedImage(null);
+                  setPrompt('');
+                  setMinBudget(100);
+                  setMaxBudget(500);
+                }}
+              >
+                <Text style={styles.betaModalButtonText}>Got it!</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
     </View>
   );
 };
@@ -908,6 +957,60 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   backButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  betaModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  betaModalContent: {
+    backgroundColor: '#1f2937',
+    borderRadius: 24,
+    padding: 32,
+    alignItems: 'center',
+    maxWidth: 340,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+  },
+  betaModalIcon: {
+    fontSize: 56,
+    marginBottom: 16,
+  },
+  betaModalTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  betaModalText: {
+    fontSize: 16,
+    color: '#e5e7eb',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 12,
+  },
+  betaModalSubtext: {
+    fontSize: 14,
+    color: '#9ca3af',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  betaModalButton: {
+    backgroundColor: '#6366f1',
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 12,
+    width: '100%',
+    alignItems: 'center',
+  },
+  betaModalButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',

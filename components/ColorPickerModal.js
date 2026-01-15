@@ -15,7 +15,8 @@ import {
   PanResponder,
   Animated,
 } from 'react-native';
-import { WebView } from 'react-native-webview';
+// TEMPORARILY DISABLED: react-native-webview removed to test Fabric crash
+// import { WebView } from 'react-native-webview';
 
 const { width, height } = Dimensions.get('window');
 
@@ -413,15 +414,13 @@ const ColorPickerModal = ({ visible, imageUri, onColorPicked, onClose }) => {
           </View>
           
           <View style={styles.webViewContainer}>
-            <WebView
-              ref={webViewRef}
-              source={{ html: htmlContent }}
-              style={styles.webView}
-              onMessage={handleMessage}
-              javaScriptEnabled={true}
-              domStorageEnabled={true}
-              scalesPageToFit={true}
-            />
+            {/* TEMPORARILY DISABLED: WebView removed to test Fabric crash */}
+            <View style={[styles.webView, { justifyContent: 'center', alignItems: 'center' }]}>
+              <Text style={{ color: '#fff', textAlign: 'center' }}>
+                Color picker temporarily disabled{'\n'}
+                (Testing Fabric crash fix)
+              </Text>
+            </View>
           </View>
           
           <View style={styles.instructions}>

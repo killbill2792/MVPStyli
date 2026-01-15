@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stylit</title>
+    <script>
+        // This page handles auth redirects from Supabase when they go to the base URL
+        // Supabase sometimes redirects to the base URL with hash fragments
+        (function() {
+            const hash = window.location.hash.substring(1);
+            if (!hash) {
+                // No hash, redirect to main site
+                window.location.href = '/';
+                return;
+            }
+            
+            const params = new URLSearchParams(hash);
+            const type = params.get('type');
+            const error = params.get('error');
+            
+            // Determine which page to redirect to based on type or error context
+            if (type === 'recovery' || (error && hash.includes('reset'))) {
+                // Password reset
+                window.location.href = '/reset_password.html' + window.location.hash;
+            } else if (type === 'signup' || type === 'email' || (error && hash.includes('confirm'))) {
+                // Email confirmation
+                window.location.href = '/confirm_email.html' + window.location.hash;
+            } else {
+                // Default to email confirmation for signup flows
+                window.location.href = '/confirm_email.html' + window.location.hash;
+            }
+        })();
+    </script>
+</head>
+<body>
+    <div style="text-align: center; padding: 50px; font-family: sans-serif;">
+        <p>Redirecting...</p>
+    </div>
+</body>
+</html>

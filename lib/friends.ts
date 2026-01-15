@@ -284,18 +284,81 @@ export async function addFriend(userId: string, friendIdentifier: string, type: 
 // Remove/unfriend a friend (deletes friendship from both sides)
 export async function unfriend(userId: string, friendId: string): Promise<boolean> {
   try {
+    console.log('Unfriend: Starting deletion for', userId, 'and', friendId);
+    
+    // First, check if friendship exists in either direction
+    const { data: existing1 } = await supabase
+      .from('friends')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('friend_id', friendId)
+      .maybeSingle();
+    
+    const { data: existing2 } = await supabase
+      .from('friends')
+      .select('id')
+      .eq('user_id', friendId)
+      .eq('friend_id', userId)
+      .maybeSingle();
+    
+    console.log('Unfriend: Existing records found:', { existing1: !!existing1, existing2: !!existing2 });
+    
     // Delete both directions of the friendship
-    // 1. Delete where user_id = userId and friend_id = friendId
-    const { error: error1 } = await supabase
+    // Delete where user_id = userId and friend_id = friendId
+    const { error: error1, data: deleted1, count: count1 } = await supabase
       .from('friends')
       .delete()
-      .or(`and(user_id.eq.${userId},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${userId})`);
+      .eq('user_id', userId)
+      .eq('friend_id', friendId)
+      .select();
     
     if (error1) {
-      console.error('Error unfriending:', error1);
+      console.error('Error unfriending (direction 1):', error1);
       return false;
     }
     
+    console.log('Unfriend: Deleted direction 1:', deleted1, 'count:', count1);
+    
+    // Delete where user_id = friendId and friend_id = userId
+    const { error: error2, data: deleted2, count: count2 } = await supabase
+      .from('friends')
+      .delete()
+      .eq('user_id', friendId)
+      .eq('friend_id', userId)
+      .select();
+    
+    if (error2) {
+      console.error('Error unfriending (direction 2):', error2);
+      return false;
+    }
+    
+    console.log('Unfriend: Deleted direction 2:', deleted2, 'count:', count2);
+    
+    // Verify deletion worked - check if records still exist
+    const { data: verify1 } = await supabase
+      .from('friends')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('friend_id', friendId)
+      .maybeSingle();
+    
+    const { data: verify2 } = await supabase
+      .from('friends')
+      .select('id')
+      .eq('user_id', friendId)
+      .eq('friend_id', userId)
+      .maybeSingle();
+    
+    const stillExists = !!(verify1 || verify2);
+    console.log('Unfriend: Verification - records still exist?', stillExists);
+    
+    if (stillExists) {
+      console.error('Unfriend: Deletion failed - records still exist after delete operation');
+      console.error('This likely means RLS DELETE policy is missing or incorrect');
+      return false;
+    }
+    
+    console.log('Unfriend: Successfully deleted friendship');
     return true;
   } catch (error) {
     console.error('Error unfriending:', error);

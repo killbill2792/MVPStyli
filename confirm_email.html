@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <title>Confirm Email • Stylit</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #000000;
+            color: #e4e4e7;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .wrap {
+            width: 100%;
+            max-width: 420px;
+        }
+        .brand {
+            font-weight: 700;
+            font-size: 32px;
+            text-align: center;
+            margin-bottom: 24px;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .card {
+            background: rgba(18, 18, 26, 0.92);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 18px;
+            padding: 24px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(8px);
+        }
+        h1 {
+            margin: 0 0 12px 0;
+            font-size: 20px;
+            font-weight: 600;
+            color: #e4e4e7;
+        }
+        p {
+            margin: 0 0 16px 0;
+            color: #a1a1aa;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .status {
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.03);
+            color: #a1a1aa;
+            font-size: 13px;
+            line-height: 1.4;
+            margin-bottom: 16px;
+        }
+        .status.ok {
+            border-color: rgba(99, 102, 241, 0.3);
+            background: rgba(99, 102, 241, 0.1);
+            color: #a5b4fc;
+        }
+        .status.bad {
+            border-color: rgba(239, 68, 68, 0.3);
+            background: rgba(239, 68, 68, 0.1);
+            color: #fca5a5;
+        }
+        .btn {
+            width: 100%;
+            padding: 14px 16px;
+            border-radius: 12px;
+            border: none;
+            font-weight: 600;
+            font-size: 16px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+        .btn.primary {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: #ffffff;
+        }
+        .btn.primary:hover {
+            opacity: 0.9;
+        }
+        .btn.secondary {
+            margin-top: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.05);
+            color: #e4e4e7;
+        }
+        .btn.secondary:hover {
+            background: rgba(255, 255, 255, 0.08);
+        }
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top: 3px solid #6366f1;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 16px;
+        }
+        .error-title {
+            color: #ef4444;
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .error-message {
+            color: #fca5a5;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+        .success {
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 16px;
+        }
+        .success-message {
+            color: #a5b4fc;
+            font-size: 14px;
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <div class="brand">Stylit</div>
+        <div class="card">
+            <h1 id="title">Confirming your email...</h1>
+            <p id="sub">Please wait while we verify your account.</p>
+            <div id="status" class="status" style="display: none;"></div>
+            <div id="content">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // IMPORTANT: Replace these with your actual Supabase credentials
+        const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+        
+        // Initialize Supabase client
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        (async function() {
+            const contentDiv = document.getElementById('content');
+            const titleEl = document.getElementById('title');
+            const subEl = document.getElementById('sub');
+            const statusEl = document.getElementById('status');
+            
+            // Extract hash fragment from URL
+            const hash = window.location.hash.substring(1);
+            
+            // If no hash, show error
+            if (!hash) {
+                titleEl.textContent = 'Invalid confirmation link';
+                subEl.textContent = 'The confirmation link is missing required information.';
+                contentDiv.innerHTML = '';
+                statusEl.className = 'status bad';
+                statusEl.textContent = 'Missing authentication data';
+                statusEl.style.display = 'block';
+                return;
+            }
+            
+            const params = new URLSearchParams(hash);
+            
+            const accessToken = params.get('access_token');
+            const refreshToken = params.get('refresh_token');
+            const error = params.get('error');
+            const errorDescription = params.get('error_description');
+            
+            // Handle error case
+            if (error) {
+                titleEl.textContent = 'Email confirmation failed';
+                subEl.textContent = errorDescription || 'The email link is invalid or has expired.';
+                contentDiv.innerHTML = '';
+                statusEl.className = 'status bad';
+                statusEl.textContent = `Error: ${error}`;
+                statusEl.style.display = 'block';
+                return;
+            }
+            
+            // Handle success case - automatically confirm email by setting session
+            if (accessToken && refreshToken) {
+                try {
+                    // Set the session - this automatically confirms the email
+                    const { data, error: sessionError } = await supabase.auth.setSession({
+                        access_token: accessToken,
+                        refresh_token: refreshToken,
+                    });
+                    
+                    if (sessionError) {
+                        titleEl.textContent = 'Email confirmation failed';
+                        subEl.textContent = sessionError.message || 'Failed to confirm email. Please try again.';
+                        contentDiv.innerHTML = '';
+                        statusEl.className = 'status bad';
+                        statusEl.textContent = 'Authentication error';
+                        statusEl.style.display = 'block';
+                        return;
+                    }
+                    
+                    // Success! Email is confirmed
+                    titleEl.textContent = 'Email confirmed ✅';
+                    subEl.textContent = 'Your account is verified. You can now open the app.';
+                    statusEl.className = 'status ok';
+                    statusEl.textContent = 'All set.';
+                    statusEl.style.display = 'block';
+                    contentDiv.innerHTML = `
+                        <button id="openBtn" class="btn primary">Open Stylit</button>
+                        <a href="https://www.stylit.ai" id="homeBtn" class="btn secondary">Go to stylit.ai</a>
+                    `;
+                    
+                    document.getElementById('openBtn').addEventListener('click', () => {
+                        window.location.href = 'stylit://';
+                    });
+                } catch (err) {
+                    titleEl.textContent = 'Email confirmation failed';
+                    subEl.textContent = err.message || 'An unexpected error occurred.';
+                    contentDiv.innerHTML = '';
+                    statusEl.className = 'status bad';
+                    statusEl.textContent = 'Unexpected error';
+                    statusEl.style.display = 'block';
+                }
+            } else {
+                // No tokens found
+                titleEl.textContent = 'Invalid confirmation link';
+                subEl.textContent = 'The confirmation link is missing required information.';
+                contentDiv.innerHTML = '';
+                statusEl.className = 'status bad';
+                statusEl.textContent = 'Missing authentication tokens';
+                statusEl.style.display = 'block';
+            }
+        })();
+    </script>
+</body>
+</html>

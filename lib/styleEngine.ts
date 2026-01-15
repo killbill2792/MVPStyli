@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import productsData from '../data/products.json';
+import { inferTagsFromProduct, normalizeTag, ALL_STYLE_TAGS } from './styleTaxonomy';
 
 // Types
 export type UserEventType = 
@@ -27,58 +28,44 @@ export interface StyleTwin {
   top_tags: string[];
 }
 
-// Helper to find product tags if missing
-const getProductTags = (productId: string, productObj: any) => {
-  // 1. Check if object already has tags
-  if (productObj?.tags && productObj.tags.length > 0) return productObj.tags;
+/**
+ * Extract standardized tags, colors, and category from product
+ * Uses the comprehensive taxonomy for accurate matching
+ */
+const getProductMetadata = (productId: string, productObj: any) => {
+  // First check local JSON for existing products
+  const found = productsData.find((p: any) => p.id === productId);
   
-  // 2. Look up in local JSON
-  const found = productsData.find(p => p.id === productId);
-  if (found?.tags) return found.tags;
-
-  // 3. Fallback heuristics based on category/name/query
-  const tags = [];
-  const lowerName = (productObj?.name || productObj?.query || '').toLowerCase();
-  if (lowerName.includes('jacket') || lowerName.includes('coat')) tags.push('outerwear');
-  if (lowerName.includes('dress')) tags.push('dress');
-  if (lowerName.includes('sneaker')) tags.push('streetwear');
-  if (lowerName.includes('formal') || lowerName.includes('wedding')) tags.push('formal');
-  if (lowerName.includes('casual')) tags.push('casual');
-  if (lowerName.includes('summer')) tags.push('summer');
-  if (lowerName.includes('winter')) tags.push('winter');
+  // Merge found data with product object
+  const mergedProduct = {
+    ...productObj,
+    tags: found?.tags || productObj?.tags,
+    colors: found?.colors || productObj?.colors,
+    category: found?.category || productObj?.category,
+  };
   
-  return tags;
-};
-
-const getProductColors = (productId: string, productObj: any) => {
-  if (productObj?.colors && productObj.colors.length > 0) return productObj.colors;
-  const found = productsData.find(p => p.id === productId);
-  if (found?.colors) return found.colors;
-
-  // Extract colors from name/query
-  const lowerName = (productObj?.name || productObj?.query || '').toLowerCase();
-  const commonColors = ['red', 'blue', 'green', 'black', 'white', 'yellow', 'pink', 'purple', 'orange', 'grey', 'gray', 'brown', 'beige'];
-  const extractedColors = commonColors.filter(c => lowerName.includes(c));
-  return extractedColors;
-};
-
-const getProductCategory = (productId: string, productObj: any) => {
-  if (productObj?.category) return productObj.category;
-  const found = productsData.find(p => p.id === productId);
-  if (found?.category) return found.category;
-
-  // Extract category from name/query
-  const lowerName = (productObj?.name || productObj?.query || '').toLowerCase();
-  if (lowerName.includes('dress')) return 'dress';
-  if (lowerName.includes('top') || lowerName.includes('shirt') || lowerName.includes('blouse')) return 'top';
-  if (lowerName.includes('pant') || lowerName.includes('jean') || lowerName.includes('trouser')) return 'bottom';
-  if (lowerName.includes('shoe') || lowerName.includes('boot') || lowerName.includes('sneaker')) return 'shoes';
-
-  return 'other';
+  // Use taxonomy inference for comprehensive tag extraction
+  const inferred = inferTagsFromProduct({
+    name: mergedProduct.name || mergedProduct.title,
+    title: mergedProduct.title || mergedProduct.name,
+    description: mergedProduct.description || mergedProduct.garment_des,
+    category: mergedProduct.category,
+    color: mergedProduct.color || (mergedProduct.colors && mergedProduct.colors[0]),
+    material: mergedProduct.material,
+    query: mergedProduct.query,
+    tags: mergedProduct.tags
+  });
+  
+  return {
+    tags: inferred.tags.length > 0 ? inferred.tags : (mergedProduct.tags || []),
+    colors: inferred.colors.length > 0 ? inferred.colors : (mergedProduct.colors || []),
+    category: inferred.category || mergedProduct.category || 'other'
+  };
 };
 
 /**
  * Track a user action to build their style profile
+ * Uses comprehensive taxonomy for accurate tag extraction
  */
 export const trackEvent = async (
   userId: string, 
@@ -87,16 +74,14 @@ export const trackEvent = async (
 ) => {
   if (!userId) return;
 
-  // Ensure we have basic metadata
+  // Ensure we have basic metadata using new taxonomy
   const productId = product?.id || 'unknown';
-  const tags = getProductTags(productId, product);
-  const colors = getProductColors(productId, product);
-  const category = getProductCategory(productId, product);
+  const metadata = getProductMetadata(productId, product);
 
   const payload = {
-    tags,
-    colors,
-    category,
+    tags: metadata.tags,
+    colors: metadata.colors,
+    category: metadata.category,
     query: product?.query // Store query if available
   };
 
@@ -111,7 +96,7 @@ export const trackEvent = async (
     if (error) {
       console.error('Error tracking event:', error);
     } else {
-      console.log(`tracked ${eventType} for ${productId}`);
+      console.log(`tracked ${eventType} for ${productId} with tags:`, metadata.tags);
     }
   } catch (e) {
     console.error('Exception tracking event:', e);
