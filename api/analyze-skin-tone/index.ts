@@ -477,19 +477,46 @@ function decideSeasonAlways(
   let needsConfirmation: boolean;
   let reason: string;
 
+  // Step A: Classify value group from L* (same thresholds as depth)
+  let valueGroup: 'light' | 'medium' | 'deep';
+  if (l >= 65) {
+    valueGroup = 'light';
+  } else if (l <= 45) {
+    valueGroup = 'deep';
+  } else {
+    valueGroup = 'medium';
+  }
+
+  // Step B: Classify chroma group from C*
+  let chromaGroup: 'muted' | 'clear' | 'vivid';
+  if (C < 10) {
+    chromaGroup = 'muted';
+  } else if (C < 18) {
+    chromaGroup = 'clear';
+  } else {
+    chromaGroup = 'vivid';
+  }
+
+  console.log('🎨 [SEASON] Value and Chroma groups:', {
+    valueGroup,
+    chromaGroup,
+    L: l.toFixed(2),
+    C: C.toFixed(2),
+  });
+
   // Rule 1: Warm undertone → only Spring/Autumn
   if (undertone === 'warm') {
     console.log('🎨 [SEASON] Warm undertone detected - considering Spring/Autumn only');
     
     // Warm mapping:
-    // If L > 60 and C >= 10 → Spring
-    // Else → Autumn
-    if (l > 60 && C >= 10) {
+    // if valueGroup == light AND chromaGroup != muted → Spring
+    // else → Autumn
+    if (valueGroup === 'light' && chromaGroup !== 'muted') {
       season = 'spring';
-      reason = `WARM → Spring (L=${l.toFixed(1)} > 60, C=${C.toFixed(1)} >= 10)`;
+      reason = `WARM → Spring (valueGroup=${valueGroup}, chromaGroup=${chromaGroup})`;
     } else {
       season = 'autumn';
-      reason = `WARM → Autumn (L=${l.toFixed(1)} <= 60 or C=${C.toFixed(1)} < 10)`;
+      reason = `WARM → Autumn (valueGroup=${valueGroup}, chromaGroup=${chromaGroup})`;
     }
     
     seasonConfidence = clamp(undertoneConfidence * 0.9, 0, 0.95);
@@ -502,14 +529,18 @@ function decideSeasonAlways(
     console.log('🎨 [SEASON] Cool undertone detected - considering Summer/Winter only');
     
     // Cool mapping:
-    // If L > 55 and C < 12 → Summer
-    // Else → Winter
-    if (l > 55 && C < 12) {
+    // if valueGroup == light AND chromaGroup == muted → Summer
+    // else → Winter (but only if chromaGroup != muted; otherwise prefer Summer)
+    if (valueGroup === 'light' && chromaGroup === 'muted') {
       season = 'summer';
-      reason = `COOL → Summer (L=${l.toFixed(1)} > 55, C=${C.toFixed(1)} < 12)`;
+      reason = `COOL → Summer (valueGroup=${valueGroup}, chromaGroup=${chromaGroup})`;
+    } else if (chromaGroup === 'muted') {
+      // If muted, prefer Summer even if not light
+      season = 'summer';
+      reason = `COOL → Summer (chromaGroup=${chromaGroup} is muted, prefer Summer)`;
     } else {
       season = 'winter';
-      reason = `COOL → Winter (L=${l.toFixed(1)} <= 55 or C=${C.toFixed(1)} >= 12)`;
+      reason = `COOL → Winter (valueGroup=${valueGroup}, chromaGroup=${chromaGroup})`;
     }
     
     seasonConfidence = clamp(undertoneConfidence * 0.9, 0, 0.95);
@@ -517,87 +548,86 @@ function decideSeasonAlways(
     
     console.log('🎨 [SEASON] Cool result:', { season, seasonConfidence: seasonConfidence.toFixed(3), needsConfirmation });
   }
-  // Rule 3: Neutral undertone → use lean if available
+  // Rule 3: Neutral undertone → proper gating with value and chroma groups
   else {
-    console.log('🎨 [SEASON] Neutral undertone detected - using lean logic');
-    console.log('🎨 [SEASON] Neutral details:', { b: b.toFixed(2), lean, l: l.toFixed(2), C: C.toFixed(2) });
+    console.log('🎨 [SEASON] Neutral undertone detected - using value/chroma gating');
+    console.log('🎨 [SEASON] Neutral details:', { b: b.toFixed(2), lean, valueGroup, chromaGroup });
     
-    // Neutral mapping (important):
-    // If |b| < 6 (neutral):
-    //   Candidate set = based on depth:
-    //   If L <= 50 (deep): candidates = Autumn vs Winter
-    //   If L > 50: candidates = Spring vs Summer
-    //   Pick lean based on sign of b:
-    //   If b > 0 → lean Autumn (or Spring for light)
-    //   If b < 0 → lean Winter (or Summer for light)
-    //   Always set needsConfirmation=true
-    //   And cap seasonConfidence <= 0.55
+    // Neutral should never directly map to Spring/Winter unless chroma is clear/vivid
+    // Neutral rules:
+    // If chromaGroup == muted:
+    //   If lean == warm → Autumn
+    //   If lean == cool → Summer
+    //   If perfectly neutral (|b| < 2) → return "Summer/Autumn ambiguous" (pick one but confidence low)
+    // Else (clear/vivid):
+    //   If valueGroup == light → lean warm ⇒ Spring, lean cool ⇒ Summer
+    //   If valueGroup == deep → lean warm ⇒ Autumn, lean cool ⇒ Winter
+    //   If valueGroup == medium → lean warm ⇒ Autumn, lean cool ⇒ Summer (most stable)
     
-    if (Math.abs(b) < 6) {
-      // True neutral - use depth-based candidates with lean
-      if (l <= 50) {
-        // Deep: Autumn vs Winter
-        if (b > 0 || lean === 'warm') {
-          season = 'autumn';
-          reason = `NEUTRAL (deep, lean warm) → Autumn (L=${l.toFixed(1)} <= 50, b=${b.toFixed(2)} > 0)`;
-        } else {
-          season = 'winter';
-          reason = `NEUTRAL (deep, lean cool) → Winter (L=${l.toFixed(1)} <= 50, b=${b.toFixed(2)} < 0)`;
-        }
+    if (chromaGroup === 'muted') {
+      // Muted chroma: Autumn vs Summer
+      if (Math.abs(b) < 2) {
+        // Perfectly neutral - ambiguous, prefer Autumn but very low confidence
+        season = 'autumn';
+        reason = `NEUTRAL (muted, perfectly neutral |b|=${b.toFixed(2)} < 2) → Autumn (ambiguous, low confidence)`;
+        seasonConfidence = Math.min(clamp(undertoneConfidence * 0.5, 0, 0.45), 0.45);
+      } else if (b > 0 || lean === 'warm') {
+        season = 'autumn';
+        reason = `NEUTRAL (muted, lean warm) → Autumn (b=${b.toFixed(2)}, chromaGroup=${chromaGroup})`;
+        seasonConfidence = Math.min(clamp(undertoneConfidence * 0.7, 0, 0.55), 0.55);
       } else {
-        // Light: Spring vs Summer
-        if (b > 0 || lean === 'warm') {
-          season = 'spring';
-          reason = `NEUTRAL (light, lean warm) → Spring (L=${l.toFixed(1)} > 50, b=${b.toFixed(2)} > 0)`;
-        } else {
-          season = 'summer';
-          reason = `NEUTRAL (light, lean cool) → Summer (L=${l.toFixed(1)} > 50, b=${b.toFixed(2)} < 0)`;
-        }
+        season = 'summer';
+        reason = `NEUTRAL (muted, lean cool) → Summer (b=${b.toFixed(2)}, chromaGroup=${chromaGroup})`;
+        seasonConfidence = Math.min(clamp(undertoneConfidence * 0.7, 0, 0.55), 0.55);
       }
-      
-      // Always cap confidence and set needsConfirmation for neutral
-      seasonConfidence = Math.min(clamp(undertoneConfidence * 0.7, 0, 0.55), 0.55);
-      needsConfirmation = true;
-      
-      console.log('🎨 [SEASON] Neutral result:', {
-        season,
-        seasonConfidence: seasonConfidence.toFixed(3),
-        needsConfirmation,
-        note: 'Capped at 0.55 for neutral',
-      });
     } else {
-      // Between thresholds (6-8 or -8 to -6): still neutral but with lean
-      console.log('🎨 [SEASON] Between thresholds, using lean:', lean);
-      
-      if (l <= 50) {
-        // Deep
-        if (b > 0 || lean === 'warm') {
-          season = 'autumn';
-          reason = `NEUTRAL-LEAN-WARM (deep) → Autumn (L=${l.toFixed(1)} <= 50, b=${b.toFixed(2)})`;
-        } else {
-          season = 'winter';
-          reason = `NEUTRAL-LEAN-COOL (deep) → Winter (L=${l.toFixed(1)} <= 50, b=${b.toFixed(2)})`;
-        }
-      } else {
-        // Light
+      // Clear/vivid chroma: can use all seasons based on value group
+      if (valueGroup === 'light') {
         if (b > 0 || lean === 'warm') {
           season = 'spring';
-          reason = `NEUTRAL-LEAN-WARM (light) → Spring (L=${l.toFixed(1)} > 50, b=${b.toFixed(2)})`;
+          reason = `NEUTRAL (light, clear/vivid, lean warm) → Spring (valueGroup=${valueGroup}, chromaGroup=${chromaGroup})`;
         } else {
           season = 'summer';
-          reason = `NEUTRAL-LEAN-COOL (light) → Summer (L=${l.toFixed(1)} > 50, b=${b.toFixed(2)})`;
+          reason = `NEUTRAL (light, clear/vivid, lean cool) → Summer (valueGroup=${valueGroup}, chromaGroup=${chromaGroup})`;
+        }
+      } else if (valueGroup === 'deep') {
+        if (b > 0 || lean === 'warm') {
+          season = 'autumn';
+          reason = `NEUTRAL (deep, clear/vivid, lean warm) → Autumn (valueGroup=${valueGroup}, chromaGroup=${chromaGroup})`;
+        } else {
+          season = 'winter';
+          reason = `NEUTRAL (deep, clear/vivid, lean cool) → Winter (valueGroup=${valueGroup}, chromaGroup=${chromaGroup})`;
+        }
+      } else {
+        // Medium: most stable - lean warm ⇒ Autumn, lean cool ⇒ Summer
+        if (b > 0 || lean === 'warm') {
+          season = 'autumn';
+          reason = `NEUTRAL (medium, clear/vivid, lean warm) → Autumn (valueGroup=${valueGroup}, chromaGroup=${chromaGroup})`;
+        } else {
+          season = 'summer';
+          reason = `NEUTRAL (medium, clear/vivid, lean cool) → Summer (valueGroup=${valueGroup}, chromaGroup=${chromaGroup})`;
         }
       }
-      
-      seasonConfidence = clamp(undertoneConfidence * 0.75, 0, 0.65);
-      needsConfirmation = true;
-      
-      console.log('🎨 [SEASON] Neutral-lean result:', {
-        season,
-        seasonConfidence: seasonConfidence.toFixed(3),
-        needsConfirmation,
-      });
+      seasonConfidence = Math.min(clamp(undertoneConfidence * 0.7, 0, 0.55), 0.55);
     }
+    
+    // Always set needsConfirmation for neutral
+    needsConfirmation = true;
+    
+    // Extra check: If C < 6 (very muted) AND |b| < 3 (very neutral)
+    // cap confidence at 0.45 because the system really can't separate seasons well
+    if (C < 6 && Math.abs(b) < 3) {
+      seasonConfidence = Math.min(seasonConfidence, 0.45);
+      console.log('🎨 [SEASON] Very muted + very neutral, capping confidence at 0.45');
+    }
+    
+    console.log('🎨 [SEASON] Neutral result:', {
+      season,
+      seasonConfidence: seasonConfidence.toFixed(3),
+      needsConfirmation,
+      valueGroup,
+      chromaGroup,
+    });
   }
 
   // Apply additional penalties
@@ -1070,41 +1100,68 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       gainsClamped,
     });
     
-    // Face detection validation: stricter thresholds to avoid false positives
-    // Need both sufficient skin samples AND high skin ratio to confirm face presence
+    // Face detection validation: relaxed thresholds for full/half body images
+    // For full/half body images, skin ratio will be lower due to clothing/background
+    // So we use a more lenient approach: require sufficient samples OR reasonable ratio
     const skinRatio = allSamples.length > 0 ? skinSamples.length / allSamples.length : 0;
-    const minSkinSamples = 60; // Increased: was 40 - need more samples to confirm face
-    const minSkinRatio = 0.45; // Increased: was 0.30 - need higher ratio to confirm face
+    
+    // Relaxed thresholds to handle full/half body images
+    const minSkinSamples = 50; // Reduced from 60 - allow fewer samples if ratio is good
+    const minSkinRatio = 0.30; // Reduced from 0.45 - more lenient for body images
+    const minSkinSamplesStrict = 40; // Absolute minimum samples
+    const minSkinRatioStrict = 0.25; // Absolute minimum ratio
     
     console.log('🎨 [SKIN TONE API] Face detection validation:', {
-      skinRatio,
+      skinRatio: (skinRatio * 100).toFixed(1) + '%',
       skinSamplesCount: skinSamples.length,
-      minRequired: minSkinSamples,
-      minRatioRequired: minSkinRatio,
-      allSamplesCount: allSamples.length,
+      totalSamples: allSamples.length,
+      minSkinSamples,
+      minSkinRatio: (minSkinRatio * 100).toFixed(1) + '%',
+      minSkinSamplesStrict,
+      minSkinRatioStrict: (minSkinRatioStrict * 100).toFixed(1) + '%',
     });
     
-    // Both conditions must be met: sufficient samples AND high ratio
-    if (skinSamples.length < minSkinSamples || skinRatio < minSkinRatio) {
+    // More lenient validation: need EITHER sufficient samples OR good ratio
+    // But both must meet absolute minimums
+    const hasEnoughSamples = skinSamples.length >= minSkinSamples;
+    const hasGoodRatio = skinRatio >= minSkinRatio;
+    const meetsAbsoluteMinimums = skinSamples.length >= minSkinSamplesStrict && skinRatio >= minSkinRatioStrict;
+    
+    // Pass if: (has enough samples OR good ratio) AND meets absolute minimums
+    if (!meetsAbsoluteMinimums || (!hasEnoughSamples && !hasGoodRatio)) {
       console.error('🎨 [SKIN TONE API] ERROR: Face detection failed');
       console.error('🎨 [SKIN TONE API] Reason:', {
-        skinSamplesTooLow: skinSamples.length < minSkinSamples,
-        skinRatioTooLow: skinRatio < minSkinRatio,
-        skinRatio,
+        hasEnoughSamples,
+        hasGoodRatio,
+        meetsAbsoluteMinimums,
+        skinRatio: (skinRatio * 100).toFixed(1) + '%',
         skinSamples: skinSamples.length,
         totalSamples: allSamples.length,
-        threshold: `${minSkinRatio * 100}%`,
+        thresholds: {
+          minSamples: minSkinSamples,
+          minRatio: (minSkinRatio * 100).toFixed(1) + '%',
+          minSamplesStrict: minSkinSamplesStrict,
+          minRatioStrict: (minSkinRatioStrict * 100).toFixed(1) + '%',
+        },
       });
       return res.status(400).json({ 
         error: 'FACE_NOT_DETECTED',
         message: 'No face detected in image. Please upload a clear face photo with good lighting.',
-        skinRatio,
+        skinRatio: (skinRatio * 100).toFixed(1) + '%',
         totalSamples: allSamples.length,
         skinSamples: skinSamples.length,
         minRequired: minSkinSamples,
-        minRatioRequired: minSkinRatio,
+        minRatioRequired: (minSkinRatio * 100).toFixed(1) + '%',
       });
     }
+    
+    console.log('🎨 [SKIN TONE API] Face detection passed:', {
+      hasEnoughSamples,
+      hasGoodRatio,
+      meetsAbsoluteMinimums,
+      skinRatio: (skinRatio * 100).toFixed(1) + '%',
+      skinSamples: skinSamples.length,
+    });
     
     // Use corrected samples for analysis (per spec: Step A - lighting correction before Lab)
     const useSamples = correctedSamples.length >= 30 ? correctedSamples : skinSamples;
