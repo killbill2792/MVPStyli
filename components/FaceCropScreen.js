@@ -63,14 +63,19 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => {
-        // Always allow starting - we'll check in move
-        return imageSize.width > 0 && imageSize.height > 0;
+        // Always allow starting if we have an image
+        const shouldStart = imageSize.width > 0 && imageSize.height > 0;
+        console.log('🎨 [CROP] onStartShouldSetPanResponder:', shouldStart, 'imageSize:', imageSize);
+        return shouldStart;
       },
       onMoveShouldSetPanResponder: (evt, gestureState) => {
         // Always respond to movement or pinch - don't be too restrictive
         const hasMovement = Math.abs(gestureState.dx) > 1 || Math.abs(gestureState.dy) > 1;
-        const isPinch = evt.nativeEvent.touches && evt.nativeEvent.touches.length === 2;
-        return hasMovement || isPinch;
+        const touchCount = evt.nativeEvent.touches ? evt.nativeEvent.touches.length : 0;
+        const isPinch = touchCount === 2;
+        const shouldMove = hasMovement || isPinch;
+        console.log('🎨 [CROP] onMoveShouldSetPanResponder:', shouldMove, 'hasMovement:', hasMovement, 'isPinch:', isPinch, 'touchCount:', touchCount);
+        return shouldMove;
       },
       
       onPanResponderGrant: (evt) => {
@@ -300,7 +305,7 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
         </TouchableOpacity>
       </View>
 
-      <View style={styles.cropContainer}>
+      <View style={styles.cropContainer} {...panResponder.panHandlers} collapsable={false}>
         {imageSize.width > 0 && (
           <Animated.View
             style={[
@@ -313,6 +318,7 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
                 ],
               },
             ]}
+            pointerEvents="none"
           >
             <Image
               source={{ uri: imageUri }}
@@ -345,9 +351,6 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
           </View>
           <View style={styles.overlayBottom} />
         </View>
-        
-        {/* Gesture area - covers only the crop container, not header */}
-        <View style={styles.gestureArea} {...panResponder.panHandlers} collapsable={false} />
       </View>
 
       <View style={styles.instructions}>
@@ -410,14 +413,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
-  },
-  gestureArea: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 2,
   },
   imageContainer: {
     position: 'absolute',
