@@ -29,7 +29,9 @@ import { supabase } from '../lib/supabase';
 import { getUserFriends } from '../lib/friends';
 import { buildShareUrl } from '../lib/share';
 import { getStyleProfile, refreshStyleProfile } from '../lib/styleEngine';
-import { loadColorProfile, saveColorProfile, getAllSeasons, getSeasonSwatches, analyzeFaceForColorProfile, analyzeFaceForColorProfileFromLocalUri } from '../lib/colorAnalysis';
+import { loadColorProfile, saveColorProfile, getAllSeasons, getSeasonSwatches, analyzeFaceForColorProfile, analyzeFaceForColorProfileFromLocalUri, analyzeFaceForColorProfileFromCroppedImage } from '../lib/colorAnalysis';
+import { runQualityChecks } from '../lib/imageQualityChecks';
+import FaceCropScreen from '../components/FaceCropScreen';
 import PhotoGuidelinesModal from '../components/PhotoGuidelinesModal';
 import PhotoGuidelinesScreen from '../components/PhotoGuidelinesScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -128,6 +130,8 @@ const StyleVaultScreen = () => {
   const [colorProfile, setColorProfile] = useState(null);
   const [showSeasonPicker, setShowSeasonPicker] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [showFaceCrop, setShowFaceCrop] = useState(false);
+  const [imageToCrop, setImageToCrop] = useState(null);
   const localSavedFits = savedFits || [];
   const [boards, setBoards] = useState([]);
   const [activePods, setActivePods] = useState([]);
@@ -552,6 +556,85 @@ const StyleVaultScreen = () => {
   };
 
   // Handler for face photo upload after guidelines
+  // Helper function to proceed with analysis after crop
+  const proceedWithAnalysis = async (croppedImageUri) => {
+    try {
+      setIsAnalyzingFace(true);
+      
+      console.log('🎨 [FACE CROP] Proceeding with analysis...');
+      
+      // Analyze using cropped image (preferred method - no face detection needed)
+      const { profile, uploadedUrl, qualityMessages } = await analyzeFaceForColorProfileFromCroppedImage(
+        croppedImageUri,
+        uploadImageAsync
+      );
+      
+      console.log('🎨 [FACE CROP] Analysis complete, profile:', profile ? 'exists' : 'null');
+      console.log('🎨 [FACE CROP] Quality messages:', qualityMessages);
+      
+      setIsAnalyzingFace(false);
+      
+      if (uploadedUrl && user?.id) {
+        await supabase.from('profiles').update({ face_image_url: uploadedUrl }).eq('id', user.id);
+        setFaceImage(uploadedUrl);
+        if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
+      }
+      
+      if (profile && user?.id) {
+        console.log('🎨 [FACE CROP] Saving profile from API:', {
+          tone: profile.tone,
+          depth: profile.depth,
+          season: profile.season,
+          confidence: profile.confidence,
+          needsConfirmation: profile.needsConfirmation,
+        });
+        await saveColorProfile(user.id, profile);
+        setColorProfile(profile);
+        setFaceAnalysisError(null);
+        
+        const confidencePercent = profile.confidence ? Math.round(profile.confidence * 100) : 0;
+        const seasonConfidencePercent = profile.seasonConfidence ? Math.round(profile.seasonConfidence * 100) : 0;
+        
+        // Show quality messages if present
+        if (qualityMessages && qualityMessages.length > 0) {
+          Alert.alert(
+            'Photo Quality Tips',
+            qualityMessages.join('\n\n'),
+            [{ text: 'OK' }]
+          );
+        }
+        
+        if (profile.season) {
+          showBanner(
+            `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth • Suggested: ${profile.season} (${seasonConfidencePercent}% confidence)`,
+            'success'
+          );
+        } else {
+          showBanner(
+            `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth (${confidencePercent}% confidence). Try a daylight selfie for season suggestion.`,
+            'success'
+          );
+        }
+      } else {
+        console.log('🎨 [FACE CROP] No profile returned from API - face not detected or API error');
+        setIsAnalyzingFace(false);
+        setFaceAnalysisError('No face detected. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.');
+        Alert.alert(
+          'Face Detection',
+          'We couldn\'t detect a face in this photo. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.',
+          [{ text: 'OK' }]
+        );
+        showBanner('✕ No face detected. Please upload a clear face photo.', 'error');
+      }
+    } catch (error) {
+      console.error('🎨 [FACE CROP] Error in analysis:', error);
+      setIsAnalyzingFace(false);
+      setColorProfile(null);
+      setFaceAnalysisError(`Failed to process photo: ${error.message || 'Unknown error'}`);
+      Alert.alert('Error', `Failed to process photo: ${error.message || 'Unknown error'}`);
+    }
+  };
+
   const handleFacePhotoSource = () => {
     setShowFacePhotoGuidelines(false);
     Alert.alert(
@@ -565,85 +648,14 @@ const StyleVaultScreen = () => {
             if (permission.granted) {
               const res = await ImagePicker.launchCameraAsync({
                 mediaTypes: ['images'],
-                allowsEditing: true,
-                aspect: [1, 1],
-                quality: 0.8,
+                allowsEditing: false, // We'll use our custom crop UI
+                quality: 0.9,
                 cameraType: ImagePicker.CameraType.front
               });
               if (!res.canceled && res.assets[0]) {
-                try {
-                  const localUri = res.assets[0].uri;
-                  // Clear old photo, error state, and color profile immediately when starting new analysis
-                  // This ensures we don't show stale/cached results
-                  setFaceImage(null);
-                  setFaceAnalysisError(null);
-                  setColorProfile(null); // Clear any previous profile to ensure only API results are shown
-                  setIsAnalyzingFace(true);
-                  
-                  console.log('🎨 [FACE UPLOAD] ========== STARTING NEW ANALYSIS (CAMERA) ==========');
-                  console.log('🎨 [FACE UPLOAD] Cleared previous profile - will only show API results');
-                  console.log('🎨 [FACE UPLOAD] Local URI:', localUri.substring(0, 100));
-                  
-                  // NEW: Analyze using local URI with face detection, then upload
-                  // This will call the API and wait for results - no fallback
-                  const { profile, uploadedUrl } = await analyzeFaceForColorProfileFromLocalUri(localUri, uploadImageAsync);
-                  
-                  console.log('🎨 [FACE UPLOAD] Analysis complete (camera), profile:', profile ? 'exists' : 'null');
-                  
-                  // Only set analyzing to false after we've processed the results
-                  setIsAnalyzingFace(false);
-                  
-                  if (uploadedUrl && user?.id) {
-                    await supabase.from('profiles').update({ face_image_url: uploadedUrl }).eq('id', user.id);
-                    setFaceImage(uploadedUrl);
-                    if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
-                  }
-                  
-                  // Only show results if API returned a valid profile (no fallback)
-                  if (profile && user?.id) {
-                    console.log('🎨 [FACE UPLOAD] Saving profile from API (camera):', {
-                      tone: profile.tone,
-                      depth: profile.depth,
-                      season: profile.season,
-                      confidence: profile.confidence
-                    });
-                    await saveColorProfile(user.id, profile);
-                    setColorProfile(profile);
-                    setFaceAnalysisError(null); // Clear any previous errors
-                    const confidencePercent = profile.confidence ? Math.round(profile.confidence * 100) : 0;
-                    
-                    if (profile.season) {
-                      showBanner(
-                        `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth • Suggested: ${profile.season} (${confidencePercent}% confidence)`,
-                        'success'
-                      );
-                  } else {
-                      showBanner(
-                        `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth (${confidencePercent}% confidence). Try a daylight selfie for season suggestion.`,
-                        'success'
-                      );
-                    }
-                  } else {
-                    // No face detected or API failed - set error state
-                    // Do NOT show any fallback results
-                    console.log('🎨 [FACE UPLOAD] No profile returned from API (camera) - face not detected or API error');
-                    setIsAnalyzingFace(false);
-                    setFaceAnalysisError('No face detected. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.');
-                    Alert.alert(
-                      'Face Detection',
-                      'We couldn\'t detect a face in this photo. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.',
-                      [{ text: 'OK' }]
-                    );
-                    showBanner('✕ No face detected. Please upload a clear face photo.', 'error');
-                  }
-                } catch (error) {
-                  console.error('🎨 [FACE UPLOAD] Error in analysis (camera):', error);
-                  setIsAnalyzingFace(false);
-                  setColorProfile(null); // Ensure no stale profile is shown
-                  setFaceAnalysisError(`Failed to process photo: ${error.message || 'Unknown error'}`);
-                  console.error('Error processing face photo:', error);
-                  Alert.alert('Error', `Failed to process photo: ${error.message || 'Unknown error'}`);
-                }
+                // Show crop screen with oval guide
+                setImageToCrop(res.assets[0].uri);
+                setShowFaceCrop(true);
               }
             } else {
               Alert.alert('Camera Permission', 'Please allow camera access to take a selfie.');
@@ -655,84 +667,13 @@ const StyleVaultScreen = () => {
           onPress: async () => {
             const res = await ImagePicker.launchImageLibraryAsync({ 
               mediaTypes: ['images'],
-              allowsEditing: true,
-              aspect: [1, 1],
-              quality: 0.8
+              allowsEditing: false, // We'll use our custom crop UI
+              quality: 0.9
             });
             if (!res.canceled && res.assets[0]) {
-              try {
-                const localUri = res.assets[0].uri;
-                // Clear old photo, error state, and color profile immediately when starting new analysis
-                // This ensures we don't show stale/cached results
-                setFaceImage(null);
-                setFaceAnalysisError(null);
-                setColorProfile(null); // Clear any previous profile to ensure only API results are shown
-                setIsAnalyzingFace(true);
-                
-                console.log('🎨 [FACE UPLOAD] ========== STARTING NEW ANALYSIS ==========');
-                console.log('🎨 [FACE UPLOAD] Cleared previous profile - will only show API results');
-                console.log('🎨 [FACE UPLOAD] Local URI:', localUri.substring(0, 100));
-                
-                // NEW: Analyze using local URI with face detection, then upload
-                // This will call the API and wait for results - no fallback
-                const { profile, uploadedUrl } = await analyzeFaceForColorProfileFromLocalUri(localUri, uploadImageAsync);
-                
-                console.log('🎨 [FACE UPLOAD] Analysis complete, profile:', profile ? 'exists' : 'null');
-                
-                // Only set analyzing to false after we've processed the results
-                setIsAnalyzingFace(false);
-                
-                if (uploadedUrl && user?.id) {
-                  await supabase.from('profiles').update({ face_image_url: uploadedUrl }).eq('id', user.id);
-                  setFaceImage(uploadedUrl);
-                  if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
-                }
-                
-                // Only show results if API returned a valid profile (no fallback)
-                if (profile && user?.id) {
-                  console.log('🎨 [FACE UPLOAD] Saving profile from API:', {
-                    tone: profile.tone,
-                    depth: profile.depth,
-                    season: profile.season,
-                    confidence: profile.confidence
-                  });
-                  await saveColorProfile(user.id, profile);
-                  setColorProfile(profile);
-                  setFaceAnalysisError(null); // Clear any previous errors
-                  const confidencePercent = profile.confidence ? Math.round(profile.confidence * 100) : 0;
-                  
-                  if (profile.season) {
-                    showBanner(
-                      `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth • Suggested: ${profile.season} (${confidencePercent}% confidence)`,
-                      'success'
-                    );
-                } else {
-                    showBanner(
-                      `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth (${confidencePercent}% confidence). Try a daylight selfie for season suggestion.`,
-                      'success'
-                    );
-                  }
-                } else {
-                  // No face detected or API failed - set error state
-                  // Do NOT show any fallback results
-                  console.log('🎨 [FACE UPLOAD] No profile returned from API - face not detected or API error');
-                  setIsAnalyzingFace(false);
-                  setFaceAnalysisError('No face detected. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.');
-                  Alert.alert(
-                    'Face Detection',
-                    'We couldn\'t detect a face in this photo. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.',
-                    [{ text: 'OK' }]
-                  );
-                  showBanner('✕ No face detected. Please upload a clear face photo.', 'error');
-                }
-              } catch (error) {
-                console.error('🎨 [FACE UPLOAD] Error in analysis:', error);
-                setIsAnalyzingFace(false);
-                setColorProfile(null); // Ensure no stale profile is shown
-                setFaceAnalysisError(`Failed to process photo: ${error.message || 'Unknown error'}`);
-                console.error('Error processing face photo:', error);
-                Alert.alert('Error', `Failed to process photo: ${error.message || 'Unknown error'}`);
-              }
+              // Show crop screen with oval guide
+              setImageToCrop(res.assets[0].uri);
+              setShowFaceCrop(true);
             }
           }
         },
@@ -3051,6 +2992,126 @@ const StyleVaultScreen = () => {
       <PhotoGuidelinesScreen
         visible={showPhotoGuidelinesScreen}
         onClose={() => setShowPhotoGuidelinesScreen(false)}
+      />
+
+      {/* Face Crop Screen with Oval Guide */}
+      <FaceCropScreen
+        visible={showFaceCrop}
+        imageUri={imageToCrop}
+        onCropComplete={async (croppedImageUri) => {
+          setShowFaceCrop(false);
+          setImageToCrop(null);
+          
+          try {
+            // Clear old photo, error state, and color profile
+            setFaceImage(null);
+            setFaceAnalysisError(null);
+            setColorProfile(null);
+            
+            console.log('🎨 [FACE CROP] ========== CROP COMPLETE, STARTING ANALYSIS ==========');
+            console.log('🎨 [FACE CROP] Cropped image URI:', croppedImageUri.substring(0, 100));
+            
+            // Run app-side quality checks
+            console.log('🎨 [FACE CROP] Running app-side quality checks...');
+            const qualityChecks = await runQualityChecks(croppedImageUri);
+            if (qualityChecks.hasIssues) {
+              console.log('🎨 [FACE CROP] Quality issues detected:', qualityChecks.issues);
+              console.log('🎨 [FACE CROP] Recommendations:', qualityChecks.recommendations);
+              
+              // Show warning but allow user to proceed
+              Alert.alert(
+                'Photo Quality Warning',
+                qualityChecks.recommendations.join('\n\n') + '\n\nYou can still proceed, but results may be less accurate.',
+                [
+                  { text: 'Retake', style: 'cancel', onPress: () => {
+                    setImageToCrop(croppedImageUri);
+                    setShowFaceCrop(true);
+                  }},
+                  { text: 'Continue', onPress: () => proceedWithAnalysis(croppedImageUri) },
+                ]
+              );
+              return;
+            }
+            
+            // Proceed with analysis
+            await proceedWithAnalysis(croppedImageUri);
+          } catch (error) {
+            console.error('🎨 [FACE CROP] Error:', error);
+            setIsAnalyzingFace(false);
+            setFaceAnalysisError(`Failed to process photo: ${error.message || 'Unknown error'}`);
+            Alert.alert('Error', `Failed to process photo: ${error.message || 'Unknown error'}`);
+          }
+        }}
+            
+            console.log('🎨 [FACE CROP] Analysis complete, profile:', profile ? 'exists' : 'null');
+            console.log('🎨 [FACE CROP] Quality messages:', qualityMessages);
+            
+            setIsAnalyzingFace(false);
+            
+            if (uploadedUrl && user?.id) {
+              await supabase.from('profiles').update({ face_image_url: uploadedUrl }).eq('id', user.id);
+              setFaceImage(uploadedUrl);
+              if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
+            }
+            
+            if (profile && user?.id) {
+              console.log('🎨 [FACE CROP] Saving profile from API:', {
+                tone: profile.tone,
+                depth: profile.depth,
+                season: profile.season,
+                confidence: profile.confidence,
+                needsConfirmation: profile.needsConfirmation,
+              });
+              await saveColorProfile(user.id, profile);
+              setColorProfile(profile);
+              setFaceAnalysisError(null);
+              
+              const confidencePercent = profile.confidence ? Math.round(profile.confidence * 100) : 0;
+              const seasonConfidencePercent = profile.seasonConfidence ? Math.round(profile.seasonConfidence * 100) : 0;
+              
+              // Show quality messages if present
+              if (qualityMessages && qualityMessages.length > 0) {
+                Alert.alert(
+                  'Photo Quality Tips',
+                  qualityMessages.join('\n\n'),
+                  [{ text: 'OK' }]
+                );
+              }
+              
+              if (profile.season) {
+                showBanner(
+                  `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth • Suggested: ${profile.season} (${seasonConfidencePercent}% confidence)`,
+                  'success'
+                );
+              } else {
+                showBanner(
+                  `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth (${confidencePercent}% confidence). Try a daylight selfie for season suggestion.`,
+                  'success'
+                );
+              }
+            } else {
+              console.log('🎨 [FACE CROP] No profile returned from API - face not detected or API error');
+              setIsAnalyzingFace(false);
+              setFaceAnalysisError('No face detected. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.');
+              Alert.alert(
+                'Face Detection',
+                'We couldn\'t detect a face in this photo. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.',
+                [{ text: 'OK' }]
+              );
+              showBanner('✕ No face detected. Please upload a clear face photo.', 'error');
+            }
+          } catch (error) {
+            console.error('🎨 [FACE CROP] Error in analysis:', error);
+            setIsAnalyzingFace(false);
+            setColorProfile(null);
+            setFaceAnalysisError(`Failed to process photo: ${error.message || 'Unknown error'}`);
+            Alert.alert('Error', `Failed to process photo: ${error.message || 'Unknown error'}`);
+          }
+        }}
+        onCancel={() => {
+          setShowFaceCrop(false);
+          setImageToCrop(null);
+        }}
       />
 
       {/* Edit Profile Modal (Name + Avatar only) */}
