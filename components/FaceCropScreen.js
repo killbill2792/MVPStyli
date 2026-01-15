@@ -1,18 +1,22 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Image,
   Dimensions,
-  PanResponder,
-  Animated,
   TouchableOpacity,
   Alert,
   ActivityIndicator,
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from 'react-native-reanimated';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -49,24 +53,15 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const [loading, setLoading] = useState(false);
 
-  // Animated transforms
-  const scale = useRef(new Animated.Value(1)).current;
-  const translateX = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(0)).current;
+  // Animated values using Reanimated (more reliable than Animated API)
+  const scale = useSharedValue(1);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
 
-  // Refs to hold current transform values
+  // Refs to hold current transform values (for crop calculation)
   const lastScale = useRef(1);
   const lastTranslateX = useRef(0);
   const lastTranslateY = useRef(0);
-
-  // Base values captured at gesture start
-  const scaleBase = useRef(1);
-  const translateXBase = useRef(0);
-  const translateYBase = useRef(0);
-
-  // Pinch tracking
-  const initialPinchDistance = useRef(null);
-  const initialPinchScale = useRef(null);
 
   useEffect(() => {
     if (!imageUri) return;
@@ -81,166 +76,102 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
         lastScale.current = 1;
         lastTranslateX.current = 0;
         lastTranslateY.current = 0;
-        scale.setValue(1);
-        translateX.setValue(0);
-        translateY.setValue(0);
+        scale.value = 1;
+        translateX.value = 0;
+        translateY.value = 0;
       },
       (err) => {
         console.error('🎨 [CROP] Error loading image size:', err);
       }
     );
-  }, [imageUri, scale, translateX, translateY]);
+  }, [imageUri]);
 
   const imageAspectRatio = imageSize.width > 0 ? imageSize.width / imageSize.height : 1;
   const displayWidth = SCREEN_WIDTH;
   const displayHeight = SCREEN_WIDTH / imageAspectRatio;
 
-  const cropRect = useMemo(
-    () => ({ x: OVAL_X, y: OVAL_Y, w: OVAL_WIDTH, h: OVAL_HEIGHT }),
-    []
-  );
+  const cropRect = { x: OVAL_X, y: OVAL_Y, w: OVAL_WIDTH, h: OVAL_HEIGHT };
 
-  // PanResponder created via useMemo so it exists during render and doesn't "randomly" be empty.
-  const panResponder = useMemo(() => {
-    if (imageSize.width === 0 || imageSize.height === 0) return null;
-  
-    let mode = 'none'; // 'none' | 'pan' | 'pinch'
-  
-    const distance = (t1, t2) => Math.hypot(t2.pageX - t1.pageX, t2.pageY - t1.pageY);
-  
-    return PanResponder.create({
-      onStartShouldSetPanResponderCapture: () => true,
-      onMoveShouldSetPanResponderCapture: () => true,
-  
-      // IMPORTANT: don't allow responder to be stolen mid-pinch
-      onPanResponderTerminationRequest: () => false,
-  
-      onPanResponderGrant: (evt) => {
-        scaleBase.current = lastScale.current;
-        translateXBase.current = lastTranslateX.current;
-        translateYBase.current = lastTranslateY.current;
-  
-        initialPinchDistance.current = null;
-        initialPinchScale.current = null;
-  
-        const touches = evt.nativeEvent.touches || [];
-        if (touches.length >= 2) {
-          mode = 'pinch';
-          const d = distance(touches[0], touches[1]);
-          initialPinchDistance.current = d;
-          initialPinchScale.current = lastScale.current;
-        } else {
-          mode = 'pan';
-        }
-      },
-  
-      onPanResponderMove: (evt, gestureState) => {
-        const touches = evt.nativeEvent.touches || [];
-  
-        // If user adds a second finger during pan, switch to pinch
-        if (touches.length >= 2 && mode !== 'pinch') {
-          mode = 'pinch';
-          const d = distance(touches[0], touches[1]);
-          initialPinchDistance.current = d;
-          initialPinchScale.current = lastScale.current;
-          return;
-        }
-  
-        // If user goes back to one finger, switch to pan
-        if (touches.length === 1 && mode !== 'pan') {
-          mode = 'pan';
-          translateXBase.current = lastTranslateX.current;
-          translateYBase.current = lastTranslateY.current;
-        }
-  
-        // ---- PINCH ----
-        if (mode === 'pinch' && touches.length >= 2) {
-          const d = distance(touches[0], touches[1]);
-  
-          if (!initialPinchDistance.current || initialPinchDistance.current === 0) {
-            initialPinchDistance.current = d;
-            initialPinchScale.current = lastScale.current;
-            return;
-          }
-  
-          const ratio = d / initialPinchDistance.current;
-          const nextScale = clampNum((initialPinchScale.current || 1) * ratio, 1, 5);
-  
-          lastScale.current = nextScale;
-          scale.setValue(nextScale);
-  
-          // Clamp translation so crop rect stays covered after zoom
-          const clamped = clampTranslationToCoverCrop({
-            scale: nextScale,
-            tx: lastTranslateX.current,
-            ty: lastTranslateY.current,
-            displayWidth,
-            displayHeight,
-            crop: cropRect,
-          });
-  
-          lastTranslateX.current = clamped.tx;
-          lastTranslateY.current = clamped.ty;
-          translateX.setValue(clamped.tx);
-          translateY.setValue(clamped.ty);
-          return;
-        }
-  
-        // ---- PAN ----
-        if (mode === 'pan' && touches.length === 1) {
-          const rawTx = translateXBase.current + gestureState.dx;
-          const rawTy = translateYBase.current + gestureState.dy;
-  
-          const clamped = clampTranslationToCoverCrop({
-            scale: lastScale.current,
-            tx: rawTx,
-            ty: rawTy,
-            displayWidth,
-            displayHeight,
-            crop: cropRect,
-          });
-  
-          lastTranslateX.current = clamped.tx;
-          lastTranslateY.current = clamped.ty;
-          translateX.setValue(clamped.tx);
-          translateY.setValue(clamped.ty);
-        }
-      },
-  
-      onPanResponderRelease: () => {
-        mode = 'none';
-        initialPinchDistance.current = null;
-        initialPinchScale.current = null;
-  
-        scaleBase.current = lastScale.current;
-        translateXBase.current = lastTranslateX.current;
-        translateYBase.current = lastTranslateY.current;
-      },
-  
-      onPanResponderTerminate: () => {
-        mode = 'none';
-        initialPinchDistance.current = null;
-        initialPinchScale.current = null;
-      },
+  // Gesture handlers using react-native-gesture-handler (more reliable than PanResponder)
+  const pinchGesture = Gesture.Pinch()
+    .onStart(() => {
+      // Store current scale as base
+      lastScale.current = scale.value;
+    })
+    .onUpdate((e) => {
+      const newScale = clampNum(lastScale.current * e.scale, 1, 5);
+      scale.value = newScale;
+      lastScale.current = newScale;
+
+      // Clamp translation so crop rect stays covered after zoom
+      const clamped = clampTranslationToCoverCrop({
+        scale: newScale,
+        tx: translateX.value,
+        ty: translateY.value,
+        displayWidth,
+        displayHeight,
+        crop: cropRect,
+      });
+
+      translateX.value = clamped.tx;
+      translateY.value = clamped.ty;
+      lastTranslateX.current = clamped.tx;
+      lastTranslateY.current = clamped.ty;
+    })
+    .onEnd(() => {
+      // Update lastScale for next gesture
+      lastScale.current = scale.value;
     });
-  }, [
-    imageSize.width,
-    imageSize.height,
-    displayWidth,
-    displayHeight,
-    cropRect,
-    scale,
-    translateX,
-    translateY,
-  ]);
+
+  const panGesture = Gesture.Pan()
+    .onStart(() => {
+      // Store current translation as base
+      lastTranslateX.current = translateX.value;
+      lastTranslateY.current = translateY.value;
+    })
+    .onUpdate((e) => {
+      const rawTx = lastTranslateX.current + e.translationX;
+      const rawTy = lastTranslateY.current + e.translationY;
+
+      const clamped = clampTranslationToCoverCrop({
+        scale: scale.value,
+        tx: rawTx,
+        ty: rawTy,
+        displayWidth,
+        displayHeight,
+        crop: cropRect,
+      });
+
+      translateX.value = clamped.tx;
+      translateY.value = clamped.ty;
+    })
+    .onEnd(() => {
+      // Update last values for next gesture
+      lastTranslateX.current = translateX.value;
+      lastTranslateY.current = translateY.value;
+    });
+
+  // Combine gestures - pinch and pan can work simultaneously
+  const composedGesture = Gesture.Simultaneous(pinchGesture, panGesture);
+
+  // Animated style for the image
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { scale: scale.value },
+        { translateX: translateX.value },
+        { translateY: translateY.value },
+      ],
+    };
+  });
   const handleCrop = async () => {
     if (!imageUri || imageSize.width === 0) return;
 
     setLoading(true);
     try {
-      const currentScale = lastScale.current;
-      const currentX = lastTranslateX.current;
-      const currentY = lastTranslateY.current;
+      const currentScale = scale.value;
+      const currentX = translateX.value;
+      const currentY = translateY.value;
 
       // Map crop rect (screen) -> image coordinates.
       // We treat the displayed image (contain) as centered, then apply our transforms.
@@ -338,28 +269,19 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
           </TouchableOpacity>
         </View>
 
-         <View style={styles.cropContainer} {...(panResponder?.panHandlers || {})} collapsable={false} pointerEvents="auto">
+         <View style={styles.cropContainer} collapsable={false} pointerEvents="auto">
           {imageSize.width > 0 && (
-            <View style={styles.imageStage} pointerEvents="none">
-              <Animated.View
-                style={[
-                  styles.animatedWrap,
-                  {
-                    transform: [
-                      { scale }, // scale first
-                      { translateX },
-                      { translateY },
-                    ],
-                  },
-                ]}
-              >
-                <Image
-                  source={{ uri: imageUri }}
-                  style={{ width: displayWidth, height: displayHeight }}
-                  resizeMode="contain"
-                />
-              </Animated.View>
-            </View>
+            <GestureDetector gesture={composedGesture}>
+              <View style={styles.imageStage} pointerEvents="box-none">
+                <Animated.View style={[styles.animatedWrap, animatedStyle]}>
+                  <Image
+                    source={{ uri: imageUri }}
+                    style={{ width: displayWidth, height: displayHeight }}
+                    resizeMode="contain"
+                  />
+                </Animated.View>
+              </View>
+            </GestureDetector>
           )}
 
           {/* Oval overlay guide */}
