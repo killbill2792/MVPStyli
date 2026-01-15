@@ -1,5 +1,5 @@
 {
-  "name": "mvpstyli_fresh",
+  "name": "stylit",
   "version": "1.0.0",
   "main": "./index.js",
   "engines": {
@@ -9,43 +9,37 @@
     "start": "expo start --port 8082",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "postinstall": "patch-package"
   },
   "dependencies": {
-    "@mediapipe/face_detection": "^0.4.1646425229",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@supabase/supabase-js": "^2.45.0",
-    "@tensorflow-models/face-detection": "^1.0.3",
-    "@tensorflow/tfjs": "^4.22.0",
-    "@tensorflow/tfjs-react-native": "^1.0.0",
     "@vercel/node": "^3.0.0",
     "babel-preset-expo": "^54.0.3",
     "base-64": "^1.0.0",
     "cheerio": "^1.0.0-rc.12",
-    "expo": "~54.0.0",
-    "expo-build-properties": "^1.0.9",
+    "expo": "~54.0.30",
+    "expo-build-properties": "~1.0.10",
     "expo-camera": "~17.0.10",
-    "expo-contacts": "^15.0.10",
-    "expo-face-detector": "^13.0.2",
+    "expo-contacts": "~15.0.11",
+    "expo-dev-client": "~6.0.20",
     "expo-file-system": "~19.0.21",
-    "expo-gl": "~16.0.9",
-    "expo-image": "^3.0.11",
-    "expo-image-manipulator": "~14.0.8",
-    "expo-image-picker": "~17.0.8",
-    "expo-linear-gradient": "^15.0.7",
-    "expo-status-bar": "~3.0.8",
+    "expo-image-picker": "^17.0.10",
+    "expo-status-bar": "~3.0.9",
     "nanoid": "^5.0.7",
     "node-fetch": "^3.3.2",
     "react": "19.1.0",
-    "react-native": "0.81.4",
-    "react-native-fs": "^2.20.0",
-    "react-native-image-colors": "^2.5.1",
+    "react-native": "0.81.5",
     "react-native-safe-area-context": "^5.6.1",
-    "sharp": "^0.33.3"
+    "@tensorflow/tfjs-node": "^4.15.0",
+    "@tensorflow-models/blazeface": "^2.0.7"
   },
   "private": true,
   "devDependencies": {
     "@types/react": "~19.1.10",
+    "patch-package": "^8.0.1",
+    "postinstall-postinstall": "^2.1.0",
     "typescript": "~5.9.2"
   }
 }

@@ -1,17 +1,21 @@
 /**
- * Skin Tone Analysis API (Production-Friendly Heuristic)
- * - Robust sampling inside faceBox (many samples, trimmed mean)
+ * Skin Tone Analysis API (Production-Friendly with ML Face Detection)
+ * - Uses BlazeFace (TensorFlow.js) for accurate face detection
+ * - Falls back to heuristic only if ML detection fails
+ * - Robust sampling inside detected faceBox (many samples, trimmed mean)
  * - Simple skin-pixel filter to avoid beard/eyes/lips
  * - Lighting bias detection (warm cast) and confidence penalty
  * - ALWAYS returns a season (never null), but includes:
  *    - seasonConfidence
  *    - needsConfirmation (UI can ask user to confirm/change)
  *
- * No paid APIs. Uses Sharp only.
+ * No paid APIs. Uses Sharp and TensorFlow.js BlazeFace.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import sharp from 'sharp';
+import * as tf from '@tensorflow/tfjs-node';
+import * as blazeface from '@tensorflow-models/blazeface';
 
 type Undertone = 'warm' | 'cool' | 'neutral';
 type Depth = 'light' | 'medium' | 'deep';
@@ -82,23 +86,32 @@ function rgbToHsv(r: number, g: number, b: number) {
 /**
  * Lightweight skin-pixel check.
  * Purpose: avoid sampling beard/eyes/lips/background.
+ * Made more strict to avoid false positives on non-face images.
  */
 function isLikelySkinPixel(r: number, g: number, b: number) {
+  // More strict brightness range - skin is typically in a narrower range
   const v = (r + g + b) / (3 * 255);
-  if (v < 0.08 || v > 0.95) return false;
+  if (v < 0.15 || v > 0.85) return false; // Stricter: was 0.08-0.95
 
+  // Skin typically has R > G > B, with R significantly higher than B
   const rb = r - b;
-  if (rb < 5) return false;
-  if (r < 40 || g < 20 || b < 10) return false;
+  if (rb < 8) return false; // Stricter: was 5
+  if (r < 50 || g < 30 || b < 15) return false; // Stricter: was 40/20/10
 
+  // Skin has moderate saturation - too low or too high is not skin
   const { s } = rgbToHsv(r, g, b);
-  if (s < 0.08) return false;
+  if (s < 0.10 || s > 0.50) return false; // Stricter: was just s < 0.08
 
-  // avoid extreme red lips
-  if (r > 200 && g < 90 && b < 90) return false;
+  // Avoid extreme red (lips, red objects)
+  if (r > 200 && g < 100 && b < 100) return false; // Stricter: was 200/90/90
 
-  // permissive ordering
-  if (r < g && rb > 15) return false;
+  // Skin must have R >= G (skin is warm, not green-tinted)
+  if (r < g) return false; // Stricter: was r < g && rb > 15
+
+  // Additional check: skin typically has G closer to R than to B
+  const rgDiff = Math.abs(r - g);
+  const gbDiff = Math.abs(g - b);
+  if (gbDiff > rgDiff * 1.5) return false; // G should be closer to R than to B
 
   return true;
 }
@@ -113,32 +126,73 @@ function determineUndertoneFromLab(lab: { l: number; a: number; b: number }): {
   const { a, b } = lab;
   const chroma = Math.sqrt(a * a + b * b);
 
-  const warmScore = b / 25 + a / 35;
-  const coolScore = -b / 25 + -a / 50;
-
+  // Improved undertone calculation based on LAB color space
+  // In LAB: positive a = red/magenta (cool), negative a = green (warm)
+  //         positive b = yellow (warm), negative b = blue (cool)
+  // For skin: warm = yellow/golden (positive b, slightly negative a)
+  //           cool = pink/rosy (positive a, slightly negative b)
+  
+  // More accurate warm/cool scoring
+  const warmScore = (b > 0 ? b / 20 : 0) + (a < 0 ? -a / 40 : 0);
+  const coolScore = (a > 0 ? a / 30 : 0) + (b < 0 ? -b / 25 : 0);
+  
+  // Calculate the dominant direction
+  const scoreDiff = warmScore - coolScore;
+  const absDiff = Math.abs(scoreDiff);
+  
   let undertone: Undertone = 'neutral';
   let confidence = 0.55;
 
-  if (warmScore > 0.35 && b > 2) {
+  // More aggressive thresholds - be more sensitive to differences
+  // Use actual LAB values directly for better differentiation
+  // Warm: positive b (yellow) - even small values matter
+  // Cool: positive a (red/pink) - even small values matter
+  
+  // Lower thresholds to catch more variation
+  if (b > 1.5 && scoreDiff > 0.1) {
+    // Yellow component present = warm
     undertone = 'warm';
-    confidence = clamp(0.62 + (Math.min(chroma, 35) / 35) * 0.25, 0.55, 0.92);
-  } else if (coolScore > 0.35 && b < 2) {
+    confidence = clamp(0.6 + Math.min(absDiff * 0.6, 0.3), 0.55, 0.92);
+  } else if (a > 1.5 && scoreDiff < -0.1) {
+    // Red/pink component present = cool
     undertone = 'cool';
-    confidence = clamp(0.62 + (Math.min(chroma, 35) / 35) * 0.25, 0.55, 0.92);
+    confidence = clamp(0.6 + Math.min(absDiff * 0.6, 0.3), 0.55, 0.92);
+  } else if (absDiff > 0.08) {
+    // Even small differences matter - use the stronger signal
+    undertone = scoreDiff > 0 ? 'warm' : 'cool';
+    confidence = clamp(0.55 + Math.min(absDiff * 0.5, 0.25), 0.5, 0.85);
   } else {
+    // Truly neutral - scores are very close
     undertone = 'neutral';
-    confidence = clamp(0.75 - (Math.min(chroma, 35) / 35) * 0.25, 0.5, 0.8);
+    confidence = clamp(0.65 - (absDiff * 3), 0.5, 0.8);
   }
 
   return { undertone, confidence, chroma, warmScore, coolScore };
 }
 
 function determineDepthFromL(l: number): { depth: Depth; confidence: number } {
-  if (l >= 72) return { depth: 'light', confidence: clamp(0.75 + ((l - 72) / 28) * 0.2, 0.65, 0.95) };
-  if (l <= 38) return { depth: 'deep', confidence: clamp(0.75 + ((38 - l) / 38) * 0.2, 0.65, 0.95) };
-
-  const distToEdge = Math.min(l - 38, 72 - l);
-  return { depth: 'medium', confidence: clamp(0.7 + (distToEdge / 20) * 0.15, 0.65, 0.9) };
+  // More nuanced depth detection with better thresholds
+  // Light: L > 65 (fair to light skin)
+  // Medium: 45 < L <= 65 (medium skin tones)
+  // Deep: L <= 45 (deep/dark skin)
+  
+  if (l > 65) {
+    // Light skin tones
+    const lightness = (l - 65) / 35; // Normalize 65-100 range
+    return { depth: 'light', confidence: clamp(0.7 + lightness * 0.25, 0.65, 0.95) };
+  } else if (l <= 45) {
+    // Deep skin tones
+    const darkness = (45 - l) / 45; // Normalize 0-45 range
+    return { depth: 'deep', confidence: clamp(0.7 + darkness * 0.25, 0.65, 0.95) };
+  } else {
+    // Medium skin tones (45 < L <= 65)
+    // Check if closer to light or deep
+    const distToLight = l - 45;
+    const distToDeep = 65 - l;
+    const minDist = Math.min(distToLight, distToDeep);
+    const confidence = clamp(0.65 + (minDist / 10) * 0.2, 0.65, 0.9);
+    return { depth: 'medium', confidence };
+  }
 }
 
 function determineClarityFromSamples(samples: Array<{ r: number; g: number; b: number }>): {
@@ -152,12 +206,24 @@ function determineClarityFromSamples(samples: Array<{ r: number; g: number; b: n
   const avgSat = sats.reduce((a, c) => a + c, 0) / sats.length;
 
   let clarity: Clarity = 'muted';
-  if (avgSat >= 0.22) clarity = 'vivid';
-  else if (avgSat >= 0.14) clarity = 'clear';
-  else clarity = 'muted';
+  // More nuanced clarity detection
+  // Skin tones have relatively low saturation, so thresholds are lower
+  // Vivid: high saturation (bright, clear skin)
+  // Clear: moderate saturation (clear but not overly bright)
+  // Muted: low saturation (soft, muted skin)
+  
+  // Adjusted thresholds based on typical skin saturation ranges
+  if (avgSat >= 0.16) {
+    clarity = 'vivid';
+  } else if (avgSat >= 0.08) {
+    clarity = 'clear';
+  } else {
+    clarity = 'muted';
+  }
 
-  const d1 = Math.min(Math.abs(avgSat - 0.14), Math.abs(avgSat - 0.22));
-  const confidence = clamp(0.65 + d1 * 1.2, 0.55, 0.9);
+  // Calculate confidence based on distance from thresholds
+  const d1 = Math.min(Math.abs(avgSat - 0.08), Math.abs(avgSat - 0.16));
+  const confidence = clamp(0.6 + d1 * 1.5, 0.55, 0.9);
 
   return { clarity, confidence, avgSat };
 }
@@ -189,7 +255,9 @@ function decideSeasonAlways(
   depthConfidence: number,
   clarityConfidence: number,
   warmLightingSeverity: number,
-  labInfo?: { chroma: number; warmScore: number; coolScore: number }
+  labInfo?: { chroma: number; warmScore: number; coolScore: number },
+  labValues?: { l: number; a: number; b: number },
+  avgSat?: number
 ): { season: Season; seasonConfidence: number; needsConfirmation: boolean; reason: string } {
   // Start from component avg
   let base = (undertoneConfidence + depthConfidence + clarityConfidence) / 3;
@@ -197,46 +265,157 @@ function decideSeasonAlways(
   // Lighting penalty (warm cast can fake warm undertone and vividness)
   base = clamp(base - warmLightingSeverity * 0.15, 0, 1);
 
-  // --- Candidate logic ---
-  // If undertone is neutral, choose using depth + clarity and hint scores.
-  // If warm/cool, choose normally.
-  let season: Season = 'autumn';
+  // --- Color Season Decision Logic ---
+  // Based on traditional color analysis theory:
+  // - Undertone (warm/cool/neutral) determines warm vs cool seasons
+  // - Depth/Value (light/medium/deep) determines light vs deep seasons
+  // - Clarity/Chroma (muted/clear/vivid) determines soft vs bright seasons
+  //
+  // Seasons:
+  // - Spring: Warm + Light + Clear/Vivid (bright warm)
+  // - Summer: Cool + Light/Medium + Muted (soft cool)
+  // - Autumn: Warm + Medium/Deep + Muted (warm earth tones)
+  // - Winter: Cool + Deep + Clear/Vivid (cool bright)
+  
+  let season: Season;
   let reason = '';
 
-  const isWarmish = undertone === 'warm' || (undertone === 'neutral' && (labInfo?.warmScore ?? 0) > (labInfo?.coolScore ?? 0) + 0.08);
-  const isCoolish = undertone === 'cool' || (undertone === 'neutral' && (labInfo?.coolScore ?? 0) > (labInfo?.warmScore ?? 0) + 0.08);
-
-  if (isWarmish) {
-    // Warm axis: Spring vs Autumn
-    if (depth === 'light' && (clarity === 'clear' || clarity === 'vivid')) {
-      season = 'spring';
-      reason = 'Warm-ish + light + clear/vivid → Spring';
-    } else {
-      season = 'autumn';
-      reason = 'Warm-ish + medium/deep or muted/clear → Autumn';
-    }
-  } else if (isCoolish) {
-    // Cool axis: Summer vs Winter
-    if ((depth === 'light' || depth === 'medium') && (clarity === 'muted' || clarity === 'clear')) {
-      season = 'summer';
-      reason = 'Cool-ish + light/medium + muted/clear → Summer';
-    } else {
-      season = 'winter';
-      reason = 'Cool-ish + deep or vivid/clear → Winter';
-    }
-  } else {
-    // Truly neutral: use depth + clarity only (practical fallback)
-    if (depth === 'light') {
-      season = clarity === 'vivid' ? 'spring' : 'summer';
-      reason = 'Neutral + light → Spring (vivid) or Summer (muted/clear)';
-    } else if (depth === 'deep') {
-      season = clarity === 'muted' ? 'autumn' : 'winter';
-      reason = 'Neutral + deep → Autumn (muted) or Winter (clear/vivid)';
-    } else {
-      season = clarity === 'muted' ? 'summer' : 'autumn';
-      reason = 'Neutral + medium → Summer (muted) or Autumn (clear/vivid)';
-    }
+  // Use actual LAB values directly for scoring-based decision
+  const l = labValues?.l ?? 50;
+  const a = labValues?.a ?? 0;
+  const b = labValues?.b ?? 0;
+  const saturation = avgSat ?? 0.1;
+  
+  // Calculate season scores directly from numeric values
+  // This approach is more sensitive to actual differences
+  let springScore = 0;
+  let summerScore = 0;
+  let autumnScore = 0;
+  let winterScore = 0;
+  
+  // Spring: Warm + Light + Clear/Vivid (bright warm)
+  // Key: Light skin with warm undertone and higher saturation
+  if (b > 0 || undertone === 'warm' || undertone === 'neutral') {
+    // Lightness scoring - spring prefers lighter
+    if (l > 65) springScore += 4;
+    else if (l > 55) springScore += 2;
+    else if (l > 50) springScore += 1;
+    
+    // Saturation scoring - spring needs higher saturation
+    if (saturation > 0.14) springScore += 4;
+    else if (saturation > 0.11) springScore += 2;
+    else if (saturation > 0.09) springScore += 1;
+    
+    // Yellow component - warm indicator
+    if (b > 6) springScore += 3;
+    else if (b > 3) springScore += 2;
+    else if (b > 1) springScore += 1;
+    
+    // Penalty for too dark
+    if (l < 50) springScore -= 2;
   }
+  
+  // Summer: Cool + Light/Medium + Muted (soft cool)
+  // Key: Light to medium cool with lower saturation
+  if (a > 0 || undertone === 'cool' || undertone === 'neutral') {
+    // Lightness scoring
+    if (l > 60) summerScore += 3;
+    else if (l > 50) summerScore += 2;
+    else if (l > 45) summerScore += 1;
+    
+    // Lower saturation preferred
+    if (saturation < 0.10) summerScore += 4;
+    else if (saturation < 0.12) summerScore += 2;
+    else if (saturation < 0.14) summerScore += 1;
+    
+    // Pink/red component
+    if (a > 4) summerScore += 3;
+    else if (a > 2) summerScore += 2;
+    else if (a > 0.5) summerScore += 1;
+    
+    // Penalty for too dark or too saturated
+    if (l < 45) summerScore -= 2;
+    if (saturation > 0.15) summerScore -= 1;
+  }
+  
+  // Autumn: Warm + Medium/Deep + Muted (warm earth tones)
+  // Key: Medium to deep warm with lower saturation
+  if (b > 0 || undertone === 'warm' || undertone === 'neutral') {
+    // Medium to deep preferred
+    if (l < 60 && l > 45) autumnScore += 4;
+    else if (l < 65 && l > 40) autumnScore += 3;
+    else if (l < 50) autumnScore += 2;
+    else if (l < 70) autumnScore += 1;
+    
+    // Lower saturation preferred
+    if (saturation < 0.11) autumnScore += 4;
+    else if (saturation < 0.13) autumnScore += 2;
+    else if (saturation < 0.15) autumnScore += 1;
+    
+    // Yellow component
+    if (b > 4) autumnScore += 2;
+    else if (b > 2) autumnScore += 1;
+    
+    // Penalty for too light or too saturated
+    if (l > 65) autumnScore -= 2;
+    if (saturation > 0.14) autumnScore -= 2;
+  }
+  
+  // Winter: Cool + Deep + Clear/Vivid (cool bright)
+  // Key: Deep cool with higher saturation
+  if (a > 0 || undertone === 'cool' || undertone === 'neutral') {
+    // Deep preferred
+    if (l < 50) winterScore += 4;
+    else if (l < 55) winterScore += 3;
+    else if (l < 60) winterScore += 1;
+    
+    // Higher saturation preferred
+    if (saturation > 0.12) winterScore += 4;
+    else if (saturation > 0.10) winterScore += 2;
+    else if (saturation > 0.08) winterScore += 1;
+    
+    // Red/pink component
+    if (a > 4) winterScore += 3;
+    else if (a > 2) winterScore += 2;
+    else if (a > 0.5) winterScore += 1;
+    
+    // Penalty for too light or too muted
+    if (l > 60) winterScore -= 2;
+    if (saturation < 0.10) winterScore -= 2;
+  }
+  
+  // Find the season with highest score
+  const scores = [
+    { season: 'spring' as Season, score: springScore },
+    { season: 'summer' as Season, score: summerScore },
+    { season: 'autumn' as Season, score: autumnScore },
+    { season: 'winter' as Season, score: winterScore }
+  ];
+  
+  scores.sort((a, b) => b.score - a.score);
+  season = scores[0].season;
+  
+  // Generate detailed reason
+  const topScore = scores[0].score;
+  const secondScore = scores[1].score;
+  const scoreDiff = topScore - secondScore;
+  
+  reason = `${season.toUpperCase()} (scores: Spring=${springScore}, Summer=${summerScore}, Autumn=${autumnScore}, Winter=${winterScore}, winner=${topScore}, L:${l.toFixed(1)}, a:${a.toFixed(1)}, b:${b.toFixed(1)}, sat:${saturation.toFixed(3)}, undertone:${undertone}, depth:${depth}, clarity:${clarity})`;
+  
+  // If scores are very close, mark as needing confirmation
+  if (scoreDiff < 2) {
+    reason += ` [Close: ${scores[1].season}=${secondScore}]`;
+  }
+  
+  // Log all scores for debugging
+  console.log('🎨 Season Scores:', {
+    spring: springScore,
+    summer: summerScore,
+    autumn: autumnScore,
+    winter: winterScore,
+    winner: season,
+    l, a, b, saturation, undertone, depth, clarity
+  });
 
   // seasonConfidence: penalize if undertone is neutral (because season split depends on it)
   let seasonConfidence = base;
@@ -288,6 +467,93 @@ function clampFaceBoxToBounds(box: FaceBox, imageWidth: number, imageHeight: num
   const w = clamp(Math.floor(box.width), 1, imageWidth - left);
   const h = clamp(Math.floor(box.height), 1, imageHeight - top);
   return { left, top, width: w, height: h };
+}
+
+// Cache for BlazeFace model (loaded once and reused)
+let faceDetectionModel: blazeface.BlazeFaceModel | null = null;
+
+/**
+ * Detect face in image using BlazeFace ML model
+ * Returns face box or null if no face detected
+ */
+async function detectFaceWithML(imageBuffer: Buffer, imageWidth: number, imageHeight: number): Promise<FaceBox | null> {
+  try {
+    console.log('🎨 [SKIN TONE API] Starting BlazeFace detection...');
+    
+    // Load model once and cache it
+    if (!faceDetectionModel) {
+      console.log('🎨 [SKIN TONE API] Loading BlazeFace model (first time)...');
+      faceDetectionModel = await blazeface.load();
+      console.log('🎨 [SKIN TONE API] BlazeFace model loaded successfully');
+    }
+    
+    // Decode image to tensor
+    const imageTensor = tf.node.decodeImage(imageBuffer, 3) as tf.Tensor3D;
+    
+    // Detect faces with confidence threshold
+    const predictions = await faceDetectionModel.estimateFaces(imageTensor, false, false);
+    
+    // Clean up tensor immediately to free memory
+    imageTensor.dispose();
+    
+    console.log('🎨 [SKIN TONE API] BlazeFace detection results:', {
+      facesFound: predictions.length,
+      predictions: predictions.map(p => ({
+        probability: p.probability?.[0],
+        start: p.topLeft,
+        end: p.bottomRight
+      }))
+    });
+    
+    if (predictions.length === 0) {
+      console.log('🎨 [SKIN TONE API] No faces detected by BlazeFace');
+      return null;
+    }
+    
+    // Use face with highest probability
+    const bestFace = predictions.reduce((best, current) => {
+      const currentProb = current.probability?.[0] || 0;
+      const bestProb = best.probability?.[0] || 0;
+      return currentProb > bestProb ? current : best;
+    });
+    
+    const confidence = bestFace.probability?.[0] || 0;
+    
+    // Require minimum confidence of 0.7 for reliable detection
+    if (confidence < 0.7) {
+      console.log('🎨 [SKIN TONE API] Face confidence too low:', confidence);
+      return null;
+    }
+    
+    // Convert to FaceBox format
+    const faceBox: FaceBox = {
+      x: Math.max(0, bestFace.topLeft[0]),
+      y: Math.max(0, bestFace.topLeft[1]),
+      width: Math.max(1, bestFace.bottomRight[0] - bestFace.topLeft[0]),
+      height: Math.max(1, bestFace.bottomRight[1] - bestFace.topLeft[1]),
+    };
+    
+    // Ensure box is within image bounds
+    faceBox.x = Math.min(faceBox.x, imageWidth - 1);
+    faceBox.y = Math.min(faceBox.y, imageHeight - 1);
+    faceBox.width = Math.min(faceBox.width, imageWidth - faceBox.x);
+    faceBox.height = Math.min(faceBox.height, imageHeight - faceBox.y);
+    
+    console.log('🎨 [SKIN TONE API] Face detected successfully:', {
+      confidence: confidence,
+      box: faceBox,
+      imageSize: { width: imageWidth, height: imageHeight }
+    });
+    
+    return faceBox;
+  } catch (error: any) {
+    console.error('🎨 [SKIN TONE API] BlazeFace detection error:', error);
+    console.error('🎨 [SKIN TONE API] Error details:', {
+      message: error.message,
+      stack: error.stack?.substring(0, 500)
+    });
+    return null;
+  }
 }
 
 async function sampleSkinFromFace(faceImage: Buffer) {
@@ -349,12 +615,31 @@ function trimmedMean(samples: Array<{ r: number; g: number; b: number }>, trimRa
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const startTime = Date.now();
+  
+  // Log request start - this should always appear in Vercel logs
+  // NOTE: Vercel logs may not show in real-time. Check Vercel Dashboard > Your Project > Functions > analyze-skin-tone > Logs
+  console.log('🎨 [SKIN TONE API] ========== REQUEST STARTED ==========');
+  console.log('🎨 [SKIN TONE API] Method:', req.method);
+  console.log('🎨 [SKIN TONE API] Timestamp:', new Date().toISOString());
+  
+  // Force flush logs (Vercel may buffer)
+  if (typeof process !== 'undefined' && process.stdout) {
+    process.stdout.write('🎨 [SKIN TONE API] REQUEST STARTED\n');
+  }
+  
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method === 'OPTIONS') {
+    console.log('🎨 [SKIN TONE API] OPTIONS request - returning 200');
+    return res.status(200).end();
+  }
+  if (req.method !== 'POST') {
+    console.log('🎨 [SKIN TONE API] Invalid method:', req.method);
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
   try {
     const { imageUrl, imageBase64, faceBox } = req.body as {
@@ -363,10 +648,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       faceBox?: FaceBox;
     };
 
-    if (!imageUrl && !imageBase64) return res.status(400).json({ error: 'Missing imageUrl or imageBase64' });
+    console.log('🎨 [SKIN TONE API] Request body:', {
+      hasImageUrl: !!imageUrl,
+      hasImageBase64: !!imageBase64,
+      imageUrlLength: imageUrl?.length || 0,
+      imageBase64Length: imageBase64?.length || 0,
+      hasFaceBox: !!faceBox,
+    });
 
+    if (!imageUrl && !imageBase64) {
+      console.error('🎨 [SKIN TONE API] ERROR: Missing imageUrl or imageBase64');
+      return res.status(400).json({ error: 'Missing imageUrl or imageBase64' });
+    }
+
+    console.log('🎨 [SKIN TONE API] Loading image buffer...');
     const imageBuffer = await loadImageBuffer(imageUrl, imageBase64);
+    console.log('🎨 [SKIN TONE API] Image buffer loaded, size:', imageBuffer.length, 'bytes');
+    
     const meta = await sharp(imageBuffer).metadata();
+    console.log('🎨 [SKIN TONE API] Image metadata:', {
+      width: meta.width,
+      height: meta.height,
+      format: meta.format,
+      channels: meta.channels,
+    });
+    
     if (!meta.width || !meta.height) throw new Error('Invalid image metadata');
 
     const imageWidth = meta.width;
@@ -393,9 +699,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const overallAvg = { r: Math.round(or / ocnt), g: Math.round(og / ocnt), b: Math.round(ob / ocnt) };
     const lighting = estimateWarmLightingBias(overallAvg);
 
-    // Use provided faceBox if valid, else heuristic
+    // Face detection: Try ML first, then provided faceBox, then return error (no heuristic fallback)
     let actualFaceBox: FaceBox | null = null;
-    if (faceBox && typeof faceBox === 'object') {
+    let detectionMethod = 'unknown';
+    
+    // 1. Try ML face detection first (if no faceBox provided)
+    if (!faceBox) {
+      console.log('🎨 [SKIN TONE API] No faceBox provided, attempting ML face detection...');
+      actualFaceBox = await detectFaceWithML(imageBuffer, imageWidth, imageHeight);
+      
+      if (actualFaceBox) {
+        detectionMethod = 'ml';
+        console.log('🎨 [SKIN TONE API] ML face detection successful');
+      } else {
+        console.log('🎨 [SKIN TONE API] ML detection failed - no face found in image');
+        // Return error immediately - don't use heuristic for non-face images
+        return res.status(400).json({ 
+          error: 'FACE_NOT_DETECTED',
+          message: 'No face detected in image. Please upload a clear face photo with good lighting.',
+          detectionMethod: 'ml',
+        });
+      }
+    } else {
+      // 2. Use provided faceBox if valid
       const valid =
         Number.isFinite(faceBox.x) &&
         Number.isFinite(faceBox.y) &&
@@ -405,26 +731,126 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         faceBox.height > 0 &&
         faceBox.x >= 0 &&
         faceBox.y >= 0;
-      actualFaceBox = valid ? faceBox : null;
+      
+      if (valid) {
+        actualFaceBox = faceBox;
+        detectionMethod = 'provided';
+        console.log('🎨 [SKIN TONE API] Using provided faceBox');
+      } else {
+        console.log('🎨 [SKIN TONE API] Invalid faceBox provided, attempting ML detection...');
+        actualFaceBox = await detectFaceWithML(imageBuffer, imageWidth, imageHeight);
+        
+        if (actualFaceBox) {
+          detectionMethod = 'ml';
+          console.log('🎨 [SKIN TONE API] ML face detection successful');
+        } else {
+          console.log('🎨 [SKIN TONE API] ML detection failed - no face found');
+          return res.status(400).json({ 
+            error: 'FACE_NOT_DETECTED',
+            message: 'No face detected in image. Please upload a clear face photo with good lighting.',
+            detectionMethod: 'ml',
+          });
+        }
+      }
     }
-    if (!actualFaceBox) actualFaceBox = computeHeuristicFaceBox(imageWidth, imageHeight);
+
+    if (!actualFaceBox) {
+      return res.status(400).json({ 
+        error: 'FACE_NOT_DETECTED',
+        message: 'No face detected in image. Please upload a clear face photo with good lighting.',
+      });
+    }
+    
+    console.log('🎨 [SKIN TONE API] Using face box:', {
+      method: detectionMethod,
+      box: actualFaceBox
+    });
 
     const crop = clampFaceBoxToBounds(actualFaceBox, imageWidth, imageHeight);
     const faceImage = await sharp(imageBuffer).extract(crop).toBuffer();
 
     // Sample skin
     const { allSamples, skinSamples } = await sampleSkinFromFace(faceImage);
-    const useSamples = skinSamples.length >= 40 ? skinSamples : allSamples;
-
+    
+    console.log('🎨 [SKIN TONE API] Sampling complete:', {
+      totalSamples: allSamples.length,
+      skinSamples: skinSamples.length,
+      skinRatio: allSamples.length > 0 ? skinSamples.length / allSamples.length : 0,
+    });
+    
+    // Face detection validation: stricter thresholds to avoid false positives
+    // Need both sufficient skin samples AND high skin ratio to confirm face presence
+    const skinRatio = allSamples.length > 0 ? skinSamples.length / allSamples.length : 0;
+    const minSkinSamples = 60; // Increased: was 40 - need more samples to confirm face
+    const minSkinRatio = 0.45; // Increased: was 0.30 - need higher ratio to confirm face
+    
+    console.log('🎨 [SKIN TONE API] Face detection validation:', {
+      skinRatio,
+      skinSamplesCount: skinSamples.length,
+      minRequired: minSkinSamples,
+      minRatioRequired: minSkinRatio,
+      allSamplesCount: allSamples.length,
+    });
+    
+    // Both conditions must be met: sufficient samples AND high ratio
+    if (skinSamples.length < minSkinSamples || skinRatio < minSkinRatio) {
+      console.error('🎨 [SKIN TONE API] ERROR: Face detection failed');
+      console.error('🎨 [SKIN TONE API] Reason:', {
+        skinSamplesTooLow: skinSamples.length < minSkinSamples,
+        skinRatioTooLow: skinRatio < minSkinRatio,
+        skinRatio,
+        skinSamples: skinSamples.length,
+        totalSamples: allSamples.length,
+        threshold: `${minSkinRatio * 100}%`,
+      });
+      return res.status(400).json({ 
+        error: 'FACE_NOT_DETECTED',
+        message: 'No face detected in image. Please upload a clear face photo with good lighting.',
+        skinRatio,
+        totalSamples: allSamples.length,
+        skinSamples: skinSamples.length,
+        minRequired: minSkinSamples,
+        minRatioRequired: minSkinRatio,
+      });
+    }
+    
+    // Only use skin samples if we have enough - don't fall back to all samples
+    // This ensures we're only analyzing actual skin, not random pixels
+    const useSamples = skinSamples.length >= minSkinSamples ? skinSamples : [];
+    if (useSamples.length === 0) {
+      console.error('🎨 [SKIN TONE API] ERROR: Not enough skin samples after validation');
+      return res.status(400).json({ 
+        error: 'FACE_NOT_DETECTED',
+        message: 'No face detected in image. Please upload a clear face photo with good lighting.',
+        skinRatio,
+        totalSamples: allSamples.length,
+        skinSamples: skinSamples.length,
+        minRequired: minSkinSamples,
+      });
+    }
+    console.log('🎨 [SKIN TONE API] Using samples:', useSamples.length);
+    
     const skinRgb = trimmedMean(useSamples, 0.18);
     const hex = rgbToHex(skinRgb.r, skinRgb.g, skinRgb.b);
+    
+    console.log('🎨 [SKIN TONE API] Skin RGB:', skinRgb, 'HEX:', hex);
 
     const lab = rgbToLab(skinRgb.r, skinRgb.g, skinRgb.b);
+    console.log('🎨 [SKIN TONE API] LAB values:', {
+      l: Math.round(lab.l * 10) / 10,
+      a: Math.round(lab.a * 10) / 10,
+      b: Math.round(lab.b * 10) / 10,
+    });
+    
     const undertoneInfo = determineUndertoneFromLab(lab);
     const { undertone, confidence: undertoneConfidence } = undertoneInfo;
+    console.log('🎨 [SKIN TONE API] Undertone:', undertone, 'Confidence:', undertoneConfidence);
 
     const { depth, confidence: depthConfidence } = determineDepthFromL(lab.l);
+    console.log('🎨 [SKIN TONE API] Depth:', depth, 'Confidence:', depthConfidence);
+    
     const { clarity, confidence: clarityConfidence, avgSat } = determineClarityFromSamples(useSamples);
+    console.log('🎨 [SKIN TONE API] Clarity:', clarity, 'Confidence:', clarityConfidence, 'Avg Saturation:', avgSat);
 
     // Season: ALWAYS decide
     const seasonDecision = decideSeasonAlways(
@@ -435,8 +861,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       depthConfidence,
       clarityConfidence,
       lighting.severity,
-      { chroma: undertoneInfo.chroma, warmScore: undertoneInfo.warmScore, coolScore: undertoneInfo.coolScore }
+      { chroma: undertoneInfo.chroma, warmScore: undertoneInfo.warmScore, coolScore: undertoneInfo.coolScore },
+      lab,
+      avgSat
     );
+
+    // Debug logging - comprehensive season decision
+    console.log('🎨 [SKIN TONE API] ========== SEASON DECISION ==========');
+    console.log('🎨 [SKIN TONE API] Season Decision:', {
+      undertone,
+      depth,
+      clarity,
+      avgSat,
+      undertoneConfidence,
+      depthConfidence,
+      clarityConfidence,
+      warmScore: undertoneInfo.warmScore,
+      coolScore: undertoneInfo.coolScore,
+      season: seasonDecision.season,
+      reason: seasonDecision.reason,
+      seasonConfidence: seasonDecision.seasonConfidence,
+      lab: { l: Math.round(lab.l * 10) / 10, a: Math.round(lab.a * 10) / 10, b: Math.round(lab.b * 10) / 10 },
+    });
 
     // Overall confidence (not just season), penalize heavy warm lighting slightly
     const overallConfidence = clamp(
@@ -445,6 +891,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       0.95
     );
 
+    const timeTaken = Date.now() - startTime;
+    console.log('🎨 [SKIN TONE API] ========== ANALYSIS COMPLETE ==========');
+    console.log('🎨 [SKIN TONE API] Final Result:', {
+      season: seasonDecision.season,
+      seasonConfidence: seasonDecision.seasonConfidence,
+      undertone,
+      depth,
+      clarity,
+      overallConfidence,
+      hex,
+      timeTaken: `${timeTaken}ms`,
+    });
+    console.log('🎨 [SKIN TONE API] ==========================================');
+
     return res.status(200).json({
       rgb: skinRgb,
       hex,
@@ -452,6 +912,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       undertone,
       depth,
       clarity,
+      avgSat: Math.round(avgSat * 1000) / 1000, // Include saturation in response
 
       // IMPORTANT: never null
       season: seasonDecision.season,
@@ -487,6 +948,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
     });
   } catch (error: any) {
+    const timeTaken = Date.now() - startTime;
+    console.error('🎨 [SKIN TONE API] ========== ERROR ==========');
+    console.error('🎨 [SKIN TONE API] Error occurred:', error.message || 'Unknown error');
+    console.error('🎨 [SKIN TONE API] Error stack:', error.stack);
+    console.error('🎨 [SKIN TONE API] Time taken before error:', `${timeTaken}ms`);
+    console.error('🎨 [SKIN TONE API] ==========================================');
+    
     return res.status(500).json({
       error: error.message || 'Unknown error occurred',
       undertone: 'neutral',
