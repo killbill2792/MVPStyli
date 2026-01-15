@@ -301,7 +301,6 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
       </View>
 
       <View style={styles.cropContainer}>
-        <View style={styles.gestureArea} {...panResponder.panHandlers} collapsable={false}>
         {imageSize.width > 0 && (
           <Animated.View
             style={[
@@ -325,8 +324,6 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
             />
           </Animated.View>
         )}
-
-        </View>
         
         {/* Oval overlay guide - pointerEvents: 'none' so it doesn't block touches */}
         <View style={styles.overlay} pointerEvents="none">
@@ -348,6 +345,9 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
           </View>
           <View style={styles.overlayBottom} />
         </View>
+        
+        {/* Gesture area - covers only the crop container, not header */}
+        <View style={styles.gestureArea} {...panResponder.panHandlers} collapsable={false} />
       </View>
 
       <View style={styles.instructions}>
@@ -374,6 +374,8 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#333',
+    zIndex: 100,
+    backgroundColor: '#000',
   },
   cancelButton: {
     padding: 8,
@@ -415,7 +417,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 1,
+    zIndex: 2,
   },
   imageContainer: {
     position: 'absolute',
@@ -423,8 +425,11 @@ const styles = StyleSheet.create({
   },
   overlay: {
     position: 'absolute',
+    top: 0,
+    left: 0,
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,
+    zIndex: 1,
   },
   overlayTop: {
     height: OVAL_Y,
