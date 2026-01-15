@@ -1109,11 +1109,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
     console.log('🎨 [FACE DETECTION] ==============================================');
     
-    // Note: BlazeFace and FaceAPI are not currently implemented
-    // If you add them, set detectionMethod = 'blazeface' or 'faceapi' accordingly
+    // NOTE: BlazeFace and FaceAPI are NOT currently implemented due to Vercel size limits
+    // - TensorFlow.js + BlazeFace exceeds Vercel's 250MB serverless function limit
+    // - Alternative: Use external API (AWS Rekognition, Google Cloud Vision, etc.) but adds cost
+    // - Current solution: Heuristic detection (RGB skin filter + region scanning) works well for most cases
+    // - If you want ML-based detection, consider:
+    //   1. External face detection API service
+    //   2. Separate microservice with larger size limits
+    //   3. Client-side detection (but requires app rebuild)
     if (detectionMethod === 'heuristic') {
       console.log('🎨 [FACE DETECTION] ⚠️  Using HEURISTIC detection (RGB skin filter) - not ML-based');
-      console.log('🎨 [FACE DETECTION] ⚠️  BlazeFace and FaceAPI are not currently implemented');
+      console.log('🎨 [FACE DETECTION] ⚠️  BlazeFace/FaceAPI unavailable: TensorFlow.js too large for Vercel (250MB limit)');
+      console.log('🎨 [FACE DETECTION] ℹ️  Heuristic works well for clear face photos with good lighting');
     }
 
     const crop = clampFaceBoxToBounds(actualFaceBox, imageWidth, imageHeight);
