@@ -1094,10 +1094,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } else if (imageUrl || imageBase64) {
       // Fallback: Full image with face detection
       console.log('🎨 [SKIN TONE API] Loading full image for face detection...');
-      const imageBuffer = await loadImageBuffer(imageUrl, imageBase64);
-      console.log('🎨 [SKIN TONE API] Image buffer loaded, size:', imageBuffer.length, 'bytes');
-      
-      const meta = await sharp(imageBuffer).metadata();
+    const imageBuffer = await loadImageBuffer(imageUrl, imageBase64);
+    console.log('🎨 [SKIN TONE API] Image buffer loaded, size:', imageBuffer.length, 'bytes');
+    
+    const meta = await sharp(imageBuffer).metadata();
     console.log('🎨 [SKIN TONE API] Image metadata:', {
       width: meta.width,
       height: meta.height,
@@ -1224,7 +1224,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.log('🎨 [FACE DETECTION] ℹ️  Heuristic works well for clear face photos with good lighting');
     }
 
-      const crop = clampFaceBoxToBounds(actualFaceBox, imageWidth, imageHeight);
+    const crop = clampFaceBoxToBounds(actualFaceBox, imageWidth, imageHeight);
       faceBoxUsed = crop;
       faceImageBuffer = await sharp(imageBuffer).extract(crop).toBuffer();
     } else {
