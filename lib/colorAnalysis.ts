@@ -2,6 +2,7 @@
 // This provides both heuristic-based analysis and structure for future ML upgrades
 
 import { supabase } from './supabase';
+import * as FileSystem from 'expo-file-system';
 
 export interface ColorProfile {
   tone: 'warm' | 'cool' | 'neutral';
@@ -48,8 +49,138 @@ const COLOR_SEASONS = {
   }
 };
 
+/**
+ * Convert local image URI to base64
+ */
+async function uriToBase64(uri: string): Promise<string> {
+  try {
+    const base64 = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    return `data:image/jpeg;base64,${base64}`;
+  } catch (error) {
+    console.error('Error converting URI to base64:', error);
+    throw error;
+  }
+}
+
+/**
+ * NEW: Analyze face from cropped image (preferred method)
+ * Sends pre-cropped face image directly to server (no face detection needed)
+ */
+export async function analyzeFaceForColorProfileFromCroppedImage(
+  croppedImageUri: string,
+  uploadFn: (uri: string) => Promise<string>
+): Promise<{ profile: ExtendedColorProfile | null; uploadedUrl: string | null; qualityMessages?: string[] }> {
+  try {
+    console.log('🎨 [SKIN TONE CLIENT] ========== STARTING FACE ANALYSIS (CROPPED IMAGE) ==========');
+    console.log('🎨 [SKIN TONE CLIENT] Cropped image URI:', croppedImageUri.substring(0, 100));
+    
+    // Convert cropped image to base64
+    const croppedFaceBase64 = await uriToBase64(croppedImageUri);
+    console.log('🎨 [SKIN TONE CLIENT] Cropped image converted to base64, length:', croppedFaceBase64.length);
+    
+    // Call server analysis with cropped image
+    const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL;
+    if (!API_BASE) {
+      throw new Error('API_BASE not configured');
+    }
+    const apiUrl = `${API_BASE}/api/analyze-skin-tone`;
+    
+    console.log('🎨 [SKIN TONE CLIENT] Calling API with cropped image:', apiUrl);
+    
+    const startTime = Date.now();
+    console.log('🎨 [SKIN TONE CLIENT] API call started at:', new Date().toISOString());
+    
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        croppedFaceBase64: croppedFaceBase64,
+        // No imageUrl or faceBox - using pre-cropped image
+      }),
+    });
+    
+    console.log('🎨 [SKIN TONE CLIENT] API response received at:', new Date().toISOString());
+    console.log('🎨 [SKIN TONE CLIENT] Response status:', response.status, response.statusText);
+    
+    const timeTaken = Date.now() - startTime;
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('🎨 [SKIN TONE CLIENT] API error:', response.status, errorText);
+      
+      // If server says face not detected, return null
+      if (errorText.includes('FACE_NOT_DETECTED') || response.status === 400) {
+        return { profile: null, uploadedUrl: null };
+      }
+      throw new Error(`Skin tone analysis failed: ${response.status} - ${errorText}`);
+    }
+    
+    const analysis = await response.json();
+    
+    // If server says face not detected / low confidence, treat as null
+    if (analysis?.error === 'FACE_NOT_DETECTED' || !analysis.undertone) {
+      console.warn('🎨 [SKIN TONE CLIENT] Server returned no face detected or invalid analysis');
+      return { profile: null, uploadedUrl: null };
+    }
+    
+    console.log('🎨 [SKIN TONE CLIENT] Analysis complete:', {
+      undertone: analysis.undertone,
+      depth: analysis.depth,
+      season: analysis.season,
+      confidence: analysis.confidence,
+      seasonConfidence: analysis.seasonConfidence,
+      needsConfirmation: analysis.needsConfirmation,
+      qualityMessages: analysis.qualityMessages,
+      timeTaken: `${timeTaken}ms`,
+    });
+    
+    // Upload the cropped image for storage
+    let uploadedUrl: string | null = null;
+    try {
+      uploadedUrl = await uploadFn(croppedImageUri);
+      console.log('🎨 [SKIN TONE CLIENT] Cropped image uploaded for storage');
+    } catch (uploadError) {
+      console.error('🎨 [SKIN TONE CLIENT] Failed to upload cropped image:', uploadError);
+    }
+    
+    // Use seasonConfidence instead of overall confidence for season decision
+    let season = analysis.season;
+    if (!analysis.season || (analysis.seasonConfidence ?? 0) < 0.72) {
+      console.log('🎨 [SKIN TONE CLIENT] Season confidence low, needs confirmation:', {
+        season: analysis.season,
+        seasonConfidence: analysis.seasonConfidence,
+      });
+    }
+    
+    // Get season data if season exists
+    const seasonData = season ? COLOR_SEASONS[season as keyof typeof COLOR_SEASONS] : null;
+    
+    const profile: ExtendedColorProfile = {
+      tone: analysis.undertone,
+      depth: analysis.depth,
+      season: season,
+      bestColors: seasonData?.bestColors || [],
+      avoidColors: seasonData?.avoidColors || [],
+      description: seasonData?.description || 'Color analysis complete',
+      confidence: analysis.confidence || 0,
+      seasonConfidence: analysis.seasonConfidence,
+      needsConfirmation: analysis.needsConfirmation,
+      skinHex: analysis.hex,
+      clarity: analysis.clarity,
+    };
+    
+    return { profile, uploadedUrl, qualityMessages: analysis.qualityMessages };
+  } catch (error: any) {
+    console.error('🎨 [SKIN TONE CLIENT] Error in analyzeFaceForColorProfileFromCroppedImage:', error);
+    return { profile: null, uploadedUrl: null };
+  }
+}
+
 // NEW: Analyze face from local URI using server-side face detection
 // Server-side detection is the primary method - no client-side detection needed
+// NOTE: This is the fallback method - prefer analyzeFaceForColorProfileFromCroppedImage
 export async function analyzeFaceForColorProfileFromLocalUri(
   localUri: string,
   uploadFn: (uri: string) => Promise<string>
