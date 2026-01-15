@@ -93,6 +93,10 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
         translateXBase.current = lastTranslateX.current;
         translateYBase.current = lastTranslateY.current;
         
+        // Always reset pinch tracking on grant (new gesture starts)
+        initialPinchDistance.current = null;
+        initialPinchScale.current = null;
+        
         // Handle initial pinch setup
         const touchCount = evt.nativeEvent.touches ? evt.nativeEvent.touches.length : 0;
         if (touchCount === 2) {
@@ -104,10 +108,7 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
           );
           initialPinchDistance.current = distance;
           initialPinchScale.current = lastScale.current;
-          console.log('🎨 [CROP] Pinch grant, initial distance:', distance);
-        } else {
-          initialPinchDistance.current = null;
-          initialPinchScale.current = null;
+          console.log('🎨 [CROP] Pinch grant, initial distance:', distance, 'current scale:', lastScale.current);
         }
       },
       
@@ -132,12 +133,13 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
           
           // Calculate new scale
           const scaleRatio = distance / initialPinchDistance.current;
-          const newScale = Math.max(
-            1,
-            Math.min(3, initialPinchScale.current * scaleRatio)
-          );
+          const calculatedScale = initialPinchScale.current * scaleRatio;
+          const newScale = Math.max(1, Math.min(5, calculatedScale)); // Increased max from 3 to 5
           
-          console.log('🎨 [CROP] Pinch move, distance:', distance, 'ratio:', scaleRatio, 'newScale:', newScale);
+          // Only log occasionally to reduce console spam
+          if (Math.abs(newScale - lastScale.current) > 0.1) {
+            console.log('🎨 [CROP] Pinch move, distance:', distance.toFixed(1), 'ratio:', scaleRatio.toFixed(2), 'newScale:', newScale.toFixed(2));
+          }
           
           lastScale.current = newScale;
           scale.setValue(newScale);
