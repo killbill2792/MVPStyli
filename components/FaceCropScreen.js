@@ -62,16 +62,14 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: (evt, gestureState) => {
-        // Don't capture touches on buttons - let them handle their own touches
-        const target = evt.nativeEvent.target;
-        // Only respond if we have a valid image and not clicking on header buttons
+      onStartShouldSetPanResponder: () => {
+        // Always allow starting - we'll check in move
         return imageSize.width > 0 && imageSize.height > 0;
       },
       onMoveShouldSetPanResponder: (evt, gestureState) => {
-        // Only respond to significant movement or pinch
-        const hasMovement = Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5;
-        const isPinch = evt.nativeEvent.touches.length === 2;
+        // Always respond to movement or pinch - don't be too restrictive
+        const hasMovement = Math.abs(gestureState.dx) > 1 || Math.abs(gestureState.dy) > 1;
+        const isPinch = evt.nativeEvent.touches && evt.nativeEvent.touches.length === 2;
         return hasMovement || isPinch;
       },
       
@@ -82,7 +80,8 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
         translateYBase.current = lastTranslateY.current;
         
         // Handle initial pinch setup
-        if (evt.nativeEvent.touches.length === 2) {
+        const touchCount = evt.nativeEvent.touches ? evt.nativeEvent.touches.length : 0;
+        if (touchCount === 2) {
           const touch1 = evt.nativeEvent.touches[0];
           const touch2 = evt.nativeEvent.touches[1];
           const distance = Math.sqrt(
@@ -91,6 +90,7 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
           );
           initialPinchDistance.current = distance;
           initialPinchScale.current = lastScale.current;
+          console.log('🎨 [CROP] Pinch grant, initial distance:', distance);
         } else {
           initialPinchDistance.current = null;
           initialPinchScale.current = null;
@@ -99,7 +99,9 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
       
       onPanResponderMove: (evt, gestureState) => {
         // Handle pinch zoom (two fingers)
-        if (evt.nativeEvent.touches.length === 2) {
+        const touchCount = evt.nativeEvent.touches ? evt.nativeEvent.touches.length : 0;
+        
+        if (touchCount === 2) {
           const touch1 = evt.nativeEvent.touches[0];
           const touch2 = evt.nativeEvent.touches[1];
           const distance = Math.sqrt(
@@ -111,6 +113,7 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
           if (initialPinchDistance.current === null || initialPinchDistance.current === 0) {
             initialPinchDistance.current = distance;
             initialPinchScale.current = lastScale.current;
+            console.log('🎨 [CROP] Pinch started, initial distance:', distance, 'scale:', lastScale.current);
           }
           
           // Calculate new scale
@@ -120,9 +123,11 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
             Math.min(3, initialPinchScale.current * scaleRatio)
           );
           
+          console.log('🎨 [CROP] Pinch move, distance:', distance, 'ratio:', scaleRatio, 'newScale:', newScale);
+          
           lastScale.current = newScale;
           scale.setValue(newScale);
-        } else if (evt.nativeEvent.touches.length === 1) {
+        } else if (touchCount === 1) {
           // Handle pan (single finger)
           const newX = translateXBase.current + gestureState.dx;
           const newY = translateYBase.current + gestureState.dy;
@@ -273,7 +278,7 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
       onRequestClose={handleCancel}
     >
       <SafeAreaView style={styles.container}>
-      <View style={styles.header} pointerEvents="box-none">
+      <View style={styles.header}>
         <TouchableOpacity 
           onPress={handleCancel} 
           style={styles.cancelButton}
@@ -295,7 +300,8 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
         </TouchableOpacity>
       </View>
 
-      <View style={styles.cropContainer} {...panResponder.panHandlers} collapsable={false}>
+      <View style={styles.cropContainer}>
+        <View style={styles.gestureArea} {...panResponder.panHandlers} collapsable={false}>
         {imageSize.width > 0 && (
           <Animated.View
             style={[
@@ -320,6 +326,8 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
           </Animated.View>
         )}
 
+        </View>
+        
         {/* Oval overlay guide - pointerEvents: 'none' so it doesn't block touches */}
         <View style={styles.overlay} pointerEvents="none">
           <View style={styles.overlayTop} />
@@ -401,8 +409,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     position: 'relative',
   },
+  gestureArea: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1,
+  },
   imageContainer: {
     position: 'absolute',
+    zIndex: 0,
   },
   overlay: {
     position: 'absolute',
