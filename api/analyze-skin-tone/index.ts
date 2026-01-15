@@ -21,6 +21,7 @@ type Clarity = 'muted' | 'clear' | 'vivid';
 type Season = 'spring' | 'summer' | 'autumn' | 'winter';
 
 type FaceBox = { x: number; y: number; width: number; height: number };
+type DetectionMethod = 'blazeface' | 'faceapi' | 'heuristic' | 'provided';
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -1029,29 +1030,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const overallAvg = { r: Math.round(or / ocnt), g: Math.round(og / ocnt), b: Math.round(ob / ocnt) };
     const lighting = estimateWarmLightingBias(overallAvg);
 
-    // Face detection: Try enhanced heuristic first, then provided faceBox, then return error
+    // Face detection: Explicit detection method tracking with hard logging
+    // Detection methods: 'blazeface' | 'faceapi' | 'heuristic' | 'provided'
     let actualFaceBox: FaceBox | null = null;
-    let detectionMethod = 'unknown';
+    let detectionMethod: DetectionMethod | null = null;
     
-    // 1. Try enhanced heuristic face detection first (if no faceBox provided)
-    if (!faceBox) {
-      console.log('🎨 [SKIN TONE API] No faceBox provided, attempting enhanced heuristic detection...');
-      actualFaceBox = await detectFaceWithEnhancedHeuristic(imageBuffer, imageWidth, imageHeight);
-      
-      if (actualFaceBox) {
-        detectionMethod = 'enhanced_heuristic';
-        console.log('🎨 [SKIN TONE API] Enhanced heuristic face detection successful');
-      } else {
-        console.log('🎨 [SKIN TONE API] Enhanced heuristic detection failed - no face found in image');
-        // Return error immediately - don't use basic heuristic for non-face images
-        return res.status(400).json({ 
-          error: 'FACE_NOT_DETECTED',
-          message: 'No face detected in image. Please upload a clear face photo with good lighting.',
-          detectionMethod: 'enhanced_heuristic',
-        });
-      }
-    } else {
-      // 2. Use provided faceBox if valid
+    // HARD LOG: Always log detection path
+    console.log('🎨 [FACE DETECTION] ========== FACE DETECTION START ==========');
+    console.log('🎨 [FACE DETECTION] Input:', {
+      hasFaceBox: !!faceBox,
+      faceBox: faceBox ? { x: faceBox.x, y: faceBox.y, width: faceBox.width, height: faceBox.height } : null,
+    });
+    
+    // 1. Check if faceBox is provided and valid
+    if (faceBox) {
       const valid =
         Number.isFinite(faceBox.x) &&
         Number.isFinite(faceBox.y) &&
@@ -1065,36 +1057,64 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (valid) {
         actualFaceBox = faceBox;
         detectionMethod = 'provided';
-        console.log('🎨 [SKIN TONE API] Using provided faceBox');
+        console.log('🎨 [FACE DETECTION] ✅ Using PROVIDED faceBox');
+        console.log('🎨 [FACE DETECTION] detectionMethod = "provided"');
       } else {
-        console.log('🎨 [SKIN TONE API] Invalid faceBox provided, attempting enhanced heuristic detection...');
-        actualFaceBox = await detectFaceWithEnhancedHeuristic(imageBuffer, imageWidth, imageHeight);
-        
-        if (actualFaceBox) {
-          detectionMethod = 'enhanced_heuristic';
-          console.log('🎨 [SKIN TONE API] Enhanced heuristic face detection successful');
-        } else {
-          console.log('🎨 [SKIN TONE API] Enhanced heuristic detection failed - no face found');
-          return res.status(400).json({ 
-            error: 'FACE_NOT_DETECTED',
-            message: 'No face detected in image. Please upload a clear face photo with good lighting.',
-            detectionMethod: 'enhanced_heuristic',
-          });
-        }
+        console.log('🎨 [FACE DETECTION] ❌ Provided faceBox is invalid, falling back to heuristic');
+        console.log('🎨 [FACE DETECTION] Invalid faceBox:', faceBox);
       }
     }
-
+    
+    // 2. If no valid provided faceBox, try heuristic detection
     if (!actualFaceBox) {
-      return res.status(400).json({ 
-        error: 'FACE_NOT_DETECTED',
-        message: 'No face detected in image. Please upload a clear face photo with good lighting.',
-      });
+      console.log('🎨 [FACE DETECTION] Attempting HEURISTIC detection (RGB skin filter + region scanning)...');
+      actualFaceBox = await detectFaceWithEnhancedHeuristic(imageBuffer, imageWidth, imageHeight);
+      
+      if (actualFaceBox) {
+        detectionMethod = 'heuristic';
+        console.log('🎨 [FACE DETECTION] ✅ Heuristic detection successful');
+        console.log('🎨 [FACE DETECTION] detectionMethod = "heuristic"');
+      } else {
+        console.log('🎨 [FACE DETECTION] ❌ Heuristic detection failed - no face-like region found');
+        // Return error - no fallback
+        console.log('🎨 [FACE DETECTION] ========== FACE DETECTION FAILED ==========');
+        return res.status(400).json({ 
+          error: 'FACE_NOT_DETECTED',
+          message: 'No face detected in image. Please upload a clear face photo with good lighting.',
+          detectionMethod: 'heuristic',
+        });
+      }
     }
     
-    console.log('🎨 [SKIN TONE API] Using face box:', {
-      method: detectionMethod,
-      box: actualFaceBox
+    // 3. Safety check: detectionMethod must be set
+    if (!detectionMethod) {
+      console.error('🎨 [FACE DETECTION] ❌❌❌ CRITICAL ERROR: detectionMethod is null after detection!');
+      console.error('🎨 [FACE DETECTION] This should never happen - detectionMethod must be set');
+      throw new Error('detectionMethod not set after face detection');
+    }
+    
+    // 4. Safety check: actualFaceBox must exist
+    if (!actualFaceBox) {
+      console.error('🎨 [FACE DETECTION] ❌❌❌ CRITICAL ERROR: actualFaceBox is null after detection!');
+      console.error('🎨 [FACE DETECTION] This should never happen - actualFaceBox must exist');
+      throw new Error('actualFaceBox is null after face detection');
+    }
+    
+    // HARD LOG: Final detection result
+    console.log('🎨 [FACE DETECTION] ========== FACE DETECTION COMPLETE ==========');
+    console.log('🎨 [FACE DETECTION] Final result:', {
+      detectionMethod: detectionMethod as DetectionMethod,
+      faceBox: actualFaceBox,
+      imageSize: { width: imageWidth, height: imageHeight },
     });
+    console.log('🎨 [FACE DETECTION] ==============================================');
+    
+    // Note: BlazeFace and FaceAPI are not currently implemented
+    // If you add them, set detectionMethod = 'blazeface' or 'faceapi' accordingly
+    if (detectionMethod === 'heuristic') {
+      console.log('🎨 [FACE DETECTION] ⚠️  Using HEURISTIC detection (RGB skin filter) - not ML-based');
+      console.log('🎨 [FACE DETECTION] ⚠️  BlazeFace and FaceAPI are not currently implemented');
+    }
 
     const crop = clampFaceBoxToBounds(actualFaceBox, imageWidth, imageHeight);
     const faceImage = await sharp(imageBuffer).extract(crop).toBuffer();
@@ -1381,7 +1401,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           clarityConfidence: Math.round(clarityConfidence * 100) / 100,
         },
         faceBoxUsed: crop,
-        faceBoxSource: faceBox && actualFaceBox === faceBox ? 'provided' : 'heuristic',
+        faceBoxSource: detectionMethod,
+        detectionMethod: detectionMethod as DetectionMethod,
       },
     });
   } catch (error: any) {
