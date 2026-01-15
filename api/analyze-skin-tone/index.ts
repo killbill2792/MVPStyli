@@ -564,48 +564,52 @@ function decideSeasonAlways(
     //   If valueGroup == deep → lean warm ⇒ Autumn, lean cool ⇒ Winter
     //   If valueGroup == medium → lean warm ⇒ Autumn, lean cool ⇒ Summer (most stable)
     
+    // Neutral season selection with chroma gating
+    // If undertone is neutral and C < 10 (muted), map lean warm => Autumn, lean cool => Summer (never Spring/Winter)
     if (chromaGroup === 'muted') {
-      // Muted chroma: Autumn vs Summer
-      if (Math.abs(b) < 2) {
-        // Perfectly neutral - ambiguous, prefer Autumn but very low confidence
+      // Muted chroma (C < 10): Only Autumn or Summer, never Spring/Winter
+      if (b > 0 || lean === 'warm') {
         season = 'autumn';
-        reason = `NEUTRAL (muted, perfectly neutral |b|=${b.toFixed(2)} < 2) → Autumn (ambiguous, low confidence)`;
-        seasonConfidence = Math.min(clamp(undertoneConfidence * 0.5, 0, 0.45), 0.45);
-      } else if (b > 0 || lean === 'warm') {
-        season = 'autumn';
-        reason = `NEUTRAL (muted, lean warm) → Autumn (b=${b.toFixed(2)}, chromaGroup=${chromaGroup})`;
+        reason = `NEUTRAL (muted C=${C.toFixed(2)} < 10, lean warm) → Autumn (never Spring/Winter)`;
         seasonConfidence = Math.min(clamp(undertoneConfidence * 0.7, 0, 0.55), 0.55);
       } else {
         season = 'summer';
-        reason = `NEUTRAL (muted, lean cool) → Summer (b=${b.toFixed(2)}, chromaGroup=${chromaGroup})`;
+        reason = `NEUTRAL (muted C=${C.toFixed(2)} < 10, lean cool) → Summer (never Spring/Winter)`;
         seasonConfidence = Math.min(clamp(undertoneConfidence * 0.7, 0, 0.55), 0.55);
       }
+      
+      // If perfectly neutral (|b| < 2), reduce confidence further
+      if (Math.abs(b) < 2) {
+        seasonConfidence = Math.min(seasonConfidence, 0.45);
+        reason += ` (perfectly neutral |b|=${b.toFixed(2)} < 2, very low confidence)`;
+        console.log('🎨 [SEASON] Perfectly neutral with muted chroma, reducing confidence');
+      }
     } else {
-      // Clear/vivid chroma: can use all seasons based on value group
+      // Clear/vivid chroma (C >= 10): can use all seasons based on value group
       if (valueGroup === 'light') {
         if (b > 0 || lean === 'warm') {
           season = 'spring';
-          reason = `NEUTRAL (light, clear/vivid, lean warm) → Spring (valueGroup=${valueGroup}, chromaGroup=${chromaGroup})`;
+          reason = `NEUTRAL (light L=${l.toFixed(1)} >= 65, clear/vivid C=${C.toFixed(2)} >= 10, lean warm) → Spring`;
         } else {
           season = 'summer';
-          reason = `NEUTRAL (light, clear/vivid, lean cool) → Summer (valueGroup=${valueGroup}, chromaGroup=${chromaGroup})`;
+          reason = `NEUTRAL (light L=${l.toFixed(1)} >= 65, clear/vivid C=${C.toFixed(2)} >= 10, lean cool) → Summer`;
         }
       } else if (valueGroup === 'deep') {
         if (b > 0 || lean === 'warm') {
           season = 'autumn';
-          reason = `NEUTRAL (deep, clear/vivid, lean warm) → Autumn (valueGroup=${valueGroup}, chromaGroup=${chromaGroup})`;
+          reason = `NEUTRAL (deep L=${l.toFixed(1)} <= 45, clear/vivid C=${C.toFixed(2)} >= 10, lean warm) → Autumn`;
         } else {
           season = 'winter';
-          reason = `NEUTRAL (deep, clear/vivid, lean cool) → Winter (valueGroup=${valueGroup}, chromaGroup=${chromaGroup})`;
+          reason = `NEUTRAL (deep L=${l.toFixed(1)} <= 45, clear/vivid C=${C.toFixed(2)} >= 10, lean cool) → Winter`;
         }
       } else {
-        // Medium: most stable - lean warm ⇒ Autumn, lean cool ⇒ Summer
+        // Medium (45 < L < 65): most stable - lean warm ⇒ Autumn, lean cool ⇒ Summer
         if (b > 0 || lean === 'warm') {
           season = 'autumn';
-          reason = `NEUTRAL (medium, clear/vivid, lean warm) → Autumn (valueGroup=${valueGroup}, chromaGroup=${chromaGroup})`;
+          reason = `NEUTRAL (medium 45 < L=${l.toFixed(1)} < 65, clear/vivid C=${C.toFixed(2)} >= 10, lean warm) → Autumn (most stable)`;
         } else {
           season = 'summer';
-          reason = `NEUTRAL (medium, clear/vivid, lean cool) → Summer (valueGroup=${valueGroup}, chromaGroup=${chromaGroup})`;
+          reason = `NEUTRAL (medium 45 < L=${l.toFixed(1)} < 65, clear/vivid C=${C.toFixed(2)} >= 10, lean cool) → Summer (most stable)`;
         }
       }
       seasonConfidence = Math.min(clamp(undertoneConfidence * 0.7, 0, 0.55), 0.55);
@@ -618,8 +622,11 @@ function decideSeasonAlways(
     // cap confidence at 0.45 because the system really can't separate seasons well
     if (C < 6 && Math.abs(b) < 3) {
       seasonConfidence = Math.min(seasonConfidence, 0.45);
-      console.log('🎨 [SEASON] Very muted + very neutral, capping confidence at 0.45');
+      console.log('🎨 [SEASON] Very muted (C < 6) + very neutral (|b| < 3), capping confidence at 0.45');
     }
+    
+    // Ensure confidence is capped at 0.55 for all neutral cases (before the extra check above)
+    seasonConfidence = Math.min(seasonConfidence, 0.55);
     
     console.log('🎨 [SEASON] Neutral result:', {
       season,
@@ -630,21 +637,25 @@ function decideSeasonAlways(
     });
   }
 
-  // Apply additional penalties
+  // Apply additional penalties (but preserve neutral caps)
+  const isNeutral = undertone === 'neutral';
+  const neutralCap = isNeutral ? 0.55 : 0.95;
+  const veryNeutralCap = (isNeutral && C < 6 && Math.abs(b) < 3) ? 0.45 : neutralCap;
+  
   if ((madB !== undefined && madB > 4.5) || (madL !== undefined && madL > 10)) {
-    seasonConfidence = clamp(seasonConfidence - 0.08, 0, 1);
+    seasonConfidence = clamp(seasonConfidence - 0.08, 0, veryNeutralCap);
     console.log('🎨 [SEASON] MAD noisy, reducing confidence');
   }
   if (gainsClamped) {
-    seasonConfidence = clamp(seasonConfidence - 0.06, 0, 1);
+    seasonConfidence = clamp(seasonConfidence - 0.06, 0, veryNeutralCap);
     console.log('🎨 [SEASON] Gains clamped, reducing confidence');
   }
 
-  // Final clamp
-  seasonConfidence = clamp(seasonConfidence, 0, 0.95);
+  // Final clamp (respect neutral caps)
+  seasonConfidence = clamp(seasonConfidence, 0, veryNeutralCap);
 
-  // Update needsConfirmation based on final confidence
-  if (seasonConfidence < 0.72) {
+  // For neutral, always keep needsConfirmation=true (don't override)
+  if (!isNeutral && seasonConfidence < 0.72) {
     needsConfirmation = true;
   }
 
