@@ -973,30 +973,67 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { imageUrl, imageBase64, faceBox } = req.body as {
+    const { imageUrl, imageBase64, faceBox, croppedFaceBase64 } = req.body as {
       imageUrl?: string;
       imageBase64?: string;
       faceBox?: FaceBox;
+      croppedFaceBase64?: string; // Preferred: pre-cropped face image from client
     };
 
     console.log('🎨 [SKIN TONE API] Request body:', {
       hasImageUrl: !!imageUrl,
       hasImageBase64: !!imageBase64,
+      hasCroppedFaceBase64: !!croppedFaceBase64,
       imageUrlLength: imageUrl?.length || 0,
       imageBase64Length: imageBase64?.length || 0,
+      croppedFaceBase64Length: croppedFaceBase64?.length || 0,
       hasFaceBox: !!faceBox,
     });
 
-    if (!imageUrl && !imageBase64) {
-      console.error('🎨 [SKIN TONE API] ERROR: Missing imageUrl or imageBase64');
-      return res.status(400).json({ error: 'Missing imageUrl or imageBase64' });
-    }
-
-    console.log('🎨 [SKIN TONE API] Loading image buffer...');
-    const imageBuffer = await loadImageBuffer(imageUrl, imageBase64);
-    console.log('🎨 [SKIN TONE API] Image buffer loaded, size:', imageBuffer.length, 'bytes');
+    // Preferred flow: Use pre-cropped face image (no face detection needed)
+    let faceImageBuffer: Buffer;
+    let detectionMethod: DetectionMethod;
+    let lighting: { isWarm: boolean; severity: number; warmIndex: number };
+    let overallAvg: { r: number; g: number; b: number };
+    let faceBoxUsed: { left: number; top: number; width: number; height: number } | undefined;
     
-    const meta = await sharp(imageBuffer).metadata();
+    if (croppedFaceBase64) {
+      console.log('🎨 [SKIN TONE API] Using pre-cropped face image (preferred method)');
+      const base64Data = croppedFaceBase64.includes(',') ? croppedFaceBase64.split(',')[1] : croppedFaceBase64;
+      faceImageBuffer = Buffer.from(base64Data, 'base64');
+      console.log('🎨 [SKIN TONE API] Cropped face image loaded, size:', faceImageBuffer.length, 'bytes');
+      
+      detectionMethod = 'provided'; // Cropped image = user provided crop
+      
+      // Skip face detection - go straight to sampling
+      console.log('🎨 [FACE DETECTION] ========== FACE DETECTION SKIPPED ==========');
+      console.log('🎨 [FACE DETECTION] Using pre-cropped face image from client');
+      console.log('🎨 [FACE DETECTION] detectionMethod = "provided" (user crop)');
+      console.log('🎨 [FACE DETECTION] ==============================================');
+      
+      // Estimate lighting from cropped face image
+      const overallRaw = await sharp(faceImageBuffer)
+        .resize(64, 64, { fit: 'fill' })
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      const { data: odata, info: oinfo } = overallRaw;
+      const oC = oinfo.channels || 3;
+      let or = 0, og = 0, ob = 0, ocnt = 0;
+      for (let i = 0; i < odata.length; i += oC) {
+        or += odata[i];
+        og += odata[i + 1] ?? odata[i];
+        ob += odata[i + 2] ?? odata[i];
+        ocnt++;
+      }
+      overallAvg = { r: Math.round(or / ocnt), g: Math.round(og / ocnt), b: Math.round(ob / ocnt) };
+      lighting = estimateWarmLightingBias(overallAvg);
+    } else if (imageUrl || imageBase64) {
+      // Fallback: Full image with face detection
+      console.log('🎨 [SKIN TONE API] Loading full image for face detection...');
+      const imageBuffer = await loadImageBuffer(imageUrl, imageBase64);
+      console.log('🎨 [SKIN TONE API] Image buffer loaded, size:', imageBuffer.length, 'bytes');
+      
+      const meta = await sharp(imageBuffer).metadata();
     console.log('🎨 [SKIN TONE API] Image metadata:', {
       width: meta.width,
       height: meta.height,
@@ -1123,11 +1160,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.log('🎨 [FACE DETECTION] ℹ️  Heuristic works well for clear face photos with good lighting');
     }
 
-    const crop = clampFaceBoxToBounds(actualFaceBox, imageWidth, imageHeight);
-    const faceImage = await sharp(imageBuffer).extract(crop).toBuffer();
+      const crop = clampFaceBoxToBounds(actualFaceBox, imageWidth, imageHeight);
+      faceBoxUsed = crop;
+      faceImageBuffer = await sharp(imageBuffer).extract(crop).toBuffer();
+    } else {
+      console.error('🎨 [SKIN TONE API] ERROR: Missing image data');
+      return res.status(400).json({ error: 'Missing imageUrl, imageBase64, or croppedFaceBase64' });
+    }
 
-    // Sample skin (with lighting correction)
-    const { allSamples, skinSamples, correctedSamples, correctionGains, gainsClamped } = await sampleSkinFromFace(faceImage);
+    // Sample skin (with lighting correction) - both paths converge here
+    const { allSamples, skinSamples, correctedSamples, correctionGains, gainsClamped } = await sampleSkinFromFace(faceImageBuffer);
     
     console.log('🎨 [SKIN TONE API] Sampling complete:', {
       totalSamples: allSamples.length,
@@ -1138,80 +1180,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       gainsClamped,
     });
     
-    // Face detection validation: relaxed thresholds for full/half body images
-    // For full/half body images, skin ratio will be lower due to clothing/background
-    // So we use a more lenient approach: require sufficient samples OR reasonable ratio
+    // Quality gating: Check if image quality is sufficient for accurate analysis
+    // Even with perfect crop, lighting can be bad
+    const validSkinPixels = skinSamples.length;
     const skinRatio = allSamples.length > 0 ? skinSamples.length / allSamples.length : 0;
-    
-    // Relaxed thresholds to handle full/half body images
-    const minSkinSamples = 50; // Reduced from 60 - allow fewer samples if ratio is good
-    const minSkinRatio = 0.30; // Reduced from 0.45 - more lenient for body images
-    const minSkinSamplesStrict = 40; // Absolute minimum samples
-    const minSkinRatioStrict = 0.25; // Absolute minimum ratio
-    
-    console.log('🎨 [SKIN TONE API] Face detection validation:', {
-      skinRatio: (skinRatio * 100).toFixed(1) + '%',
-      skinSamplesCount: skinSamples.length,
-      totalSamples: allSamples.length,
-      minSkinSamples,
-      minSkinRatio: (minSkinRatio * 100).toFixed(1) + '%',
-      minSkinSamplesStrict,
-      minSkinRatioStrict: (minSkinRatioStrict * 100).toFixed(1) + '%',
-    });
-    
-    // More lenient validation: need EITHER sufficient samples OR good ratio
-    // But both must meet absolute minimums
-    const hasEnoughSamples = skinSamples.length >= minSkinSamples;
-    const hasGoodRatio = skinRatio >= minSkinRatio;
-    const meetsAbsoluteMinimums = skinSamples.length >= minSkinSamplesStrict && skinRatio >= minSkinRatioStrict;
-    
-    // Pass if: (has enough samples OR good ratio) AND meets absolute minimums
-    if (!meetsAbsoluteMinimums || (!hasEnoughSamples && !hasGoodRatio)) {
-      console.error('🎨 [SKIN TONE API] ERROR: Face detection failed');
-      console.error('🎨 [SKIN TONE API] Reason:', {
-        hasEnoughSamples,
-        hasGoodRatio,
-        meetsAbsoluteMinimums,
-        skinRatio: (skinRatio * 100).toFixed(1) + '%',
-        skinSamples: skinSamples.length,
-        totalSamples: allSamples.length,
-        thresholds: {
-          minSamples: minSkinSamples,
-          minRatio: (minSkinRatio * 100).toFixed(1) + '%',
-          minSamplesStrict: minSkinSamplesStrict,
-          minRatioStrict: (minSkinRatioStrict * 100).toFixed(1) + '%',
-        },
-      });
-      return res.status(400).json({ 
-        error: 'FACE_NOT_DETECTED',
-        message: 'No face detected in image. Please upload a clear face photo with good lighting.',
-        skinRatio: (skinRatio * 100).toFixed(1) + '%',
-        totalSamples: allSamples.length,
-        skinSamples: skinSamples.length,
-        minRequired: minSkinSamples,
-        minRatioRequired: (minSkinRatio * 100).toFixed(1) + '%',
-      });
-    }
-    
-    console.log('🎨 [SKIN TONE API] Face detection passed:', {
-      hasEnoughSamples,
-      hasGoodRatio,
-      meetsAbsoluteMinimums,
-      skinRatio: (skinRatio * 100).toFixed(1) + '%',
-      skinSamples: skinSamples.length,
-    });
     
     // Use corrected samples for analysis (per spec: Step A - lighting correction before Lab)
     const useSamples = correctedSamples.length >= 30 ? correctedSamples : skinSamples;
     if (useSamples.length === 0) {
-      console.error('🎨 [SKIN TONE API] ERROR: Not enough corrected samples after validation');
+      console.error('🎨 [SKIN TONE API] ERROR: Not enough corrected samples');
       return res.status(400).json({ 
         error: 'FACE_NOT_DETECTED',
         message: 'No face detected in image. Please upload a clear face photo with good lighting.',
-        skinRatio,
-        totalSamples: allSamples.length,
-        skinSamples: skinSamples.length,
-        minRequired: minSkinSamples,
+        qualityIssues: ['Not enough skin samples detected'],
       });
     }
     console.log('🎨 [SKIN TONE API] Using corrected samples:', useSamples.length);
@@ -1237,10 +1218,61 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Check if noisy (per spec thresholds)
     const isNoisy = madB > 4.5 || madL > 10;
     
+    // Quality gating: Check if image quality is sufficient for accurate analysis
+    // Even with perfect crop, lighting can be bad
+    const qualityIssues: string[] = [];
+    let qualityNeedsConfirmation = false;
+    
+    // Check 1: validSkinPixels < 80
+    if (validSkinPixels < 80) {
+      qualityIssues.push('Not enough skin pixels detected');
+      qualityNeedsConfirmation = true;
+      console.log('🎨 [QUALITY GATING] ⚠️  Low skin pixel count:', validSkinPixels, '< 80');
+    }
+    
+    // Check 2: MAD(L) > 8 (too much shadow contrast)
+    if (madL > 8) {
+      qualityIssues.push('Too much shadow contrast');
+      qualityNeedsConfirmation = true;
+      console.log('🎨 [QUALITY GATING] ⚠️  High shadow contrast (MAD_L):', madL.toFixed(2), '> 8');
+    }
+    
+    // Check 3: median C* < 4 (too gray / shadow / washout)
+    const medianChroma = Math.sqrt(medianA * medianA + medianB * medianB);
+    if (medianChroma < 4) {
+      qualityIssues.push('Image too gray or washed out');
+      qualityNeedsConfirmation = true;
+      console.log('🎨 [QUALITY GATING] ⚠️  Low chroma (too gray/washed out):', medianChroma.toFixed(2), '< 4');
+    }
+    
+    // Generate friendly UI messages
+    const qualityMessages: string[] = [];
+    if (qualityNeedsConfirmation) {
+      if (madL > 8 || medianChroma < 4) {
+        qualityMessages.push('Try daylight near a window');
+        qualityMessages.push('Avoid yellow indoor lighting');
+        qualityMessages.push('No heavy shadows');
+      }
+      if (validSkinPixels < 80) {
+        qualityMessages.push('Ensure face is clearly visible');
+        qualityMessages.push('Avoid blurry photos');
+      }
+    }
+    
+    console.log('🎨 [SKIN TONE API] Quality gating:', {
+      validSkinPixels,
+      madL: madL.toFixed(2),
+      medianChroma: medianChroma.toFixed(2),
+      qualityIssues,
+      qualityNeedsConfirmation,
+      qualityMessages,
+    });
+    
     console.log('🎨 [SKIN TONE API] Robust stats:', {
       medianLab: { l: medianL.toFixed(2), a: medianA.toFixed(2), b: medianB.toFixed(2) },
       mad: { l: madL.toFixed(2), a: madA.toFixed(2), b: madB.toFixed(2) },
       isNoisy,
+      medianChroma: medianChroma.toFixed(2),
     });
     
     // Use median Lab for analysis
@@ -1285,6 +1317,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       madL,
       gainsClamped
     );
+    
+    // Combine quality gating with season needsConfirmation
+    const finalNeedsConfirmation = seasonDecision.needsConfirmation || qualityNeedsConfirmation;
 
     // Comprehensive logging - all calculations and decisions
     console.log('🎨 [SKIN TONE API] ========== COMPREHENSIVE ANALYSIS SUMMARY ==========');
@@ -1374,7 +1409,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       confidence: Math.round(overallConfidence * 100) / 100,
       seasonConfidence: seasonDecision.seasonConfidence,
-      needsConfirmation: seasonDecision.needsConfirmation,
+      needsConfirmation: finalNeedsConfirmation,
+      qualityMessages: qualityMessages.length > 0 ? qualityMessages : undefined,
+      qualityIssues: qualityIssues.length > 0 ? qualityIssues : undefined,
 
       diagnostics: {
         lighting: {
@@ -1407,7 +1444,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           depthConfidence: Math.round(depthConfidence * 100) / 100,
           clarityConfidence: Math.round(clarityConfidence * 100) / 100,
         },
-        faceBoxUsed: crop,
+        faceBoxUsed: faceBoxUsed,
         faceBoxSource: detectionMethod,
         detectionMethod: detectionMethod as DetectionMethod,
       },
