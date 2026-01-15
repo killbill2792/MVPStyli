@@ -50,7 +50,10 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
   useEffect(() => {
     if (imageUri) {
       Image.getSize(imageUri, (width, height) => {
+        console.log('🎨 [CROP] Image size loaded:', width, height);
         setImageSize({ width, height });
+      }, (error) => {
+        console.error('🎨 [CROP] Error loading image size:', error);
       });
     }
   }, [imageUri]);
@@ -60,14 +63,20 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
   const displayWidth = SCREEN_WIDTH;
   const displayHeight = SCREEN_WIDTH / imageAspectRatio;
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => {
-        // Always allow starting if we have an image
-        const shouldStart = imageSize.width > 0 && imageSize.height > 0;
-        console.log('🎨 [CROP] onStartShouldSetPanResponder:', shouldStart, 'imageSize:', imageSize);
-        return shouldStart;
-      },
+  // Recreate panResponder when imageSize changes
+  const panResponder = useRef(null);
+  
+  useEffect(() => {
+    // Only create panResponder when we have image size
+    if (imageSize.width > 0 && imageSize.height > 0) {
+      console.log('🎨 [CROP] Creating panResponder with imageSize:', imageSize);
+      panResponder.current = PanResponder.create({
+        onStartShouldSetPanResponder: () => {
+          // Always allow starting if we have an image
+          const shouldStart = imageSize.width > 0 && imageSize.height > 0;
+          console.log('🎨 [CROP] onStartShouldSetPanResponder:', shouldStart, 'imageSize:', imageSize);
+          return shouldStart;
+        },
       onMoveShouldSetPanResponder: (evt, gestureState) => {
         // Always respond to movement or pinch - don't be too restrictive
         const hasMovement = Math.abs(gestureState.dx) > 1 || Math.abs(gestureState.dy) > 1;
@@ -305,7 +314,7 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
         </TouchableOpacity>
       </View>
 
-      <View style={styles.cropContainer} {...panResponder.panHandlers} collapsable={false}>
+      <View style={styles.cropContainer} {...currentPanResponder.panHandlers} collapsable={false}>
         {imageSize.width > 0 && (
           <Animated.View
             style={[
