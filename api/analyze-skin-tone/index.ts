@@ -1,7 +1,7 @@
 /**
- * Skin Tone Analysis API (Production-Friendly with ML Face Detection)
- * - Uses BlazeFace (TensorFlow.js) for accurate face detection
- * - Falls back to heuristic only if ML detection fails
+ * Skin Tone Analysis API (Production-Friendly with Enhanced Heuristic Face Detection)
+ * - Uses enhanced heuristic face detection with strict validation
+ * - Multiple validation checks to ensure face presence
  * - Robust sampling inside detected faceBox (many samples, trimmed mean)
  * - Simple skin-pixel filter to avoid beard/eyes/lips
  * - Lighting bias detection (warm cast) and confidence penalty
@@ -9,13 +9,11 @@
  *    - seasonConfidence
  *    - needsConfirmation (UI can ask user to confirm/change)
  *
- * No paid APIs. Uses Sharp and TensorFlow.js BlazeFace.
+ * No paid APIs. Uses Sharp only (lightweight, works on Vercel).
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import sharp from 'sharp';
-import * as tf from '@tensorflow/tfjs-node';
-import * as blazeface from '@tensorflow-models/blazeface';
 
 type Undertone = 'warm' | 'cool' | 'neutral';
 type Depth = 'light' | 'medium' | 'deep';
@@ -469,89 +467,125 @@ function clampFaceBoxToBounds(box: FaceBox, imageWidth: number, imageHeight: num
   return { left, top, width: w, height: h };
 }
 
-// Cache for BlazeFace model (loaded once and reused)
-let faceDetectionModel: blazeface.BlazeFaceModel | null = null;
-
 /**
- * Detect face in image using BlazeFace ML model
+ * Enhanced heuristic face detection with image scanning
+ * Scans the image for face-like regions using skin color detection
  * Returns face box or null if no face detected
  */
-async function detectFaceWithML(imageBuffer: Buffer, imageWidth: number, imageHeight: number): Promise<FaceBox | null> {
+async function detectFaceWithEnhancedHeuristic(
+  imageBuffer: Buffer, 
+  imageWidth: number, 
+  imageHeight: number
+): Promise<FaceBox | null> {
   try {
-    console.log('🎨 [SKIN TONE API] Starting BlazeFace detection...');
+    console.log('🎨 [SKIN TONE API] Starting enhanced heuristic face detection...');
     
-    // Load model once and cache it
-    if (!faceDetectionModel) {
-      console.log('🎨 [SKIN TONE API] Loading BlazeFace model (first time)...');
-      faceDetectionModel = await blazeface.load();
-      console.log('🎨 [SKIN TONE API] BlazeFace model loaded successfully');
+    // Resize image for faster processing (but keep aspect ratio)
+    const maxSize = 400;
+    const scale = Math.min(maxSize / imageWidth, maxSize / imageHeight, 1);
+    const scanWidth = Math.floor(imageWidth * scale);
+    const scanHeight = Math.floor(imageHeight * scale);
+    
+    const { data, info } = await sharp(imageBuffer)
+      .resize(scanWidth, scanHeight, { fit: 'inside', withoutEnlargement: true })
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    
+    const W = info.width || scanWidth;
+    const H = info.height || scanHeight;
+    const C = info.channels || 3;
+    
+    // Scan image in a grid to find face-like regions
+    // Face is typically in upper-middle portion of image
+    const faceSearchZones = [
+      { x0: 0.2, x1: 0.8, y0: 0.1, y1: 0.6 }, // Upper-middle region
+      { x0: 0.1, x1: 0.9, y0: 0.05, y1: 0.5 }, // Wider search
+    ];
+    
+    let bestZone: { x: number; y: number; width: number; height: number; score: number } | null = null;
+    
+    for (const zone of faceSearchZones) {
+      let skinPixels = 0;
+      let totalPixels = 0;
+      let minX = W, minY = H, maxX = 0, maxY = 0;
+      
+      // Sample in grid pattern
+      const stepX = Math.max(1, Math.floor(W * (zone.x1 - zone.x0) / 20));
+      const stepY = Math.max(1, Math.floor(H * (zone.y1 - zone.y0) / 20));
+      
+      for (let y = Math.floor(H * zone.y0); y < Math.floor(H * zone.y1); y += stepY) {
+        for (let x = Math.floor(W * zone.x0); x < Math.floor(W * zone.x1); x += stepX) {
+          const idx = (y * W + x) * C;
+          const r = data[idx];
+          const g = data[idx + 1] ?? data[idx];
+          const b = data[idx + 2] ?? data[idx];
+          
+          totalPixels++;
+          
+          if (isLikelySkinPixel(r, g, b)) {
+            skinPixels++;
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+          }
+        }
+      }
+      
+      const skinRatio = totalPixels > 0 ? skinPixels / totalPixels : 0;
+      
+      // Require high skin ratio (at least 50%) and minimum pixels
+      if (skinRatio >= 0.50 && skinPixels >= 30 && maxX > minX && maxY > minY) {
+        const width = maxX - minX;
+        const height = maxY - minY;
+        const aspectRatio = width / height;
+        
+        // Face aspect ratio is typically between 0.6 and 1.2 (portrait to square)
+        if (aspectRatio >= 0.6 && aspectRatio <= 1.2) {
+          const score = skinRatio * skinPixels;
+          
+          if (!bestZone || score > bestZone.score) {
+            // Scale back to original image dimensions
+            bestZone = {
+              x: (minX / scale) - (width / scale) * 0.1, // Add padding
+              y: (minY / scale) - (height / scale) * 0.1,
+              width: (width / scale) * 1.2, // Add 20% padding
+              height: (height / scale) * 1.2,
+              score: score
+            };
+          }
+        }
+      }
     }
     
-    // Decode image to tensor
-    const imageTensor = tf.node.decodeImage(imageBuffer, 3) as tf.Tensor3D;
-    
-    // Detect faces with confidence threshold
-    const predictions = await faceDetectionModel.estimateFaces(imageTensor, false, false);
-    
-    // Clean up tensor immediately to free memory
-    imageTensor.dispose();
-    
-    console.log('🎨 [SKIN TONE API] BlazeFace detection results:', {
-      facesFound: predictions.length,
-      predictions: predictions.map(p => ({
-        probability: p.probability?.[0],
-        start: p.topLeft,
-        end: p.bottomRight
-      }))
-    });
-    
-    if (predictions.length === 0) {
-      console.log('🎨 [SKIN TONE API] No faces detected by BlazeFace');
+    if (!bestZone) {
+      console.log('🎨 [SKIN TONE API] No face-like region found in image');
       return null;
     }
     
-    // Use face with highest probability
-    const bestFace = predictions.reduce((best, current) => {
-      const currentProb = current.probability?.[0] || 0;
-      const bestProb = best.probability?.[0] || 0;
-      return currentProb > bestProb ? current : best;
-    });
-    
-    const confidence = bestFace.probability?.[0] || 0;
-    
-    // Require minimum confidence of 0.7 for reliable detection
-    if (confidence < 0.7) {
-      console.log('🎨 [SKIN TONE API] Face confidence too low:', confidence);
-      return null;
-    }
-    
-    // Convert to FaceBox format
+    // Ensure box is within bounds
     const faceBox: FaceBox = {
-      x: Math.max(0, bestFace.topLeft[0]),
-      y: Math.max(0, bestFace.topLeft[1]),
-      width: Math.max(1, bestFace.bottomRight[0] - bestFace.topLeft[0]),
-      height: Math.max(1, bestFace.bottomRight[1] - bestFace.topLeft[1]),
+      x: Math.max(0, Math.floor(bestZone.x)),
+      y: Math.max(0, Math.floor(bestZone.y)),
+      width: Math.min(imageWidth - Math.floor(bestZone.x), Math.floor(bestZone.width)),
+      height: Math.min(imageHeight - Math.floor(bestZone.y), Math.floor(bestZone.height)),
     };
     
-    // Ensure box is within image bounds
-    faceBox.x = Math.min(faceBox.x, imageWidth - 1);
-    faceBox.y = Math.min(faceBox.y, imageHeight - 1);
-    faceBox.width = Math.min(faceBox.width, imageWidth - faceBox.x);
-    faceBox.height = Math.min(faceBox.height, imageHeight - faceBox.y);
+    // Ensure minimum size
+    if (faceBox.width < 50 || faceBox.height < 50) {
+      console.log('🎨 [SKIN TONE API] Detected region too small:', faceBox);
+      return null;
+    }
     
-    console.log('🎨 [SKIN TONE API] Face detected successfully:', {
-      confidence: confidence,
+    console.log('🎨 [SKIN TONE API] Face-like region detected:', {
+      score: bestZone.score,
       box: faceBox,
       imageSize: { width: imageWidth, height: imageHeight }
     });
     
     return faceBox;
   } catch (error: any) {
-    console.error('🎨 [SKIN TONE API] BlazeFace detection error:', error);
-    console.error('🎨 [SKIN TONE API] Error details:', {
-      message: error.message,
-      stack: error.stack?.substring(0, 500)
-    });
+    console.error('🎨 [SKIN TONE API] Enhanced heuristic detection error:', error);
     return null;
   }
 }
@@ -699,25 +733,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const overallAvg = { r: Math.round(or / ocnt), g: Math.round(og / ocnt), b: Math.round(ob / ocnt) };
     const lighting = estimateWarmLightingBias(overallAvg);
 
-    // Face detection: Try ML first, then provided faceBox, then return error (no heuristic fallback)
+    // Face detection: Try enhanced heuristic first, then provided faceBox, then return error
     let actualFaceBox: FaceBox | null = null;
     let detectionMethod = 'unknown';
     
-    // 1. Try ML face detection first (if no faceBox provided)
+    // 1. Try enhanced heuristic face detection first (if no faceBox provided)
     if (!faceBox) {
-      console.log('🎨 [SKIN TONE API] No faceBox provided, attempting ML face detection...');
-      actualFaceBox = await detectFaceWithML(imageBuffer, imageWidth, imageHeight);
+      console.log('🎨 [SKIN TONE API] No faceBox provided, attempting enhanced heuristic detection...');
+      actualFaceBox = await detectFaceWithEnhancedHeuristic(imageBuffer, imageWidth, imageHeight);
       
       if (actualFaceBox) {
-        detectionMethod = 'ml';
-        console.log('🎨 [SKIN TONE API] ML face detection successful');
+        detectionMethod = 'enhanced_heuristic';
+        console.log('🎨 [SKIN TONE API] Enhanced heuristic face detection successful');
       } else {
-        console.log('🎨 [SKIN TONE API] ML detection failed - no face found in image');
-        // Return error immediately - don't use heuristic for non-face images
+        console.log('🎨 [SKIN TONE API] Enhanced heuristic detection failed - no face found in image');
+        // Return error immediately - don't use basic heuristic for non-face images
         return res.status(400).json({ 
           error: 'FACE_NOT_DETECTED',
           message: 'No face detected in image. Please upload a clear face photo with good lighting.',
-          detectionMethod: 'ml',
+          detectionMethod: 'enhanced_heuristic',
         });
       }
     } else {
@@ -737,18 +771,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         detectionMethod = 'provided';
         console.log('🎨 [SKIN TONE API] Using provided faceBox');
       } else {
-        console.log('🎨 [SKIN TONE API] Invalid faceBox provided, attempting ML detection...');
-        actualFaceBox = await detectFaceWithML(imageBuffer, imageWidth, imageHeight);
+        console.log('🎨 [SKIN TONE API] Invalid faceBox provided, attempting enhanced heuristic detection...');
+        actualFaceBox = await detectFaceWithEnhancedHeuristic(imageBuffer, imageWidth, imageHeight);
         
         if (actualFaceBox) {
-          detectionMethod = 'ml';
-          console.log('🎨 [SKIN TONE API] ML face detection successful');
+          detectionMethod = 'enhanced_heuristic';
+          console.log('🎨 [SKIN TONE API] Enhanced heuristic face detection successful');
         } else {
-          console.log('🎨 [SKIN TONE API] ML detection failed - no face found');
+          console.log('🎨 [SKIN TONE API] Enhanced heuristic detection failed - no face found');
           return res.status(400).json({ 
             error: 'FACE_NOT_DETECTED',
             message: 'No face detected in image. Please upload a clear face photo with good lighting.',
-            detectionMethod: 'ml',
+            detectionMethod: 'enhanced_heuristic',
           });
         }
       }
