@@ -42,6 +42,10 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
   const lastScale = useRef(1);
   const lastTranslateX = useRef(0);
   const lastTranslateY = useRef(0);
+  
+  // Pinch gesture tracking (separate ref to avoid setting properties on PanResponder)
+  const initialPinchDistance = useRef(null);
+  const initialPinchScale = useRef(null);
 
   useEffect(() => {
     if (imageUri) {
@@ -61,6 +65,9 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
         scaleBase.current = lastScale.current;
         translateXBase.current = lastTranslateX.current;
         translateYBase.current = lastTranslateY.current;
+        // Reset pinch tracking
+        initialPinchDistance.current = null;
+        initialPinchScale.current = null;
       },
       
       onPanResponderMove: (evt, gestureState) => {
@@ -74,14 +81,14 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
           );
           
           // Initial distance (store on first pinch)
-          if (!panResponder.current._initialDistance) {
-            panResponder.current._initialDistance = distance;
-            panResponder.current._initialScale = scaleBase.current;
+          if (initialPinchDistance.current === null) {
+            initialPinchDistance.current = distance;
+            initialPinchScale.current = scaleBase.current;
           }
           
           const newScale = Math.max(
             1,
-            Math.min(3, (distance / panResponder.current._initialDistance) * panResponder.current._initialScale)
+            Math.min(3, (distance / initialPinchDistance.current) * initialPinchScale.current)
           );
           lastScale.current = newScale;
           scale.setValue(newScale);
@@ -100,13 +107,16 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
           translateX.setValue(lastTranslateX.current);
           translateY.setValue(lastTranslateY.current);
           
-          // Reset pinch tracking
-          panResponder.current._initialDistance = null;
+          // Reset pinch tracking when panning
+          initialPinchDistance.current = null;
+          initialPinchScale.current = null;
         }
       },
       
       onPanResponderRelease: () => {
-        panResponder.current._initialDistance = null;
+        // Reset pinch tracking
+        initialPinchDistance.current = null;
+        initialPinchScale.current = null;
       },
     })
   ).current;
