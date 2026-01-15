@@ -178,8 +178,14 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
         initialPinchDistance.current = null;
         initialPinchScale.current = null;
       },
-    })
-  ).current;
+      });
+    }
+  }, [imageSize.width, imageSize.height]);
+  
+  // Get current panResponder (or create a dummy one if not ready)
+  const currentPanResponder = panResponder.current || {
+    panHandlers: {},
+  };
 
   const handleCrop = async () => {
     if (!imageUri || imageSize.width === 0) return;
