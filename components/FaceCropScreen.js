@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,8 +13,6 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-// Note: Using server-side cropping instead of expo-image-manipulator to avoid native module rebuild
-// Using View with borderRadius for oval instead of SVG
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -24,249 +22,275 @@ const OVAL_HEIGHT = OVAL_WIDTH * 1.2; // Slightly taller for face
 const OVAL_X = (SCREEN_WIDTH - OVAL_WIDTH) / 2;
 const OVAL_Y = SCREEN_HEIGHT * 0.25; // Position in upper portion
 
+const clampNum = (n, min, max) => Math.max(min, Math.min(max, n));
+
+function clampTranslationToCoverCrop({ scale, tx, ty, displayWidth, displayHeight, crop }) {
+  // image is centered on screen before transforms
+  const imgW = displayWidth * scale;
+  const imgH = displayHeight * scale;
+
+  const imgLeft0 = (SCREEN_WIDTH - imgW) / 2;
+  const imgTop0 = (SCREEN_HEIGHT - imgH) / 2;
+
+  // Ensure crop rect is fully inside the image after translation
+  const minTx = (crop.x + crop.w) - (imgLeft0 + imgW);
+  const maxTx = crop.x - imgLeft0;
+
+  const minTy = (crop.y + crop.h) - (imgTop0 + imgH);
+  const maxTy = crop.y - imgTop0;
+
+  return {
+    tx: clampNum(tx, minTx, maxTx),
+    ty: clampNum(ty, minTy, maxTy),
+  };
+}
+
 export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCancel }) {
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const [loading, setLoading] = useState(false);
-  
-  // Transform state
+
+  // Animated transforms
   const scale = useRef(new Animated.Value(1)).current;
   const translateX = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(0)).current;
-  
-  // Base values for gestures
-  const scaleBase = useRef(1);
-  const translateXBase = useRef(0);
-  const translateYBase = useRef(0);
-  
-  // Last gesture values
+
+  // Refs to hold current transform values
   const lastScale = useRef(1);
   const lastTranslateX = useRef(0);
   const lastTranslateY = useRef(0);
-  
-  // Pinch gesture tracking (separate ref to avoid setting properties on PanResponder)
+
+  // Base values captured at gesture start
+  const scaleBase = useRef(1);
+  const translateXBase = useRef(0);
+  const translateYBase = useRef(0);
+
+  // Pinch tracking
   const initialPinchDistance = useRef(null);
   const initialPinchScale = useRef(null);
 
   useEffect(() => {
-    if (imageUri) {
-      Image.getSize(imageUri, (width, height) => {
-        console.log('🎨 [CROP] Image size loaded:', width, height);
-        setImageSize({ width, height });
-      }, (error) => {
-        console.error('🎨 [CROP] Error loading image size:', error);
-      });
-    }
-  }, [imageUri]);
+    if (!imageUri) return;
 
-  // Calculate display dimensions
+    Image.getSize(
+      imageUri,
+      (w, h) => {
+        console.log('🎨 [CROP] Image size loaded:', w, h);
+        setImageSize({ width: w, height: h });
+
+        // Reset transforms when a new image loads
+        lastScale.current = 1;
+        lastTranslateX.current = 0;
+        lastTranslateY.current = 0;
+        scale.setValue(1);
+        translateX.setValue(0);
+        translateY.setValue(0);
+      },
+      (err) => {
+        console.error('🎨 [CROP] Error loading image size:', err);
+      }
+    );
+  }, [imageUri, scale, translateX, translateY]);
+
   const imageAspectRatio = imageSize.width > 0 ? imageSize.width / imageSize.height : 1;
   const displayWidth = SCREEN_WIDTH;
   const displayHeight = SCREEN_WIDTH / imageAspectRatio;
 
-  // Recreate panResponder when imageSize changes
-  const panResponder = useRef(null);
-  
-  useEffect(() => {
-    // Only create panResponder when we have image size
-    if (imageSize.width > 0 && imageSize.height > 0) {
-      console.log('🎨 [CROP] Creating panResponder with imageSize:', imageSize);
-      panResponder.current = PanResponder.create({
-        onStartShouldSetPanResponder: () => {
-          // Always allow starting if we have an image
-          const shouldStart = imageSize.width > 0 && imageSize.height > 0;
-          console.log('🎨 [CROP] onStartShouldSetPanResponder:', shouldStart, 'imageSize:', imageSize);
-          return shouldStart;
-        },
-      onMoveShouldSetPanResponder: (evt, gestureState) => {
-        // Always respond to movement or pinch - don't be too restrictive
-        const hasMovement = Math.abs(gestureState.dx) > 1 || Math.abs(gestureState.dy) > 1;
-        const touchCount = evt.nativeEvent.touches ? evt.nativeEvent.touches.length : 0;
-        const isPinch = touchCount === 2;
-        const shouldMove = hasMovement || isPinch;
-        console.log('🎨 [CROP] onMoveShouldSetPanResponder:', shouldMove, 'hasMovement:', hasMovement, 'isPinch:', isPinch, 'touchCount:', touchCount);
-        return shouldMove;
-      },
-      
-      onPanResponderGrant: (evt) => {
-        // Store current values when gesture starts
-        scaleBase.current = lastScale.current;
-        translateXBase.current = lastTranslateX.current;
-        translateYBase.current = lastTranslateY.current;
-        
-        // Always reset pinch tracking on grant (new gesture starts)
-        initialPinchDistance.current = null;
-        initialPinchScale.current = null;
-        
-        // Handle initial pinch setup
-        const touchCount = evt.nativeEvent.touches ? evt.nativeEvent.touches.length : 0;
-        if (touchCount === 2) {
-          const touch1 = evt.nativeEvent.touches[0];
-          const touch2 = evt.nativeEvent.touches[1];
-          const distance = Math.sqrt(
-            Math.pow(touch2.pageX - touch1.pageX, 2) +
-            Math.pow(touch2.pageY - touch1.pageY, 2)
-          );
-          initialPinchDistance.current = distance;
-          initialPinchScale.current = lastScale.current;
-          console.log('🎨 [CROP] Pinch grant, initial distance:', distance, 'current scale:', lastScale.current);
-        }
-      },
-      
-      onPanResponderMove: (evt, gestureState) => {
-        // Handle pinch zoom (two fingers)
-        const touchCount = evt.nativeEvent.touches ? evt.nativeEvent.touches.length : 0;
-        
-        if (touchCount === 2) {
-          const touch1 = evt.nativeEvent.touches[0];
-          const touch2 = evt.nativeEvent.touches[1];
-          const distance = Math.sqrt(
-            Math.pow(touch2.pageX - touch1.pageX, 2) +
-            Math.pow(touch2.pageY - touch1.pageY, 2)
-          );
-          
-          // Initialize on first pinch if not already set
-          if (initialPinchDistance.current === null || initialPinchDistance.current === 0) {
-            initialPinchDistance.current = distance;
-            initialPinchScale.current = lastScale.current;
-            console.log('🎨 [CROP] Pinch started, initial distance:', distance, 'scale:', lastScale.current);
-          }
-          
-          // Calculate new scale
-          const scaleRatio = distance / initialPinchDistance.current;
-          const calculatedScale = initialPinchScale.current * scaleRatio;
-          const newScale = Math.max(1, Math.min(5, calculatedScale)); // Increased max from 3 to 5
-          
-          // Only log occasionally to reduce console spam
-          if (Math.abs(newScale - lastScale.current) > 0.1) {
-            console.log('🎨 [CROP] Pinch move, distance:', distance.toFixed(1), 'ratio:', scaleRatio.toFixed(2), 'newScale:', newScale.toFixed(2));
-          }
-          
-          lastScale.current = newScale;
-          scale.setValue(newScale);
-        } else if (touchCount === 1) {
-          // Handle pan (single finger)
-          const newX = translateXBase.current + gestureState.dx;
-          const newY = translateYBase.current + gestureState.dy;
-          
-          // Calculate constraints based on scaled image size
-          const scaledWidth = displayWidth * lastScale.current;
-          const scaledHeight = displayHeight * lastScale.current;
-          
-          // Allow panning within reasonable bounds
-          // When scaled, image can move within screen bounds
-          const maxX = Math.max(0, (scaledWidth - SCREEN_WIDTH) / 2);
-          const maxY = Math.max(0, (scaledHeight - SCREEN_HEIGHT) / 2);
-          
-          lastTranslateX.current = Math.max(-maxX, Math.min(maxX, newX));
-          lastTranslateY.current = Math.max(-maxY, Math.min(maxY, newY));
-          
-          translateX.setValue(lastTranslateX.current);
-          translateY.setValue(lastTranslateY.current);
-        }
-      },
-      
-      onPanResponderRelease: () => {
-        // Update base values to current position for next gesture
-        scaleBase.current = lastScale.current;
-        translateXBase.current = lastTranslateX.current;
-        translateYBase.current = lastTranslateY.current;
-        // Reset pinch tracking
-        initialPinchDistance.current = null;
-        initialPinchScale.current = null;
-      },
-      
-      onPanResponderTerminate: () => {
-        // Reset on termination
-        initialPinchDistance.current = null;
-        initialPinchScale.current = null;
-      },
-      });
-    }
-  }, [imageSize.width, imageSize.height]);
-  
-  // Get current panResponder (or create a dummy one if not ready)
-  const currentPanResponder = panResponder.current || {
-    panHandlers: {},
-  };
+  const cropRect = useMemo(
+    () => ({ x: OVAL_X, y: OVAL_Y, w: OVAL_WIDTH, h: OVAL_HEIGHT }),
+    []
+  );
 
+  // PanResponder created via useMemo so it exists during render and doesn't "randomly" be empty.
+  const panResponder = useMemo(() => {
+    if (imageSize.width === 0 || imageSize.height === 0) return null;
+  
+    let mode = 'none'; // 'none' | 'pan' | 'pinch'
+  
+    const distance = (t1, t2) => Math.hypot(t2.pageX - t1.pageX, t2.pageY - t1.pageY);
+  
+    return PanResponder.create({
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
+  
+      // IMPORTANT: don't allow responder to be stolen mid-pinch
+      onPanResponderTerminationRequest: () => false,
+  
+      onPanResponderGrant: (evt) => {
+        scaleBase.current = lastScale.current;
+        translateXBase.current = lastTranslateX.current;
+        translateYBase.current = lastTranslateY.current;
+  
+        initialPinchDistance.current = null;
+        initialPinchScale.current = null;
+  
+        const touches = evt.nativeEvent.touches || [];
+        if (touches.length >= 2) {
+          mode = 'pinch';
+          const d = distance(touches[0], touches[1]);
+          initialPinchDistance.current = d;
+          initialPinchScale.current = lastScale.current;
+        } else {
+          mode = 'pan';
+        }
+      },
+  
+      onPanResponderMove: (evt, gestureState) => {
+        const touches = evt.nativeEvent.touches || [];
+  
+        // If user adds a second finger during pan, switch to pinch
+        if (touches.length >= 2 && mode !== 'pinch') {
+          mode = 'pinch';
+          const d = distance(touches[0], touches[1]);
+          initialPinchDistance.current = d;
+          initialPinchScale.current = lastScale.current;
+          return;
+        }
+  
+        // If user goes back to one finger, switch to pan
+        if (touches.length === 1 && mode !== 'pan') {
+          mode = 'pan';
+          translateXBase.current = lastTranslateX.current;
+          translateYBase.current = lastTranslateY.current;
+        }
+  
+        // ---- PINCH ----
+        if (mode === 'pinch' && touches.length >= 2) {
+          const d = distance(touches[0], touches[1]);
+  
+          if (!initialPinchDistance.current || initialPinchDistance.current === 0) {
+            initialPinchDistance.current = d;
+            initialPinchScale.current = lastScale.current;
+            return;
+          }
+  
+          const ratio = d / initialPinchDistance.current;
+          const nextScale = clampNum((initialPinchScale.current || 1) * ratio, 1, 5);
+  
+          lastScale.current = nextScale;
+          scale.setValue(nextScale);
+  
+          // Clamp translation so crop rect stays covered after zoom
+          const clamped = clampTranslationToCoverCrop({
+            scale: nextScale,
+            tx: lastTranslateX.current,
+            ty: lastTranslateY.current,
+            displayWidth,
+            displayHeight,
+            crop: cropRect,
+          });
+  
+          lastTranslateX.current = clamped.tx;
+          lastTranslateY.current = clamped.ty;
+          translateX.setValue(clamped.tx);
+          translateY.setValue(clamped.ty);
+          return;
+        }
+  
+        // ---- PAN ----
+        if (mode === 'pan' && touches.length === 1) {
+          const rawTx = translateXBase.current + gestureState.dx;
+          const rawTy = translateYBase.current + gestureState.dy;
+  
+          const clamped = clampTranslationToCoverCrop({
+            scale: lastScale.current,
+            tx: rawTx,
+            ty: rawTy,
+            displayWidth,
+            displayHeight,
+            crop: cropRect,
+          });
+  
+          lastTranslateX.current = clamped.tx;
+          lastTranslateY.current = clamped.ty;
+          translateX.setValue(clamped.tx);
+          translateY.setValue(clamped.ty);
+        }
+      },
+  
+      onPanResponderRelease: () => {
+        mode = 'none';
+        initialPinchDistance.current = null;
+        initialPinchScale.current = null;
+  
+        scaleBase.current = lastScale.current;
+        translateXBase.current = lastTranslateX.current;
+        translateYBase.current = lastTranslateY.current;
+      },
+  
+      onPanResponderTerminate: () => {
+        mode = 'none';
+        initialPinchDistance.current = null;
+        initialPinchScale.current = null;
+      },
+    });
+  }, [
+    imageSize.width,
+    imageSize.height,
+    displayWidth,
+    displayHeight,
+    cropRect,
+    scale,
+    translateX,
+    translateY,
+  ]);
   const handleCrop = async () => {
     if (!imageUri || imageSize.width === 0) return;
-    
+
     setLoading(true);
     try {
-      // Get current transform values
       const currentScale = lastScale.current;
       const currentX = lastTranslateX.current;
       const currentY = lastTranslateY.current;
-      
-      // Calculate the visible image dimensions (scaled)
-      const scaledImageWidth = displayWidth * currentScale;
-      const scaledImageHeight = displayHeight * currentScale;
-      
-      // Screen center
-      const screenCenterX = SCREEN_WIDTH / 2;
-      const screenCenterY = SCREEN_HEIGHT / 2;
-      
-      // Oval center in screen coordinates
-      const ovalCenterX = OVAL_X + OVAL_WIDTH / 2;
-      const ovalCenterY = OVAL_Y + OVAL_HEIGHT / 2;
-      
-      // Image center position (accounting for translation)
-      const imageCenterScreenX = screenCenterX + currentX;
-      const imageCenterScreenY = screenCenterY + currentY;
-      
-      // Offset from image center to oval center in screen coordinates
-      const offsetScreenX = ovalCenterX - imageCenterScreenX;
-      const offsetScreenY = ovalCenterY - imageCenterScreenY;
-      
-      // Convert to image coordinates (divide by scale)
-      const offsetImageX = offsetScreenX / currentScale;
-      const offsetImageY = offsetScreenY / currentScale;
-      
-      // Crop region in image coordinates
-      // Start from image center, apply offset, then subtract half crop size
-      const cropX = (imageSize.width / 2) + offsetImageX - (OVAL_WIDTH / 2 / currentScale);
-      const cropY = (imageSize.height / 2) + offsetImageY - (OVAL_HEIGHT / 2 / currentScale);
-      const cropWidth = OVAL_WIDTH / currentScale;
-      const cropHeight = OVAL_HEIGHT / currentScale;
-      
-      // Ensure crop is within image bounds
-      const finalCropX = Math.max(0, Math.min(imageSize.width - cropWidth, cropX));
-      const finalCropY = Math.max(0, Math.min(imageSize.height - cropHeight, cropY));
-      const finalCropWidth = Math.min(imageSize.width - finalCropX, cropWidth);
-      const finalCropHeight = Math.min(imageSize.height - finalCropY, cropHeight);
-      
-      console.log('🎨 [FACE CROP] Crop parameters:', {
-        imageSize,
-        currentScale,
-        currentX,
-        currentY,
-        cropX: finalCropX,
-        cropY: finalCropY,
-        cropWidth: finalCropWidth,
-        cropHeight: finalCropHeight,
-      });
-      
-      // Instead of cropping client-side (requires native module rebuild),
-      // send the full image + crop coordinates to server
-      // Server will handle cropping using sharp
+
+      // Map crop rect (screen) -> image coordinates.
+      // We treat the displayed image (contain) as centered, then apply our transforms.
+      const scaledW = displayWidth * currentScale;
+      const scaledH = displayHeight * currentScale;
+
+      const imgLeft = (SCREEN_WIDTH - scaledW) / 2 + currentX;
+      const imgTop = (SCREEN_HEIGHT - scaledH) / 2 + currentY;
+
+      // Crop rect in screen coords:
+      const cropScreenLeft = OVAL_X;
+      const cropScreenTop = OVAL_Y;
+
+      // Convert crop rect to coordinates in the displayed image pixels (not original image yet):
+      const cropInDisplayedX = (cropScreenLeft - imgLeft) / currentScale;
+      const cropInDisplayedY = (cropScreenTop - imgTop) / currentScale;
+      const cropInDisplayedW = OVAL_WIDTH / currentScale;
+      const cropInDisplayedH = OVAL_HEIGHT / currentScale;
+
+      // displayed image pixels map to original image pixels by ratio:
+      const scaleToOriginalX = imageSize.width / displayWidth;
+      const scaleToOriginalY = imageSize.height / displayHeight;
+
+      let cropX = cropInDisplayedX * scaleToOriginalX;
+      let cropY = cropInDisplayedY * scaleToOriginalY;
+      let cropW = cropInDisplayedW * scaleToOriginalX;
+      let cropH = cropInDisplayedH * scaleToOriginalY;
+
+      // Clamp to original image bounds
+      cropW = Math.max(1, Math.min(imageSize.width, cropW));
+      cropH = Math.max(1, Math.min(imageSize.height, cropH));
+      cropX = clampNum(cropX, 0, imageSize.width - cropW);
+      cropY = clampNum(cropY, 0, imageSize.height - cropH);
+
       const cropInfo = {
-        x: finalCropX,
-        y: finalCropY,
-        width: finalCropWidth,
-        height: finalCropHeight,
+        x: cropX,
+        y: cropY,
+        width: cropW,
+        height: cropH,
         imageWidth: imageSize.width,
         imageHeight: imageSize.height,
       };
-      
-      console.log('🎨 [FACE CROP] Sending image with crop info to server');
-      
+
+      console.log('🎨 [FACE CROP] Final cropInfo:', cropInfo);
+
       if (onCropComplete) {
-        // Pass both the image URI and crop info
         onCropComplete({ imageUri, cropInfo });
       }
     } catch (error) {
-      console.error('🎨 [FACE CROP] Error cropping image:', error);
+      console.error('🎨 [FACE CROP] Error:', error);
       Alert.alert('Error', 'Failed to crop image. Please try again.');
     } finally {
       setLoading(false);
@@ -274,9 +298,7 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
   };
 
   const handleCancel = () => {
-    if (onCancel) {
-      onCancel();
-    }
+    onCancel?.();
   };
 
   if (!imageUri) {
@@ -300,82 +322,73 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
       onRequestClose={handleCancel}
     >
       <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity 
-          onPress={handleCancel} 
-          style={styles.cancelButton}
-          disabled={loading}
-        >
-          <Text style={styles.cancelButtonText}>Cancel</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Position Your Face</Text>
-        <TouchableOpacity
-          onPress={handleCrop}
-          style={[styles.doneButton, (loading || imageSize.width === 0) && styles.doneButtonDisabled]}
-          disabled={loading || imageSize.width === 0}
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.doneButtonText}>Done</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={handleCancel} style={styles.cancelButton} disabled={loading}>
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
 
-      <View style={styles.cropContainer} {...currentPanResponder.panHandlers} collapsable={false}>
-        {imageSize.width > 0 && (
-          <Animated.View
-            style={[
-              styles.imageContainer,
-              {
-                transform: [
-                  { translateX },
-                  { translateY },
-                  { scale },
-                ],
-              },
-            ]}
-            pointerEvents="none"
+          <Text style={styles.title}>Position Your Face</Text>
+
+          <TouchableOpacity
+            onPress={handleCrop}
+            style={[styles.doneButton, (loading || imageSize.width === 0) && styles.doneButtonDisabled]}
+            disabled={loading || imageSize.width === 0}
           >
-            <Image
-              source={{ uri: imageUri }}
-              style={{
-                width: displayWidth,
-                height: displayHeight,
-              }}
-              resizeMode="contain"
-            />
-          </Animated.View>
-        )}
-        
-        {/* Oval overlay guide - pointerEvents: 'none' so it doesn't block touches */}
-        <View style={styles.overlay} pointerEvents="none">
-          <View style={styles.overlayTop} />
-          <View style={styles.overlayRow}>
-            <View style={styles.overlayLeft} />
-            <View style={styles.ovalContainer}>
-              {/* Oval guide using View with borderRadius */}
-              <View style={styles.ovalGuide}>
-                <View style={styles.ovalBorder} />
-                <View style={styles.ovalInner}>
-                  <View style={styles.guideLine} />
-                  <Text style={styles.guideText}>Position face here</Text>
-                  <Text style={styles.guideSubtext}>Include forehead and cheeks</Text>
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.doneButtonText}>Done</Text>}
+          </TouchableOpacity>
+        </View>
+
+         <View style={styles.cropContainer} {...(panResponder?.panHandlers || {})} collapsable={false} pointerEvents="auto">
+          {imageSize.width > 0 && (
+            <View style={styles.imageStage} pointerEvents="none">
+              <Animated.View
+                style={[
+                  styles.animatedWrap,
+                  {
+                    transform: [
+                      { scale }, // scale first
+                      { translateX },
+                      { translateY },
+                    ],
+                  },
+                ]}
+              >
+                <Image
+                  source={{ uri: imageUri }}
+                  style={{ width: displayWidth, height: displayHeight }}
+                  resizeMode="contain"
+                />
+              </Animated.View>
+            </View>
+          )}
+
+          {/* Oval overlay guide */}
+          <View style={styles.overlay} pointerEvents="none">
+            <View style={styles.overlayTop} />
+            <View style={styles.overlayRow}>
+              <View style={styles.overlayLeft} />
+              <View style={styles.ovalContainer}>
+                <View style={styles.ovalGuide}>
+                  <View style={styles.ovalBorder} />
+                  <View style={styles.ovalInner}>
+                    <View style={styles.guideLine} />
+                    <Text style={styles.guideText}>Position face here</Text>
+                    <Text style={styles.guideSubtext}>Include forehead and cheeks</Text>
+                  </View>
                 </View>
               </View>
+              <View style={styles.overlayRight} />
             </View>
-            <View style={styles.overlayRight} />
+            <View style={styles.overlayBottom} />
           </View>
-          <View style={styles.overlayBottom} />
         </View>
-      </View>
 
-      <View style={styles.instructions}>
-        <Text style={styles.instructionText}>• Pinch to zoom in/out</Text>
-        <Text style={styles.instructionText}>• Drag to position your face</Text>
-        <Text style={styles.instructionText}>• Face should fill 60-75% of the oval</Text>
-        <Text style={styles.instructionText}>• Eyes should be in upper 40%</Text>
-      </View>
+        <View style={styles.instructions}>
+          <Text style={styles.instructionText}>• Pinch to zoom in/out</Text>
+          <Text style={styles.instructionText}>• Drag to position your face</Text>
+          <Text style={styles.instructionText}>• Face should fill 60–75% of the oval</Text>
+          <Text style={styles.instructionText}>• Eyes should be in upper 40%</Text>
+        </View>
       </SafeAreaView>
     </Modal>
   );
@@ -425,16 +438,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+
   cropContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
     position: 'relative',
   },
-  imageContainer: {
+
+  // Stage that centers image before transforms
+  imageStage: {
     position: 'absolute',
-    zIndex: 0,
+    left: 0,
+    top: 0,
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
+
+  animatedWrap: {
+    // no pointer events here; parent handles gestures
+  },
+
   overlay: {
     position: 'absolute',
     top: 0,
@@ -506,6 +530,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 4,
   },
+
   instructions: {
     padding: 20,
     backgroundColor: '#111',
@@ -515,6 +540,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginBottom: 4,
   },
+
   errorText: {
     color: '#fff',
     fontSize: 16,
