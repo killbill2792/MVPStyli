@@ -973,21 +973,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { imageUrl, imageBase64, faceBox, croppedFaceBase64 } = req.body as {
+    const { imageUrl, imageBase64, faceBox, croppedFaceBase64, cropInfo } = req.body as {
       imageUrl?: string;
       imageBase64?: string;
       faceBox?: FaceBox;
       croppedFaceBase64?: string; // Preferred: pre-cropped face image from client
+      cropInfo?: { x: number; y: number; width: number; height: number; imageWidth: number; imageHeight: number }; // Crop coordinates for server-side cropping
     };
 
     console.log('🎨 [SKIN TONE API] Request body:', {
       hasImageUrl: !!imageUrl,
       hasImageBase64: !!imageBase64,
       hasCroppedFaceBase64: !!croppedFaceBase64,
+      hasCropInfo: !!cropInfo,
       imageUrlLength: imageUrl?.length || 0,
       imageBase64Length: imageBase64?.length || 0,
       croppedFaceBase64Length: croppedFaceBase64?.length || 0,
       hasFaceBox: !!faceBox,
+      cropInfo: cropInfo,
     });
 
     // Preferred flow: Use pre-cropped face image (no face detection needed)
@@ -1027,6 +1030,67 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       overallAvg = { r: Math.round(or / ocnt), g: Math.round(og / ocnt), b: Math.round(ob / ocnt) };
       lighting = estimateWarmLightingBias(overallAvg);
+    } else if (imageUrl && cropInfo) {
+      // NEW: Server-side cropping using crop coordinates
+      console.log('🎨 [SKIN TONE API] Using server-side cropping with crop coordinates');
+      const imageBuffer = await loadImageBuffer(imageUrl, imageBase64);
+      console.log('🎨 [SKIN TONE API] Image buffer loaded, size:', imageBuffer.length, 'bytes');
+      
+      const meta = await sharp(imageBuffer).metadata();
+      if (!meta.width || !meta.height) throw new Error('Invalid image metadata');
+      
+      // Validate crop coordinates
+      const cropX = Math.max(0, Math.min(meta.width - cropInfo.width, cropInfo.x));
+      const cropY = Math.max(0, Math.min(meta.height - cropInfo.height, cropInfo.y));
+      const cropWidth = Math.min(meta.width - cropX, cropInfo.width);
+      const cropHeight = Math.min(meta.height - cropY, cropInfo.height);
+      
+      console.log('🎨 [SKIN TONE API] Cropping image:', {
+        originalSize: { width: meta.width, height: meta.height },
+        cropRegion: { x: cropX, y: cropY, width: cropWidth, height: cropHeight },
+      });
+      
+      // Crop the image using sharp
+      faceImageBuffer = await sharp(imageBuffer)
+        .extract({
+          left: Math.round(cropX),
+          top: Math.round(cropY),
+          width: Math.round(cropWidth),
+          height: Math.round(cropHeight),
+        })
+        .resize(400, 480, { fit: 'cover' }) // Resize to face aspect ratio
+        .toBuffer();
+      
+      detectionMethod = 'provided'; // User provided crop coordinates
+      
+      console.log('🎨 [FACE DETECTION] ========== FACE DETECTION SKIPPED ==========');
+      console.log('🎨 [FACE DETECTION] Using server-side cropped image from crop coordinates');
+      console.log('🎨 [FACE DETECTION] detectionMethod = "provided" (user crop coordinates)');
+      console.log('🎨 [FACE DETECTION] ==============================================');
+      
+      // Estimate lighting from cropped face image
+      const overallRaw = await sharp(faceImageBuffer)
+        .resize(64, 64, { fit: 'fill' })
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      const { data: odata, info: oinfo } = overallRaw;
+      const oC = oinfo.channels || 3;
+      let or = 0, og = 0, ob = 0, ocnt = 0;
+      for (let i = 0; i < odata.length; i += oC) {
+        or += odata[i];
+        og += odata[i + 1] ?? odata[i];
+        ob += odata[i + 2] ?? odata[i];
+        ocnt++;
+      }
+      overallAvg = { r: Math.round(or / ocnt), g: Math.round(og / ocnt), b: Math.round(ob / ocnt) };
+      lighting = estimateWarmLightingBias(overallAvg);
+      
+      faceBoxUsed = {
+        left: Math.round(cropX),
+        top: Math.round(cropY),
+        width: Math.round(cropWidth),
+        height: Math.round(cropHeight),
+      };
     } else if (imageUrl || imageBase64) {
       // Fallback: Full image with face detection
       console.log('🎨 [SKIN TONE API] Loading full image for face detection...');

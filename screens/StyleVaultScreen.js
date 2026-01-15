@@ -557,17 +557,31 @@ const StyleVaultScreen = () => {
 
   // Handler for face photo upload after guidelines
   // Helper function to proceed with analysis after crop
-  const proceedWithAnalysis = async (croppedImageUri) => {
+  const proceedWithAnalysis = async (imageUri, cropInfo) => {
     try {
       setIsAnalyzingFace(true);
       
       console.log('🎨 [FACE CROP] Proceeding with analysis...');
       
-      // Analyze using cropped image (preferred method - no face detection needed)
-      const { profile, uploadedUrl, qualityMessages } = await analyzeFaceForColorProfileFromCroppedImage(
-        croppedImageUri,
-        uploadImageAsync
-      );
+      let profile, uploadedUrl, qualityMessages;
+      
+      // Analyze using image with crop coordinates (preferred method - server does cropping)
+      if (cropInfo) {
+        const result = await analyzeFaceForColorProfileFromCroppedImage(
+          imageUri,
+          cropInfo,
+          uploadImageAsync
+        );
+        profile = result.profile;
+        uploadedUrl = result.uploadedUrl;
+        qualityMessages = result.qualityMessages;
+      } else {
+        // Fallback: use old method if no crop info
+        const result = await analyzeFaceForColorProfileFromLocalUri(imageUri, uploadImageAsync);
+        profile = result.profile;
+        uploadedUrl = result.uploadedUrl;
+        qualityMessages = undefined;
+      }
       
       console.log('🎨 [FACE CROP] Analysis complete, profile:', profile ? 'exists' : 'null');
       console.log('🎨 [FACE CROP] Quality messages:', qualityMessages);
@@ -2998,7 +3012,7 @@ const StyleVaultScreen = () => {
       <FaceCropScreen
         visible={showFaceCrop}
         imageUri={imageToCrop}
-        onCropComplete={async (croppedImageUri) => {
+        onCropComplete={async (cropData) => {
           setShowFaceCrop(false);
           setImageToCrop(null);
           
@@ -3009,11 +3023,19 @@ const StyleVaultScreen = () => {
             setColorProfile(null);
             
             console.log('🎨 [FACE CROP] ========== CROP COMPLETE, STARTING ANALYSIS ==========');
-            console.log('🎨 [FACE CROP] Cropped image URI:', croppedImageUri.substring(0, 100));
+            
+            // Handle both old format (string URI) and new format (object with imageUri + cropInfo)
+            const imageUri = typeof cropData === 'string' ? cropData : cropData.imageUri;
+            const cropInfo = typeof cropData === 'object' ? cropData.cropInfo : null;
+            
+            console.log('🎨 [FACE CROP] Image URI:', imageUri.substring(0, 100));
+            if (cropInfo) {
+              console.log('🎨 [FACE CROP] Crop info:', cropInfo);
+            }
             
             // Run app-side quality checks
             console.log('🎨 [FACE CROP] Running app-side quality checks...');
-            const qualityChecks = await runQualityChecks(croppedImageUri);
+            const qualityChecks = await runQualityChecks(imageUri);
             if (qualityChecks.hasIssues) {
               console.log('🎨 [FACE CROP] Quality issues detected:', qualityChecks.issues);
               console.log('🎨 [FACE CROP] Recommendations:', qualityChecks.recommendations);
@@ -3024,86 +3046,20 @@ const StyleVaultScreen = () => {
                 qualityChecks.recommendations.join('\n\n') + '\n\nYou can still proceed, but results may be less accurate.',
                 [
                   { text: 'Retake', style: 'cancel', onPress: () => {
-                    setImageToCrop(croppedImageUri);
+                    setImageToCrop(imageUri);
                     setShowFaceCrop(true);
                   }},
-                  { text: 'Continue', onPress: () => proceedWithAnalysis(croppedImageUri) },
+                  { text: 'Continue', onPress: () => proceedWithAnalysis(imageUri, cropInfo) },
                 ]
               );
               return;
             }
             
             // Proceed with analysis
-            await proceedWithAnalysis(croppedImageUri);
+            await proceedWithAnalysis(imageUri, cropInfo);
           } catch (error) {
             console.error('🎨 [FACE CROP] Error:', error);
             setIsAnalyzingFace(false);
-            setFaceAnalysisError(`Failed to process photo: ${error.message || 'Unknown error'}`);
-            Alert.alert('Error', `Failed to process photo: ${error.message || 'Unknown error'}`);
-          }
-        }}
-            
-            console.log('🎨 [FACE CROP] Analysis complete, profile:', profile ? 'exists' : 'null');
-            console.log('🎨 [FACE CROP] Quality messages:', qualityMessages);
-            
-            setIsAnalyzingFace(false);
-            
-            if (uploadedUrl && user?.id) {
-              await supabase.from('profiles').update({ face_image_url: uploadedUrl }).eq('id', user.id);
-              setFaceImage(uploadedUrl);
-              if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
-            }
-            
-            if (profile && user?.id) {
-              console.log('🎨 [FACE CROP] Saving profile from API:', {
-                tone: profile.tone,
-                depth: profile.depth,
-                season: profile.season,
-                confidence: profile.confidence,
-                needsConfirmation: profile.needsConfirmation,
-              });
-              await saveColorProfile(user.id, profile);
-              setColorProfile(profile);
-              setFaceAnalysisError(null);
-              
-              const confidencePercent = profile.confidence ? Math.round(profile.confidence * 100) : 0;
-              const seasonConfidencePercent = profile.seasonConfidence ? Math.round(profile.seasonConfidence * 100) : 0;
-              
-              // Show quality messages if present
-              if (qualityMessages && qualityMessages.length > 0) {
-                Alert.alert(
-                  'Photo Quality Tips',
-                  qualityMessages.join('\n\n'),
-                  [{ text: 'OK' }]
-                );
-              }
-              
-              if (profile.season) {
-                showBanner(
-                  `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth • Suggested: ${profile.season} (${seasonConfidencePercent}% confidence)`,
-                  'success'
-                );
-              } else {
-                showBanner(
-                  `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth (${confidencePercent}% confidence). Try a daylight selfie for season suggestion.`,
-                  'success'
-                );
-              }
-            } else {
-              console.log('🎨 [FACE CROP] No profile returned from API - face not detected or API error');
-              setIsAnalyzingFace(false);
-              setFaceAnalysisError('No face detected. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.');
-              Alert.alert(
-                'Face Detection',
-                'We couldn\'t detect a face in this photo. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.',
-                [{ text: 'OK' }]
-              );
-              showBanner('✕ No face detected. Please upload a clear face photo.', 'error');
-            }
-          } catch (error) {
-            console.error('🎨 [FACE CROP] Error in analysis:', error);
-            setIsAnalyzingFace(false);
-            setColorProfile(null);
             setFaceAnalysisError(`Failed to process photo: ${error.message || 'Unknown error'}`);
             Alert.alert('Error', `Failed to process photo: ${error.message || 'Unknown error'}`);
           }

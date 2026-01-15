@@ -65,29 +65,31 @@ async function uriToBase64(uri: string): Promise<string> {
 }
 
 /**
- * NEW: Analyze face from cropped image (preferred method)
- * Sends pre-cropped face image directly to server (no face detection needed)
+ * NEW: Analyze face from image with crop coordinates (preferred method)
+ * Sends full image + crop coordinates to server, server does the cropping
  */
 export async function analyzeFaceForColorProfileFromCroppedImage(
-  croppedImageUri: string,
+  imageUri: string,
+  cropInfo: { x: number; y: number; width: number; height: number; imageWidth: number; imageHeight: number },
   uploadFn: (uri: string) => Promise<string>
 ): Promise<{ profile: ExtendedColorProfile | null; uploadedUrl: string | null; qualityMessages?: string[] }> {
   try {
-    console.log('🎨 [SKIN TONE CLIENT] ========== STARTING FACE ANALYSIS (CROPPED IMAGE) ==========');
-    console.log('🎨 [SKIN TONE CLIENT] Cropped image URI:', croppedImageUri.substring(0, 100));
+    console.log('🎨 [SKIN TONE CLIENT] ========== STARTING FACE ANALYSIS (WITH CROP COORDS) ==========');
+    console.log('🎨 [SKIN TONE CLIENT] Image URI:', imageUri.substring(0, 100));
+    console.log('🎨 [SKIN TONE CLIENT] Crop info:', cropInfo);
     
-    // Convert cropped image to base64
-    const croppedFaceBase64 = await uriToBase64(croppedImageUri);
-    console.log('🎨 [SKIN TONE CLIENT] Cropped image converted to base64, length:', croppedFaceBase64.length);
+    // Upload the full image first
+    const uploadedUrl = await uploadFn(imageUri);
+    console.log('🎨 [SKIN TONE CLIENT] Image uploaded:', uploadedUrl.substring(0, 100));
     
-    // Call server analysis with cropped image
+    // Call server analysis with image URL and crop coordinates
     const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL;
     if (!API_BASE) {
       throw new Error('API_BASE not configured');
     }
     const apiUrl = `${API_BASE}/api/analyze-skin-tone`;
     
-    console.log('🎨 [SKIN TONE CLIENT] Calling API with cropped image:', apiUrl);
+    console.log('🎨 [SKIN TONE CLIENT] Calling API with image + crop coordinates:', apiUrl);
     
     const startTime = Date.now();
     console.log('🎨 [SKIN TONE CLIENT] API call started at:', new Date().toISOString());
@@ -96,8 +98,8 @@ export async function analyzeFaceForColorProfileFromCroppedImage(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
-        croppedFaceBase64: croppedFaceBase64,
-        // No imageUrl or faceBox - using pre-cropped image
+        imageUrl: uploadedUrl,
+        cropInfo: cropInfo, // Server will crop using these coordinates
       }),
     });
     
@@ -136,14 +138,7 @@ export async function analyzeFaceForColorProfileFromCroppedImage(
       timeTaken: `${timeTaken}ms`,
     });
     
-    // Upload the cropped image for storage
-    let uploadedUrl: string | null = null;
-    try {
-      uploadedUrl = await uploadFn(croppedImageUri);
-      console.log('🎨 [SKIN TONE CLIENT] Cropped image uploaded for storage');
-    } catch (uploadError) {
-      console.error('🎨 [SKIN TONE CLIENT] Failed to upload cropped image:', uploadError);
-    }
+    // Image already uploaded above
     
     // Use seasonConfidence instead of overall confidence for season decision
     let season = analysis.season;

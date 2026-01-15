@@ -13,7 +13,7 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as ImageManipulator from 'expo-image-manipulator';
+// Note: Using server-side cropping instead of expo-image-manipulator to avoid native module rebuild
 // Using View with borderRadius for oval instead of SVG
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -169,32 +169,23 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
         cropHeight: finalCropHeight,
       });
       
-      // Crop the image to rectangular region (server will use oval region inside)
-      const cropped = await ImageManipulator.manipulateAsync(
-        imageUri,
-        [
-          {
-            crop: {
-              originX: finalCropX,
-              originY: finalCropY,
-              width: finalCropWidth,
-              height: finalCropHeight,
-            },
-          },
-          {
-            resize: {
-              width: 400,
-              height: 480, // Face aspect ratio
-            },
-          },
-        ],
-        { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG }
-      );
+      // Instead of cropping client-side (requires native module rebuild),
+      // send the full image + crop coordinates to server
+      // Server will handle cropping using sharp
+      const cropInfo = {
+        x: finalCropX,
+        y: finalCropY,
+        width: finalCropWidth,
+        height: finalCropHeight,
+        imageWidth: imageSize.width,
+        imageHeight: imageSize.height,
+      };
       
-      console.log('🎨 [FACE CROP] Image cropped successfully:', cropped.uri);
+      console.log('🎨 [FACE CROP] Sending image with crop info to server');
       
       if (onCropComplete) {
-        onCropComplete(cropped.uri);
+        // Pass both the image URI and crop info
+        onCropComplete({ imageUri, cropInfo });
       }
     } catch (error) {
       console.error('🎨 [FACE CROP] Error cropping image:', error);
