@@ -227,85 +227,142 @@ function mad(values: number[]): number {
 }
 
 /**
- * Determine undertone using new stable logic with specific thresholds.
+ * Determine undertone using b* primarily (skin warmth = yellow).
+ * Simple and conservative thresholds to reduce false confident calls.
  */
-function determineUndertoneFromLab(lab: { l: number; a: number; b: number }): {
+function determineUndertoneFromLab(
+  lab: { l: number; a: number; b: number },
+  lightingSeverity?: number
+): {
   undertone: Undertone;
   confidence: number;
   chroma: number;
   warmScore: number;
   coolScore: number;
+  lean?: 'warm' | 'cool';
 } {
   const { a, b } = lab;
   const chroma = Math.sqrt(a * a + b * b);
+  const warmth = b; // Simple and works
+  const pink = a;
 
-  // Compute signals
-  const warmAxis = b;
-  const coolAxis = a - 0.35 * b;
+  // Adjust neutral band if lighting severity is high
+  const neutralBandThreshold = lightingSeverity && lightingSeverity > 0.35 ? 8 : 6;
 
-  // Undertone decision (per spec thresholds)
+  console.log('🎨 [UNDERTONE] Computing undertone:', {
+    a: a.toFixed(2),
+    b: b.toFixed(2),
+    chroma: chroma.toFixed(2),
+    warmth: warmth.toFixed(2),
+    pink: pink.toFixed(2),
+    neutralBandThreshold,
+    lightingSeverity,
+  });
+
+  // Undertone decision (conservative thresholds)
   let undertone: Undertone;
-  if (b >= 12 || (b >= 8 && a <= 12)) {
-    undertone = 'warm';
-  } else if (b <= 7 && a >= 14) {
-    undertone = 'cool';
-  } else {
+  let lean: 'warm' | 'cool' | undefined;
+
+  if (Math.abs(b) < neutralBandThreshold) {
+    // Neutral band: |b| < 6 (or 8 if high lighting)
     undertone = 'neutral';
-  }
-
-  // Undertone confidence
-  const deltaWarm = b - 10;
-  const deltaCool = (a - 13) - (b - 7) * 0.4;
-  
-  let conf_u: number;
-  if (undertone === 'warm') {
-    conf_u = clamp(0.55 + deltaWarm / 20, 0.55, 0.92);
-  } else if (undertone === 'cool') {
-    conf_u = clamp(0.55 + deltaCool / 18, 0.55, 0.92);
+    // Determine lean for neutral cases
+    if (b > 0) {
+      lean = 'warm';
+    } else if (b < 0) {
+      lean = 'cool';
+    }
+    console.log('🎨 [UNDERTONE] Neutral band detected:', { b: b.toFixed(2), lean });
+  } else if (b >= 8) {
+    // Warm: b >= 8
+    undertone = 'warm';
+    console.log('🎨 [UNDERTONE] Warm detected:', { b: b.toFixed(2) });
+  } else if (b <= -8) {
+    // Cool: b <= -8
+    undertone = 'cool';
+    console.log('🎨 [UNDERTONE] Cool detected:', { b: b.toFixed(2) });
   } else {
-    conf_u = clamp(0.62 - Math.abs(b - 10) / 18 - Math.abs(a - 13) / 22, 0.45, 0.78);
+    // Between thresholds: "lean warm/cool" with lower confidence
+    undertone = 'neutral';
+    if (b > 0) {
+      lean = 'warm';
+    } else {
+      lean = 'cool';
+    }
+    console.log('🎨 [UNDERTONE] Between thresholds, lean detected:', { b: b.toFixed(2), lean });
   }
 
-  // For compatibility with old code
-  const warmScore = warmAxis;
-  const coolScore = coolAxis;
+  // Undertone confidence (simple)
+  const undertoneStrength = clamp(Math.abs(b) / 12, 0, 1);
+  let undertoneConfidence = 0.5 + 0.4 * undertoneStrength;
 
-  return { undertone, confidence: conf_u, chroma, warmScore, coolScore };
+  // If in neutral band, force confidence <= 0.6
+  if (Math.abs(b) < neutralBandThreshold) {
+    undertoneConfidence = Math.min(undertoneConfidence, 0.6);
+  }
+
+  // Reduce confidence if lighting severity is high
+  if (lightingSeverity && lightingSeverity > 0.35) {
+    undertoneConfidence = clamp(undertoneConfidence - 0.1, 0, 1);
+    console.log('🎨 [UNDERTONE] High lighting severity, reducing confidence by 0.1');
+  }
+
+  undertoneConfidence = clamp(undertoneConfidence, 0, 1);
+
+  console.log('🎨 [UNDERTONE] Final result:', {
+    undertone,
+    lean,
+    confidence: undertoneConfidence.toFixed(3),
+    undertoneStrength: undertoneStrength.toFixed(3),
+  });
+
+  // For compatibility
+  const warmScore = warmth;
+  const coolScore = -warmth; // Negative b = cool
+
+  return { undertone, confidence: undertoneConfidence, chroma, warmScore, coolScore, lean };
 }
 
 /**
- * Determine depth using corrected L* thresholds (per spec: 68, 42).
+ * Determine depth from L* (current thresholds are fine).
+ * Light: L > 65, Medium: 45 < L <= 65, Deep: L <= 45
  */
 function determineDepthFromL(l: number, madL?: number): { depth: Depth; confidence: number } {
-  // Per spec thresholds
-  // Light: L > 68
-  // Medium: 42 < L <= 68
-  // Deep: L <= 42
+  console.log('🎨 [DEPTH] Computing depth:', { l: l.toFixed(2), madL: madL?.toFixed(2) });
+  
+  // Current thresholds (OK per user)
+  // Light: L > 65
+  // Medium: 45 < L <= 65
+  // Deep: L <= 45
   
   let depth: Depth;
-  if (l > 68) {
+  if (l > 65) {
     depth = 'light';
-  } else if (l <= 42) {
+  } else if (l <= 45) {
     depth = 'deep';
   } else {
     depth = 'medium';
   }
 
   // Depth confidence
-  const dist = Math.min(Math.abs(l - 68), Math.abs(l - 42));
+  const dist = Math.min(Math.abs(l - 65), Math.abs(l - 45));
   let conf_d = clamp(0.62 + dist / 28, 0.55, 0.92);
   
   // Subtract 0.06 if MAD_L noisy
   if (madL !== undefined && madL > 10) {
     conf_d = clamp(conf_d - 0.06, 0, 1);
+    console.log('🎨 [DEPTH] MAD_L noisy, reducing confidence');
   }
+
+  console.log('🎨 [DEPTH] Final result:', { depth, confidence: conf_d.toFixed(3) });
 
   return { depth, confidence: conf_d };
 }
 
 /**
  * Determine clarity using Lab chroma (not HSV saturation).
- * Per spec: C* = sqrt(a^2 + b^2)
+ * C = sqrt(a^2 + b^2)
+ * Updated thresholds: Muted (C < 10), Clear (10 <= C < 18), Vivid (C >= 18)
  */
 function determineClarityFromLab(lab: { a: number; b: number }, madB?: number): {
   clarity: Clarity;
@@ -316,27 +373,41 @@ function determineClarityFromLab(lab: { a: number; b: number }, madB?: number): 
   // Compute chroma from corrected Lab
   const chroma = Math.sqrt(lab.a * lab.a + lab.b * lab.b);
 
-  // Clarity thresholds (per spec)
-  // Muted: C* < 18
-  // Clear: 18 <= C* < 26
-  // Vivid: C* >= 26
+  console.log('🎨 [CLARITY] Computing clarity:', {
+    a: lab.a.toFixed(2),
+    b: lab.b.toFixed(2),
+    chroma: chroma.toFixed(2),
+    madB: madB?.toFixed(2),
+  });
+
+  // Updated clarity thresholds
+  // Muted: C < 10
+  // Clear: 10 <= C < 18
+  // Vivid: C >= 18
   let clarity: Clarity;
-  if (chroma < 18) {
+  if (chroma < 10) {
     clarity = 'muted';
-  } else if (chroma < 26) {
+  } else if (chroma < 18) {
     clarity = 'clear';
   } else {
     clarity = 'vivid';
   }
 
-  // Clarity confidence
-  const d = Math.min(Math.abs(chroma - 18), Math.abs(chroma - 26));
-  let conf_c = clamp(0.58 + d / 20, 0.50, 0.90);
+  // Clarity confidence (distance to nearest threshold)
+  const d = Math.min(Math.abs(chroma - 10), Math.abs(chroma - 18));
+  let conf_c = clamp(0.55 + d / 10, 0.55, 0.9);
   
   // Subtract 0.06 if MAD_b noisy
   if (madB !== undefined && madB > 4.5) {
     conf_c = clamp(conf_c - 0.06, 0, 1);
+    console.log('🎨 [CLARITY] MAD_b noisy, reducing confidence');
   }
+
+  console.log('🎨 [CLARITY] Final result:', {
+    clarity,
+    confidence: conf_c.toFixed(3),
+    distanceToBoundary: d.toFixed(2),
+  });
 
   // Still compute avgSat for debugging (but don't use for clarity)
   const avgSat = 0; // Will be computed from samples if needed
@@ -359,9 +430,10 @@ function estimateWarmLightingBias(avg: { r: number; g: number; b: number }) {
 }
 
 /**
- * Season selection with hard gating + numeric scoring (per spec).
- * Rule 1: Gate by undertone when confident
- * Rule 2: Score using 3 dimensions: L (depth), C* (clarity), undertone axis (b*)
+ * Season selection with proper gating (especially for neutral undertone).
+ * Rule 1: If undertone is Warm → only score Spring/Autumn
+ * Rule 2: If undertone is Cool → only score Summer/Winter
+ * Rule 3: If undertone is Neutral → DO NOT pick a single season unless "lean" exists
  */
 function decideSeasonAlways(
   undertone: Undertone,
@@ -371,7 +443,7 @@ function decideSeasonAlways(
   depthConfidence: number,
   clarityConfidence: number,
   warmLightingSeverity: number,
-  labInfo?: { chroma: number; warmScore: number; coolScore: number },
+  labInfo?: { chroma: number; warmScore: number; coolScore: number; lean?: 'warm' | 'cool' },
   labValues?: { l: number; a: number; b: number },
   avgSat?: number,
   madB?: number,
@@ -382,128 +454,181 @@ function decideSeasonAlways(
   const a = labValues?.a ?? 0;
   const b = labValues?.b ?? 0;
   const C = labInfo?.chroma ?? Math.sqrt(a * a + b * b);
+  const lean = labInfo?.lean;
 
-  // Rule 1: Gate by undertone when confident
-  const allowedSeasons: Season[] = [];
-  if (undertoneConfidence >= 0.70) {
-    if (undertone === 'warm') {
-      allowedSeasons.push('spring', 'autumn');
-    } else if (undertone === 'cool') {
-      allowedSeasons.push('summer', 'winter');
+  console.log('🎨 [SEASON] ========== SEASON DECISION START ==========');
+  console.log('🎨 [SEASON] Inputs:', {
+    undertone,
+    depth,
+    clarity,
+    l: l.toFixed(2),
+    a: a.toFixed(2),
+    b: b.toFixed(2),
+    C: C.toFixed(2),
+    lean,
+    undertoneConfidence: undertoneConfidence.toFixed(3),
+    depthConfidence: depthConfidence.toFixed(3),
+    clarityConfidence: clarityConfidence.toFixed(3),
+    warmLightingSeverity: warmLightingSeverity.toFixed(3),
+  });
+
+  let season: Season;
+  let seasonConfidence: number;
+  let needsConfirmation: boolean;
+  let reason: string;
+
+  // Rule 1: Warm undertone → only Spring/Autumn
+  if (undertone === 'warm') {
+    console.log('🎨 [SEASON] Warm undertone detected - considering Spring/Autumn only');
+    
+    // Warm mapping:
+    // If L > 60 and C >= 10 → Spring
+    // Else → Autumn
+    if (l > 60 && C >= 10) {
+      season = 'spring';
+      reason = `WARM → Spring (L=${l.toFixed(1)} > 60, C=${C.toFixed(1)} >= 10)`;
     } else {
-      // Neutral or low confidence - allow all 4
-      allowedSeasons.push('spring', 'summer', 'autumn', 'winter');
+      season = 'autumn';
+      reason = `WARM → Autumn (L=${l.toFixed(1)} <= 60 or C=${C.toFixed(1)} < 10)`;
     }
-  } else {
-    // Low confidence - allow all 4
-    allowedSeasons.push('spring', 'summer', 'autumn', 'winter');
+    
+    seasonConfidence = clamp(undertoneConfidence * 0.9, 0, 0.95);
+    needsConfirmation = undertoneConfidence < 0.70 || seasonConfidence < 0.72;
+    
+    console.log('🎨 [SEASON] Warm result:', { season, seasonConfidence: seasonConfidence.toFixed(3), needsConfirmation });
+  }
+  // Rule 2: Cool undertone → only Summer/Winter
+  else if (undertone === 'cool') {
+    console.log('🎨 [SEASON] Cool undertone detected - considering Summer/Winter only');
+    
+    // Cool mapping:
+    // If L > 55 and C < 12 → Summer
+    // Else → Winter
+    if (l > 55 && C < 12) {
+      season = 'summer';
+      reason = `COOL → Summer (L=${l.toFixed(1)} > 55, C=${C.toFixed(1)} < 12)`;
+    } else {
+      season = 'winter';
+      reason = `COOL → Winter (L=${l.toFixed(1)} <= 55 or C=${C.toFixed(1)} >= 12)`;
+    }
+    
+    seasonConfidence = clamp(undertoneConfidence * 0.9, 0, 0.95);
+    needsConfirmation = undertoneConfidence < 0.70 || seasonConfidence < 0.72;
+    
+    console.log('🎨 [SEASON] Cool result:', { season, seasonConfidence: seasonConfidence.toFixed(3), needsConfirmation });
+  }
+  // Rule 3: Neutral undertone → use lean if available
+  else {
+    console.log('🎨 [SEASON] Neutral undertone detected - using lean logic');
+    console.log('🎨 [SEASON] Neutral details:', { b: b.toFixed(2), lean, l: l.toFixed(2), C: C.toFixed(2) });
+    
+    // Neutral mapping (important):
+    // If |b| < 6 (neutral):
+    //   Candidate set = based on depth:
+    //   If L <= 50 (deep): candidates = Autumn vs Winter
+    //   If L > 50: candidates = Spring vs Summer
+    //   Pick lean based on sign of b:
+    //   If b > 0 → lean Autumn (or Spring for light)
+    //   If b < 0 → lean Winter (or Summer for light)
+    //   Always set needsConfirmation=true
+    //   And cap seasonConfidence <= 0.55
+    
+    if (Math.abs(b) < 6) {
+      // True neutral - use depth-based candidates with lean
+      if (l <= 50) {
+        // Deep: Autumn vs Winter
+        if (b > 0 || lean === 'warm') {
+          season = 'autumn';
+          reason = `NEUTRAL (deep, lean warm) → Autumn (L=${l.toFixed(1)} <= 50, b=${b.toFixed(2)} > 0)`;
+        } else {
+          season = 'winter';
+          reason = `NEUTRAL (deep, lean cool) → Winter (L=${l.toFixed(1)} <= 50, b=${b.toFixed(2)} < 0)`;
+        }
+      } else {
+        // Light: Spring vs Summer
+        if (b > 0 || lean === 'warm') {
+          season = 'spring';
+          reason = `NEUTRAL (light, lean warm) → Spring (L=${l.toFixed(1)} > 50, b=${b.toFixed(2)} > 0)`;
+        } else {
+          season = 'summer';
+          reason = `NEUTRAL (light, lean cool) → Summer (L=${l.toFixed(1)} > 50, b=${b.toFixed(2)} < 0)`;
+        }
+      }
+      
+      // Always cap confidence and set needsConfirmation for neutral
+      seasonConfidence = Math.min(clamp(undertoneConfidence * 0.7, 0, 0.55), 0.55);
+      needsConfirmation = true;
+      
+      console.log('🎨 [SEASON] Neutral result:', {
+        season,
+        seasonConfidence: seasonConfidence.toFixed(3),
+        needsConfirmation,
+        note: 'Capped at 0.55 for neutral',
+      });
+    } else {
+      // Between thresholds (6-8 or -8 to -6): still neutral but with lean
+      console.log('🎨 [SEASON] Between thresholds, using lean:', lean);
+      
+      if (l <= 50) {
+        // Deep
+        if (b > 0 || lean === 'warm') {
+          season = 'autumn';
+          reason = `NEUTRAL-LEAN-WARM (deep) → Autumn (L=${l.toFixed(1)} <= 50, b=${b.toFixed(2)})`;
+        } else {
+          season = 'winter';
+          reason = `NEUTRAL-LEAN-COOL (deep) → Winter (L=${l.toFixed(1)} <= 50, b=${b.toFixed(2)})`;
+        }
+      } else {
+        // Light
+        if (b > 0 || lean === 'warm') {
+          season = 'spring';
+          reason = `NEUTRAL-LEAN-WARM (light) → Spring (L=${l.toFixed(1)} > 50, b=${b.toFixed(2)})`;
+        } else {
+          season = 'summer';
+          reason = `NEUTRAL-LEAN-COOL (light) → Summer (L=${l.toFixed(1)} > 50, b=${b.toFixed(2)})`;
+        }
+      }
+      
+      seasonConfidence = clamp(undertoneConfidence * 0.75, 0, 0.65);
+      needsConfirmation = true;
+      
+      console.log('🎨 [SEASON] Neutral-lean result:', {
+        season,
+        seasonConfidence: seasonConfidence.toFixed(3),
+        needsConfirmation,
+      });
+    }
   }
 
-  // Rule 2: Score using normalized scores (0..1)
-  // Warm score
-  const S_warm = clamp((b - 8) / 18, 0, 1);
-  
-  // Cool score (with a support requirement)
-  const S_cool_base = clamp((14 - b) / 14, 0, 1);
-  const S_cool_support = clamp((a - 10) / 14, 0, 1);
-  const S_cool = S_cool_base * S_cool_support;
-  
-  // Light score
-  const S_light = clamp((l - 55) / 20, 0, 1);
-  
-  // Deep score
-  const S_deep = clamp((55 - l) / 20, 0, 1);
-  
-  // Vivid score
-  const S_vivid = clamp((C - 22) / 12, 0, 1);
-  
-  // Muted score
-  const S_muted = clamp((22 - C) / 10, 0, 1);
-
-  // Score seasons (per spec formulas)
-  let scoreSpring = 0;
-  let scoreSummer = 0;
-  let scoreAutumn = 0;
-  let scoreWinter = 0;
-
-  if (allowedSeasons.includes('spring')) {
-    // Spring (warm + light + vivid/clear)
-    scoreSpring = 0.45 * S_warm + 0.35 * S_light + 0.20 * S_vivid;
-  }
-
-  if (allowedSeasons.includes('summer')) {
-    // Summer (cool + light + muted)
-    scoreSummer = 0.45 * S_cool + 0.30 * S_light + 0.25 * S_muted;
-  }
-
-  if (allowedSeasons.includes('autumn')) {
-    // Autumn (warm + medium/deep + muted)
-    scoreAutumn = 0.45 * S_warm + 0.30 * (1 - S_light) + 0.25 * S_muted;
-  }
-
-  if (allowedSeasons.includes('winter')) {
-    // Winter (cool + deep + vivid)
-    scoreWinter = 0.45 * S_cool + 0.30 * S_deep + 0.25 * S_vivid;
-  }
-
-  // Find winner
-  const scores = [
-    { season: 'spring' as Season, score: scoreSpring },
-    { season: 'summer' as Season, score: scoreSummer },
-    { season: 'autumn' as Season, score: scoreAutumn },
-    { season: 'winter' as Season, score: scoreWinter },
-  ];
-
-  scores.sort((a, b) => b.score - a.score);
-  const season = scores[0].season;
-  const topScore = scores[0].score;
-  const secondScore = scores[1].score;
-  const top2Diff = topScore - secondScore;
-
-  // Generate reason
-  const reason = `${season.toUpperCase()} (scores: S=${scoreSpring.toFixed(3)}, Su=${scoreSummer.toFixed(3)}, A=${scoreAutumn.toFixed(3)}, W=${scoreWinter.toFixed(3)}, L:${l.toFixed(1)}, a:${a.toFixed(1)}, b:${b.toFixed(1)}, C:${C.toFixed(1)}, undertone:${undertone}, depth:${depth}, clarity:${clarity})`;
-
-  // Overall confidence (per spec)
-  let conf_overall = 0.45 * undertoneConfidence + 0.30 * depthConfidence + 0.25 * clarityConfidence;
-  
-  // Apply penalties
+  // Apply additional penalties
   if ((madB !== undefined && madB > 4.5) || (madL !== undefined && madL > 10)) {
-    conf_overall = clamp(conf_overall - 0.08, 0, 1);
+    seasonConfidence = clamp(seasonConfidence - 0.08, 0, 1);
+    console.log('🎨 [SEASON] MAD noisy, reducing confidence');
   }
   if (gainsClamped) {
-    conf_overall = clamp(conf_overall - 0.06, 0, 1);
-  }
-  conf_overall = clamp(conf_overall, 0, 0.95);
-
-  // Season confidence (per spec)
-  let conf_season = conf_overall;
-  
-  // Add/subtract based on conditions
-  if (topScore >= 0.70) {
-    conf_season = clamp(conf_season + 0.05, 0, 1);
-  }
-  if (undertone === 'neutral') {
-    conf_season = clamp(conf_season - 0.10, 0, 1);
-  }
-  if (top2Diff < 0.08) {
-    conf_season = clamp(conf_season - 0.08, 0, 1);
-  }
-  if (undertoneConfidence < 0.70) {
-    conf_season = clamp(conf_season - 0.08, 0, 1);
+    seasonConfidence = clamp(seasonConfidence - 0.06, 0, 1);
+    console.log('🎨 [SEASON] Gains clamped, reducing confidence');
   }
 
-  // needsConfirmation (per spec)
-  const needsConfirmation =
-    undertone === 'neutral' ||
-    conf_season < 0.72 ||
-    top2Diff < 0.08 ||
-    (madB !== undefined && madB > 4.5) ||
-    (madL !== undefined && madL > 10) ||
-    gainsClamped === true;
+  // Final clamp
+  seasonConfidence = clamp(seasonConfidence, 0, 0.95);
+
+  // Update needsConfirmation based on final confidence
+  if (seasonConfidence < 0.72) {
+    needsConfirmation = true;
+  }
+
+  console.log('🎨 [SEASON] ========== SEASON DECISION END ==========');
+  console.log('🎨 [SEASON] Final result:', {
+    season,
+    seasonConfidence: seasonConfidence.toFixed(3),
+    needsConfirmation,
+    reason,
+  });
 
   return {
     season,
-    seasonConfidence: Math.round(clamp(conf_season, 0, 0.95) * 100) / 100,
+    seasonConfidence: Math.round(seasonConfidence * 100) / 100,
     needsConfirmation,
     reason,
   };
@@ -1038,9 +1163,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
     
     // Determine undertone, depth, clarity using corrected median Lab
-    const undertoneInfo = determineUndertoneFromLab(lab);
-    const { undertone, confidence: undertoneConfidence } = undertoneInfo;
-    console.log('🎨 [SKIN TONE API] Undertone:', undertone, 'Confidence:', undertoneConfidence);
+    // Pass lighting severity to undertone function for neutral band adjustment
+    const undertoneInfo = determineUndertoneFromLab(lab, lighting.severity);
+    const { undertone, confidence: undertoneConfidence, lean } = undertoneInfo;
+    console.log('🎨 [SKIN TONE API] Undertone:', undertone, 'Confidence:', undertoneConfidence, 'Lean:', lean);
 
     const { depth, confidence: depthConfidence } = determineDepthFromL(lab.l, madL);
     console.log('🎨 [SKIN TONE API] Depth:', depth, 'Confidence:', depthConfidence);
@@ -1048,7 +1174,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { clarity, confidence: clarityConfidence, chroma, avgSat } = determineClarityFromLab(lab, madB);
     console.log('🎨 [SKIN TONE API] Clarity:', clarity, 'Confidence:', clarityConfidence, 'Chroma:', chroma);
 
-    // Season: ALWAYS decide (with new hard gating + numeric scoring)
+    // Season: ALWAYS decide (with new hard gating + proper neutral handling)
     const seasonDecision = decideSeasonAlways(
       undertone,
       depth,
@@ -1057,7 +1183,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       depthConfidence,
       clarityConfidence,
       lighting.severity,
-      { chroma, warmScore: undertoneInfo.warmScore, coolScore: undertoneInfo.coolScore },
+      { chroma, warmScore: undertoneInfo.warmScore, coolScore: undertoneInfo.coolScore, lean },
       lab,
       avgSat,
       madB,
@@ -1065,27 +1191,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       gainsClamped
     );
 
-    // Debug logging - comprehensive season decision
-    console.log('🎨 [SKIN TONE API] ========== SEASON DECISION ==========');
-    console.log('🎨 [SKIN TONE API] Season Decision:', {
-      undertone,
-      depth,
-      clarity,
-      chroma,
-      avgSat,
-      undertoneConfidence,
-      depthConfidence,
-      clarityConfidence,
-      warmScore: undertoneInfo.warmScore,
-      coolScore: undertoneInfo.coolScore,
-      season: seasonDecision.season,
-      reason: seasonDecision.reason,
-      seasonConfidence: seasonDecision.seasonConfidence,
-      needsConfirmation: seasonDecision.needsConfirmation,
-      lab: { l: Math.round(lab.l * 10) / 10, a: Math.round(lab.a * 10) / 10, b: Math.round(lab.b * 10) / 10 },
-      mad: { l: madL.toFixed(2), a: madA.toFixed(2), b: madB.toFixed(2) },
+    // Comprehensive logging - all calculations and decisions
+    console.log('🎨 [SKIN TONE API] ========== COMPREHENSIVE ANALYSIS SUMMARY ==========');
+    console.log('🎨 [SKIN TONE API] Raw Lab Values (median):', {
+      L: lab.l.toFixed(2),
+      a: lab.a.toFixed(2),
+      b: lab.b.toFixed(2),
+      chroma: chroma.toFixed(2),
+    });
+    console.log('🎨 [SKIN TONE API] Robust Statistics:', {
+      medianLab: { L: medianL.toFixed(2), a: medianA.toFixed(2), b: medianB.toFixed(2) },
+      mad: { L: madL.toFixed(2), a: madA.toFixed(2), b: madB.toFixed(2) },
       isNoisy,
+      sampleCount: useSamples.length,
+    });
+    console.log('🎨 [SKIN TONE API] Lighting Analysis:', {
+      overallAvg: lighting.isWarm ? 'WARM' : 'COOL',
+      warmIndex: lighting.warmIndex,
+      severity: lighting.severity.toFixed(3),
+      correctionGains: correctionGains,
       gainsClamped,
+    });
+    console.log('🎨 [SKIN TONE API] Component Analysis:', {
+      undertone: { value: undertone, confidence: undertoneConfidence.toFixed(3), lean },
+      depth: { value: depth, confidence: depthConfidence.toFixed(3) },
+      clarity: { value: clarity, confidence: clarityConfidence.toFixed(3), chroma: chroma.toFixed(2) },
+    });
+    console.log('🎨 [SKIN TONE API] Season Decision:', {
+      season: seasonDecision.season.toUpperCase(),
+      seasonConfidence: seasonDecision.seasonConfidence.toFixed(3),
+      needsConfirmation: seasonDecision.needsConfirmation,
+      reason: seasonDecision.reason,
     });
 
     // Overall confidence (per spec: 0.45*conf_u + 0.30*conf_d + 0.25*conf_c)
@@ -1101,18 +1237,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     overallConfidence = clamp(overallConfidence, 0, 0.95);
 
     const timeTaken = Date.now() - startTime;
-    console.log('🎨 [SKIN TONE API] ========== ANALYSIS COMPLETE ==========');
-    console.log('🎨 [SKIN TONE API] Final Result:', {
-      season: seasonDecision.season,
-      seasonConfidence: seasonDecision.seasonConfidence,
-      undertone,
-      depth,
-      clarity,
-      overallConfidence,
-      hex,
-      timeTaken: `${timeTaken}ms`,
+    
+    // Final comprehensive summary for Vercel logs
+    console.log('🎨 [SKIN TONE API] ========== FINAL SUMMARY (ALL CALCULATIONS) ==========');
+    console.log('🎨 [SKIN TONE API] INPUT VALUES:', {
+      'Lab (median)': { L: lab.l.toFixed(2), a: lab.a.toFixed(2), b: lab.b.toFixed(2) },
+      'Chroma (C*)': chroma.toFixed(2),
+      'MAD': { L: madL.toFixed(2), a: madA.toFixed(2), b: madB.toFixed(2) },
+      'Lighting': { severity: lighting.severity.toFixed(3), gainsClamped, gains: correctionGains },
     });
-    console.log('🎨 [SKIN TONE API] ==========================================');
+    console.log('🎨 [SKIN TONE API] COMPONENT RESULTS:', {
+      'Undertone': { value: undertone, confidence: undertoneConfidence.toFixed(3), lean, b: lab.b.toFixed(2) },
+      'Depth': { value: depth, confidence: depthConfidence.toFixed(3), L: lab.l.toFixed(2) },
+      'Clarity': { value: clarity, confidence: clarityConfidence.toFixed(3), chroma: chroma.toFixed(2) },
+    });
+    console.log('🎨 [SKIN TONE API] SEASON SELECTION:', {
+      'Season': seasonDecision.season.toUpperCase(),
+      'Season Confidence': seasonDecision.seasonConfidence.toFixed(3),
+      'Overall Confidence': overallConfidence.toFixed(3),
+      'Needs Confirmation': seasonDecision.needsConfirmation,
+      'Reason': seasonDecision.reason,
+    });
+    console.log('🎨 [SKIN TONE API] PERFORMANCE:', {
+      'Time Taken': `${timeTaken}ms`,
+      'Samples Used': useSamples.length,
+      'Face Detection': detectionMethod,
+    });
+    console.log('🎨 [SKIN TONE API] ========================================================');
 
     return res.status(200).json({
       rgb: skinRgb,
