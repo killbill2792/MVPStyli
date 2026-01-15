@@ -87,29 +87,31 @@ function rgbToHsv(r: number, g: number, b: number) {
  * Made more strict to avoid false positives on non-face images.
  */
 function isLikelySkinPixel(r: number, g: number, b: number) {
-  // More strict brightness range - skin is typically in a narrower range
+  // Balanced brightness range - skin can vary widely
   const v = (r + g + b) / (3 * 255);
-  if (v < 0.15 || v > 0.85) return false; // Stricter: was 0.08-0.95
+  if (v < 0.12 || v > 0.90) return false; // Allow wider range for different skin tones
 
-  // Skin typically has R > G > B, with R significantly higher than B
+  // Skin typically has R > G > B, with R higher than B
   const rb = r - b;
-  if (rb < 8) return false; // Stricter: was 5
-  if (r < 50 || g < 30 || b < 15) return false; // Stricter: was 40/20/10
+  if (rb < 5) return false; // More lenient for darker skin tones
+  if (r < 35 || g < 20 || b < 10) return false; // Lower minimums for darker skin
 
-  // Skin has moderate saturation - too low or too high is not skin
+  // Skin has moderate saturation - but allow wider range
   const { s } = rgbToHsv(r, g, b);
-  if (s < 0.10 || s > 0.50) return false; // Stricter: was just s < 0.08
+  if (s < 0.08 || s > 0.60) return false; // Wider saturation range
 
-  // Avoid extreme red (lips, red objects)
-  if (r > 200 && g < 100 && b < 100) return false; // Stricter: was 200/90/90
+  // Avoid extreme red (lips, red objects) - but be less strict
+  if (r > 220 && g < 80 && b < 80) return false; // Only reject very extreme red
 
-  // Skin must have R >= G (skin is warm, not green-tinted)
-  if (r < g) return false; // Stricter: was r < g && rb > 15
+  // Skin typically has R >= G (skin is warm, not green-tinted)
+  // But allow some green for certain skin tones
+  if (r < g - 10) return false; // Allow small green component
 
   // Additional check: skin typically has G closer to R than to B
+  // But make this less strict
   const rgDiff = Math.abs(r - g);
   const gbDiff = Math.abs(g - b);
-  if (gbDiff > rgDiff * 1.5) return false; // G should be closer to R than to B
+  if (gbDiff > rgDiff * 2.0) return false; // More lenient ratio
 
   return true;
 }
@@ -479,12 +481,15 @@ async function detectFaceWithEnhancedHeuristic(
 ): Promise<FaceBox | null> {
   try {
     console.log('🎨 [SKIN TONE API] Starting enhanced heuristic face detection...');
+    console.log('🎨 [SKIN TONE API] Image dimensions:', { width: imageWidth, height: imageHeight });
     
     // Resize image for faster processing (but keep aspect ratio)
-    const maxSize = 400;
+    const maxSize = 500; // Increased for better detection
     const scale = Math.min(maxSize / imageWidth, maxSize / imageHeight, 1);
     const scanWidth = Math.floor(imageWidth * scale);
     const scanHeight = Math.floor(imageHeight * scale);
+    
+    console.log('🎨 [SKIN TONE API] Scanning at resolution:', { scanWidth, scanHeight, scale });
     
     const { data, info } = await sharp(imageBuffer)
       .resize(scanWidth, scanHeight, { fit: 'inside', withoutEnlargement: true })
@@ -495,23 +500,23 @@ async function detectFaceWithEnhancedHeuristic(
     const H = info.height || scanHeight;
     const C = info.channels || 3;
     
-    // Scan image in a grid to find face-like regions
-    // Face is typically in upper-middle portion of image
+    // Scan multiple zones - face can be anywhere in upper 70% of image
     const faceSearchZones = [
-      { x0: 0.2, x1: 0.8, y0: 0.1, y1: 0.6 }, // Upper-middle region
-      { x0: 0.1, x1: 0.9, y0: 0.05, y1: 0.5 }, // Wider search
+      { x0: 0.15, x1: 0.85, y0: 0.05, y1: 0.7, name: 'center' }, // Center region
+      { x0: 0.1, x1: 0.9, y0: 0.0, y1: 0.6, name: 'upper' }, // Upper region
+      { x0: 0.2, x1: 0.8, y0: 0.1, y1: 0.65, name: 'middle' }, // Middle region
     ];
     
-    let bestZone: { x: number; y: number; width: number; height: number; score: number } | null = null;
+    let bestZone: { x: number; y: number; width: number; height: number; score: number; zone: string } | null = null;
     
     for (const zone of faceSearchZones) {
       let skinPixels = 0;
       let totalPixels = 0;
       let minX = W, minY = H, maxX = 0, maxY = 0;
       
-      // Sample in grid pattern
-      const stepX = Math.max(1, Math.floor(W * (zone.x1 - zone.x0) / 20));
-      const stepY = Math.max(1, Math.floor(H * (zone.y1 - zone.y0) / 20));
+      // Sample more densely for better detection
+      const stepX = Math.max(1, Math.floor(W * (zone.x1 - zone.x0) / 30)); // More samples
+      const stepY = Math.max(1, Math.floor(H * (zone.y1 - zone.y0) / 30));
       
       for (let y = Math.floor(H * zone.y0); y < Math.floor(H * zone.y1); y += stepY) {
         for (let x = Math.floor(W * zone.x0); x < Math.floor(W * zone.x1); x += stepX) {
@@ -534,32 +539,55 @@ async function detectFaceWithEnhancedHeuristic(
       
       const skinRatio = totalPixels > 0 ? skinPixels / totalPixels : 0;
       
-      // Require high skin ratio (at least 50%) and minimum pixels
-      if (skinRatio >= 0.50 && skinPixels >= 30 && maxX > minX && maxY > minY) {
+      console.log(`🎨 [SKIN TONE API] Zone "${zone.name}" results:`, {
+        skinPixels,
+        totalPixels,
+        skinRatio: (skinRatio * 100).toFixed(1) + '%',
+        bounds: maxX > minX && maxY > minY ? { minX, minY, maxX, maxY } : 'none'
+      });
+      
+      // Lowered thresholds: require at least 35% skin ratio and 50 skin pixels
+      if (skinRatio >= 0.35 && skinPixels >= 50 && maxX > minX && maxY > minY) {
         const width = maxX - minX;
         const height = maxY - minY;
         const aspectRatio = width / height;
         
-        // Face aspect ratio is typically between 0.6 and 1.2 (portrait to square)
-        if (aspectRatio >= 0.6 && aspectRatio <= 1.2) {
+        // More lenient aspect ratio: 0.5 to 1.5 (portrait to landscape)
+        if (aspectRatio >= 0.5 && aspectRatio <= 1.5) {
           const score = skinRatio * skinPixels;
           
+          console.log(`🎨 [SKIN TONE API] Zone "${zone.name}" passed validation:`, {
+            aspectRatio: aspectRatio.toFixed(2),
+            score: score.toFixed(1),
+            size: { width, height }
+          });
+          
           if (!bestZone || score > bestZone.score) {
-            // Scale back to original image dimensions
+            // Scale back to original image dimensions with padding
             bestZone = {
-              x: (minX / scale) - (width / scale) * 0.1, // Add padding
-              y: (minY / scale) - (height / scale) * 0.1,
-              width: (width / scale) * 1.2, // Add 20% padding
-              height: (height / scale) * 1.2,
-              score: score
+              x: Math.max(0, (minX / scale) - (width / scale) * 0.15), // Add 15% padding
+              y: Math.max(0, (minY / scale) - (height / scale) * 0.15),
+              width: (width / scale) * 1.3, // Add 30% padding
+              height: (height / scale) * 1.3,
+              score: score,
+              zone: zone.name
             };
           }
+        } else {
+          console.log(`🎨 [SKIN TONE API] Zone "${zone.name}" failed aspect ratio check:`, aspectRatio.toFixed(2));
         }
+      } else {
+        console.log(`🎨 [SKIN TONE API] Zone "${zone.name}" failed threshold check:`, {
+          skinRatio: (skinRatio * 100).toFixed(1) + '%',
+          skinPixels,
+          requiredRatio: '35%',
+          requiredPixels: 50
+        });
       }
     }
     
     if (!bestZone) {
-      console.log('🎨 [SKIN TONE API] No face-like region found in image');
+      console.log('🎨 [SKIN TONE API] No face-like region found in any zone');
       return null;
     }
     
@@ -571,14 +599,15 @@ async function detectFaceWithEnhancedHeuristic(
       height: Math.min(imageHeight - Math.floor(bestZone.y), Math.floor(bestZone.height)),
     };
     
-    // Ensure minimum size
-    if (faceBox.width < 50 || faceBox.height < 50) {
+    // Ensure minimum size (lowered from 50 to 40)
+    if (faceBox.width < 40 || faceBox.height < 40) {
       console.log('🎨 [SKIN TONE API] Detected region too small:', faceBox);
       return null;
     }
     
     console.log('🎨 [SKIN TONE API] Face-like region detected:', {
-      score: bestZone.score,
+      zone: bestZone.zone,
+      score: bestZone.score.toFixed(1),
       box: faceBox,
       imageSize: { width: imageWidth, height: imageHeight }
     });
@@ -586,6 +615,7 @@ async function detectFaceWithEnhancedHeuristic(
     return faceBox;
   } catch (error: any) {
     console.error('🎨 [SKIN TONE API] Enhanced heuristic detection error:', error);
+    console.error('🎨 [SKIN TONE API] Error stack:', error.stack?.substring(0, 500));
     return null;
   }
 }
