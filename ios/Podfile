@@ -57,11 +57,57 @@ target 'Stylit' do
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
     
-    # Fix Folly coroutine header issue - disable coroutines to avoid missing header error
+    # Fix Folly coroutine header issue - multiple approaches for maximum reliability
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |config|
+        # Set both macros to ensure coroutines are disabled
         config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
         config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FOLLY_CFG_NO_COROUTINES=1'
+        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FOLLY_HAS_COROUTINES=0'
+      end
+    end
+    
+    # Patch Expected.h directly to comment out the problematic include
+    # This is more reliable than just preprocessor definitions
+    expected_h_paths = [
+      File.join(installer.sandbox.root, 'Headers/Public/ReactNativeDependencies/folly/Expected.h'),
+      File.join(installer.sandbox.root, 'RCT-Folly/folly/Expected.h'),
+      File.join(installer.sandbox.root, 'Headers/Private/ReactNativeDependencies/folly/Expected.h')
+    ]
+    
+    expected_h_paths.each do |expected_h_path|
+      if File.exist?(expected_h_path)
+        text = File.read(expected_h_path)
+        original = text.dup
+        # Comment out the problematic include block - handles both single line and multi-line formats
+        text.gsub!(/#if\s+FOLLY_HAS_COROUTINES\s*\n\s*#include\s+<folly\/coro\/Coroutine\.h>/, "#if 0 // FOLLY_HAS_COROUTINES disabled\n    // #include <folly/coro/Coroutine.h>")
+        # Also handle if it's on the same line
+        text.gsub!(/#if\s+FOLLY_HAS_COROUTINES.*?#include\s+<folly\/coro\/Coroutine\.h>/, "#if 0 // FOLLY_HAS_COROUTINES disabled\n    // #include <folly/coro/Coroutine.h>")
+        if text != original
+          File.chmod(0644, expected_h_path) # Make writable
+          File.write(expected_h_path, text)
+          puts "✅ Patched Expected.h at #{expected_h_path}"
+        end
+      end
+    end
+    
+    # Also patch Portability.h if it defines FOLLY_HAS_COROUTINES as 1
+    portability_h_paths = [
+      File.join(installer.sandbox.root, 'RCT-Folly/folly/Portability.h'),
+      File.join(installer.sandbox.root, 'Headers/Public/ReactNativeDependencies/folly/Portability.h')
+    ]
+    
+    portability_h_paths.each do |portability_h_path|
+      if File.exist?(portability_h_path)
+        text = File.read(portability_h_path)
+        original = text.dup
+        # Disable coroutines in Portability.h
+        text.gsub!(/#define\s+FOLLY_HAS_COROUTINES\s+1/, '#define FOLLY_HAS_COROUTINES 0')
+        if text != original
+          File.chmod(0644, portability_h_path)
+          File.write(portability_h_path, text)
+          puts "✅ Patched Portability.h at #{portability_h_path}"
+        end
       end
     end
   end
