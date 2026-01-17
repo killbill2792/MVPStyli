@@ -1,15 +1,11 @@
 /**
- * Skin Tone Analysis API (Production-Friendly with Enhanced Heuristic Face Detection)
- * - Uses enhanced heuristic face detection with strict validation
- * - Multiple validation checks to ensure face presence
- * - Robust sampling inside detected faceBox (many samples, trimmed mean)
- * - Simple skin-pixel filter to avoid beard/eyes/lips
- * - Lighting bias detection (warm cast) and confidence penalty
- * - ALWAYS returns a season (never null), but includes:
- *    - seasonConfidence
- *    - needsConfirmation (UI can ask user to confirm/change)
- *
- * No paid APIs. Uses Sharp only (lightweight, works on Vercel).
+ * Skin Tone + Season API (Sharp-only, production-friendly)
+ * Improvements:
+ * - Stronger skin sampling (ellipse mask + HSV+Lab candidate gate)
+ * - Shadow + highlight rejection using L* percentiles
+ * - Better color constancy: Shades-of-Gray (p-norm)
+ * - Returns top-2 season candidates + confidence
+ * - "needsConfirmation" is honest and meaningful
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -20,20 +16,41 @@ type Depth = 'light' | 'medium' | 'deep';
 type Clarity = 'muted' | 'clear' | 'vivid';
 type Season = 'spring' | 'summer' | 'autumn' | 'winter';
 
-type FaceBox = { x: number; y: number; width: number; height: number };
-type DetectionMethod = 'blazeface' | 'faceapi' | 'heuristic' | 'provided';
+type DetectionMethod = 'provided' | 'cropInfo' | 'faceBox' | 'heuristic';
+
+type CropInfoInput = { x: number; y: number; width: number; height: number; imageWidth: number; imageHeight: number };
+type FaceBoxInput = { x: number; y: number; width: number; height: number }; // normalized 0..1
+type BoxPx = { x: number; y: number; width: number; height: number };
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
 function rgbToHex(r: number, g: number, b: number) {
-  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b
-    .toString(16)
-    .padStart(2, '0')}`;
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 
-// Convert RGB to Lab (D65)
+// RGB -> HSV (0..360, 0..1, 0..1)
+function rgbToHsv(r: number, g: number, b: number) {
+  const rn = r / 255, gn = g / 255, bn = b / 255;
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  const d = max - min;
+
+  let h = 0;
+  if (d !== 0) {
+    if (max === rn) h = ((gn - bn) / d) % 6;
+    else if (max === gn) h = (bn - rn) / d + 2;
+    else h = (rn - gn) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  const s = max === 0 ? 0 : d / max;
+  const v = max;
+  return { h, s, v };
+}
+
+// RGB -> Lab (D65)
 function rgbToLab(r: number, g: number, blue: number) {
   let rNorm = r / 255;
   let gNorm = g / 255;
@@ -54,626 +71,470 @@ function rgbToLab(r: number, g: number, blue: number) {
   const l = 116 * y - 16;
   const a = 500 * (x - y);
   const b = 200 * (y - z);
-
   return { l, a, b };
 }
 
-// Convert RGB to HSV for saturation measure
-function rgbToHsv(r: number, g: number, b: number) {
-  const rn = r / 255,
-    gn = g / 255,
-    bn = b / 255;
-  const max = Math.max(rn, gn, bn);
-  const min = Math.min(rn, gn, bn);
-  const d = max - min;
+function median(values: number[]): number {
+  if (!values.length) return 0;
+  const s = [...values].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 === 0 ? (s[m - 1] + s[m]) / 2 : s[m];
+}
 
-  let h = 0;
-  if (d !== 0) {
-    if (max === rn) h = ((gn - bn) / d) % 6;
-    else if (max === gn) h = (bn - rn) / d + 2;
-    else h = (rn - gn) / d + 4;
-    h *= 60;
-    if (h < 0) h += 360;
-  }
+function mad(values: number[]): number {
+  if (!values.length) return 0;
+  const med = median(values);
+  return median(values.map(v => Math.abs(v - med)));
+}
 
-  const s = max === 0 ? 0 : d / max;
-  const v = max;
-
-  return { h, s, v };
+function percentile(values: number[], p: number): number {
+  if (!values.length) return 0;
+  const s = [...values].sort((a, b) => a - b);
+  const idx = clamp(Math.floor(p * (s.length - 1)), 0, s.length - 1);
+  return s[idx];
 }
 
 /**
- * Lab-based skin pixel check (more stable than RGB rules).
- * Uses Lab color space for better skin tone detection across diverse lighting.
+ * Stronger "skin candidate" filter.
+ * Classic fast gating that works well in production to prevent "always Autumn" bias.
  */
-function isLikelySkinPixelFromLab(lab: { l: number; a: number; b: number }): boolean {
-  const { l, a, b } = lab;
-  // Lab-based skin filtering - broad enough for many skin tones but excludes extreme colors
-  if (l < 18 || l > 92) return false; // Lightness range
-  if (a < -5 || a > 28) return false; // Red-green axis
-  if (b < 0 || b > 38) return false; // Yellow-blue axis
-  return true;
-}
+function isSkinCandidate(r: number, g: number, b: number): boolean {
+  const { h, s, v } = rgbToHsv(r, g, b);
 
-/**
- * Lightweight RGB skin-pixel check (fallback for initial filtering).
- * Purpose: avoid sampling beard/eyes/lips/background.
- * Updated per spec: remove strict RGB minimums, use brightness check instead.
- */
-function isLikelySkinPixel(r: number, g: number, b: number) {
-  // Brightness check (replaces individual RGB minimums)
-  const brightness = r + g + b;
-  if (brightness < 60) return false; // Too dark
+  // brightness window
+  if (v < 0.22 || v > 0.95) return false;
 
-  // Balanced brightness range - skin can vary widely
-  const v = brightness / (3 * 255);
-  if (v < 0.12 || v > 0.90) return false;
+  // saturation window (raise the floor so gray pixels don't pass)
+  if (s < 0.12 || s > 0.65) return false;
 
-  // Skin typically has R > G > B, with R higher than B
-  const rb = r - b;
-  if (rb < 5) return false;
+  // Hue gate: skin is mostly in red/orange/yellow range (wrap-around handled)
+  const skinHue = (h >= 0 && h <= 55) || (h >= 320 && h <= 360);
+  if (!skinHue) return false;
 
-  // Skin has moderate saturation - allow wider range (per spec: >= 0.04, cap at 0.65)
-  const { s } = rgbToHsv(r, g, b);
-  if (s < 0.04 || s > 0.65) return false;
+  // RGB ordering + separation gate: reject hair/background
+  // (tuned to be permissive across skin tones but still filter non-skin)
+  if (!(r > g && g >= b)) return false;
+  if ((r - g) < 8) return false;
+  if ((r - b) < 18) return false;
 
-  // Avoid extreme red (lips, red objects)
-  if (r > 220 && g < 80 && b < 80) return false;
+  // reject near-white / blown highlights (often makeup + phone smoothing)
+  if (r > 245 && g > 245 && b > 245) return false;
 
-  // Skin typically has R >= G (skin is warm, not green-tinted)
-  if (r < g - 10) return false;
-
-  // Additional check: skin typically has G closer to R than to B
-  const rgDiff = Math.abs(r - g);
-  const gbDiff = Math.abs(g - b);
-  if (gbDiff > rgDiff * 2.0) return false;
+  // Lab gate (optional but helps)
+  const lab = rgbToLab(r, g, b);
+  if (lab.l < 18 || lab.l > 92) return false;
+  if (lab.a < -8 || lab.a > 35) return false;
+  if (lab.b < -5 || lab.b > 45) return false;
 
   return true;
 }
 
 /**
- * Apply gray-world lighting correction to skin samples.
- * Uses face region RGB average as illuminant proxy.
- * Returns corrected samples and correction metadata.
+ * Shades-of-Gray color constancy on candidate pixels.
  */
-function applyLightingCorrection(
-  samples: Array<{ r: number; g: number; b: number }>
+function applyShadesOfGrayCorrection(
+  samples: Array<{ r: number; g: number; b: number }>,
+  pNorm: number = 6
 ): {
   corrected: Array<{ r: number; g: number; b: number }>;
   gains: { r: number; g: number; b: number };
   gainsClamped: boolean;
 } {
-  if (samples.length === 0) {
-    return { corrected: [], gains: { r: 1, g: 1, b: 1 }, gainsClamped: false };
-  }
+  if (!samples.length) return { corrected: [], gains: { r: 1, g: 1, b: 1 }, gainsClamped: false };
 
-  // Compute mean RGB of skin samples (trimmed mean for robustness)
-  const sorted = [...samples].sort((a, b) => a.r + a.g + a.b - (b.r + b.g + b.b));
-  const trim = Math.floor(sorted.length * 0.1); // 10% trim
-  const kept = sorted.slice(trim, Math.max(trim + 1, sorted.length - trim));
-  
-  let sumR = 0, sumG = 0, sumB = 0;
-  for (const s of kept) {
-    sumR += s.r;
-    sumG += s.g;
-    sumB += s.b;
+  let sumRp = 0, sumGp = 0, sumBp = 0;
+  for (const s of samples) {
+    sumRp += Math.pow(s.r, pNorm);
+    sumGp += Math.pow(s.g, pNorm);
+    sumBp += Math.pow(s.b, pNorm);
   }
-  const n = kept.length || 1;
-  const rBar = sumR / n;
-  const gBar = sumG / n;
-  const bBar = sumB / n;
+  const n = samples.length;
+  const rP = Math.pow(sumRp / n, 1 / pNorm);
+  const gP = Math.pow(sumGp / n, 1 / pNorm);
+  const bP = Math.pow(sumBp / n, 1 / pNorm);
 
-  // Skip correction if too dark/invalid
-  if (rBar < 10 || gBar < 10 || bBar < 10) {
-    return { corrected: samples, gains: { r: 1, g: 1, b: 1 }, gainsClamped: false };
-  }
+  if (rP < 10 || gP < 10 || bP < 10) return { corrected: samples, gains: { r: 1, g: 1, b: 1 }, gainsClamped: false };
 
-  // Compute gains
-  const M = (rBar + gBar + bBar) / 3;
-  let gainR = M / rBar;
-  let gainG = M / gBar;
-  let gainB = M / bBar;
+  const M = (rP + gP + bP) / 3;
+  let gainR = M / rP;
+  let gainG = M / gP;
+  let gainB = M / bP;
 
-  // Clamp gains to avoid crazy corrections
-  const minGain = 0.75;
-  const maxGain = 1.35;
-  let gainsClamped = false;
-  if (gainR < minGain || gainR > maxGain) {
-    gainR = clamp(gainR, minGain, maxGain);
-    gainsClamped = true;
-  }
-  if (gainG < minGain || gainG > maxGain) {
-    gainG = clamp(gainG, minGain, maxGain);
-    gainsClamped = true;
-  }
-  if (gainB < minGain || gainB > maxGain) {
-    gainB = clamp(gainB, minGain, maxGain);
-    gainsClamped = true;
-  }
+  const minGain = 0.70;
+  const maxGain = 1.45;
+  const before = { r: gainR, g: gainG, b: gainB };
+  gainR = clamp(gainR, minGain, maxGain);
+  gainG = clamp(gainG, minGain, maxGain);
+  gainB = clamp(gainB, minGain, maxGain);
+  const gainsClamped = before.r !== gainR || before.g !== gainG || before.b !== gainB;
 
-  // Apply correction to all samples
   const corrected = samples.map(s => ({
     r: clamp(Math.round(s.r * gainR), 0, 255),
     g: clamp(Math.round(s.g * gainG), 0, 255),
     b: clamp(Math.round(s.b * gainB), 0, 255),
   }));
 
-  return {
-    corrected,
-    gains: { r: gainR, g: gainG, b: gainB },
-    gainsClamped,
-  };
+  return { corrected, gains: { r: gainR, g: gainG, b: gainB }, gainsClamped };
 }
 
-/**
- * Compute median of array
- */
-function median(values: number[]): number {
-  if (values.length === 0) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0
-    ? (sorted[mid - 1] + sorted[mid]) / 2
-    : sorted[mid];
-}
-
-/**
- * Compute Median Absolute Deviation (MAD)
- */
-function mad(values: number[]): number {
-  if (values.length === 0) return 0;
-  const med = median(values);
-  const deviations = values.map(v => Math.abs(v - med));
-  return median(deviations);
-}
-
-/**
- * Determine undertone using b* primarily (skin warmth = yellow).
- * Simple and conservative thresholds to reduce false confident calls.
- */
-function determineUndertoneFromLab(
-  lab: { l: number; a: number; b: number },
-  lightingSeverity?: number
-): {
-  undertone: Undertone;
-  confidence: number;
-  chroma: number;
-  warmScore: number;
-  coolScore: number;
-  lean?: 'warm' | 'cool';
-} {
-  const { a, b } = lab;
-  const chroma = Math.sqrt(a * a + b * b);
-  const warmth = b; // Simple and works
-  const pink = a;
-
-  // Adjust neutral band if lighting severity is high
-  const neutralBandThreshold = lightingSeverity && lightingSeverity > 0.35 ? 8 : 6;
-
-  console.log('🎨 [UNDERTONE] Computing undertone:', {
-    a: a.toFixed(2),
-    b: b.toFixed(2),
-    chroma: chroma.toFixed(2),
-    warmth: warmth.toFixed(2),
-    pink: pink.toFixed(2),
-    neutralBandThreshold,
-    lightingSeverity,
-  });
-
-  // Undertone decision (conservative thresholds)
-  let undertone: Undertone;
-  let lean: 'warm' | 'cool' | undefined;
-
-  if (Math.abs(b) < neutralBandThreshold) {
-    // Neutral band: |b| < 6 (or 8 if high lighting)
-    undertone = 'neutral';
-    // Determine lean for neutral cases
-    if (b > 0) {
-      lean = 'warm';
-    } else if (b < 0) {
-      lean = 'cool';
-    }
-    console.log('🎨 [UNDERTONE] Neutral band detected:', { b: b.toFixed(2), lean });
-  } else if (b >= 8) {
-    // Warm: b >= 8
-    undertone = 'warm';
-    console.log('🎨 [UNDERTONE] Warm detected:', { b: b.toFixed(2) });
-  } else if (b <= -8) {
-    // Cool: b <= -8
-    undertone = 'cool';
-    console.log('🎨 [UNDERTONE] Cool detected:', { b: b.toFixed(2) });
-  } else {
-    // Between thresholds: "lean warm/cool" with lower confidence
-    undertone = 'neutral';
-    if (b > 0) {
-      lean = 'warm';
-    } else {
-      lean = 'cool';
-    }
-    console.log('🎨 [UNDERTONE] Between thresholds, lean detected:', { b: b.toFixed(2), lean });
-  }
-
-  // Undertone confidence (simple)
-  const undertoneStrength = clamp(Math.abs(b) / 12, 0, 1);
-  let undertoneConfidence = 0.5 + 0.4 * undertoneStrength;
-
-  // If in neutral band, force confidence <= 0.6
-  if (Math.abs(b) < neutralBandThreshold) {
-    undertoneConfidence = Math.min(undertoneConfidence, 0.6);
-  }
-
-  // Reduce confidence if lighting severity is high
-  if (lightingSeverity && lightingSeverity > 0.35) {
-    undertoneConfidence = clamp(undertoneConfidence - 0.1, 0, 1);
-    console.log('🎨 [UNDERTONE] High lighting severity, reducing confidence by 0.1');
-  }
-
-  undertoneConfidence = clamp(undertoneConfidence, 0, 1);
-
-  console.log('🎨 [UNDERTONE] Final result:', {
-    undertone,
-    lean,
-    confidence: undertoneConfidence.toFixed(3),
-    undertoneStrength: undertoneStrength.toFixed(3),
-  });
-
-  // For compatibility
-  const warmScore = warmth;
-  const coolScore = -warmth; // Negative b = cool
-
-  return { undertone, confidence: undertoneConfidence, chroma, warmScore, coolScore, lean };
-}
-
-/**
- * Determine depth from L* (current thresholds are fine).
- * Light: L > 65, Medium: 45 < L <= 65, Deep: L <= 45
- */
-function determineDepthFromL(l: number, madL?: number): { depth: Depth; confidence: number } {
-  console.log('🎨 [DEPTH] Computing depth:', { l: l.toFixed(2), madL: madL?.toFixed(2) });
-  
-  // Current thresholds (OK per user)
-  // Light: L > 65
-  // Medium: 45 < L <= 65
-  // Deep: L <= 45
-  
-  let depth: Depth;
-  if (l > 65) {
-    depth = 'light';
-  } else if (l <= 45) {
-    depth = 'deep';
-  } else {
-    depth = 'medium';
-  }
-
-  // Depth confidence
-  const dist = Math.min(Math.abs(l - 65), Math.abs(l - 45));
-  let conf_d = clamp(0.62 + dist / 28, 0.55, 0.92);
-  
-  // Subtract 0.06 if MAD_L noisy
-  if (madL !== undefined && madL > 10) {
-    conf_d = clamp(conf_d - 0.06, 0, 1);
-    console.log('🎨 [DEPTH] MAD_L noisy, reducing confidence');
-  }
-
-  console.log('🎨 [DEPTH] Final result:', { depth, confidence: conf_d.toFixed(3) });
-
-  return { depth, confidence: conf_d };
-}
-
-/**
- * Determine clarity using Lab chroma (not HSV saturation).
- * C = sqrt(a^2 + b^2)
- * Updated thresholds: Muted (C < 10), Clear (10 <= C < 18), Vivid (C >= 18)
- */
-function determineClarityFromLab(lab: { a: number; b: number }, madB?: number): {
-  clarity: Clarity;
-  confidence: number;
-  chroma: number;
-  avgSat: number; // Still compute for debugging
-} {
-  // Compute chroma from corrected Lab
-  const chroma = Math.sqrt(lab.a * lab.a + lab.b * lab.b);
-
-  console.log('🎨 [CLARITY] Computing clarity:', {
-    a: lab.a.toFixed(2),
-    b: lab.b.toFixed(2),
-    chroma: chroma.toFixed(2),
-    madB: madB?.toFixed(2),
-  });
-
-  // Updated clarity thresholds
-  // Muted: C < 10
-  // Clear: 10 <= C < 18
-  // Vivid: C >= 18
-  let clarity: Clarity;
-  if (chroma < 10) {
-    clarity = 'muted';
-  } else if (chroma < 18) {
-    clarity = 'clear';
-  } else {
-    clarity = 'vivid';
-  }
-
-  // Clarity confidence (distance to nearest threshold)
-  const d = Math.min(Math.abs(chroma - 10), Math.abs(chroma - 18));
-  let conf_c = clamp(0.55 + d / 10, 0.55, 0.9);
-  
-  // Subtract 0.06 if MAD_b noisy
-  if (madB !== undefined && madB > 4.5) {
-    conf_c = clamp(conf_c - 0.06, 0, 1);
-    console.log('🎨 [CLARITY] MAD_b noisy, reducing confidence');
-  }
-
-  console.log('🎨 [CLARITY] Final result:', {
-    clarity,
-    confidence: conf_c.toFixed(3),
-    distanceToBoundary: d.toFixed(2),
-  });
-
-  // Still compute avgSat for debugging (but don't use for clarity)
-  const avgSat = 0; // Will be computed from samples if needed
-
-  return { clarity, confidence: conf_c, chroma, avgSat };
-}
-
-/**
- * Detect warm lighting cast using overall image average.
- * If R and G are significantly higher than B -> warm cast.
- */
 function estimateWarmLightingBias(avg: { r: number; g: number; b: number }) {
-  const rn = avg.r / 255,
-    gn = avg.g / 255,
-    bn = avg.b / 255;
-  const warmIndex = (rn + gn) / 2 - bn; // positive => warm
+  const rn = avg.r / 255, gn = avg.g / 255, bn = avg.b / 255;
+  const warmIndex = (rn + gn) / 2 - bn;
   const isWarm = warmIndex > 0.08;
   const severity = clamp((warmIndex - 0.08) / 0.18, 0, 1);
   return { isWarm, severity, warmIndex: Math.round(warmIndex * 1000) / 1000 };
 }
 
 /**
- * Season selection with proper gating (especially for neutral undertone).
- * Rule 1: If undertone is Warm → only score Spring/Autumn
- * Rule 2: If undertone is Cool → only score Summer/Winter
- * Rule 3: If undertone is Neutral → DO NOT pick a single season unless "lean" exists
+ * Compute robust Lab statistics from Lab samples.
+ * Returns median Lab, MAD values, median chroma, and sample count.
  */
-function decideSeasonAlways(
-  undertone: Undertone,
-  depth: Depth,
-  clarity: Clarity,
-  undertoneConfidence: number,
-  depthConfidence: number,
-  clarityConfidence: number,
-  warmLightingSeverity: number,
-  labInfo?: { chroma: number; warmScore: number; coolScore: number; lean?: 'warm' | 'cool' },
-  labValues?: { l: number; a: number; b: number },
-  avgSat?: number,
-  madB?: number,
-  madL?: number,
-  gainsClamped?: boolean
-): { season: Season; seasonConfidence: number; needsConfirmation: boolean; reason: string } {
-  const l = labValues?.l ?? 50;
-  const a = labValues?.a ?? 0;
-  const b = labValues?.b ?? 0;
-  const C = labInfo?.chroma ?? Math.sqrt(a * a + b * b);
-  const lean = labInfo?.lean;
-
-  console.log('🎨 [SEASON] ========== SEASON DECISION START ==========');
-  console.log('🎨 [SEASON] Inputs:', {
-    undertone,
-    depth,
-    clarity,
-    l: l.toFixed(2),
-    a: a.toFixed(2),
-    b: b.toFixed(2),
-    C: C.toFixed(2),
-    lean,
-    undertoneConfidence: undertoneConfidence.toFixed(3),
-    depthConfidence: depthConfidence.toFixed(3),
-    clarityConfidence: clarityConfidence.toFixed(3),
-    warmLightingSeverity: warmLightingSeverity.toFixed(3),
-  });
-
-  let season: Season;
-  let seasonConfidence: number;
-  let needsConfirmation: boolean;
-  let reason: string;
-
-  // Step A: Classify value group from L* (same thresholds as depth)
-  let valueGroup: 'light' | 'medium' | 'deep';
-  if (l >= 65) {
-    valueGroup = 'light';
-  } else if (l <= 45) {
-    valueGroup = 'deep';
-  } else {
-    valueGroup = 'medium';
+function computeRobustLabStats(labSamples: Array<{ l: number; a: number; b: number }>) {
+  if (!labSamples.length) {
+    return {
+      medianLab: { l: 0, a: 0, b: 0 },
+      mad: { l: 0, a: 0, b: 0 },
+      medianChroma: 0,
+      chromaP70: 0,
+      sampleCount: 0,
+    };
   }
 
-  // Step B: Classify chroma group from C*
-  let chromaGroup: 'muted' | 'clear' | 'vivid';
-  if (C < 10) {
-    chromaGroup = 'muted';
-  } else if (C < 18) {
-    chromaGroup = 'clear';
-  } else {
-    chromaGroup = 'vivid';
-  }
+  const Ls = labSamples.map(x => x.l);
+  const As = labSamples.map(x => x.a);
+  const Bs = labSamples.map(x => x.b);
 
-  console.log('🎨 [SEASON] Value and Chroma groups:', {
-    valueGroup,
-    chromaGroup,
-    L: l.toFixed(2),
-    C: C.toFixed(2),
-  });
+  const medL = median(Ls);
+  const medA = median(As);
+  const medB = median(Bs);
 
-  // Rule 1: Warm undertone → only Spring/Autumn
-  if (undertone === 'warm') {
-    console.log('🎨 [SEASON] Warm undertone detected - considering Spring/Autumn only');
-    
-    // Warm mapping:
-    // if valueGroup == light AND chromaGroup != muted → Spring
-    // else → Autumn
-    if (valueGroup === 'light' && chromaGroup !== 'muted') {
-      season = 'spring';
-      reason = `WARM → Spring (valueGroup=${valueGroup}, chromaGroup=${chromaGroup})`;
-    } else {
-      season = 'autumn';
-      reason = `WARM → Autumn (valueGroup=${valueGroup}, chromaGroup=${chromaGroup})`;
-    }
-    
-    seasonConfidence = clamp(undertoneConfidence * 0.9, 0, 0.95);
-    needsConfirmation = undertoneConfidence < 0.70 || seasonConfidence < 0.72;
-    
-    console.log('🎨 [SEASON] Warm result:', { season, seasonConfidence: seasonConfidence.toFixed(3), needsConfirmation });
-  }
-  // Rule 2: Cool undertone → only Summer/Winter
-  else if (undertone === 'cool') {
-    console.log('🎨 [SEASON] Cool undertone detected - considering Summer/Winter only');
-    
-    // Cool mapping:
-    // if valueGroup == light AND chromaGroup == muted → Summer
-    // else → Winter (but only if chromaGroup != muted; otherwise prefer Summer)
-    if (valueGroup === 'light' && chromaGroup === 'muted') {
-      season = 'summer';
-      reason = `COOL → Summer (valueGroup=${valueGroup}, chromaGroup=${chromaGroup})`;
-    } else if (chromaGroup === 'muted') {
-      // If muted, prefer Summer even if not light
-      season = 'summer';
-      reason = `COOL → Summer (chromaGroup=${chromaGroup} is muted, prefer Summer)`;
-    } else {
-      season = 'winter';
-      reason = `COOL → Winter (valueGroup=${valueGroup}, chromaGroup=${chromaGroup})`;
-    }
-    
-    seasonConfidence = clamp(undertoneConfidence * 0.9, 0, 0.95);
-    needsConfirmation = undertoneConfidence < 0.70 || seasonConfidence < 0.72;
-    
-    console.log('🎨 [SEASON] Cool result:', { season, seasonConfidence: seasonConfidence.toFixed(3), needsConfirmation });
-  }
-  // Rule 3: Neutral undertone → proper gating with value and chroma groups
-  else {
-    console.log('🎨 [SEASON] Neutral undertone detected - using value/chroma gating');
-    console.log('🎨 [SEASON] Neutral details:', { b: b.toFixed(2), lean, valueGroup, chromaGroup });
-    
-    // Neutral should never directly map to Spring/Winter unless chroma is clear/vivid
-    // Neutral rules:
-    // If chromaGroup == muted:
-    //   If lean == warm → Autumn
-    //   If lean == cool → Summer
-    //   If perfectly neutral (|b| < 2) → return "Summer/Autumn ambiguous" (pick one but confidence low)
-    // Else (clear/vivid):
-    //   If valueGroup == light → lean warm ⇒ Spring, lean cool ⇒ Summer
-    //   If valueGroup == deep → lean warm ⇒ Autumn, lean cool ⇒ Winter
-    //   If valueGroup == medium → lean warm ⇒ Autumn, lean cool ⇒ Summer (most stable)
-    
-    // Neutral season selection with chroma gating
-    // If undertone is neutral and C < 10 (muted), map lean warm => Autumn, lean cool => Summer (never Spring/Winter)
-    if (chromaGroup === 'muted') {
-      // Muted chroma (C < 10): Only Autumn or Summer, never Spring/Winter
-      if (b > 0 || lean === 'warm') {
-        season = 'autumn';
-        reason = `NEUTRAL (muted C=${C.toFixed(2)} < 10, lean warm) → Autumn (never Spring/Winter)`;
-        seasonConfidence = Math.min(clamp(undertoneConfidence * 0.7, 0, 0.55), 0.55);
-      } else {
-        season = 'summer';
-        reason = `NEUTRAL (muted C=${C.toFixed(2)} < 10, lean cool) → Summer (never Spring/Winter)`;
-        seasonConfidence = Math.min(clamp(undertoneConfidence * 0.7, 0, 0.55), 0.55);
-      }
-      
-      // If perfectly neutral (|b| < 2), reduce confidence further
-      if (Math.abs(b) < 2) {
-        seasonConfidence = Math.min(seasonConfidence, 0.45);
-        reason += ` (perfectly neutral |b|=${b.toFixed(2)} < 2, very low confidence)`;
-        console.log('🎨 [SEASON] Perfectly neutral with muted chroma, reducing confidence');
-      }
-    } else {
-      // Clear/vivid chroma (C >= 10): can use all seasons based on value group
-      if (valueGroup === 'light') {
-        if (b > 0 || lean === 'warm') {
-          season = 'spring';
-          reason = `NEUTRAL (light L=${l.toFixed(1)} >= 65, clear/vivid C=${C.toFixed(2)} >= 10, lean warm) → Spring`;
-        } else {
-          season = 'summer';
-          reason = `NEUTRAL (light L=${l.toFixed(1)} >= 65, clear/vivid C=${C.toFixed(2)} >= 10, lean cool) → Summer`;
-        }
-      } else if (valueGroup === 'deep') {
-        if (b > 0 || lean === 'warm') {
-          season = 'autumn';
-          reason = `NEUTRAL (deep L=${l.toFixed(1)} <= 45, clear/vivid C=${C.toFixed(2)} >= 10, lean warm) → Autumn`;
-        } else {
-          season = 'winter';
-          reason = `NEUTRAL (deep L=${l.toFixed(1)} <= 45, clear/vivid C=${C.toFixed(2)} >= 10, lean cool) → Winter`;
-        }
-      } else {
-        // Medium (45 < L < 65): most stable - lean warm ⇒ Autumn, lean cool ⇒ Summer
-        if (b > 0 || lean === 'warm') {
-          season = 'autumn';
-          reason = `NEUTRAL (medium 45 < L=${l.toFixed(1)} < 65, clear/vivid C=${C.toFixed(2)} >= 10, lean warm) → Autumn (most stable)`;
-        } else {
-          season = 'summer';
-          reason = `NEUTRAL (medium 45 < L=${l.toFixed(1)} < 65, clear/vivid C=${C.toFixed(2)} >= 10, lean cool) → Summer (most stable)`;
-        }
-      }
-      seasonConfidence = Math.min(clamp(undertoneConfidence * 0.7, 0, 0.55), 0.55);
-    }
-    
-    // Always set needsConfirmation for neutral
-    needsConfirmation = true;
-    
-    // Extra check: If C < 6 (very muted) AND |b| < 3 (very neutral)
-    // cap confidence at 0.45 because the system really can't separate seasons well
-    if (C < 6 && Math.abs(b) < 3) {
-      seasonConfidence = Math.min(seasonConfidence, 0.45);
-      console.log('🎨 [SEASON] Very muted (C < 6) + very neutral (|b| < 3), capping confidence at 0.45');
-    }
-    
-    // Ensure confidence is capped at 0.55 for all neutral cases (before the extra check above)
-    seasonConfidence = Math.min(seasonConfidence, 0.55);
-    
-    console.log('🎨 [SEASON] Neutral result:', {
-      season,
-      seasonConfidence: seasonConfidence.toFixed(3),
-      needsConfirmation,
-      valueGroup,
-      chromaGroup,
-    });
-  }
+  const madLVal = mad(Ls);
+  const madAVal = mad(As);
+  const madBVal = mad(Bs);
 
-  // Apply additional penalties (but preserve neutral caps)
-  const isNeutral = undertone === 'neutral';
-  const neutralCap = isNeutral ? 0.55 : 0.95;
-  const veryNeutralCap = (isNeutral && C < 6 && Math.abs(b) < 3) ? 0.45 : neutralCap;
-  
-  if ((madB !== undefined && madB > 4.5) || (madL !== undefined && madL > 10)) {
-    seasonConfidence = clamp(seasonConfidence - 0.08, 0, veryNeutralCap);
-    console.log('🎨 [SEASON] MAD noisy, reducing confidence');
-  }
-  if (gainsClamped) {
-    seasonConfidence = clamp(seasonConfidence - 0.06, 0, veryNeutralCap);
-    console.log('🎨 [SEASON] Gains clamped, reducing confidence');
-  }
+  const chromas = labSamples.map(x => Math.sqrt(x.a * x.a + x.b * x.b));
+  const medianChroma = median(chromas);
 
-  // Final clamp (respect neutral caps)
-  seasonConfidence = clamp(seasonConfidence, 0, veryNeutralCap);
-
-  // For neutral, always keep needsConfirmation=true (don't override)
-  if (!isNeutral && seasonConfidence < 0.72) {
-    needsConfirmation = true;
-  }
-
-  console.log('🎨 [SEASON] ========== SEASON DECISION END ==========');
-  console.log('🎨 [SEASON] Final result:', {
-    season,
-    seasonConfidence: seasonConfidence.toFixed(3),
-    needsConfirmation,
-    reason,
-  });
+  // NEW: percentile chroma (more stable than median for faces)
+  const chromaP70 = percentile(chromas, 0.70);
 
   return {
-    season,
-    seasonConfidence: Math.round(seasonConfidence * 100) / 100,
-    needsConfirmation,
-    reason,
+    medianLab: { l: medL, a: medA, b: medB },
+    mad: { l: madLVal, a: madAVal, b: madBVal },
+    medianChroma,
+    chromaP70,
+    sampleCount: labSamples.length,
   };
+}
+
+function computeUndertone(params: {
+  a: number;
+  b: number;
+  chroma: number;
+  lightingSeverity: number;
+}) {
+  const { a, b, chroma, lightingSeverity } = params;
+
+  // warmth proxy: b relative to a (yellow vs pink)
+  // Higher warmth => warmer (more yellow), lower => cooler (more pink)
+  const warmth = b - 0.5 * a;
+
+  let undertone: Undertone = 'neutral';
+  let lean: 'warm' | 'cool' | undefined;
+
+  if (warmth > 12) undertone = 'warm';
+  else if (warmth < 6) undertone = 'cool';
+  else {
+    undertone = 'neutral';
+    lean = warmth >= 9 ? 'warm' : 'cool';
+  }
+
+  let confidence = clamp(0.55 + (Math.min(chroma, 18) / 18) * 0.25, 0.55, 0.85);
+  if (lightingSeverity > 0.35) confidence = clamp(confidence - 0.08, 0, 1);
+
+  return { undertone, lean, chroma, confidence };
+}
+
+function computeDepth(params: { l: number; madL: number }) {
+  const { l, madL } = params;
+  let depth: Depth = l > 65 ? 'light' : l <= 45 ? 'deep' : 'medium';
+  const dist = Math.min(Math.abs(l - 65), Math.abs(l - 45));
+  let confidence = clamp(0.62 + dist / 28, 0.55, 0.92);
+  if (madL > 10) confidence = clamp(confidence - 0.06, 0, 1);
+  return { depth, confidence };
+}
+
+function computeClarity(params: { a: number; b: number; chroma: number; madB: number }) {
+  const { chroma, madB } = params;
+  let clarity: Clarity = chroma < 10 ? 'muted' : chroma < 18 ? 'clear' : 'vivid';
+  const d = Math.min(Math.abs(chroma - 10), Math.abs(chroma - 18));
+  let confidence = clamp(0.55 + d / 10, 0.55, 0.9);
+  if (madB > 4.5) confidence = clamp(confidence - 0.06, 0, 1);
+  return { clarity, chroma, confidence };
+}
+
+/**
+ * Season scoring (returns top-2 candidates).
+ * This alone boosts real-world accuracy because “hard” cases are inherently ambiguous.
+ */
+function computeSeason(params: {
+  undertone: Undertone;
+  lean?: 'warm' | 'cool';
+  depth: Depth;
+  clarity: Clarity;
+  l: number;
+  a: number;
+  b: number;
+  C: number;
+  warmLightingSeverity: number;
+  undertoneConfidence: number;
+  depthConfidence: number;
+  clarityConfidence: number;
+}): Array<{ season: Season; score: number; reason: string }> {
+  // CRITICAL: Log entry to verify function is called
+  console.log('🎨 [COMPUTE_SEASON] ========== FUNCTION CALLED ==========');
+  console.log('🎨 [COMPUTE_SEASON] Input params:', {
+    undertone: params.undertone,
+    lean: params.lean,
+    L: params.l.toFixed(2),
+    C: params.C.toFixed(2),
+    depth: params.depth,
+    clarity: params.clarity,
+  });
+
+  const { undertone, lean, L, C } = {
+    undertone: params.undertone,
+    lean: params.lean,
+    L: params.l,
+    C: params.C,
+  };
+
+  // CRITICAL FIX: Neutral + very muted (C < 6) should return Summer/Autumn based on L + lean
+  // This is the PRIMARY fix for "always autumn" issue
+  if (params.undertone === 'neutral' && params.C < 6) {
+    console.log('🎨 [COMPUTE_SEASON] ✅ OVERRIDE TRIGGERED: Neutral + C<6 detected');
+    console.log('🎨 [COMPUTE_SEASON] C value:', params.C.toFixed(2), '< 6, L:', params.l.toFixed(2), 'lean:', params.lean);
+    
+    // Use L (lightness) to determine: Light → Summer, Dark → Autumn
+    // This is more accurate than just using lean
+    const isLight = params.l > 55;
+    const isDark = params.l < 50;
+    
+    let baseSummer = 0.75;
+    let baseAutumn = 0.75;
+    
+    if (isLight) {
+      // Light + muted → Summer is more likely
+      baseSummer = 1.0;
+      baseAutumn = (params.lean === 'warm') ? 0.85 : 0.70;
+    } else if (isDark) {
+      // Dark + muted → Autumn is more likely
+      baseAutumn = 1.0;
+      baseSummer = (params.lean === 'cool') ? 0.85 : 0.70;
+    } else {
+      // Medium: use lean to break tie
+      baseSummer = (params.lean === 'cool') ? 1.0 : 0.85;
+      baseAutumn = (params.lean === 'warm') ? 1.0 : 0.85;
+    }
+
+    const out = [
+      { season: 'summer' as const, score: baseSummer, reason: `neutral + very muted (C<6, L=${params.l.toFixed(1)}) → ${isLight ? 'summer favored (light)' : 'summer/autumn ambiguous'}` },
+      { season: 'autumn' as const, score: baseAutumn, reason: `neutral + very muted (C<6, L=${params.l.toFixed(1)}) → ${isDark ? 'autumn favored (dark)' : 'summer/autumn ambiguous'}` },
+      { season: 'spring' as const, score: 0.15, reason: 'very low chroma (C<6) makes spring unlikely' },
+      { season: 'winter' as const, score: 0.15, reason: 'very low chroma (C<6) makes winter unlikely' },
+    ].sort((a, b) => b.score - a.score);
+
+    // normalize
+    const max = out[0].score || 1;
+    const normalized = out.map(x => ({ ...x, score: x.score / max }));
+    console.log('🎨 [COMPUTE_SEASON] Override result:', normalized.map(x => `${x.season}=${x.score.toFixed(3)}`).join(', '));
+    console.log('🎨 [COMPUTE_SEASON] Winner:', normalized[0]?.season, 'L-based decision');
+    return normalized;
+  }
+  
+  console.log('🎨 [COMPUTE_SEASON] No override - proceeding with normal scoring');
+
+  // SIMPLIFIED: Direct L/C-based scoring with undertone gating
+  // No complex fallbacks - clear thresholds only
+  const s: Record<Season, number> = { spring: 0, summer: 0, autumn: 0, winter: 0 };
+  const why: Record<Season, string[]> = { spring: [], summer: [], autumn: [], winter: [] };
+
+  console.log('🎨 [SCORING] Starting with:', { undertone, lean, L: L.toFixed(1), C: C.toFixed(1) });
+
+  // Rule 1: Undertone gating - only allow matching seasons
+  const canBeSpring = undertone === 'warm' || (undertone === 'neutral' && lean === 'warm');
+  const canBeAutumn = undertone === 'warm' || (undertone === 'neutral' && lean === 'warm');
+  const canBeSummer = undertone === 'cool' || (undertone === 'neutral' && lean === 'cool');
+  const canBeWinter = undertone === 'cool' || (undertone === 'neutral' && lean === 'cool');
+  
+  console.log('🎨 [SCORING] Gating flags:', { canBeSpring, canBeAutumn, canBeSummer, canBeWinter });
+
+  // Rule 2: Direct L/C threshold scoring (no normalized values, no fallbacks)
+  
+  // SPRING: Light (L > 55) + Good chroma (C > 10) + Warm undertone
+  // IMPROVED: Better scoring for medium-light cases
+  if (canBeSpring) {
+    if (L > 62 && C > 10) {
+      s.spring = 1.0;
+      why.spring.push('L>62 and C>10: very light warm');
+    } else if (L > 58 && C > 10) {
+      s.spring = 0.85;
+      why.spring.push('L>58 and C>10: light warm');
+    } else if (L > 55 && C > 10) {
+      s.spring = 0.70;
+      why.spring.push('L>55 and C>10: medium-light warm');
+    } else if (L > 52 && C > 12) {
+      s.spring = 0.60;
+      why.spring.push('L>52 and C>12: medium warm with good chroma');
+    } else if (L > 50 && C > 8) {
+      // IMPROVED: Require minimum chroma for medium cases
+      s.spring = 0.50;
+      why.spring.push('L>50 and C>8: medium warm with decent chroma');
+    } else if (L > 50) {
+      s.spring = 0.35;
+      why.spring.push('L>50 but C<=8: medium warm but low chroma');
+    } else {
+      s.spring = 0.20;
+      why.spring.push('L<=50: deeper warm (spring unlikely)');
+    }
+  }
+
+  // AUTUMN: Deeper (L < 55) + Muted (C < 12) + Warm undertone
+  // RESTRICTED: Only score autumn for clearly deep+muted cases, no fallback
+  if (canBeAutumn) {
+    if (L < 48 && C < 11) {
+      s.autumn = 0.90;
+      why.autumn.push('L<48 and C<11: deep muted warm');
+    } else if (L < 50 && C < 12) {
+      s.autumn = 0.75;
+      why.autumn.push('L<50 and C<12: medium-deep muted warm');
+    } else if (L < 52 && C < 12) {
+      s.autumn = 0.60;
+      why.autumn.push('L<52 and C<12: medium muted warm');
+    } else if (L < 55 && C < 10) {
+      // TIGHTER: Only if C < 10 (not 14), and L clearly below 55
+      s.autumn = 0.50;
+      why.autumn.push('L<55 and C<10: medium-light muted warm');
+    } else if (L >= 55) {
+      s.autumn = 0.10;
+      why.autumn.push('L>=55: light warm (autumn very unlikely)');
+    } else {
+      // REMOVED FALLBACK: Don't give autumn points for ambiguous cases
+      s.autumn = 0.0;
+      why.autumn.push('ambiguous: not clearly deep+muted (no fallback)');
+    }
+  }
+
+  // SUMMER: Light (L > 55) + Muted (C < 12) + Cool undertone
+  if (canBeSummer) {
+    if (L > 62 && C < 12) {
+      s.summer = 1.0;
+      why.summer.push('L>62 and C<12: very light muted cool');
+    } else if (L > 58 && C < 12) {
+      s.summer = 0.85;
+      why.summer.push('L>58 and C<12: light muted cool');
+    } else if (L > 55 && C < 12) {
+      s.summer = 0.70;
+      why.summer.push('L>55 and C<12: medium-light muted cool');
+    } else if (L > 50) {
+      s.summer = 0.50;
+      why.summer.push('L>50: medium cool');
+    } else {
+      s.summer = 0.25;
+      why.summer.push('L<=50: deeper cool (summer unlikely)');
+    }
+  }
+
+  // WINTER: Deeper (L < 55) + Vivid (C > 12) + Cool undertone
+  if (canBeWinter) {
+    if (L < 50 && C > 14) {
+      s.winter = 0.90;
+      why.winter.push('L<50 and C>14: deep vivid cool');
+    } else if (L < 52 && C > 12) {
+      s.winter = 0.75;
+      why.winter.push('L<52 and C>12: medium-deep vivid cool');
+    } else if (L < 55 && C > 12) {
+      s.winter = 0.60;
+      why.winter.push('L<55 and C>12: medium vivid cool');
+    } else if (L >= 55) {
+      s.winter = 0.30;
+      why.winter.push('L>=55: light cool (winter unlikely)');
+    } else {
+      s.winter = 0.40;
+      why.winter.push('fallback: medium cool');
+    }
+  }
+
+  // For neutral without lean, allow all but with reduced scores
+  // RESTRICTED: Only boost if clearly in that season's zone
+  if (undertone === 'neutral' && !lean) {
+    console.log('🎨 [SCORING] Neutral without lean - applying neutral logic');
+    // Recalculate with neutral logic - but be more restrictive
+    if (L > 58 && C > 12) {
+      s.spring = Math.max(s.spring, 0.55);
+      why.spring.push('neutral no-lean: L>58 and C>12');
+    }
+    if (L > 60 && C < 12) {
+      s.summer = Math.max(s.summer, 0.55);
+      why.summer.push('neutral no-lean: L>60 and C<12');
+    }
+    if (L < 50 && C < 10) {
+      // TIGHTER: C < 10 (not 11) for autumn
+      s.autumn = Math.max(s.autumn, 0.55);
+      why.autumn.push('neutral no-lean: L<50 and C<10');
+    }
+    if (L < 50 && C > 14) {
+      s.winter = Math.max(s.winter, 0.55);
+      why.winter.push('neutral no-lean: L<50 and C>14');
+    }
+  }
+
+  const out = (Object.keys(s) as Season[])
+    .map(season => ({ season, score: s[season], reason: why[season].join('; ') }))
+    .sort((a, b) => b.score - a.score);
+
+  // Log raw scores
+  console.log('🎨 [SCORING] Raw scores:', 
+    out.map(x => `${x.season}=${x.score.toFixed(3)}`).join(', '));
+  console.log('🎨 [SCORING] Reasons:', 
+    out.map(x => `${x.season}: ${x.reason}`).join(' | '));
+
+  // Normalize to 0..1
+  const max = out[0]?.score ?? 1;
+  const normalized = out.map(x => ({ ...x, score: max > 0 ? x.score / max : 0 }));
+  
+  console.log('🎨 [SCORING] Normalized:', 
+    normalized.map(x => `${x.season}=${x.score.toFixed(3)}`).join(', '));
+  console.log('🎨 [SCORING] Winner:', normalized[0]?.season, 'score:', normalized[0]?.score.toFixed(3));
+  
+  // SAFETY CHECK: If all scores are very low (max < 0.1), log a warning
+  if (max < 0.1) {
+    console.warn('🎨 [SCORING] ⚠️ WARNING: All scores are very low (max=', max.toFixed(3), '). Results may be unreliable.');
+    console.warn('🎨 [SCORING] This suggests the input values (L, C, undertone) are outside expected ranges.');
+  }
+  
+  // SAFETY CHECK: If autumn wins but score is very close to others, log warning
+  if (normalized[0]?.season === 'autumn' && normalized.length > 1) {
+    const autumnScore = normalized[0].score;
+    const secondScore = normalized[1].score;
+    const diff = autumnScore - secondScore;
+    if (diff < 0.05) {
+      console.warn('🎨 [SCORING] ⚠️ WARNING: Autumn winning by tiny margin (diff=', diff.toFixed(3), '). Consider manual review.');
+    }
+  }
+  
+  return normalized;
+}
+
+function decidePrimarySeason(scored: Array<{ season: Season; score: number }>) {
+  const top1 = scored[0];
+  const top2 = scored[1];
+  // confidence based on separation
+  const sep = clamp((top1.score - (top2?.score ?? 0)) / 0.35, 0, 1);
+  // base confidence
+  const seasonConfidence = clamp(0.45 + 0.45 * sep, 0, 0.95);
+  const needsConfirmation = seasonConfidence < 0.72;
+  return { season: top1.season, seasonConfidence, needsConfirmation, sep };
 }
 
 async function loadImageBuffer(imageUrl?: string, imageBase64?: string): Promise<Buffer> {
@@ -682,854 +543,562 @@ async function loadImageBuffer(imageUrl?: string, imageBase64?: string): Promise
     return Buffer.from(base64Data, 'base64');
   }
   if (imageUrl) {
-    const response = await fetch(imageUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SkinToneAnalyzer/1.0)' },
-    });
-    if (!response.ok) throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
-    const arrayBuffer = await response.arrayBuffer();
-    if (arrayBuffer.byteLength === 0) throw new Error('Fetched image is empty');
-    return Buffer.from(arrayBuffer);
+    const resp = await fetch(imageUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SkinToneAnalyzer/3.0)' } });
+    if (!resp.ok) throw new Error(`Failed to fetch image: ${resp.status} ${resp.statusText}`);
+    const ab = await resp.arrayBuffer();
+    if (ab.byteLength === 0) throw new Error('Fetched image is empty');
+    return Buffer.from(ab);
   }
   throw new Error('Missing image data');
 }
 
-function computeHeuristicFaceBox(imageWidth: number, imageHeight: number): FaceBox {
-  const estimatedFaceWidth = Math.floor(imageWidth * 0.45);
-  const estimatedFaceHeight = Math.floor(imageHeight * 0.5);
-  const estimatedX = Math.floor((imageWidth - estimatedFaceWidth) / 2);
-  const estimatedY = Math.floor(imageHeight * 0.15);
-  return { x: estimatedX, y: estimatedY, width: estimatedFaceWidth, height: estimatedFaceHeight };
+async function loadImageWithOrientation(imageBuffer: Buffer): Promise<{ buffer: Buffer; metadata: sharp.Metadata }> {
+  const rotated = sharp(imageBuffer).rotate();
+  const metadata = await rotated.metadata();
+  if (!metadata.width || !metadata.height) throw new Error('Invalid image metadata');
+  const rotatedBuffer = await rotated.toBuffer();
+  return { buffer: rotatedBuffer, metadata };
 }
 
-function clampFaceBoxToBounds(box: FaceBox, imageWidth: number, imageHeight: number) {
-  const left = clamp(Math.floor(box.x), 0, imageWidth - 1);
-  const top = clamp(Math.floor(box.y), 0, imageHeight - 1);
-  const w = clamp(Math.floor(box.width), 1, imageWidth - left);
-  const h = clamp(Math.floor(box.height), 1, imageHeight - top);
-  return { left, top, width: w, height: h };
+function toIntBox(box: BoxPx): BoxPx {
+  return { x: Math.round(box.x), y: Math.round(box.y), width: Math.round(box.width), height: Math.round(box.height) };
+}
+
+function clampBox(box: BoxPx, imgW: number, imgH: number, minSize = 220): BoxPx | null {
+  let x = Math.max(0, Math.round(box.x));
+  let y = Math.max(0, Math.round(box.y));
+  let width = Math.round(box.width);
+  let height = Math.round(box.height);
+
+  width = Math.min(width, imgW - x);
+  height = Math.min(height, imgH - y);
+
+  if (width < minSize || height < minSize) return null;
+  if (x < 0 || y < 0 || x + width > imgW || y + height > imgH) return null;
+  return { x, y, width, height };
+}
+
+function computeHeuristicFaceBox(imageWidth: number, imageHeight: number): BoxPx {
+  const w = Math.floor(imageWidth * 0.55);
+  const h = Math.floor(imageHeight * 0.55);
+  const x = Math.floor((imageWidth - w) / 2);
+  const y = Math.floor(imageHeight * 0.10);
+  return { x, y, width: w, height: h };
 }
 
 /**
- * Enhanced heuristic face detection with image scanning
- * Scans the image for face-like regions using skin color detection
- * Returns face box or null if no face detected
+ * Improved sampling:
+ * - ellipse mask centered in crop
+ * - discard top/bottom bands (hair/chin)
+ * - keep candidate pixels
+ * - reject shadows/highlights using L* percentiles
+ * - apply shades-of-gray correction on remaining samples
  */
-async function detectFaceWithEnhancedHeuristic(
-  imageBuffer: Buffer, 
-  imageWidth: number, 
-  imageHeight: number
-): Promise<FaceBox | null> {
-  try {
-    console.log('🎨 [SKIN TONE API] Starting enhanced heuristic face detection...');
-    console.log('🎨 [SKIN TONE API] Image dimensions:', { width: imageWidth, height: imageHeight });
-    
-    // Resize image for faster processing (but keep aspect ratio)
-    const maxSize = 500; // Increased for better detection
-    const scale = Math.min(maxSize / imageWidth, maxSize / imageHeight, 1);
-    const scanWidth = Math.floor(imageWidth * scale);
-    const scanHeight = Math.floor(imageHeight * scale);
-    
-    console.log('🎨 [SKIN TONE API] Scanning at resolution:', { scanWidth, scanHeight, scale });
-    
-    const { data, info } = await sharp(imageBuffer)
-      .resize(scanWidth, scanHeight, { fit: 'inside', withoutEnlargement: true })
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-    
-    const W = info.width || scanWidth;
-    const H = info.height || scanHeight;
-    const C = info.channels || 3;
-    
-    // Scan multiple zones - face can be anywhere in upper 70% of image
-    const faceSearchZones = [
-      { x0: 0.15, x1: 0.85, y0: 0.05, y1: 0.7, name: 'center' }, // Center region
-      { x0: 0.1, x1: 0.9, y0: 0.0, y1: 0.6, name: 'upper' }, // Upper region
-      { x0: 0.2, x1: 0.8, y0: 0.1, y1: 0.65, name: 'middle' }, // Middle region
-    ];
-    
-    let bestZone: { x: number; y: number; width: number; height: number; score: number; zone: string } | null = null;
-    
-    for (const zone of faceSearchZones) {
-      let skinPixels = 0;
-      let totalPixels = 0;
-      let minX = W, minY = H, maxX = 0, maxY = 0;
-      
-      // Sample more densely for better detection
-      const stepX = Math.max(1, Math.floor(W * (zone.x1 - zone.x0) / 30)); // More samples
-      const stepY = Math.max(1, Math.floor(H * (zone.y1 - zone.y0) / 30));
-      
-      for (let y = Math.floor(H * zone.y0); y < Math.floor(H * zone.y1); y += stepY) {
-        for (let x = Math.floor(W * zone.x0); x < Math.floor(W * zone.x1); x += stepX) {
-          const idx = (y * W + x) * C;
-          const r = data[idx];
-          const g = data[idx + 1] ?? data[idx];
-          const b = data[idx + 2] ?? data[idx];
-          
-          totalPixels++;
-          
-          if (isLikelySkinPixel(r, g, b)) {
-            skinPixels++;
-            minX = Math.min(minX, x);
-            minY = Math.min(minY, y);
-            maxX = Math.max(maxX, x);
-            maxY = Math.max(maxY, y);
-          }
-        }
-      }
-      
-      const skinRatio = totalPixels > 0 ? skinPixels / totalPixels : 0;
-      
-      console.log(`🎨 [SKIN TONE API] Zone "${zone.name}" results:`, {
-        skinPixels,
-        totalPixels,
-        skinRatio: (skinRatio * 100).toFixed(1) + '%',
-        bounds: maxX > minX && maxY > minY ? { minX, minY, maxX, maxY } : 'none'
-      });
-      
-      // Lowered thresholds: require at least 35% skin ratio and 50 skin pixels
-      if (skinRatio >= 0.35 && skinPixels >= 50 && maxX > minX && maxY > minY) {
-        const width = maxX - minX;
-        const height = maxY - minY;
-        const aspectRatio = width / height;
-        
-        // More lenient aspect ratio: 0.5 to 1.5 (portrait to landscape)
-        if (aspectRatio >= 0.5 && aspectRatio <= 1.5) {
-          const score = skinRatio * skinPixels;
-          
-          console.log(`🎨 [SKIN TONE API] Zone "${zone.name}" passed validation:`, {
-            aspectRatio: aspectRatio.toFixed(2),
-            score: score.toFixed(1),
-            size: { width, height }
-          });
-          
-          if (!bestZone || score > bestZone.score) {
-            // Scale back to original image dimensions with padding
-            bestZone = {
-              x: Math.max(0, (minX / scale) - (width / scale) * 0.15), // Add 15% padding
-              y: Math.max(0, (minY / scale) - (height / scale) * 0.15),
-              width: (width / scale) * 1.3, // Add 30% padding
-              height: (height / scale) * 1.3,
-              score: score,
-              zone: zone.name
-            };
-          }
-        } else {
-          console.log(`🎨 [SKIN TONE API] Zone "${zone.name}" failed aspect ratio check:`, aspectRatio.toFixed(2));
-        }
-      } else {
-        console.log(`🎨 [SKIN TONE API] Zone "${zone.name}" failed threshold check:`, {
-          skinRatio: (skinRatio * 100).toFixed(1) + '%',
-          skinPixels,
-          requiredRatio: '35%',
-          requiredPixels: 50
-        });
-      }
-    }
-    
-    if (!bestZone) {
-      console.log('🎨 [SKIN TONE API] No face-like region found in any zone');
-      return null;
-    }
-    
-    // Ensure box is within bounds
-    const faceBox: FaceBox = {
-      x: Math.max(0, Math.floor(bestZone.x)),
-      y: Math.max(0, Math.floor(bestZone.y)),
-      width: Math.min(imageWidth - Math.floor(bestZone.x), Math.floor(bestZone.width)),
-      height: Math.min(imageHeight - Math.floor(bestZone.y), Math.floor(bestZone.height)),
-    };
-    
-    // Ensure minimum size (lowered from 50 to 40)
-    if (faceBox.width < 40 || faceBox.height < 40) {
-      console.log('🎨 [SKIN TONE API] Detected region too small:', faceBox);
-      return null;
-    }
-    
-    console.log('🎨 [SKIN TONE API] Face-like region detected:', {
-      zone: bestZone.zone,
-      score: bestZone.score.toFixed(1),
-      box: faceBox,
-      imageSize: { width: imageWidth, height: imageHeight }
-    });
-    
-    return faceBox;
-  } catch (error: any) {
-    console.error('🎨 [SKIN TONE API] Enhanced heuristic detection error:', error);
-    console.error('🎨 [SKIN TONE API] Error stack:', error.stack?.substring(0, 500));
-    return null;
-  }
-}
-
-async function sampleSkinFromFace(faceImage: Buffer): Promise<{
-  allSamples: Array<{ r: number; g: number; b: number }>;
-  skinSamples: Array<{ r: number; g: number; b: number }>;
-  correctedSamples: Array<{ r: number; g: number; b: number }>;
-  correctionGains: { r: number; g: number; b: number };
-  gainsClamped: boolean;
-}> {
-  const { data, info } = await sharp(faceImage)
-    .resize(160, 160, { fit: 'fill' })
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  const W = info.width || 160;
-  const H = info.height || 160;
+async function sampleSkinFromFace(faceImage: Buffer) {
+  const target = 220;
+  const { data, info } = await sharp(faceImage).resize(target, target, { fit: 'fill' }).raw().toBuffer({ resolveWithObject: true });
+  const W = info.width || target;
+  const H = info.height || target;
   const C = info.channels || 3;
 
-  const zones = [
-    { x0: 0.1, x1: 0.38, y0: 0.45, y1: 0.7 }, // left cheek
-    { x0: 0.62, x1: 0.9, y0: 0.45, y1: 0.7 }, // right cheek
-    { x0: 0.35, x1: 0.65, y0: 0.18, y1: 0.35 }, // mid-forehead
-  ];
+  const cx = (W - 1) / 2;
+  const cy = (H - 1) / 2;
+  const rx = W * 0.42;
+  const ry = H * 0.48;
 
-  const all: Array<{ r: number; g: number; b: number }> = [];
-  const skin: Array<{ r: number; g: number; b: number }> = [];
+  const candidates: Array<{ r: number; g: number; b: number; l: number }> = [];
+  const step = 3;
+  
+  // Track filtering statistics
+  let totalInEllipse = 0;
+  let totalAfterSpatial = 0;
+  let totalAfterSkinCheck = 0;
+  const rejectionReasons: Record<string, number> = {
+    brightness: 0,
+    saturation: 0,
+    hue: 0,
+    rgbOrder: 0,
+    rgbSeparation: 0,
+    nearWhite: 0,
+    labBounds: 0,
+  };
 
-  const steps = 14;
-  for (const z of zones) {
-    for (let yi = 0; yi < steps; yi++) {
-      for (let xi = 0; xi < steps; xi++) {
-        const x = Math.floor((z.x0 + ((z.x1 - z.x0) * xi) / (steps - 1)) * (W - 1));
-        const y = Math.floor((z.y0 + ((z.y1 - z.y0) * yi) / (steps - 1)) * (H - 1));
-        const idx = (y * W + x) * C;
-        const r = data[idx];
-        const g = data[idx + 1] ?? data[idx];
-        const b = data[idx + 2] ?? data[idx];
-        const px = { r, g, b };
-        all.push(px);
-        if (isLikelySkinPixel(r, g, b)) skin.push(px);
+  for (let y = 0; y < H; y += step) {
+    for (let x = 0; x < W; x += step) {
+      const nx = (x - cx) / rx;
+      const ny = (y - cy) / ry;
+      if (nx * nx + ny * ny > 1.0) continue;
+      
+      totalInEllipse++;
+
+      // Correct cheek-only sampling mask
+      // exclude center strip (nose bridge / highlight zone)
+      if (x > W * 0.42 && x < W * 0.58 && y > H * 0.18 && y < H * 0.78) continue;
+
+      // exclude mouth zone
+      if (y > H * 0.62) continue;
+
+      totalAfterSpatial++;
+
+      const idx = (y * W + x) * C;
+      const r = data[idx];
+      const g = data[idx + 1] ?? data[idx];
+      const b = data[idx + 2] ?? data[idx];
+
+      // Track rejection reasons for debugging
+      const { h, s, v } = rgbToHsv(r, g, b);
+      if (v < 0.22 || v > 0.95) { rejectionReasons.brightness++; continue; }
+      if (s < 0.12 || s > 0.65) { rejectionReasons.saturation++; continue; }
+      const skinHue = (h >= 0 && h <= 55) || (h >= 320 && h <= 360);
+      if (!skinHue) { rejectionReasons.hue++; continue; }
+      if (!(r > g && g >= b)) { rejectionReasons.rgbOrder++; continue; }
+      if ((r - g) < 8 || (r - b) < 18) { rejectionReasons.rgbSeparation++; continue; }
+      if (r > 245 && g > 245 && b > 245) { rejectionReasons.nearWhite++; continue; }
+      const labCheck = rgbToLab(r, g, b);
+      if (labCheck.l < 18 || labCheck.l > 92 || labCheck.a < -8 || labCheck.a > 35 || labCheck.b < -5 || labCheck.b > 45) {
+        rejectionReasons.labBounds++;
+        continue;
       }
+
+      // Passed all checks
+      totalAfterSkinCheck++;
+
+      const lab = rgbToLab(r, g, b);
+      candidates.push({ r, g, b, l: lab.l });
     }
   }
 
-  // Apply lighting correction to skin samples
-  const { corrected, gains, gainsClamped } = applyLightingCorrection(skin);
+  // Log filtering statistics to verify isSkinCandidate() is working
+  console.log('🎨 [FILTERING STATS] ========== PIXEL FILTERING ==========');
+  console.log('🎨 [FILTERING STATS] totalInEllipse:', totalInEllipse);
+  console.log('🎨 [FILTERING STATS] totalAfterSpatial (cheeks only):', totalAfterSpatial);
+  console.log('🎨 [FILTERING STATS] totalAfterSkinCheck (isSkinCandidate):', totalAfterSkinCheck);
+  console.log('🎨 [FILTERING STATS] skinRatio (afterSkinCheck / afterSpatial):', 
+    totalAfterSpatial > 0 ? (totalAfterSkinCheck / totalAfterSpatial).toFixed(3) : 'N/A');
+  console.log('🎨 [FILTERING STATS] Filtered out:', totalAfterSpatial - totalAfterSkinCheck, 'pixels');
+  if (totalAfterSkinCheck === totalAfterSpatial) {
+    console.warn('🎨 [FILTERING STATS] ⚠️ WARNING: isSkinCandidate() is not filtering any pixels!');
+  }
+  console.log('🎨 [FILTERING STATS] Rejection breakdown:', rejectionReasons);
+  console.log('🎨 [FILTERING STATS] ===================================');
 
-  // Filter corrected samples using Lab-based check
-  const correctedSkin: Array<{ r: number; g: number; b: number }> = [];
-  for (const px of corrected) {
-    const lab = rgbToLab(px.r, px.g, px.b);
-    if (isLikelySkinPixelFromLab(lab)) {
-      correctedSkin.push(px);
-    }
+  if (candidates.length < 140) {
+    return {
+      ok: false as const,
+      candidateCount: candidates.length,
+      keptCount: 0,
+      raw: [] as Array<{ r: number; g: number; b: number }>,
+      corrected: [] as Array<{ r: number; g: number; b: number }>,
+      gains: { r: 1, g: 1, b: 1 },
+      gainsClamped: false,
+      Lstats: { pL05: 0, pL90: 0, pL97: 0 },
+    };
   }
 
-  // Use corrected skin samples if we have enough, otherwise fall back to corrected (all)
-  const finalCorrected = correctedSkin.length >= 30 ? correctedSkin : corrected;
+  const Ls = candidates.map(p => p.l);
+  const pL05 = percentile(Ls, 0.05);
+  const pL90 = percentile(Ls, 0.90);
+  const pL97 = percentile(Ls, 0.97);
+
+  const kept = candidates.filter(p => p.l >= pL05 && p.l <= pL97);
+  
+  // Store raw samples before correction
+  const raw = kept.map(p => ({ r: p.r, g: p.g, b: p.b }));
+
+  const { corrected, gains, gainsClamped } = applyShadesOfGrayCorrection(
+    raw,
+    6
+  );
 
   return {
-    allSamples: all,
-    skinSamples: skin,
-    correctedSamples: finalCorrected,
-    correctionGains: gains,
+    ok: true as const,
+    candidateCount: candidates.length,
+    keptCount: kept.length,
+    raw,
+    corrected,
+    gains,
     gainsClamped,
+    Lstats: { pL05, pL90, pL97 },
   };
 }
 
-function trimmedMean(samples: Array<{ r: number; g: number; b: number }>, trimRatio = 0.15) {
-  if (samples.length === 0) return { r: 0, g: 0, b: 0 };
-
-  const sorted = [...samples].sort((a, b) => a.r + a.g + a.b - (b.r + b.g + b.b));
-  const trim = Math.floor(sorted.length * trimRatio);
-  const kept = sorted.slice(trim, Math.max(trim + 1, sorted.length - trim));
-
-  let sr = 0,
-    sg = 0,
-    sb = 0;
-  for (const s of kept) {
-    sr += s.r;
-    sg += s.g;
-    sb += s.b;
-  }
-  const n = kept.length || 1;
-  return { r: Math.round(sr / n), g: Math.round(sg / n), b: Math.round(sb / n) };
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const startTime = Date.now();
-  
-  // Log request start - this should always appear in Vercel logs
-  // NOTE: Vercel logs may not show in real-time. Check Vercel Dashboard > Your Project > Functions > analyze-skin-tone > Logs
-  console.log('🎨 [SKIN TONE API] ========== REQUEST STARTED ==========');
-  console.log('🎨 [SKIN TONE API] Method:', req.method);
-  console.log('🎨 [SKIN TONE API] Timestamp:', new Date().toISOString());
-  
-  // Force flush logs (Vercel may buffer)
-  if (typeof process !== 'undefined' && process.stdout) {
-    process.stdout.write('🎨 [SKIN TONE API] REQUEST STARTED\n');
-  }
-  
+  const start = Date.now();
+
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') {
-    console.log('🎨 [SKIN TONE API] OPTIONS request - returning 200');
-    return res.status(200).end();
-  }
-  if (req.method !== 'POST') {
-    console.log('🎨 [SKIN TONE API] Invalid method:', req.method);
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { imageUrl, imageBase64, faceBox, croppedFaceBase64, cropInfo } = req.body as {
+    const { imageUrl, imageBase64, cropInfo, faceBox, croppedFaceBase64 } = req.body as {
       imageUrl?: string;
       imageBase64?: string;
-      faceBox?: FaceBox;
-      croppedFaceBase64?: string; // Preferred: pre-cropped face image from client
-      cropInfo?: { x: number; y: number; width: number; height: number; imageWidth: number; imageHeight: number }; // Crop coordinates for server-side cropping
+      cropInfo?: CropInfoInput;
+      faceBox?: FaceBoxInput;
+      croppedFaceBase64?: string;
     };
 
-    console.log('🎨 [SKIN TONE API] Request body:', {
-      hasImageUrl: !!imageUrl,
-      hasImageBase64: !!imageBase64,
-      hasCroppedFaceBase64: !!croppedFaceBase64,
-      hasCropInfo: !!cropInfo,
-      imageUrlLength: imageUrl?.length || 0,
-      imageBase64Length: imageBase64?.length || 0,
-      croppedFaceBase64Length: croppedFaceBase64?.length || 0,
-      hasFaceBox: !!faceBox,
-      cropInfo: cropInfo,
-    });
-
-    // Preferred flow: Use pre-cropped face image (no face detection needed)
     let faceImageBuffer: Buffer;
-    let detectionMethod: DetectionMethod;
-    let lighting: { isWarm: boolean; severity: number; warmIndex: number };
-    let overallAvg: { r: number; g: number; b: number };
-    let faceBoxUsed: { left: number; top: number; width: number; height: number } | undefined;
-    
+    let method: DetectionMethod = 'heuristic';
+    let cropBox: BoxPx | null = null;
+
+    // lighting from full image or crop
+    let overallAvg = { r: 0, g: 0, b: 0 };
+    let lighting = { isWarm: false, severity: 0, warmIndex: 0 };
+
     if (croppedFaceBase64) {
-      console.log('🎨 [SKIN TONE API] Using pre-cropped face image (preferred method)');
+      method = 'provided';
       const base64Data = croppedFaceBase64.includes(',') ? croppedFaceBase64.split(',')[1] : croppedFaceBase64;
       faceImageBuffer = Buffer.from(base64Data, 'base64');
-      console.log('🎨 [SKIN TONE API] Cropped face image loaded, size:', faceImageBuffer.length, 'bytes');
-      
-      detectionMethod = 'provided'; // Cropped image = user provided crop
-      
-      // Skip face detection - go straight to sampling
-      console.log('🎨 [FACE DETECTION] ========== FACE DETECTION SKIPPED ==========');
-      console.log('🎨 [FACE DETECTION] Using pre-cropped face image from client');
-      console.log('🎨 [FACE DETECTION] detectionMethod = "provided" (user crop)');
-      console.log('🎨 [FACE DETECTION] ==============================================');
-      
-      // Estimate lighting from cropped face image
-      const overallRaw = await sharp(faceImageBuffer)
-        .resize(64, 64, { fit: 'fill' })
-        .raw()
-        .toBuffer({ resolveWithObject: true });
-      const { data: odata, info: oinfo } = overallRaw;
-      const oC = oinfo.channels || 3;
-      let or = 0, og = 0, ob = 0, ocnt = 0;
-      for (let i = 0; i < odata.length; i += oC) {
-        or += odata[i];
-        og += odata[i + 1] ?? odata[i];
-        ob += odata[i + 2] ?? odata[i];
-        ocnt++;
+
+      const o = await sharp(faceImageBuffer).resize(64, 64, { fit: 'fill' }).raw().toBuffer({ resolveWithObject: true });
+      const oC = o.info.channels || 3;
+      let sr = 0, sg = 0, sb = 0, n = 0;
+      for (let i = 0; i < o.data.length; i += oC) {
+        sr += o.data[i];
+        sg += o.data[i + 1] ?? o.data[i];
+        sb += o.data[i + 2] ?? o.data[i];
+        n++;
       }
-      overallAvg = { r: Math.round(or / ocnt), g: Math.round(og / ocnt), b: Math.round(ob / ocnt) };
+      overallAvg = { r: Math.round(sr / n), g: Math.round(sg / n), b: Math.round(sb / n) };
       lighting = estimateWarmLightingBias(overallAvg);
-    } else if (imageUrl && cropInfo) {
-      // NEW: Server-side cropping using crop coordinates
-      console.log('🎨 [SKIN TONE API] Using server-side cropping with crop coordinates');
-      const imageBuffer = await loadImageBuffer(imageUrl, imageBase64);
-      console.log('🎨 [SKIN TONE API] Image buffer loaded, size:', imageBuffer.length, 'bytes');
-      
-      const meta = await sharp(imageBuffer).metadata();
-      if (!meta.width || !meta.height) throw new Error('Invalid image metadata');
-      
-      // Validate crop coordinates
-      const cropX = Math.max(0, Math.min(meta.width - cropInfo.width, cropInfo.x));
-      const cropY = Math.max(0, Math.min(meta.height - cropInfo.height, cropInfo.y));
-      const cropWidth = Math.min(meta.width - cropX, cropInfo.width);
-      const cropHeight = Math.min(meta.height - cropY, cropInfo.height);
-      
-      console.log('🎨 [SKIN TONE API] Cropping image:', {
-        originalSize: { width: meta.width, height: meta.height },
-        cropRegion: { x: cropX, y: cropY, width: cropWidth, height: cropHeight },
-      });
-      
-      // Crop the image using sharp
-      faceImageBuffer = await sharp(imageBuffer)
-        .extract({
-          left: Math.round(cropX),
-          top: Math.round(cropY),
-          width: Math.round(cropWidth),
-          height: Math.round(cropHeight),
-        })
-        .resize(400, 480, { fit: 'cover' }) // Resize to face aspect ratio
-        .toBuffer();
-      
-      detectionMethod = 'provided'; // User provided crop coordinates
-      
-      console.log('🎨 [FACE DETECTION] ========== FACE DETECTION SKIPPED ==========');
-      console.log('🎨 [FACE DETECTION] Using server-side cropped image from crop coordinates');
-      console.log('🎨 [FACE DETECTION] detectionMethod = "provided" (user crop coordinates)');
-      console.log('🎨 [FACE DETECTION] ==============================================');
-      
-      // Estimate lighting from cropped face image
-      const overallRaw = await sharp(faceImageBuffer)
-        .resize(64, 64, { fit: 'fill' })
-        .raw()
-        .toBuffer({ resolveWithObject: true });
-      const { data: odata, info: oinfo } = overallRaw;
-      const oC = oinfo.channels || 3;
-      let or = 0, og = 0, ob = 0, ocnt = 0;
-      for (let i = 0; i < odata.length; i += oC) {
-        or += odata[i];
-        og += odata[i + 1] ?? odata[i];
-        ob += odata[i + 2] ?? odata[i];
-        ocnt++;
-      }
-      overallAvg = { r: Math.round(or / ocnt), g: Math.round(og / ocnt), b: Math.round(ob / ocnt) };
-      lighting = estimateWarmLightingBias(overallAvg);
-      
-      faceBoxUsed = {
-        left: Math.round(cropX),
-        top: Math.round(cropY),
-        width: Math.round(cropWidth),
-        height: Math.round(cropHeight),
-      };
-    } else if (imageUrl || imageBase64) {
-      // Fallback: Full image with face detection
-      console.log('🎨 [SKIN TONE API] Loading full image for face detection...');
-    const imageBuffer = await loadImageBuffer(imageUrl, imageBase64);
-    console.log('🎨 [SKIN TONE API] Image buffer loaded, size:', imageBuffer.length, 'bytes');
-    
-    const meta = await sharp(imageBuffer).metadata();
-    console.log('🎨 [SKIN TONE API] Image metadata:', {
-      width: meta.width,
-      height: meta.height,
-      format: meta.format,
-      channels: meta.channels,
-    });
-    
-    if (!meta.width || !meta.height) throw new Error('Invalid image metadata');
-
-    const imageWidth = meta.width;
-    const imageHeight = meta.height;
-
-    // Overall image average for lighting bias
-    const overallRaw = await sharp(imageBuffer)
-      .resize(64, 64, { fit: 'fill' })
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-
-    const { data: odata, info: oinfo } = overallRaw;
-    const oC = oinfo.channels || 3;
-    let or = 0,
-      og = 0,
-      ob = 0,
-      ocnt = 0;
-    for (let i = 0; i < odata.length; i += oC) {
-      or += odata[i];
-      og += odata[i + 1] ?? odata[i];
-      ob += odata[i + 2] ?? odata[i];
-      ocnt++;
-    }
-    const overallAvg = { r: Math.round(or / ocnt), g: Math.round(og / ocnt), b: Math.round(ob / ocnt) };
-    const lighting = estimateWarmLightingBias(overallAvg);
-
-    // Face detection: Explicit detection method tracking with hard logging
-    // Detection methods: 'blazeface' | 'faceapi' | 'heuristic' | 'provided'
-    let actualFaceBox: FaceBox | null = null;
-    let detectionMethod: DetectionMethod | null = null;
-    
-    // HARD LOG: Always log detection path
-    console.log('🎨 [FACE DETECTION] ========== FACE DETECTION START ==========');
-    console.log('🎨 [FACE DETECTION] Input:', {
-      hasFaceBox: !!faceBox,
-      faceBox: faceBox ? { x: faceBox.x, y: faceBox.y, width: faceBox.width, height: faceBox.height } : null,
-    });
-    
-    // 1. Check if faceBox is provided and valid
-    if (faceBox) {
-      const valid =
-        Number.isFinite(faceBox.x) &&
-        Number.isFinite(faceBox.y) &&
-        Number.isFinite(faceBox.width) &&
-        Number.isFinite(faceBox.height) &&
-        faceBox.width > 0 &&
-        faceBox.height > 0 &&
-        faceBox.x >= 0 &&
-        faceBox.y >= 0;
-      
-      if (valid) {
-        actualFaceBox = faceBox;
-        detectionMethod = 'provided';
-        console.log('🎨 [FACE DETECTION] ✅ Using PROVIDED faceBox');
-        console.log('🎨 [FACE DETECTION] detectionMethod = "provided"');
-      } else {
-        console.log('🎨 [FACE DETECTION] ❌ Provided faceBox is invalid, falling back to heuristic');
-        console.log('🎨 [FACE DETECTION] Invalid faceBox:', faceBox);
-      }
-    }
-    
-    // 2. If no valid provided faceBox, try heuristic detection
-    if (!actualFaceBox) {
-      console.log('🎨 [FACE DETECTION] Attempting HEURISTIC detection (RGB skin filter + region scanning)...');
-      actualFaceBox = await detectFaceWithEnhancedHeuristic(imageBuffer, imageWidth, imageHeight);
-      
-      if (actualFaceBox) {
-        detectionMethod = 'heuristic';
-        console.log('🎨 [FACE DETECTION] ✅ Heuristic detection successful');
-        console.log('🎨 [FACE DETECTION] detectionMethod = "heuristic"');
-      } else {
-        console.log('🎨 [FACE DETECTION] ❌ Heuristic detection failed - no face-like region found');
-        // Return error - no fallback
-        console.log('🎨 [FACE DETECTION] ========== FACE DETECTION FAILED ==========');
-        return res.status(400).json({ 
-          error: 'FACE_NOT_DETECTED',
-          message: 'No face detected in image. Please upload a clear face photo with good lighting.',
-          detectionMethod: 'heuristic',
-        });
-      }
-    }
-    
-    // 3. Safety check: detectionMethod must be set
-    if (!detectionMethod) {
-      console.error('🎨 [FACE DETECTION] ❌❌❌ CRITICAL ERROR: detectionMethod is null after detection!');
-      console.error('🎨 [FACE DETECTION] This should never happen - detectionMethod must be set');
-      throw new Error('detectionMethod not set after face detection');
-    }
-    
-    // 4. Safety check: actualFaceBox must exist
-    if (!actualFaceBox) {
-      console.error('🎨 [FACE DETECTION] ❌❌❌ CRITICAL ERROR: actualFaceBox is null after detection!');
-      console.error('🎨 [FACE DETECTION] This should never happen - actualFaceBox must exist');
-      throw new Error('actualFaceBox is null after face detection');
-    }
-    
-    // HARD LOG: Final detection result
-    console.log('🎨 [FACE DETECTION] ========== FACE DETECTION COMPLETE ==========');
-    console.log('🎨 [FACE DETECTION] Final result:', {
-      detectionMethod: detectionMethod as DetectionMethod,
-      faceBox: actualFaceBox,
-      imageSize: { width: imageWidth, height: imageHeight },
-    });
-    console.log('🎨 [FACE DETECTION] ==============================================');
-    
-    // NOTE: BlazeFace and FaceAPI are NOT currently implemented due to Vercel size limits
-    // - TensorFlow.js + BlazeFace exceeds Vercel's 250MB serverless function limit
-    // - Alternative: Use external API (AWS Rekognition, Google Cloud Vision, etc.) but adds cost
-    // - Current solution: Heuristic detection (RGB skin filter + region scanning) works well for most cases
-    // - If you want ML-based detection, consider:
-    //   1. External face detection API service
-    //   2. Separate microservice with larger size limits
-    //   3. Client-side detection (but requires app rebuild)
-    if (detectionMethod === 'heuristic') {
-      console.log('🎨 [FACE DETECTION] ⚠️  Using HEURISTIC detection (RGB skin filter) - not ML-based');
-      console.log('🎨 [FACE DETECTION] ⚠️  BlazeFace/FaceAPI unavailable: TensorFlow.js too large for Vercel (250MB limit)');
-      console.log('🎨 [FACE DETECTION] ℹ️  Heuristic works well for clear face photos with good lighting');
-    }
-
-    const crop = clampFaceBoxToBounds(actualFaceBox, imageWidth, imageHeight);
-      faceBoxUsed = crop;
-      faceImageBuffer = await sharp(imageBuffer).extract(crop).toBuffer();
     } else {
-      console.error('🎨 [SKIN TONE API] ERROR: Missing image data');
-      return res.status(400).json({ error: 'Missing imageUrl, imageBase64, or croppedFaceBase64' });
+      const raw = await loadImageBuffer(imageUrl, imageBase64);
+      const { buffer: img, metadata } = await loadImageWithOrientation(raw);
+      const W = metadata.width!;
+      const H = metadata.height!;
+
+      // lighting from full image
+      const o = await sharp(img).resize(64, 64, { fit: 'fill' }).raw().toBuffer({ resolveWithObject: true });
+      const oC = o.info.channels || 3;
+      let sr = 0, sg = 0, sb = 0, n = 0;
+      for (let i = 0; i < o.data.length; i += oC) {
+        sr += o.data[i];
+        sg += o.data[i + 1] ?? o.data[i];
+        sb += o.data[i + 2] ?? o.data[i];
+        n++;
+      }
+      overallAvg = { r: Math.round(sr / n), g: Math.round(sg / n), b: Math.round(sb / n) };
+      lighting = estimateWarmLightingBias(overallAvg);
+
+      if (cropInfo) {
+        method = 'cropInfo';
+        cropBox = clampBox(toIntBox({ x: cropInfo.x, y: cropInfo.y, width: cropInfo.width, height: cropInfo.height }), W, H, 220);
+        if (!cropBox) return res.status(400).json({ error: 'INVALID_CROP_BOX' });
+      } else if (faceBox) {
+        method = 'faceBox';
+        const px: BoxPx = { x: faceBox.x * W, y: faceBox.y * H, width: faceBox.width * W, height: faceBox.height * H };
+        cropBox = clampBox(toIntBox(px), W, H, 220);
+        if (!cropBox) return res.status(400).json({ error: 'INVALID_CROP_BOX' });
+      } else {
+        method = 'heuristic';
+        cropBox = clampBox(computeHeuristicFaceBox(W, H), W, H, 220);
+        if (!cropBox) return res.status(400).json({ error: 'FACE_NOT_DETECTED' });
+      }
+
+      faceImageBuffer = await sharp(img).extract({ left: cropBox.x, top: cropBox.y, width: cropBox.width, height: cropBox.height }).toBuffer();
     }
 
-    // Sample skin (with lighting correction) - both paths converge here
-    const { allSamples, skinSamples, correctedSamples, correctionGains, gainsClamped } = await sampleSkinFromFace(faceImageBuffer);
-    
-    console.log('🎨 [SKIN TONE API] Sampling complete:', {
-      totalSamples: allSamples.length,
-      skinSamples: skinSamples.length,
-      correctedSamples: correctedSamples.length,
-      skinRatio: allSamples.length > 0 ? skinSamples.length / allSamples.length : 0,
-      correctionGains,
-      gainsClamped,
-    });
-    
-    // Quality gating: Check if image quality is sufficient for accurate analysis
-    // Even with perfect crop, lighting can be bad
-    const validSkinPixels = skinSamples.length;
-    const skinRatio = allSamples.length > 0 ? skinSamples.length / allSamples.length : 0;
-    
-    // Use corrected samples for analysis (per spec: Step A - lighting correction before Lab)
-    const useSamples = correctedSamples.length >= 30 ? correctedSamples : skinSamples;
-    if (useSamples.length === 0) {
-      console.error('🎨 [SKIN TONE API] ERROR: Not enough corrected samples');
-      return res.status(400).json({ 
-        error: 'FACE_NOT_DETECTED',
-        message: 'No face detected in image. Please upload a clear face photo with good lighting.',
-        qualityIssues: ['Not enough skin samples detected'],
+    const sampling = await sampleSkinFromFace(faceImageBuffer);
+    if (!sampling.ok || sampling.corrected.length < 180) {
+      return res.status(400).json({
+        error: 'LOW_QUALITY_SAMPLES',
+        message: 'Not enough usable skin pixels. Try daylight near a window, avoid shadows, no filters.',
+        needsConfirmation: true,
+        diagnostics: { method, cropBox, lighting, sampling },
       });
     }
-    console.log('🎨 [SKIN TONE API] Using corrected samples:', useSamples.length);
+
+    // Store references to ensure we don't accidentally overwrite
+    const skinSamples = sampling.raw;  // RAW samples (before lighting correction)
+    const correctedSamples = sampling.corrected;  // CORRECTED samples (after lighting correction)
+
+    // 1) RAW stats (for undertone) - MUST use skinSamples
+    const rawLabSamples = skinSamples.map(p => rgbToLab(p.r, p.g, p.b));
+    const rawStats = computeRobustLabStats(rawLabSamples);
     
-    // Step C: Use robust stats (median/trimmed mean) + outlier removal
-    // Convert all corrected samples to Lab
-    const labSamples = useSamples.map(s => rgbToLab(s.r, s.g, s.b));
+    // 2) CORRECTED stats (for depth/clarity/season stability) - MUST use correctedSamples
+    const corrLabSamples = correctedSamples.map(p => rgbToLab(p.r, p.g, p.b));
+    const corrStats = computeRobustLabStats(corrLabSamples);
+
+    // Validation: Ensure counts match
+    if (rawStats.sampleCount !== skinSamples.length) {
+      console.error(`❌ [VALIDATION ERROR] rawStats.sampleCount (${rawStats.sampleCount}) !== skinSamples.length (${skinSamples.length})`);
+    }
+    if (corrStats.sampleCount !== correctedSamples.length) {
+      console.error(`❌ [VALIDATION ERROR] corrStats.sampleCount (${corrStats.sampleCount}) !== correctedSamples.length (${correctedSamples.length})`);
+    }
+
+    // Log both raw and corrected stats BEFORE undertone computation
+    console.log('🎨 [RAW STATS] ========== RAW STATS (for undertone) ==========');
+    console.log('🎨 [RAW STATS] sampleCount:', rawStats.sampleCount, '(expected:', skinSamples.length, ')');
+    console.log('🎨 [RAW STATS] medianLab:', {
+      L: rawStats.medianLab.l.toFixed(2),
+      a: rawStats.medianLab.a.toFixed(2),
+      b: rawStats.medianLab.b.toFixed(2),
+    });
+    console.log('🎨 [RAW STATS] medianChroma:', rawStats.medianChroma.toFixed(2));
+    console.log('🎨 [RAW STATS] ===================================================');
+
+    console.log('🎨 [CORR STATS] ========== CORRECTED STATS (for depth/clarity) ==========');
+    console.log('🎨 [CORR STATS] sampleCount:', corrStats.sampleCount, '(expected:', correctedSamples.length, ')');
+    console.log('🎨 [CORR STATS] medianLab:', {
+      L: corrStats.medianLab.l.toFixed(2),
+      a: corrStats.medianLab.a.toFixed(2),
+      b: corrStats.medianLab.b.toFixed(2),
+    });
+    console.log('🎨 [CORR STATS] medianChroma:', corrStats.medianChroma.toFixed(2));
+    console.log('🎨 [CORR STATS] ===================================================');
+
+    // Summary log for quick verification in Vercel logs
+    console.log('🎨 [STATS SUMMARY] RAW:', {
+      sampleCount: rawStats.sampleCount,
+      skinSamplesLength: skinSamples.length,
+      match: rawStats.sampleCount === skinSamples.length ? '✅' : '❌',
+      medianLab: `L=${rawStats.medianLab.l.toFixed(1)}, a=${rawStats.medianLab.a.toFixed(1)}, b=${rawStats.medianLab.b.toFixed(1)}`,
+      medianChroma: rawStats.medianChroma.toFixed(2),
+    });
+    console.log('🎨 [STATS SUMMARY] CORR:', {
+      sampleCount: corrStats.sampleCount,
+      correctedSamplesLength: correctedSamples.length,
+      match: corrStats.sampleCount === correctedSamples.length ? '✅' : '❌',
+      medianLab: `L=${corrStats.medianLab.l.toFixed(1)}, a=${corrStats.medianLab.a.toFixed(1)}, b=${corrStats.medianLab.b.toFixed(1)}`,
+      medianChroma: corrStats.medianChroma.toFixed(2),
+    });
+
+    // Use chromaP70 (70th percentile) instead of medianChroma for better stability
+    const corrChroma = (corrStats as any).chromaP70 ?? corrStats.medianChroma;
+    const rawChroma = (rawStats as any).chromaP70 ?? rawStats.medianChroma;
+
+    // Undertone MUST use RAW chromaP70
+    const undertoneInfo = computeUndertone({
+      a: rawStats.medianLab.a,
+      b: rawStats.medianLab.b,
+      chroma: rawChroma,
+      lightingSeverity: lighting.severity, // only as confidence penalty, not to "correct" hue
+    });
+
+    // Use RAW for depth, CORRECTED chromaP70 for clarity/season
+    const depthInfo = computeDepth({ l: rawStats.medianLab.l, madL: rawStats.mad.l });
+    const clarityInfo = computeClarity({
+      a: corrStats.medianLab.a,
+      b: corrStats.medianLab.b,
+      chroma: corrChroma,
+      madB: corrStats.mad.b,
+    });
+
+    // Log raw chroma vs corrected chroma to verify the bug
+    console.log('🎨 [CHROMA COMPARISON] RAW chromaP70:', rawChroma.toFixed(2), 'vs CORRECTED chromaP70:', corrChroma.toFixed(2), 
+      'diff:', (rawChroma - corrChroma).toFixed(2));
+
+    // DEBUG: Log undertone detection
+    const warmth = rawStats.medianLab.b - 0.5 * rawStats.medianLab.a;
+    console.log('🎨 [UNDERTONE DETECTION] ========== UNDERTONE ==========');
+    console.log('🎨 [UNDERTONE DETECTION] Using RAW Lab values:', {
+      L: rawStats.medianLab.l.toFixed(2),
+      a: rawStats.medianLab.a.toFixed(2),
+      b: rawStats.medianLab.b.toFixed(2),
+      chroma: rawStats.medianChroma.toFixed(2),
+      warmth: warmth.toFixed(2), // warmth = b - 0.5*a
+    });
+    console.log('🎨 [UNDERTONE DETECTION] Result:', {
+      undertone: undertoneInfo.undertone,
+      lean: undertoneInfo.lean,
+      confidence: undertoneInfo.confidence.toFixed(3),
+      lightingSeverity: lighting.severity.toFixed(3),
+    });
+    console.log('🎨 [UNDERTONE DETECTION] Depth (from RAW):', depthInfo);
+    console.log('🎨 [UNDERTONE DETECTION] Clarity (from RAW):', clarityInfo);
+    console.log('🎨 [UNDERTONE DETECTION] ==============================');
+
+    // Season should use RAW undertone + CORRECTED chromaP70
+    console.log('🎨 [HANDLER] About to call computeSeason with:', {
+      undertone: undertoneInfo.undertone,
+      lean: undertoneInfo.lean,
+      C: corrChroma.toFixed(2),
+      L: corrStats.medianLab.l.toFixed(2),
+    });
     
-    // Compute median Lab values (per spec: use median for L*, a*, b*)
-    const lValues = labSamples.map(l => l.l);
-    const aValues = labSamples.map(l => l.a);
-    const bValues = labSamples.map(l => l.b);
+    const ranked = computeSeason({
+      undertone: undertoneInfo.undertone,
+      lean: undertoneInfo.lean,
+      depth: depthInfo.depth,
+      clarity: clarityInfo.clarity,
+      l: corrStats.medianLab.l,
+      a: corrStats.medianLab.a,
+      b: corrStats.medianLab.b,
+      C: corrChroma,
+      warmLightingSeverity: lighting.severity,
+      undertoneConfidence: undertoneInfo.confidence,
+      depthConfidence: depthInfo.confidence,
+      clarityConfidence: clarityInfo.confidence,
+    });
     
-    const medianL = median(lValues);
-    const medianA = median(aValues);
-    const medianB = median(bValues);
+    console.log('🎨 [HANDLER] computeSeason returned:', ranked.map(r => `${r.season}=${r.score.toFixed(3)}`).join(', '));
     
-    // Compute MAD for dispersion (per spec)
-    const madL = mad(lValues);
-    const madA = mad(aValues);
-    const madB = mad(bValues);
+    // DEBUG: Log scoring results to diagnose "always autumn" issue
+    console.log('🎨 [SEASON SCORING] ========== SEASON SCORES ==========');
+    console.log('🎨 [SEASON SCORING] Input:', {
+      undertone: undertoneInfo.undertone,
+      lean: undertoneInfo.lean,
+      L: corrStats.medianLab.l.toFixed(2),
+      C: corrChroma.toFixed(2),
+      depth: depthInfo.depth,
+      clarity: clarityInfo.clarity,
+    });
+    console.log('🎨 [SEASON SCORING] Note: Undertone from RAW, L/C from CORRECTED chromaP70');
+    console.log('🎨 [SEASON SCORING] Ranked scores:', ranked.map(r => ({
+      season: r.season,
+      score: r.score.toFixed(3),
+      reason: r.reason,
+    })));
+    console.log('🎨 [SEASON SCORING] ===================================');
     
-    // Check if noisy (per spec thresholds)
-    const isNoisy = madB > 4.5 || madL > 10;
+    const top2 = ranked.slice(0, 2);
     
-    // Quality gating: Check if image quality is sufficient for accurate analysis
-    // Even with perfect crop, lighting can be bad
+    // CRITICAL CHECK: If autumn is winning but scores are suspicious, investigate
+    if (ranked[0]?.season === 'autumn') {
+      console.log('🎨 [SEASON DECISION] ⚠️ AUTUMN IS WINNING - INVESTIGATING');
+      console.log('🎨 [SEASON DECISION] All ranked scores:', ranked.map(r => ({
+        season: r.season,
+        score: r.score.toFixed(4),
+        reason: r.reason.substring(0, 100),
+      })));
+      console.log('🎨 [SEASON DECISION] Top 2 scores:', top2.map(r => ({
+        season: r.season,
+        score: r.score.toFixed(4),
+      })));
+      
+      // If autumn is winning but spring is very close, that's suspicious
+      const springRank = ranked.findIndex(r => r.season === 'spring');
+      if (springRank >= 0 && springRank < 3) {
+        const springScore = ranked[springRank].score;
+        const autumnScore = ranked[0].score;
+        const diff = autumnScore - springScore;
+        console.log('🎨 [SEASON DECISION] Spring rank:', springRank, 'Score diff:', diff.toFixed(4));
+        if (diff < 0.05 && corrStats.medianLab.l > 50) {
+          console.warn('🎨 [SEASON DECISION] ⚠️ WARNING: Autumn winning by tiny margin with L>50. This may be a bug!');
+        }
+      }
+    }
+    
+    const primary = decidePrimarySeason(top2);
+    
+    console.log('🎨 [SEASON DECISION] Primary:', {
+      season: primary.season,
+      confidence: primary.seasonConfidence.toFixed(3),
+      needsConfirmation: primary.needsConfirmation,
+      separation: primary.sep.toFixed(3),
+    });
+
+    // quality / confirmation logic (realistic, not "always autumn")
+    const isNoisy = corrStats.mad.b > 4.5 || corrStats.mad.l > 10;
+
     const qualityIssues: string[] = [];
-    let qualityNeedsConfirmation = false;
-    
-    // Check 1: validSkinPixels < 80
-    if (validSkinPixels < 80) {
-      qualityIssues.push('Not enough skin pixels detected');
-      qualityNeedsConfirmation = true;
-      console.log('🎨 [QUALITY GATING] ⚠️  Low skin pixel count:', validSkinPixels, '< 80');
-    }
-    
-    // Check 2: MAD(L) > 8 (too much shadow contrast)
-    if (madL > 8) {
-      qualityIssues.push('Too much shadow contrast');
-      qualityNeedsConfirmation = true;
-      console.log('🎨 [QUALITY GATING] ⚠️  High shadow contrast (MAD_L):', madL.toFixed(2), '> 8');
-    }
-    
-    // Check 3: median C* < 4 (too gray / shadow / washout)
-    const medianChroma = Math.sqrt(medianA * medianA + medianB * medianB);
-    if (medianChroma < 4) {
-      qualityIssues.push('Image too gray or washed out');
-      qualityNeedsConfirmation = true;
-      console.log('🎨 [QUALITY GATING] ⚠️  Low chroma (too gray/washed out):', medianChroma.toFixed(2), '< 4');
-    }
-    
-    // Generate friendly UI messages
-    const qualityMessages: string[] = [];
-    if (qualityNeedsConfirmation) {
-      if (madL > 8 || medianChroma < 4) {
-        qualityMessages.push('Try daylight near a window');
-        qualityMessages.push('Avoid yellow indoor lighting');
-        qualityMessages.push('No heavy shadows');
-      }
-      if (validSkinPixels < 80) {
-        qualityMessages.push('Ensure face is clearly visible');
-        qualityMessages.push('Avoid blurry photos');
-      }
-    }
-    
-    console.log('🎨 [SKIN TONE API] Quality gating:', {
-      validSkinPixels,
-      madL: madL.toFixed(2),
-      medianChroma: medianChroma.toFixed(2),
-      qualityIssues,
-      qualityNeedsConfirmation,
-      qualityMessages,
-    });
-    
-    console.log('🎨 [SKIN TONE API] Robust stats:', {
-      medianLab: { l: medianL.toFixed(2), a: medianA.toFixed(2), b: medianB.toFixed(2) },
-      mad: { l: madL.toFixed(2), a: madA.toFixed(2), b: madB.toFixed(2) },
-      isNoisy,
-      medianChroma: medianChroma.toFixed(2),
-    });
-    
-    // Use median Lab for analysis
-    const lab = { l: medianL, a: medianA, b: medianB };
-    
-    // Compute RGB from median Lab for display (approximate)
-    const skinRgb = trimmedMean(useSamples, 0.20); // 20% trimmed mean for RGB display
-    const hex = rgbToHex(skinRgb.r, skinRgb.g, skinRgb.b);
-    
-    console.log('🎨 [SKIN TONE API] Skin RGB (for display):', skinRgb, 'HEX:', hex);
-    console.log('🎨 [SKIN TONE API] LAB values (median):', {
-      l: Math.round(lab.l * 10) / 10,
-      a: Math.round(lab.a * 10) / 10,
-      b: Math.round(lab.b * 10) / 10,
-    });
-    
-    // Determine undertone, depth, clarity using corrected median Lab
-    // Pass lighting severity to undertone function for neutral band adjustment
-    const undertoneInfo = determineUndertoneFromLab(lab, lighting.severity);
-    const { undertone, confidence: undertoneConfidence, lean } = undertoneInfo;
-    console.log('🎨 [SKIN TONE API] Undertone:', undertone, 'Confidence:', undertoneConfidence, 'Lean:', lean);
+    let needsConfirmation = primary.needsConfirmation;
 
-    const { depth, confidence: depthConfidence } = determineDepthFromL(lab.l, madL);
-    console.log('🎨 [SKIN TONE API] Depth:', depth, 'Confidence:', depthConfidence);
-    
-    const { clarity, confidence: clarityConfidence, chroma, avgSat } = determineClarityFromLab(lab, madB);
-    console.log('🎨 [SKIN TONE API] Clarity:', clarity, 'Confidence:', clarityConfidence, 'Chroma:', chroma);
+    if (sampling.corrected.length < 260) { qualityIssues.push('Not enough stable pixels'); needsConfirmation = true; }
+    if (isNoisy) { qualityIssues.push('Uneven lighting / shadows'); needsConfirmation = true; }
+    if (lighting.severity > 0.45) { qualityIssues.push('Strong warm lighting cast'); needsConfirmation = true; }
+    if (corrChroma < 4) { qualityIssues.push('Image too gray or washed out'); needsConfirmation = true; }
 
-    // Season: ALWAYS decide (with new hard gating + proper neutral handling)
-    const seasonDecision = decideSeasonAlways(
-      undertone,
-      depth,
-      clarity,
-      undertoneConfidence,
-      depthConfidence,
-      clarityConfidence,
-      lighting.severity,
-      { chroma, warmScore: undertoneInfo.warmScore, coolScore: undertoneInfo.coolScore, lean },
-      lab,
-      avgSat,
-      madB,
-      madL,
-      gainsClamped
-    );
-    
-    // Combine quality gating with season needsConfirmation
-    const finalNeedsConfirmation = seasonDecision.needsConfirmation || qualityNeedsConfirmation;
+    const qualityMessages = needsConfirmation
+      ? ['Try daylight near a window', 'Avoid heavy shadows', 'Disable beauty filters / HDR if possible']
+      : [];
 
-    // Comprehensive logging - all calculations and decisions
-    console.log('🎨 [SKIN TONE API] ========== COMPREHENSIVE ANALYSIS SUMMARY ==========');
-    console.log('🎨 [SKIN TONE API] Raw Lab Values (median):', {
-      L: lab.l.toFixed(2),
-      a: lab.a.toFixed(2),
-      b: lab.b.toFixed(2),
-      chroma: chroma.toFixed(2),
-    });
-    console.log('🎨 [SKIN TONE API] Robust Statistics:', {
-      medianLab: { L: medianL.toFixed(2), a: medianA.toFixed(2), b: medianB.toFixed(2) },
-      mad: { L: madL.toFixed(2), a: madA.toFixed(2), b: madB.toFixed(2) },
-      isNoisy,
-      sampleCount: useSamples.length,
-    });
-    console.log('🎨 [SKIN TONE API] Lighting Analysis:', {
-      overallAvg: lighting.isWarm ? 'WARM' : 'COOL',
-      warmIndex: lighting.warmIndex,
-      severity: lighting.severity.toFixed(3),
-      correctionGains: correctionGains,
-      gainsClamped,
-    });
-    console.log('🎨 [SKIN TONE API] Component Analysis:', {
-      undertone: { value: undertone, confidence: undertoneConfidence.toFixed(3), lean },
-      depth: { value: depth, confidence: depthConfidence.toFixed(3) },
-      clarity: { value: clarity, confidence: clarityConfidence.toFixed(3), chroma: chroma.toFixed(2) },
-    });
-    console.log('🎨 [SKIN TONE API] Season Decision:', {
-      season: seasonDecision.season.toUpperCase(),
-      seasonConfidence: seasonDecision.seasonConfidence.toFixed(3),
-      needsConfirmation: seasonDecision.needsConfirmation,
-      reason: seasonDecision.reason,
-    });
+    // display rgb from corrected using trimmed mean
+    const sorted = [...sampling.corrected].sort((p, q) => (p.r + p.g + p.b) - (q.r + q.g + q.b));
+    const trim = Math.floor(sorted.length * 0.15);
+    const kept = sorted.slice(trim, Math.max(trim + 1, sorted.length - trim));
+    let sr = 0, sg = 0, sb = 0;
+    for (const p of kept) { sr += p.r; sg += p.g; sb += p.b; }
+    const n = kept.length || 1;
+    const rgb = { r: Math.round(sr / n), g: Math.round(sg / n), b: Math.round(sb / n) };
+    const hex = rgbToHex(rgb.r, rgb.g, rgb.b);
 
-    // Overall confidence (per spec: 0.45*conf_u + 0.30*conf_d + 0.25*conf_c)
-    let overallConfidence = 0.45 * undertoneConfidence + 0.30 * depthConfidence + 0.25 * clarityConfidence;
-    
-    // Apply penalties (per spec)
-    if (isNoisy) {
-      overallConfidence = clamp(overallConfidence - 0.08, 0, 1);
-    }
-    if (gainsClamped) {
-      overallConfidence = clamp(overallConfidence - 0.06, 0, 1);
-    }
+    // overall confidence
+    let overallConfidence = 0.45 * undertoneInfo.confidence + 0.30 * depthInfo.confidence + 0.25 * clarityInfo.confidence;
+    if (isNoisy) overallConfidence = clamp(overallConfidence - 0.08, 0, 1);
+    if (sampling.gainsClamped) overallConfidence = clamp(overallConfidence - 0.06, 0, 1);
     overallConfidence = clamp(overallConfidence, 0, 0.95);
 
-    const timeTaken = Date.now() - startTime;
-    
-    // Final comprehensive summary for Vercel logs
-    console.log('🎨 [SKIN TONE API] ========== FINAL SUMMARY (ALL CALCULATIONS) ==========');
-    console.log('🎨 [SKIN TONE API] INPUT VALUES:', {
-      'Lab (median)': { L: lab.l.toFixed(2), a: lab.a.toFixed(2), b: lab.b.toFixed(2) },
-      'Chroma (C*)': chroma.toFixed(2),
-      'MAD': { L: madL.toFixed(2), a: madA.toFixed(2), b: madB.toFixed(2) },
-      'Lighting': { severity: lighting.severity.toFixed(3), gainsClamped, gains: correctionGains },
-    });
-    console.log('🎨 [SKIN TONE API] COMPONENT RESULTS:', {
-      'Undertone': { value: undertone, confidence: undertoneConfidence.toFixed(3), lean, b: lab.b.toFixed(2) },
-      'Depth': { value: depth, confidence: depthConfidence.toFixed(3), L: lab.l.toFixed(2) },
-      'Clarity': { value: clarity, confidence: clarityConfidence.toFixed(3), chroma: chroma.toFixed(2) },
-    });
-    console.log('🎨 [SKIN TONE API] SEASON SELECTION:', {
-      'Season': seasonDecision.season.toUpperCase(),
-      'Season Confidence': seasonDecision.seasonConfidence.toFixed(3),
-      'Overall Confidence': overallConfidence.toFixed(3),
-      'Needs Confirmation': seasonDecision.needsConfirmation,
-      'Reason': seasonDecision.reason,
-    });
-    console.log('🎨 [SKIN TONE API] PERFORMANCE:', {
-      'Time Taken': `${timeTaken}ms`,
-      'Samples Used': useSamples.length,
-      'Face Detection': detectionMethod,
-    });
-    console.log('🎨 [SKIN TONE API] ========================================================');
+    const ms = Date.now() - start;
 
     return res.status(200).json({
-      rgb: skinRgb,
+      rgb,
       hex,
-      lab: { l: Math.round(lab.l * 10) / 10, a: Math.round(lab.a * 10) / 10, b: Math.round(lab.b * 10) / 10 },
-      undertone,
-      depth,
-      clarity,
-      avgSat: Math.round(avgSat * 1000) / 1000, // Include saturation in response
+      // Return corrected Lab for display only (season analysis uses RAW)
+      lab: { l: Math.round(corrStats.medianLab.l * 10) / 10, a: Math.round(corrStats.medianLab.a * 10) / 10, b: Math.round(corrStats.medianLab.b * 10) / 10 },
+      undertone: undertoneInfo.undertone,
+      depth: depthInfo.depth,
+      clarity: clarityInfo.clarity,
 
-      // IMPORTANT: never null
-      season: seasonDecision.season,
+      // Primary season + confidence
+      season: primary.season,
+      seasonConfidence: Math.round(primary.seasonConfidence * 100) / 100,
+      needsConfirmation,
+
+      // Top-2 to improve real-world accuracy and UX
+      seasonCandidates: top2.map(x => ({
+        season: x.season,
+        score: Math.round(x.score * 100) / 100,
+        reason: ranked.find(r => r.season === x.season)?.reason ?? '',
+      })),
 
       confidence: Math.round(overallConfidence * 100) / 100,
-      seasonConfidence: seasonDecision.seasonConfidence,
-      needsConfirmation: finalNeedsConfirmation,
-      qualityMessages: qualityMessages.length > 0 ? qualityMessages : undefined,
-      qualityIssues: qualityIssues.length > 0 ? qualityIssues : undefined,
+
+      qualityIssues: qualityIssues.length ? qualityIssues : undefined,
+      qualityMessages: qualityMessages.length ? qualityMessages : undefined,
 
       diagnostics: {
-        lighting: {
-          overallAvg,
-          isWarm: lighting.isWarm,
-          warmIndex: lighting.warmIndex,
-          severity: Math.round(lighting.severity * 100) / 100,
-          correctionGains: correctionGains,
-          gainsClamped,
-        },
+        method,
+        cropBox,
+        lighting: { ...lighting, overallAvg },
         sampling: {
-          totalSamples: allSamples.length,
-          skinSamples: skinSamples.length,
-          correctedSamples: correctedSamples.length,
-          used: 'correctedSamples',
-          avgSat: Math.round(avgSat * 1000) / 1000,
-          chroma: Math.round(chroma * 100) / 100,
+          candidateCount: sampling.candidateCount,
+          keptCount: sampling.keptCount,
+          usedCount: sampling.corrected.length,
+          Lstats: sampling.Lstats,
+          correctionGains: sampling.gains,
+          gainsClamped: sampling.gainsClamped,
         },
         robustStats: {
-          medianLab: { l: Math.round(medianL * 10) / 10, a: Math.round(medianA * 10) / 10, b: Math.round(medianB * 10) / 10 },
-          mad: { l: Math.round(madL * 100) / 100, a: Math.round(madA * 100) / 100, b: Math.round(madB * 100) / 100 },
-          isNoisy,
+          madL: Math.round(corrStats.mad.l * 100) / 100,
+          madB: Math.round(corrStats.mad.b * 100) / 100,
+          chroma: Math.round(clarityInfo.chroma * 100) / 100,
         },
-        seasonReason: seasonDecision.reason,
-        undertoneMeta: {
-          chroma: Math.round(chroma * 100) / 100,
-          warmScore: Math.round(undertoneInfo.warmScore * 1000) / 1000,
-          coolScore: Math.round(undertoneInfo.coolScore * 1000) / 1000,
-          undertoneConfidence: Math.round(undertoneConfidence * 100) / 100,
-          depthConfidence: Math.round(depthConfidence * 100) / 100,
-          clarityConfidence: Math.round(clarityConfidence * 100) / 100,
+        labValues: {
+          raw: {
+            L: Math.round(rawStats.medianLab.l * 10) / 10,
+            a: Math.round(rawStats.medianLab.a * 10) / 10,
+            b: Math.round(rawStats.medianLab.b * 10) / 10,
+            C: Math.round(rawStats.medianChroma * 10) / 10,
+            sampleCount: rawStats.sampleCount,
+          },
+          corrected: {
+            L: Math.round(corrStats.medianLab.l * 10) / 10,
+            a: Math.round(corrStats.medianLab.a * 10) / 10,
+            b: Math.round(corrStats.medianLab.b * 10) / 10,
+            C: Math.round(corrStats.medianChroma * 10) / 10,
+            sampleCount: corrStats.sampleCount,
+          },
         },
-        faceBoxUsed: faceBoxUsed,
-        faceBoxSource: detectionMethod,
-        detectionMethod: detectionMethod as DetectionMethod,
+        perf: { ms },
       },
     });
-  } catch (error: any) {
-    const timeTaken = Date.now() - startTime;
-    console.error('🎨 [SKIN TONE API] ========== ERROR ==========');
-    console.error('🎨 [SKIN TONE API] Error occurred:', error.message || 'Unknown error');
-    console.error('🎨 [SKIN TONE API] Error stack:', error.stack);
-    console.error('🎨 [SKIN TONE API] Time taken before error:', `${timeTaken}ms`);
-    console.error('🎨 [SKIN TONE API] ==========================================');
-    
+  } catch (e: any) {
+    console.error('SKIN API error', e?.message ?? e);
     return res.status(500).json({
-      error: error.message || 'Unknown error occurred',
+      error: e?.message ?? 'Unknown error',
       undertone: 'neutral',
       depth: 'medium',
       clarity: 'muted',
-      season: 'autumn', // safe fallback
-      confidence: 0,
+      season: 'autumn',
       seasonConfidence: 0,
       needsConfirmation: true,
+      confidence: 0,
     });
   }
 }
