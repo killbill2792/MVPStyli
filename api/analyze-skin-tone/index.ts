@@ -309,16 +309,18 @@ function computeSeason(params: {
     C: params.C,
   };
 
-  // CRITICAL FIX: Neutral + very muted (C < 6) should return Summer/Autumn based on L + lean
+  // CRITICAL FIX: Neutral + very muted (C < 7) should return Summer/Autumn based on L + lean
   // This is the PRIMARY fix for "always autumn" issue
-  if (params.undertone === 'neutral' && params.C < 6) {
-    console.log('🎨 [COMPUTE_SEASON] ✅ OVERRIDE TRIGGERED: Neutral + C<6 detected');
-    console.log('🎨 [COMPUTE_SEASON] C value:', params.C.toFixed(2), '< 6, L:', params.l.toFixed(2), 'lean:', params.lean);
+  // Changed threshold from C < 6 to C < 7 to catch borderline cases
+  if (params.undertone === 'neutral' && params.C < 7) {
+    console.log('🎨 [COMPUTE_SEASON] ✅ OVERRIDE TRIGGERED: Neutral + C<7 detected');
+    console.log('🎨 [COMPUTE_SEASON] C value:', params.C.toFixed(2), '< 7, L:', params.l.toFixed(2), 'lean:', params.lean);
     
     // Use L (lightness) to determine: Light → Summer, Dark → Autumn
-    // This is more accurate than just using lean
-    const isLight = params.l > 55;
-    const isDark = params.l < 50;
+    // FIXED: Adjusted thresholds - L > 52 is light, L < 48 is dark, 48-52 is medium
+    const isLight = params.l > 52;
+    const isDark = params.l < 48;
+    const isMedium = !isLight && !isDark; // 48 <= L <= 52
     
     let baseSummer = 0.75;
     let baseAutumn = 0.75;
@@ -326,22 +328,39 @@ function computeSeason(params: {
     if (isLight) {
       // Light + muted → Summer is more likely
       baseSummer = 1.0;
-      baseAutumn = (params.lean === 'warm') ? 0.85 : 0.70;
+      baseAutumn = (params.lean === 'warm') ? 0.80 : 0.65;
     } else if (isDark) {
       // Dark + muted → Autumn is more likely
       baseAutumn = 1.0;
-      baseSummer = (params.lean === 'cool') ? 0.85 : 0.70;
+      baseSummer = (params.lean === 'cool') ? 0.80 : 0.65;
     } else {
-      // Medium: use lean to break tie
-      baseSummer = (params.lean === 'cool') ? 1.0 : 0.85;
-      baseAutumn = (params.lean === 'warm') ? 1.0 : 0.85;
+      // Medium (48-52): use lean STRONGLY to break tie
+      // This is the key fix - medium cases should respect lean more
+      if (params.lean === 'cool') {
+        baseSummer = 1.0;
+        baseAutumn = 0.75;
+      } else if (params.lean === 'warm') {
+        baseAutumn = 1.0;
+        baseSummer = 0.75;
+      } else {
+        // No lean: truly ambiguous, give both high scores
+        baseSummer = 0.90;
+        baseAutumn = 0.90;
+      }
     }
 
+    const reasonSummer = isLight ? 'summer favored (light L>' + params.l.toFixed(1) + ')' : 
+                          isDark ? 'summer less likely (dark L=' + params.l.toFixed(1) + ')' :
+                          params.lean === 'cool' ? 'summer favored (medium, cool lean)' : 'summer/autumn ambiguous';
+    const reasonAutumn = isDark ? 'autumn favored (dark L<' + params.l.toFixed(1) + ')' :
+                          isLight ? 'autumn less likely (light L=' + params.l.toFixed(1) + ')' :
+                          params.lean === 'warm' ? 'autumn favored (medium, warm lean)' : 'summer/autumn ambiguous';
+    
     const out = [
-      { season: 'summer' as const, score: baseSummer, reason: `neutral + very muted (C<6, L=${params.l.toFixed(1)}) → ${isLight ? 'summer favored (light)' : 'summer/autumn ambiguous'}` },
-      { season: 'autumn' as const, score: baseAutumn, reason: `neutral + very muted (C<6, L=${params.l.toFixed(1)}) → ${isDark ? 'autumn favored (dark)' : 'summer/autumn ambiguous'}` },
-      { season: 'spring' as const, score: 0.15, reason: 'very low chroma (C<6) makes spring unlikely' },
-      { season: 'winter' as const, score: 0.15, reason: 'very low chroma (C<6) makes winter unlikely' },
+      { season: 'summer' as const, score: baseSummer, reason: `neutral + very muted (C<7, L=${params.l.toFixed(1)}) → ${reasonSummer}` },
+      { season: 'autumn' as const, score: baseAutumn, reason: `neutral + very muted (C<7, L=${params.l.toFixed(1)}) → ${reasonAutumn}` },
+      { season: 'spring' as const, score: 0.15, reason: 'very low chroma (C<7) makes spring unlikely' },
+      { season: 'winter' as const, score: 0.15, reason: 'very low chroma (C<7) makes winter unlikely' },
     ].sort((a, b) => b.score - a.score);
 
     // normalize
