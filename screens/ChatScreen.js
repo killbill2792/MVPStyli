@@ -3,7 +3,7 @@ import { View, Text, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidin
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, Typography, Spacing, BorderRadius, TextStyles, getColors } from '../lib/designSystem';
-import { isUrl, importProductFromUrl, searchWebProducts, normalizeProduct } from '../lib/productSearch';
+import { searchWebProducts, normalizeProduct } from '../lib/productSearch';
 import { useApp } from '../lib/AppContext';
 import { trackEvent } from '../lib/styleEngine';
 import { supabase } from '../lib/supabase';
@@ -505,14 +505,8 @@ export default function ChatScreen({ onBack, onProductSelect }) {
     try {
       let products = [];
 
-      // Check if it's a URL
-      if (userMessage && isUrl(userMessage)) {
-        const product = await importProductFromUrl(userMessage);
-        if (product) {
-          products = [normalizeProduct(product)];
-        }
-      } else if (uploadedImage || userMessage) {
-        // Search for products
+      // Search for products (URL parsing removed - no longer supported)
+      if (uploadedImage || userMessage) {
         products = await searchWebProducts(userMessage || 'clothing fashion');
         products = products.slice(0, 10).map(normalizeProduct);
       }
@@ -522,7 +516,7 @@ export default function ChatScreen({ onBack, onProductSelect }) {
         type: 'ai',
         message: products.length > 0 
           ? `I found ${products.length} product${products.length > 1 ? 's' : ''} for you!`
-          : 'I couldn\'t find any products. Try a different search term or paste a product URL.',
+          : 'I couldn\'t find any products. Try a different search term.',
         products: products
       };
       setChatHistory(prev => [...prev, aiMessage]);

@@ -5,6 +5,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { classifyGarment } from '../../lib/colorClassification';
 
 // Initialize Supabase client (will be checked in handler)
 let supabase: ReturnType<typeof createClient> | null = null;
@@ -228,6 +229,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         price,
         material,
         color,
+        color_hex, // Hex color code for classification
         fit_type, // slim | regular | relaxed | oversized
         fabric_stretch, // none | low | medium | high
         tags,
@@ -258,6 +260,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'fabric_stretch must be none, low, medium, or high' });
       }
 
+      // Classify color if color_hex is provided
+      let classificationData: any = {};
+      if (color_hex && typeof color_hex === 'string') {
+        try {
+          const classification = classifyGarment(color_hex);
+          classificationData = {
+            dominant_hex: classification.dominantHex,
+            lab_l: classification.lab.L,
+            lab_a: classification.lab.a,
+            lab_b: classification.lab.b,
+            season_tag: classification.seasonTag,
+            group_tag: classification.groupTag,
+            nearest_palette_color_name: classification.nearestPaletteColor?.name || null,
+            min_delta_e: classification.minDeltaE,
+            classification_status: classification.classificationStatus,
+          };
+        } catch (error) {
+          console.error('Error classifying color:', error);
+          // Continue without classification if it fails
+        }
+      }
+
       // Build garment data object (simplified - no measurements on garment itself)
       const garmentData: any = {
         name,
@@ -271,11 +295,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         price: price ? parseFloat(price) : undefined,
         material,
         color,
+        color_hex, // Store the hex value
         fit_type,
         fabric_stretch,
         tags: Array.isArray(tags) ? tags : undefined,
         is_active: is_active !== undefined ? Boolean(is_active) : true,
         created_by,
+        ...classificationData, // Include classification results
       };
 
       // Remove undefined values
@@ -392,6 +418,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // admin_email is only used for authentication check
       // sizes are handled separately in garment_sizes table
 
+      // Classify color if color_hex is being updated
+      if (updateData.color_hex && typeof updateData.color_hex === 'string') {
+        try {
+          const classification = classifyGarment(updateData.color_hex);
+          updateData.dominant_hex = classification.dominantHex;
+          updateData.lab_l = classification.lab.L;
+          updateData.lab_a = classification.lab.a;
+          updateData.lab_b = classification.lab.b;
+          updateData.season_tag = classification.seasonTag;
+          updateData.group_tag = classification.groupTag;
+          updateData.nearest_palette_color_name = classification.nearestPaletteColor?.name || null;
+          updateData.min_delta_e = classification.minDeltaE;
+          updateData.classification_status = classification.classificationStatus;
+        } catch (error) {
+          console.error('Error classifying color:', error);
+          // Continue without classification if it fails
+        }
+      }
+
       // Validate category if provided
       if (updateData.category && !['upper', 'lower', 'dresses'].includes(updateData.category)) {
         return res.status(400).json({ error: 'category must be upper, lower, or dresses' });
@@ -407,7 +452,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'price', 'chest', 'waist', 'hip', 'front_length', 'back_length', 'sleeve_length',
         'back_width', 'arm_width', 'shoulder_width', 'collar_girth', 'cuff_girth',
         'armscye_depth', 'across_chest_width', 'front_rise', 'back_rise', 'inseam',
-        'outseam', 'thigh_girth', 'knee_girth', 'hem_girth', 'side_neck_to_hem', 'back_neck_to_hem'
+        'outseam', 'thigh_girth', 'knee_girth', 'hem_girth', 'side_neck_to_hem', 'back_neck_to_hem',
+        'lab_l', 'lab_a', 'lab_b', 'min_delta_e' // Include Lab and deltaE fields
       ];
 
       numericFields.forEach((field) => {

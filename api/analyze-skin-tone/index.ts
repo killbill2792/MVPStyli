@@ -659,10 +659,10 @@ async function sampleSkinFromFace(faceImage: Buffer) {
 
       totalAfterSpatial++;
 
-      const idx = (y * W + x) * C;
-      const r = data[idx];
-      const g = data[idx + 1] ?? data[idx];
-      const b = data[idx + 2] ?? data[idx];
+        const idx = (y * W + x) * C;
+        const r = data[idx];
+        const g = data[idx + 1] ?? data[idx];
+        const b = data[idx + 2] ?? data[idx];
 
       // Track rejection reasons for debugging
       const { h, s, v } = rgbToHsv(r, g, b);
@@ -743,7 +743,7 @@ async function sampleSkinFromFace(faceImage: Buffer) {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const start = Date.now();
-
+  
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');

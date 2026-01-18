@@ -66,94 +66,10 @@ export function normalizeProduct(product: any): NormalizedProduct {
 /**
  * Check if a query looks like a URL
  */
-export function isUrl(query: string): boolean {
-  if (!query || typeof query !== 'string') return false;
-  const trimmed = query.trim();
-  return trimmed.startsWith('http://') || 
-         trimmed.startsWith('https://') || 
-         trimmed.includes('.com') || 
-         trimmed.includes('.net') || 
-         trimmed.includes('.org');
-}
-
 /**
- * Import product from URL
+ * NOTE: URL parsing functionality (isUrl, importProductFromUrl) has been removed
+ * as it's no longer used in the app. The productfromurl API endpoint has been deleted.
  */
-export async function importProductFromUrl(url: string): Promise<NormalizedProduct> {
-  // Try to get API URL from environment, fallback to default
-  // In Expo, environment variables need EXPO_PUBLIC_ prefix
-  const apiUrl = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL || process.env.API_URL;
-  if (!apiUrl) {
-    throw new Error('API URL not configured');
-  }
-  
-  // Ensure no trailing slash
-  const baseUrl = apiUrl.replace(/\/$/, '');
-  const endpoint = `${baseUrl}/api/productfromurl`;
-  
-  console.log('API URL:', baseUrl);
-  console.log('Calling:', endpoint);
-  
-  try {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify({ url }),
-    });
-
-    // Check if response is JSON
-    const contentType = response.headers.get('content-type');
-    const text = await response.text();
-    
-    if (!contentType || !contentType.includes('application/json')) {
-      console.error('Non-JSON response from API:', text.substring(0, 500));
-      // Check for common Vercel errors
-      if (text.includes('DEPLOYMENT_NOT_FOUND') || text.includes('Function not found') || text.includes('404')) {
-        throw new Error('API endpoint not found. Please ensure the API is deployed on Vercel. Check: https://mvp-styli.vercel.app/api/productfromurl');
-      }
-      if (text.includes('502') || text.includes('503') || text.includes('504')) {
-        throw new Error('API server is temporarily unavailable. Please try again in a moment.');
-      }
-      if (response.status === 404) {
-        throw new Error('API endpoint not found. Please verify the deployment on Vercel.');
-      }
-      throw new Error(`Server returned non-JSON response: ${response.status} ${response.statusText}. Response: ${text.substring(0, 100)}`);
-    }
-    
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch (parseError) {
-      console.error('JSON parse error. Response text:', text.substring(0, 200));
-      throw new Error(`Invalid JSON response from server: ${text.substring(0, 100)}`);
-    }
-
-    if (!response.ok) {
-      const errorMsg = typeof data.error === 'string' 
-        ? data.error 
-        : (data.error?.message || data.details || `Failed to import product: ${response.status}`);
-      throw new Error(errorMsg);
-    }
-
-    if (!data.item) {
-      throw new Error('No product data returned from API');
-    }
-
-    return normalizeProduct(data.item);
-  } catch (error: any) {
-    console.error('Error importing product from URL:', error);
-    // Ensure we always throw a proper Error with a string message
-    if (error instanceof Error && error.message) {
-      throw error;
-    }
-    // Handle case where error might be an object
-    const errorMessage = error?.message || error?.error || (typeof error === 'string' ? error : 'Failed to import product from URL. Please check the URL and try again.');
-    throw new Error(errorMessage);
-  }
-}
 
 /**
  * Search web for products using natural language query

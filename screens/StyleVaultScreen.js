@@ -30,6 +30,131 @@ import { getUserFriends } from '../lib/friends';
 import { buildShareUrl } from '../lib/share';
 import { getStyleProfile, refreshStyleProfile } from '../lib/styleEngine';
 import { loadColorProfile, saveColorProfile, getAllSeasons, getSeasonSwatches, analyzeFaceForColorProfile, analyzeFaceForColorProfileFromLocalUri, analyzeFaceForColorProfileFromCroppedImage } from '../lib/colorAnalysis';
+import { fetchGarmentsAsProducts } from '../lib/garmentUtils';
+
+// Import COLOR_SEASONS for color organization - Updated with exact colors provided
+const COLOR_SEASONS = {
+  spring: {
+    neutrals: [
+      { name: "Warm ivory", hex: "#F6EAD7" },
+      { name: "Cream", hex: "#FFF1D6" },
+      { name: "Light camel", hex: "#D8B58A" },
+      { name: "Soft beige", hex: "#E6D2B5" },
+      { name: "Golden sand", hex: "#D9B77C" },
+    ],
+    accents: [
+      { name: "Coral", hex: "#FF6F61" },
+      { name: "Peach", hex: "#FFB38A" },
+      { name: "Warm rose", hex: "#E88A8A" },
+      { name: "Apricot", hex: "#FF9F6B" },
+      { name: "Melon", hex: "#FF8C69" },
+    ],
+    brights: [
+      { name: "Cantaloupe", hex: "#FFA64D" },
+      { name: "Warm yellow", hex: "#FFD84D" },
+      { name: "Bright aqua", hex: "#2ECED0" },
+      { name: "Light turquoise", hex: "#5ED6C1" },
+      { name: "Sunny gold", hex: "#FFC83D" },
+    ],
+    softs: [
+      { name: "Mint", hex: "#BFE6C7" },
+      { name: "Soft peach", hex: "#FFD1B3" },
+      { name: "Light warm pink", hex: "#F6B7B2" },
+      { name: "Soft teal", hex: "#7FCFC3" },
+      { name: "Buttercream", hex: "#FFF0B3" },
+    ],
+  },
+  summer: {
+    neutrals: [
+      { name: "Cool ivory", hex: "#F2F0EB" },
+      { name: "Soft gray", hex: "#C8C8D0" },
+      { name: "Rose beige", hex: "#E3D5D2" },
+      { name: "Misty taupe", hex: "#CDC4C1" },
+      { name: "Silver frost", hex: "#DDE1E8" },
+    ],
+    accents: [
+      { name: "Dusty rose", hex: "#D8A7A7" },
+      { name: "Mauve", hex: "#C8A2C8" },
+      { name: "Soft berry", hex: "#B58CA5" },
+      { name: "Lavender", hex: "#C7B8E0" },
+      { name: "Ballet pink", hex: "#F4C5C9" },
+    ],
+    brights: [
+      { name: "Periwinkle", hex: "#8FA4E8" },
+      { name: "Cool aqua", hex: "#8FD6D5" },
+      { name: "Powder blue", hex: "#AFC8E7" },
+      { name: "Soft fuchsia", hex: "#D66DA3" },
+      { name: "Strawberry ice", hex: "#E87BAA" },
+    ],
+    softs: [
+      { name: "Blue gray", hex: "#B7C4CF" },
+      { name: "Misty blue", hex: "#C6D7E2" },
+      { name: "Heather", hex: "#D8CBE2" },
+      { name: "Soft lilac", hex: "#E7D6F5" },
+      { name: "Cloud pink", hex: "#F7DDE3" },
+    ],
+  },
+  autumn: {
+    neutrals: [
+      { name: "Warm beige", hex: "#E6D5B8" },
+      { name: "Camel", hex: "#C1A16B" },
+      { name: "Olive taupe", hex: "#B6A892" },
+      { name: "Caramel", hex: "#B78B57" },
+      { name: "Soft olive", hex: "#A89F80" },
+    ],
+    accents: [
+      { name: "Terracotta", hex: "#C96541" },
+      { name: "Rust", hex: "#B4441C" },
+      { name: "Burnt sienna", hex: "#A85F3D" },
+      { name: "Mustard", hex: "#D3A63C" },
+      { name: "Warm olive", hex: "#8E8C53" },
+    ],
+    brights: [
+      { name: "Pumpkin", hex: "#F18F01" },
+      { name: "Marigold", hex: "#FFC145" },
+      { name: "Moss green", hex: "#8FAE3E" },
+      { name: "Teal", hex: "#1B998B" },
+      { name: "Brick red", hex: "#A23E3D" },
+    ],
+    softs: [
+      { name: "Sage", hex: "#C4C8A8" },
+      { name: "Dusty olive", hex: "#A3A380" },
+      { name: "Clay", hex: "#C9A28C" },
+      { name: "Soft terracotta", hex: "#D1A38A" },
+      { name: "Muted gold", hex: "#D6BA6A" },
+    ],
+  },
+  winter: {
+    neutrals: [
+      { name: "Snow white", hex: "#FFFFFF" },
+      { name: "Cool black", hex: "#0A0A0A" },
+      { name: "Charcoal", hex: "#333333" },
+      { name: "Silver gray", hex: "#BFC3C9" },
+      { name: "Blue-gray", hex: "#8A97A8" },
+    ],
+    accents: [
+      { name: "Fuchsia", hex: "#E3007E" },
+      { name: "Berry", hex: "#B8004E" },
+      { name: "Royal purple", hex: "#5A2D82" },
+      { name: "Crimson", hex: "#D1002C" },
+      { name: "Electric magenta", hex: "#FF1B8D" },
+    ],
+    brights: [
+      { name: "True red", hex: "#FF0000" },
+      { name: "Sapphire blue", hex: "#0F52BA" },
+      { name: "Emerald", hex: "#009975" },
+      { name: "Icy teal", hex: "#4BC6B9" },
+      { name: "Lemon ice", hex: "#F2FF6E" },
+    ],
+    softs: [
+      { name: "Icy lavender", hex: "#D6D4F7" },
+      { name: "Ice pink", hex: "#F6D3E6" },
+      { name: "Frost blue", hex: "#D8EAFE" },
+      { name: "Soft wine", hex: "#C79CA6" },
+      { name: "Cool plum", hex: "#836283" },
+    ],
+  },
+};
 import { runQualityChecks } from '../lib/imageQualityChecks';
 import FaceCropScreen from '../components/FaceCropScreen';
 import PhotoGuidelinesModal from '../components/PhotoGuidelinesModal';
@@ -181,12 +306,127 @@ const StyleVaultScreen = () => {
   const [receivedRequests, setReceivedRequests] = useState([]); // Friend requests received by user
   const [localPendingRequests, setLocalPendingRequests] = useState(new Set()); // Track locally pending requests for immediate UI update
   const [isUploadingBodyPhoto, setIsUploadingBodyPhoto] = useState(false); // Loading state for body photo upload
+  const [isColorDetailsExpanded, setIsColorDetailsExpanded] = useState(false); // Collapsible color profile details
+  const [colorProducts, setColorProducts] = useState([]); // Products matching user's colors
+  const [isLoadingColorProducts, setIsLoadingColorProducts] = useState(false); // Loading state for color products
+  const [expandedBanner, setExpandedBanner] = useState(null); // 'undertone' | 'depth' | 'clarity' | null
+  const [expandedCategoryProducts, setExpandedCategoryProducts] = useState(null); // 'neutrals' | 'accents' | 'brights' | 'softs' | null
+  const [categoryProducts, setCategoryProducts] = useState({}); // { neutrals: [], accents: [], brights: [], softs: [] }
+  const [isLoadingCategoryProducts, setIsLoadingCategoryProducts] = useState({}); // { neutrals: false, accents: false, ... }
   
   // Password change modal states
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  // Helper function to convert hex to rgba with opacity
+  const hexToRgba = (hex, opacity) => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  };
+
+  // Helper function to mix multiple colors (1st, 3rd, 5th) into a single color
+  const mixColors = (colors) => {
+    if (!colors || colors.length === 0) return null;
+    
+    // Get 1st, 3rd, and 5th colors (indices 0, 2, 4)
+    const color1 = colors[0];
+    const color3 = colors.length > 2 ? colors[2] : colors[0];
+    const color5 = colors.length > 4 ? colors[4] : colors[colors.length - 1];
+    
+    // Convert hex to RGB
+    const hexToRgb = (hex) => {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return { r, g, b };
+    };
+    
+    const rgb1 = hexToRgb(color1.hex);
+    const rgb3 = hexToRgb(color3.hex);
+    const rgb5 = hexToRgb(color5.hex);
+    
+    // Average the RGB values (equal weight for each color)
+    const mixedR = Math.round((rgb1.r + rgb3.r + rgb5.r) / 3);
+    const mixedG = Math.round((rgb1.g + rgb3.g + rgb5.g) / 3);
+    const mixedB = Math.round((rgb1.b + rgb3.b + rgb5.b) / 3);
+    
+    return { r: mixedR, g: mixedG, b: mixedB };
+  };
+
+  // Helper function to get organized colors by category for each season
+  const getOrganizedColors = (season) => {
+    const seasonData = COLOR_SEASONS[season];
+    if (!seasonData) return { neutrals: [], accents: [], brights: [], softs: [] };
+
+    // Return the pre-organized colors
+    return {
+      neutrals: seasonData.neutrals || [],
+      accents: seasonData.accents || [],
+      brights: seasonData.brights || [],
+      softs: seasonData.softs || [],
+    };
+  };
+
+  // Helper function to get season-specific explanations
+  const getColorExplanations = (season, tone, depth, clarity) => {
+    const explanations = {
+      undertone: '',
+      depth: '',
+      clarity: '',
+    };
+
+    // Undertone explanations
+    if (tone === 'warm') {
+      explanations.undertone = 'Your skin reads more golden than pink.';
+    } else if (tone === 'cool') {
+      explanations.undertone = 'Your skin reads more pink than golden.';
+    } else {
+      explanations.undertone = 'Your skin has a balanced mix of golden and pink tones.';
+    }
+
+    // Depth explanations
+    if (depth === 'light') {
+      explanations.depth = 'Light colors enhance your natural brightness.';
+    } else if (depth === 'deep') {
+      explanations.depth = 'Rich, deeper colors complement your natural contrast.';
+    } else {
+      explanations.depth = 'Mid-tone colors balance best on you.';
+    }
+
+    // Clarity explanations
+    if (clarity === 'muted') {
+      explanations.clarity = 'Softer colors look more natural than neon.';
+    } else if (clarity === 'clear') {
+      explanations.clarity = 'Clear, bright colors enhance your natural clarity.';
+    } else {
+      explanations.clarity = 'Vivid, intense colors make you shine.';
+    }
+
+    // Season-specific overrides
+    if (season === 'spring') {
+      if (tone === 'warm') explanations.undertone = 'Your warm, golden undertones glow in warm colors.';
+      if (depth === 'light') explanations.depth = 'Light, fresh colors bring out your natural radiance.';
+      if (clarity === 'clear') explanations.clarity = 'Clear, bright colors enhance your warm glow.';
+    } else if (season === 'summer') {
+      if (tone === 'cool') explanations.undertone = 'Your cool, pink undertones shine in soft cool tones.';
+      if (depth === 'light') explanations.depth = 'Soft, light colors complement your gentle coloring.';
+      if (clarity === 'muted') explanations.clarity = 'Muted, soft colors enhance your natural elegance.';
+    } else if (season === 'autumn') {
+      if (tone === 'warm') explanations.undertone = 'Your warm, golden undertones glow in earthy warm tones.';
+      if (depth === 'deep') explanations.depth = 'Rich, deep colors complement your natural warmth.';
+      if (clarity === 'muted') explanations.clarity = 'Muted, earthy colors enhance your natural warmth.';
+    } else if (season === 'winter') {
+      if (tone === 'cool') explanations.undertone = 'Your cool, pink undertones shine in crisp cool tones.';
+      if (depth === 'deep') explanations.depth = 'Bold, deep colors complement your natural contrast.';
+      if (clarity === 'vivid') explanations.clarity = 'Vivid, intense colors make you stand out.';
+    }
+
+    return explanations;
+  };
 
   // Generate style summary for Identity section
   const getStyleSummary = () => {
@@ -558,9 +798,9 @@ const StyleVaultScreen = () => {
   // Handler for face photo upload after guidelines
   // Helper function to proceed with analysis after crop
   const proceedWithAnalysis = async (imageUri, cropInfo) => {
-    try {
-      setIsAnalyzingFace(true);
-      
+                try {
+                  setIsAnalyzingFace(true);
+                  
       console.log('🎨 [FACE CROP] Proceeding with analysis...');
       
       let profile, uploadedUrl, qualityMessages;
@@ -585,16 +825,16 @@ const StyleVaultScreen = () => {
       
       console.log('🎨 [FACE CROP] Analysis complete, profile:', profile ? 'exists' : 'null');
       console.log('🎨 [FACE CROP] Quality messages:', qualityMessages);
-      
-      setIsAnalyzingFace(false);
-      
-      if (uploadedUrl && user?.id) {
-        await supabase.from('profiles').update({ face_image_url: uploadedUrl }).eq('id', user.id);
-        setFaceImage(uploadedUrl);
-        if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
-      }
-      
-      if (profile && user?.id) {
+                  
+                  setIsAnalyzingFace(false);
+                  
+                  if (uploadedUrl && user?.id) {
+                    await supabase.from('profiles').update({ face_image_url: uploadedUrl }).eq('id', user.id);
+                    setFaceImage(uploadedUrl);
+                    if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
+                  }
+                  
+                  if (profile && user?.id) {
         console.log('🎨 [FACE CROP] Saving profile from API:', {
           tone: profile.tone,
           depth: profile.depth,
@@ -602,11 +842,11 @@ const StyleVaultScreen = () => {
           confidence: profile.confidence,
           needsConfirmation: profile.needsConfirmation,
         });
-        await saveColorProfile(user.id, profile);
-        setColorProfile(profile);
+                    await saveColorProfile(user.id, profile);
+                    setColorProfile(profile);
         setFaceAnalysisError(null);
         
-        const confidencePercent = profile.confidence ? Math.round(profile.confidence * 100) : 0;
+                    const confidencePercent = profile.confidence ? Math.round(profile.confidence * 100) : 0;
         const seasonConfidencePercent = profile.seasonConfidence ? Math.round(profile.seasonConfidence * 100) : 0;
         
         // Show quality messages if present
@@ -617,36 +857,36 @@ const StyleVaultScreen = () => {
             [{ text: 'OK' }]
           );
         }
-        
-        if (profile.season) {
-          showBanner(
+                    
+                    if (profile.season) {
+                      showBanner(
             `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth • Suggested: ${profile.season} (${seasonConfidencePercent}% confidence)`,
-            'success'
-          );
-        } else {
-          showBanner(
-            `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth (${confidencePercent}% confidence). Try a daylight selfie for season suggestion.`,
-            'success'
-          );
-        }
-      } else {
+                        'success'
+                      );
+                  } else {
+                      showBanner(
+                        `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth (${confidencePercent}% confidence). Try a daylight selfie for season suggestion.`,
+                        'success'
+                      );
+                    }
+                  } else {
         console.log('🎨 [FACE CROP] No profile returned from API - face not detected or API error');
-        setIsAnalyzingFace(false);
-        setFaceAnalysisError('No face detected. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.');
-        Alert.alert(
-          'Face Detection',
-          'We couldn\'t detect a face in this photo. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.',
-          [{ text: 'OK' }]
-        );
-        showBanner('✕ No face detected. Please upload a clear face photo.', 'error');
-      }
-    } catch (error) {
+                    setIsAnalyzingFace(false);
+                    setFaceAnalysisError('No face detected. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.');
+                    Alert.alert(
+                      'Face Detection',
+                      'We couldn\'t detect a face in this photo. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.',
+                      [{ text: 'OK' }]
+                    );
+                    showBanner('✕ No face detected. Please upload a clear face photo.', 'error');
+                  }
+                } catch (error) {
       console.error('🎨 [FACE CROP] Error in analysis:', error);
-      setIsAnalyzingFace(false);
+                  setIsAnalyzingFace(false);
       setColorProfile(null);
-      setFaceAnalysisError(`Failed to process photo: ${error.message || 'Unknown error'}`);
-      Alert.alert('Error', `Failed to process photo: ${error.message || 'Unknown error'}`);
-    }
+                  setFaceAnalysisError(`Failed to process photo: ${error.message || 'Unknown error'}`);
+                  Alert.alert('Error', `Failed to process photo: ${error.message || 'Unknown error'}`);
+                }
   };
 
   const handleFacePhotoSource = () => {
@@ -715,6 +955,345 @@ const StyleVaultScreen = () => {
       setColorProfile(profile);
     } else {
       console.log('🎨 [COLOR PROFILE] No profile found in database');
+    }
+  };
+
+  // Fetch products matching user's color profile
+  const loadColorProducts = async () => {
+    if (!colorProfile?.season) {
+      setColorProducts([]);
+      return;
+    }
+
+    setIsLoadingColorProducts(true);
+    try {
+      // Get all color names from the user's season palette
+      const organized = getOrganizedColors(colorProfile.season);
+      const allColorNames = [
+        ...organized.neutrals,
+        ...organized.accents,
+        ...organized.brights,
+        ...organized.softs,
+      ].map(c => c.name.toLowerCase());
+
+      if (allColorNames.length === 0) {
+        setColorProducts([]);
+        setIsLoadingColorProducts(false);
+        return;
+      }
+
+      // Fetch all garments from API
+      const allGarments = await fetchGarmentsAsProducts({});
+      
+      // Filter garments by color - check if product color matches any of the user's colors
+      const filteredProducts = allGarments.filter(product => {
+        if (!product || !product.color) return false;
+        
+        const productColor = String(product.color).toLowerCase().trim();
+        if (!productColor) return false;
+        
+        // Check if any of the user's color names appear in the product color
+        return allColorNames.some(colorName => {
+          // Direct match
+          if (productColor === colorName) return true;
+          // Partial match (e.g., "warm ivory" matches "ivory")
+          if (productColor.includes(colorName) || colorName.includes(productColor)) return true;
+          // Check for common color variations
+          const colorVariations = {
+            'warm ivory': ['ivory', 'cream', 'beige'],
+            'cool ivory': ['ivory', 'white'],
+            'camel': ['tan', 'beige', 'brown'],
+            'terracotta': ['orange', 'rust', 'brick'],
+            'dusty rose': ['rose', 'pink', 'mauve'],
+            'sage': ['green', 'olive', 'mint'],
+            'charcoal': ['gray', 'grey', 'black'],
+            'snow white': ['white', 'ivory'],
+            'cool black': ['black'],
+          };
+          
+          const variations = colorVariations[colorName] || [];
+          return variations.some(v => productColor.includes(v));
+        });
+      }).slice(0, 12); // Limit to 12 products
+
+      setColorProducts(filteredProducts);
+      console.log(`🎨 [COLOR PRODUCTS] Found ${filteredProducts.length} products matching colors out of ${allGarments.length} total`);
+    } catch (error) {
+      console.error('Error loading color products:', error);
+      setColorProducts([]);
+    } finally {
+      setIsLoadingColorProducts(false);
+    }
+  };
+
+  // Load products when color profile changes
+  useEffect(() => {
+    if (colorProfile?.season && !isAnalyzingFace) {
+      loadColorProducts();
+    } else {
+      setColorProducts([]);
+    }
+  }, [colorProfile?.season, isAnalyzingFace]);
+
+  // Helper function to calculate color distance (simple RGB distance)
+  const colorDistance = (hex1, hex2) => {
+    if (!hex1 || !hex2) return Infinity;
+    
+    const normalizeHex = (hex) => {
+      let h = hex.replace('#', '');
+      if (h.length === 3) {
+        h = h.split('').map(c => c + c).join('');
+      }
+      return h;
+    };
+    
+    const h1 = normalizeHex(hex1);
+    const h2 = normalizeHex(hex2);
+    
+    const r1 = parseInt(h1.substring(0, 2), 16);
+    const g1 = parseInt(h1.substring(2, 4), 16);
+    const b1 = parseInt(h1.substring(4, 6), 16);
+    
+    const r2 = parseInt(h2.substring(0, 2), 16);
+    const g2 = parseInt(h2.substring(2, 4), 16);
+    const b2 = parseInt(h2.substring(4, 6), 16);
+    
+    // Calculate Euclidean distance in RGB space
+    return Math.sqrt(
+      Math.pow(r1 - r2, 2) + 
+      Math.pow(g1 - g2, 2) + 
+      Math.pow(b1 - b2, 2)
+    );
+  };
+
+  // Load products for a specific color category using backend classification
+  const loadCategoryProducts = async (category) => {
+    if (!colorProfile?.season || !category) return;
+
+    setIsLoadingCategoryProducts(prev => ({ ...prev, [category]: true }));
+    try {
+      // Use the new suggested-products API endpoint
+      // This endpoint uses pre-computed Lab + ΔE classification stored in database
+      const apiUrl = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL;
+      
+      if (apiUrl) {
+        try {
+          const baseUrl = apiUrl.replace(/\/$/, '');
+          const response = await fetch(
+            `${baseUrl}/api/suggested-products?season=${colorProfile.season}&group=${category}&limit=20`
+          );
+
+          if (response.ok) {
+            const data = await response.json();
+            // Convert garments to product format using existing utility
+            const products = (data.products || []).map(garment => {
+              // Use fetchGarmentsAsProducts conversion logic
+              const images = [];
+              if (garment.image_url) images.push(garment.image_url);
+              if (Array.isArray(garment.additional_images)) {
+                images.push(...garment.additional_images.filter(img => img));
+              }
+
+              return {
+                id: garment.id,
+                name: garment.name || 'Unnamed Product',
+                brand: garment.brand || 'Unknown Brand',
+                price: garment.price || 0,
+                rating: 4.5,
+                category: garment.category,
+                color: garment.color || '',
+                colorHex: garment.color_hex || garment.colorHex || null,
+                material: garment.material || '',
+                image: images[0] || garment.image_url || '',
+                images: images.length > 0 ? images : [garment.image_url || ''],
+                buyUrl: garment.product_link || '',
+                url: garment.product_link || '',
+                product_link: garment.product_link || '',
+                description: garment.description || '',
+                garment_des: garment.description || '',
+                garment_id: garment.id,
+                fit: garment.fit_type || 'regular',
+                fitType: garment.fit_type || 'regular',
+                fabric: garment.material || '',
+                fabricStretch: garment.fabric_stretch || 'none',
+                tags: Array.isArray(garment.tags) ? garment.tags : (garment.tags ? [garment.tags] : []),
+                is_active: garment.is_active !== false,
+                created_at: garment.created_at,
+                source: 'admin_garment',
+              };
+            });
+
+            setCategoryProducts(prev => ({ ...prev, [category]: products }));
+            return;
+          }
+        } catch (apiError) {
+          console.warn('API call failed, falling back to client-side filtering:', apiError);
+        }
+      }
+
+      // Fallback to old method if API URL not configured or API call failed
+      console.warn('Using fallback client-side filtering');
+      const organized = getOrganizedColors(colorProfile.season);
+      const categoryColors = organized[category] || [];
+      const colorNames = categoryColors.map(c => c.name.toLowerCase());
+
+      if (colorNames.length === 0) {
+        setCategoryProducts(prev => ({ ...prev, [category]: [] }));
+        setIsLoadingCategoryProducts(prev => ({ ...prev, [category]: false }));
+        return;
+      }
+
+      const allGarments = await fetchGarmentsAsProducts({});
+      
+      // Comprehensive color variations mapping for all palette colors
+      const colorVariations = {
+        // Spring Neutrals
+        'warm ivory': ['ivory', 'cream', 'beige', 'off-white', 'ecru'],
+        'cream': ['ivory', 'beige', 'off-white', 'ecru', 'warm ivory'],
+        'light camel': ['camel', 'tan', 'beige', 'khaki', 'caramel'],
+        'soft beige': ['beige', 'tan', 'camel', 'khaki', 'sand'],
+        'golden sand': ['sand', 'tan', 'beige', 'camel', 'khaki'],
+        // Spring Accents
+        'coral': ['coral', 'salmon', 'peach', 'apricot', 'orange'],
+        'peach': ['peach', 'coral', 'apricot', 'salmon', 'orange'],
+        'warm rose': ['rose', 'pink', 'salmon', 'coral', 'blush'],
+        'apricot': ['apricot', 'peach', 'orange', 'coral', 'salmon'],
+        'melon': ['melon', 'coral', 'peach', 'salmon', 'orange'],
+        // Spring Brights
+        'cantaloupe': ['cantaloupe', 'orange', 'peach', 'apricot'],
+        'warm yellow': ['yellow', 'gold', 'mustard', 'amber'],
+        'bright aqua': ['aqua', 'turquoise', 'cyan', 'teal'],
+        'light turquoise': ['turquoise', 'aqua', 'cyan', 'teal'],
+        'sunny gold': ['gold', 'yellow', 'amber', 'mustard'],
+        // Spring Softs
+        'mint': ['mint', 'green', 'sage', 'seafoam'],
+        'soft peach': ['peach', 'coral', 'apricot', 'salmon'],
+        'light warm pink': ['pink', 'rose', 'blush', 'salmon'],
+        'soft teal': ['teal', 'turquoise', 'aqua', 'cyan'],
+        'buttercream': ['buttercream', 'cream', 'yellow', 'ivory'],
+        // Summer Neutrals
+        'cool ivory': ['ivory', 'white', 'off-white', 'cream'],
+        'soft gray': ['gray', 'grey', 'silver', 'charcoal'],
+        'rose beige': ['beige', 'rose', 'tan', 'taupe'],
+        'misty taupe': ['taupe', 'beige', 'gray', 'brown'],
+        'silver frost': ['silver', 'gray', 'grey', 'white'],
+        // Summer Accents
+        'dusty rose': ['rose', 'pink', 'mauve', 'blush'],
+        'mauve': ['mauve', 'purple', 'lavender', 'plum'],
+        'soft berry': ['berry', 'purple', 'plum', 'burgundy'],
+        'lavender': ['lavender', 'purple', 'mauve', 'lilac'],
+        'ballet pink': ['pink', 'rose', 'blush', 'salmon'],
+        // Summer Brights
+        'periwinkle': ['periwinkle', 'blue', 'lavender', 'purple'],
+        'cool aqua': ['aqua', 'turquoise', 'cyan', 'teal'],
+        'powder blue': ['blue', 'sky blue', 'baby blue', 'azure'],
+        'soft fuchsia': ['fuchsia', 'pink', 'magenta', 'purple'],
+        'strawberry ice': ['pink', 'rose', 'strawberry', 'blush'],
+        // Summer Softs
+        'blue gray': ['blue gray', 'slate', 'gray', 'grey'],
+        'misty blue': ['blue', 'sky blue', 'powder blue', 'azure'],
+        'heather': ['heather', 'gray', 'grey', 'purple'],
+        'soft lilac': ['lilac', 'lavender', 'purple', 'mauve'],
+        'cloud pink': ['pink', 'rose', 'blush', 'salmon'],
+        // Autumn Neutrals
+        'warm beige': ['beige', 'tan', 'camel', 'khaki'],
+        'camel': ['camel', 'tan', 'beige', 'khaki', 'caramel'],
+        'taupe': ['taupe', 'beige', 'brown', 'gray'],
+        'mocha': ['mocha', 'brown', 'coffee', 'tan'],
+        'olive': ['olive', 'green', 'sage', 'khaki'],
+        // Autumn Accents
+        'terracotta': ['terracotta', 'orange', 'rust', 'brick'],
+        'rust': ['rust', 'orange', 'brown', 'terracotta'],
+        'burnt orange': ['orange', 'rust', 'terracotta', 'brick'],
+        'cinnamon': ['cinnamon', 'brown', 'tan', 'rust'],
+        'copper': ['copper', 'orange', 'rust', 'bronze'],
+        // Autumn Brights
+        'pumpkin': ['pumpkin', 'orange', 'rust', 'terracotta'],
+        'golden yellow': ['yellow', 'gold', 'amber', 'mustard'],
+        'forest green': ['green', 'forest', 'emerald', 'olive'],
+        'burgundy': ['burgundy', 'wine', 'maroon', 'red'],
+        'deep teal': ['teal', 'turquoise', 'green', 'blue'],
+        // Autumn Softs
+        'sage': ['sage', 'green', 'olive', 'mint'],
+        'muted gold': ['gold', 'yellow', 'amber', 'mustard'],
+        // Winter Neutrals
+        'snow white': ['white', 'ivory', 'off-white', 'cream'],
+        'cool black': ['black', 'charcoal', 'navy'],
+        'charcoal': ['charcoal', 'gray', 'grey', 'black'],
+        'silver gray': ['silver', 'gray', 'grey', 'white'],
+        'blue-gray': ['blue gray', 'slate', 'gray', 'grey'],
+        // Winter Accents
+        'fuchsia': ['fuchsia', 'pink', 'magenta', 'purple'],
+        'berry': ['berry', 'purple', 'plum', 'burgundy'],
+        'royal purple': ['purple', 'royal', 'plum', 'violet'],
+        'crimson': ['crimson', 'red', 'burgundy', 'wine'],
+        'electric magenta': ['magenta', 'pink', 'fuchsia', 'purple'],
+        // Winter Brights
+        'true red': ['red', 'crimson', 'scarlet', 'cherry'],
+        'sapphire blue': ['blue', 'navy', 'royal blue', 'cobalt'],
+        'emerald': ['emerald', 'green', 'jade', 'forest'],
+        'icy teal': ['teal', 'turquoise', 'aqua', 'cyan'],
+        'lemon ice': ['yellow', 'lemon', 'gold', 'amber'],
+        // Winter Softs
+        'icy lavender': ['lavender', 'purple', 'mauve', 'lilac'],
+        'ice pink': ['pink', 'rose', 'blush', 'salmon'],
+        'frost blue': ['blue', 'sky blue', 'powder blue', 'azure'],
+        'soft wine': ['wine', 'burgundy', 'maroon', 'red'],
+        'cool plum': ['plum', 'purple', 'burgundy', 'wine'],
+      };
+
+      const filteredProducts = allGarments.filter(product => {
+        if (!product) return false;
+        
+        // Method 1: Hex-based color matching (most accurate)
+        if (product.colorHex) {
+          const productHex = String(product.colorHex).toLowerCase().trim();
+          const matchesHex = colorHexes.some(categoryHex => {
+            const distance = colorDistance(productHex, categoryHex);
+            // Accept colors within a distance threshold (adjustable)
+            return distance < 80; // Threshold for color similarity
+          });
+          if (matchesHex) return true;
+        }
+        
+        // Method 2: Name-based color matching (fallback)
+        if (product.color) {
+          const productColor = String(product.color).toLowerCase().trim();
+          
+          // Direct name match
+          if (colorNames.some(colorName => productColor === colorName)) {
+            return true;
+          }
+          
+          // Partial name match
+          if (colorNames.some(colorName => {
+            if (productColor.includes(colorName) || colorName.includes(productColor)) {
+              return true;
+            }
+            // Check color variations
+            const variations = colorVariations[colorName] || [];
+            return variations.some(v => productColor.includes(v) || v.includes(productColor));
+          })) {
+            return true;
+          }
+        }
+        
+        return false;
+      });
+
+      // Sort by relevance (products with hex match first, then name match)
+      const sortedProducts = filteredProducts.sort((a, b) => {
+        const aHasHex = a.colorHex ? 1 : 0;
+        const bHasHex = b.colorHex ? 1 : 0;
+        return bHasHex - aHasHex; // Hex matches first
+      });
+
+      setCategoryProducts(prev => ({ ...prev, [category]: sortedProducts.slice(0, 20) }));
+    } catch (error) {
+      console.error(`Error loading ${category} products:`, error);
+      setCategoryProducts(prev => ({ ...prev, [category]: [] }));
+    } finally {
+      setIsLoadingCategoryProducts(prev => ({ ...prev, [category]: false }));
     }
   };
 
@@ -1522,155 +2101,455 @@ const StyleVaultScreen = () => {
             )}
           </View>
 
-          {/* Your Colors - Always show, but with different content for new users */}
+          {/* Your Colors - Redesigned to match image */}
           {!isLoadingProfile && (
-            <View style={[styles.section, { marginBottom: 20 }]}>
-              <View style={styles.colorProfileSection}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <Text style={styles.colorProfileTitle}>🎨 Your Colors</Text>
-                  {/* Face Photo Thumbnail */}
-                  <View style={{ alignItems: 'center' }}>
-                    <Pressable onPress={() => setShowFacePhotoGuidelines(true)} disabled={isAnalyzingFace}>
-                      <View style={{ position: 'relative' }}>
-                        {isAnalyzingFace ? (
-                          // Show analyzing state - hide old photo completely
-                          <View style={[styles.colorProfileFaceThumbnail, styles.colorProfileFacePlaceholder, { backgroundColor: 'rgba(99, 102, 241, 0.3)', justifyContent: 'center', alignItems: 'center' }]}>
-                            <ActivityIndicator size="small" color="#6366f1" />
-                          </View>
-                        ) : faceImage ? (
-                          <OptimizedImage 
-                            source={{ uri: faceImage }} 
-                            style={styles.colorProfileFaceThumbnail}
-                            onError={() => setFaceImage(null)}
-                          />
-                        ) : (
-                          <View style={[styles.colorProfileFaceThumbnail, styles.colorProfileFacePlaceholder]}>
-                            <Text style={styles.colorProfileFacePlaceholderText}>🎨</Text>
-                          </View>
+            <View style={styles.colorSectionNew}>
+              {/* Empty state */}
+              {!colorProfile && !isAnalyzingFace && !faceAnalysisError ? (
+                <Text style={styles.colorEmptyText}>
+                  Add a face photo to discover your color season, undertone, and best colors to wear.
+                </Text>
+              ) : isAnalyzingFace ? (
+                <View style={styles.colorAnalyzingState}>
+                  <ActivityIndicator size="small" color="#6366f1" />
+                  <Text style={styles.colorAnalyzingText}>Analyzing your face photo...</Text>
+                </View>
+              ) : faceAnalysisError ? (
+                <Text style={styles.colorErrorText}>{faceAnalysisError}</Text>
+              ) : colorProfile && colorProfile.season ? (
+                <>
+                  {/* Top Title: Your Colors */}
+                  <View style={styles.colorTopSection}>
+                    <Text style={styles.colorMainTitle}>🎨 Your Colors</Text>
+                    
+                    {/* Analysed Season Row: Skin Tone Info (left) + Face Photo (right) */}
+                    <View style={styles.colorSeasonInfoRow}>
+                      {/* Skin Tone Info - Left */}
+                      <View style={styles.colorSeasonInfoRight}>
+                        <Text style={styles.colorSeasonInfoText}>
+                          Analysed Skin tone = {colorProfile.season.charAt(0).toUpperCase() + colorProfile.season.slice(1)}
+                        </Text>
+                        {(colorProfile.seasonConfidence || colorProfile.confidence) && (
+                          <Text style={styles.colorSeasonInfoConfidence}>
+                            Confidence = {Math.round((colorProfile.seasonConfidence || colorProfile.confidence) * 100)}%
+                          </Text>
                         )}
                       </View>
-                    </Pressable>
-                    <Text style={styles.colorProfileFaceLabel}>
-                      {isAnalyzingFace ? 'Analyzing...' : (faceImage ? 'Your Face Photo' : 'Add Face Photo')}
+                      
+                      {/* Face Photo - Right (styled like body photo) */}
+                      <View style={{ alignItems: 'flex-end', marginLeft: 'auto' }}>
+                        <Pressable onPress={() => setShowFacePhotoGuidelines(true)} disabled={isAnalyzingFace}>
+                          {isAnalyzingFace ? (
+                            <View style={[styles.faceThumbnailNew, styles.faceThumbnailLoading]}>
+                              <ActivityIndicator size="small" color="#6366f1" />
+                            </View>
+                          ) : faceImage ? (
+                            <View style={styles.faceThumbnailNew}>
+                              <OptimizedImage 
+                                source={{ uri: faceImage }} 
+                                style={styles.faceThumbnailImage}
+                                onError={() => setFaceImage(null)}
+                              />
+                            </View>
+                          ) : (
+                            <View style={[styles.faceThumbnailNew, styles.faceThumbnailPlaceholder]}>
+                              <Text style={styles.faceThumbnailIcon}>📸</Text>
+                            </View>
+                          )}
+                        </Pressable>
+                        <Text style={[styles.facePhotoLabel, { marginTop: 4 }]}>Your Face Photo</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.colorNoteTextRed}>
+                      {colorProfile.needsConfirmation 
+                        ? 'This is a suggested season. If you think the results are wrong, please update your season manually or upload another photo.'
+                        : 'If you think this analysis is wrong, please edit the season.'}
                     </Text>
-                  </View>
                 </View>
                 
-                {/* Show different content based on state */}
-                {!colorProfile && !isAnalyzingFace && !faceAnalysisError ? (
-                  /* New user - no color profile yet */
-                  <View style={{ marginBottom: 12, padding: 12, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 8 }}>
-                    <Text style={[styles.colorBestLabel, { fontSize: 12, marginBottom: 4 }]}>
-                      Get your color analysis:
+                  {/* Clickable Trait Chips: Undertone, Depth, Clarity - Horizontal Scroll */}
+                  <View style={styles.traitsRowWrapTight}>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.traitsRowContent}
+                    >
+                      <Pressable 
+                        style={[styles.traitChip, expandedBanner === 'undertone' && styles.traitChipActive]}
+                        onPress={() => setExpandedBanner(expandedBanner === 'undertone' ? null : 'undertone')}
+                      >
+                        <Text style={styles.traitChipText} numberOfLines={1} ellipsizeMode="tail">
+                          Undertone: {colorProfile.tone ? colorProfile.tone.charAt(0).toUpperCase() + colorProfile.tone.slice(1) : '—'}
                     </Text>
-                    <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20, color: '#9ca3af' }]}>
-                      Add a face photo to discover your color season, undertone, and best colors to wear.
+                        <Text style={styles.traitChipArrow}>
+                          {expandedBanner === 'undertone' ? '▲' : '▼'}
                     </Text>
-                  </View>
-                ) : (
-                  /* Existing user or analyzing - show "Suggested from face photo" section */
-                  <View style={{ marginBottom: 12, padding: 12, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 8 }}>
-                    <Text style={[styles.colorBestLabel, { fontSize: 12, marginBottom: 4 }]}>
-                      Suggested from face photo:
+                      </Pressable>
+                      <Pressable 
+                        style={[styles.traitChip, expandedBanner === 'depth' && styles.traitChipActive]}
+                        onPress={() => setExpandedBanner(expandedBanner === 'depth' ? null : 'depth')}
+                      >
+                        <Text style={styles.traitChipText} numberOfLines={1} ellipsizeMode="tail">
+                          Depth: {colorProfile.depth ? colorProfile.depth.charAt(0).toUpperCase() + colorProfile.depth.slice(1) : '—'}
                     </Text>
-                    
-                    {/* Analyzing state */}
-                    {isAnalyzingFace && (
-                      <View style={{ alignItems: 'center', paddingVertical: 8 }}>
-                        <ActivityIndicator size="small" color="#6366f1" style={{ marginBottom: 8 }} />
-                        <Text style={[styles.colorBestList, { fontSize: 13, textAlign: 'center', color: '#9ca3af' }]}>
-                          Analyzing your face photo...
+                        <Text style={styles.traitChipArrow}>
+                          {expandedBanner === 'depth' ? '▲' : '▼'}
                         </Text>
-                        <Text style={[styles.colorBestList, { fontSize: 12, textAlign: 'center', marginTop: 4, color: '#6b7280' }]}>
-                          Detecting undertone, depth, and season
+                      </Pressable>
+                      <Pressable 
+                        style={[styles.traitChip, expandedBanner === 'clarity' && styles.traitChipActive]}
+                        onPress={() => setExpandedBanner(expandedBanner === 'clarity' ? null : 'clarity')}
+                      >
+                        <Text style={styles.traitChipText} numberOfLines={1} ellipsizeMode="tail">
+                          Clarity: {(colorProfile.clarity || 'muted').charAt(0).toUpperCase() + (colorProfile.clarity || 'muted').slice(1)}
+                        </Text>
+                        <Text style={styles.traitChipArrow}>
+                          {expandedBanner === 'clarity' ? '▲' : '▼'}
+                        </Text>
+                      </Pressable>
+                    </ScrollView>
+                      </View>
+
+                  {/* What this means - shown when banner is clicked */}
+                  {expandedBanner && (() => {
+                    const explanations = getColorExplanations(
+                      colorProfile.season,
+                      colorProfile.tone,
+                      colorProfile.depth,
+                      colorProfile.clarity || 'muted'
+                    );
+                    return (
+                      <View style={styles.colorExplanationCard}>
+                        <Text style={styles.colorExplanationTitle}>What this means</Text>
+                        <Text style={styles.colorExplanationTextNew}>
+                          {expandedBanner === 'undertone' && explanations.undertone}
+                          {expandedBanner === 'depth' && explanations.depth}
+                          {expandedBanner === 'clarity' && explanations.clarity}
                         </Text>
                       </View>
-                    )}
-                    
-                    {/* Error state */}
-                    {!isAnalyzingFace && faceAnalysisError && (
-                      <View style={{ paddingVertical: 8 }}>
-                        <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20, color: '#ef4444' }]}>
-                          {faceAnalysisError}
-                        </Text>
-                      </View>
-                    )}
-                    
-                    {/* Success state - show verdict */}
-                    {!isAnalyzingFace && !faceAnalysisError && colorProfile && (colorProfile.tone || colorProfile.depth || colorProfile.season) && (
-                    <>
-                      {colorProfile.season ? (
-                        <View>
-                          <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20, marginBottom: 8 }]}>
-                            {colorProfile.tone ? `• Undertone: ${colorProfile.tone.charAt(0).toUpperCase() + colorProfile.tone.slice(1)}` : ''}
-                            {colorProfile.depth ? `\n• Depth: ${colorProfile.depth.charAt(0).toUpperCase() + colorProfile.depth.slice(1)}` : ''}
-                            {colorProfile.season ? `\n• Suggested Season: ${colorProfile.season.charAt(0).toUpperCase() + colorProfile.season.slice(1)}` : ''}
-                            {colorProfile.seasonConfidence ? `\n• Confidence: ${Math.round(colorProfile.seasonConfidence * 100)}%` : ''}
-                            {colorProfile.confidence ? `\n• Overall Confidence: ${Math.round(colorProfile.confidence * 100)}%` : ''}
+                    );
+                  })()}
+
+                  {/* Spring's Colors for you */}
+                  <Text style={styles.colorSeasonTitle}>
+                    {colorProfile.season.charAt(0).toUpperCase() + colorProfile.season.slice(1)}'s Colors for you
+                  </Text>
+
+                  {/* Color Category Cards */}
+                  {(() => {
+                    const organized = getOrganizedColors(colorProfile.season);
+                    return (
+                      <>
+                        {organized.neutrals.length > 0 && (() => {
+                          const mixedColor = mixColors(organized.neutrals);
+                          const bgColor = mixedColor ? `rgba(${mixedColor.r}, ${mixedColor.g}, ${mixedColor.b}, 0.2)` : 'rgba(246, 234, 215, 0.2)';
+                          return (
+                            <View style={[styles.colorCategoryCard, { backgroundColor: bgColor }]}>
+                              {/* Category heading - just text, no background box */}
+                              <Text style={styles.colorCategoryNameNeutrals}>Neutrals</Text>
+                              {/* Swatches in one row - no scroll, reduced gap */}
+                              <View style={styles.swatchRowInline}>
+                                {organized.neutrals.map((color, idx) => (
+                                  <View key={idx} style={styles.swatchItem}>
+                                    <View style={[styles.swatchDot, { backgroundColor: color.hex }]} />
+                                    <Text style={styles.swatchName} numberOfLines={1} ellipsizeMode="tail">
+                                      {color.name}
                           </Text>
-                          {colorProfile.needsConfirmation ? (
-                            <Text style={[styles.colorBestList, { fontSize: 12, lineHeight: 18, color: '#f59e0b', fontStyle: 'italic', marginTop: 4 }]}>
-                              This is a suggested season. If you think the results are wrong, please update your season manually or upload another photo.
-                            </Text>
-                          ) : (
-                            <Text style={[styles.colorBestList, { fontSize: 12, lineHeight: 18, color: '#666', fontStyle: 'italic', marginTop: 4 }]}>
-                              This is a suggested season. If you think the results are wrong, please update your season manually.
-                            </Text>
-                          )}
                         </View>
-                      ) : (
-                        <View>
-                          <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20, marginBottom: 8 }]}>
-                            {colorProfile.tone ? `${colorProfile.tone.charAt(0).toUpperCase() + colorProfile.tone.slice(1)} undertone` : ''}
-                            {colorProfile.depth ? ` • ${colorProfile.depth.charAt(0).toUpperCase() + colorProfile.depth.slice(1)} depth` : ''}
-                            {colorProfile.confidence ? `\n• Confidence: ${Math.round(colorProfile.confidence * 100)}%` : ''}
+                                ))}
+                              </View>
+                              {/* Divider line above Suggested Products */}
+                              <View style={styles.productsDivider} />
+                              {/* Suggested Products Button - like + Create button */}
+                              <Pressable 
+                                onPress={() => {
+                                  if (expandedCategoryProducts === 'neutrals') {
+                                    setExpandedCategoryProducts(null);
+                                  } else {
+                                    setExpandedCategoryProducts('neutrals');
+                                    if (!categoryProducts.neutrals || categoryProducts.neutrals.length === 0) {
+                                      loadCategoryProducts('neutrals');
+                                    }
+                                  }
+                                }}
+                              >
+                                <Text style={styles.productsBtnTextSimple}>
+                                  {expandedCategoryProducts === 'neutrals' ? 'Hide products' : 'Suggested products'}
+                        </Text>
+                              </Pressable>
+                              {/* Products Grid - shown when button is clicked */}
+                              {expandedCategoryProducts === 'neutrals' && (
+                                <View style={styles.productsArea}>
+                                  {isLoadingCategoryProducts.neutrals ? (
+                                    <ActivityIndicator size="small" color="#6366f1" />
+                                  ) : categoryProducts.neutrals && categoryProducts.neutrals.length > 0 ? (
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                      {categoryProducts.neutrals.map((product, idx) => (
+                                        <Pressable
+                                          key={product.id || idx}
+                                          style={styles.colorProductCardSmall}
+                                          onPress={() => {
+                                            setCurrentProduct(product);
+                                            setRoute('product');
+                                          }}
+                                        >
+                                          {(product.image || product.imageUrl || product.image_url) ? (
+                                            <OptimizedImage
+                                              source={{ uri: product.image || product.imageUrl || product.image_url }}
+                                              style={styles.colorProductImageSmall}
+                                              resizeMode="cover"
+                                            />
+                                          ) : (
+                                            <View style={[styles.colorProductImageSmall, styles.colorProductPlaceholderSmall]}>
+                                              <Text>🛍️</Text>
+                                            </View>
+                                          )}
+                                        </Pressable>
+                                      ))}
+                                    </ScrollView>
+                                  ) : (
+                                    <View style={styles.colorProductsEmptySmall}>
+                                      <Text style={styles.colorProductsEmptyTextSmall}>No products available for this color category</Text>
+                                    </View>
+                                  )}
+                                </View>
+                              )}
+                            </View>
+                          );
+                        })()}
+
+                        {/* Accents */}
+                        {organized.accents.length > 0 && (() => {
+                          const mixedColor = mixColors(organized.accents);
+                          const bgColor = mixedColor ? `rgba(${mixedColor.r}, ${mixedColor.g}, ${mixedColor.b}, 0.2)` : 'rgba(255, 111, 97, 0.2)';
+                          return (
+                            <View style={[styles.colorCategoryCard, { backgroundColor: bgColor }]}>
+                              <Text style={styles.colorCategoryName}>Accents</Text>
+                              <View style={styles.swatchRowInline}>
+                                {organized.accents.map((color, idx) => (
+                                  <View key={idx} style={styles.swatchItem}>
+                                    <View style={[styles.swatchDot, { backgroundColor: color.hex }]} />
+                                    <Text style={styles.swatchName} numberOfLines={1} ellipsizeMode="tail">
+                                      {color.name}
                           </Text>
-                          <Text style={[styles.colorBestList, { fontSize: 12, lineHeight: 18, color: '#666', fontStyle: 'italic' }]}>
-                            Season unclear (lighting/photo variation). You can choose manually or upload another photo.
+                                  </View>
+                                ))}
+                              </View>
+                              <View style={styles.productsDivider} />
+                              <Pressable 
+                                onPress={() => {
+                                  if (expandedCategoryProducts === 'accents') {
+                                    setExpandedCategoryProducts(null);
+                                  } else {
+                                    setExpandedCategoryProducts('accents');
+                                    if (!categoryProducts.accents || categoryProducts.accents.length === 0) {
+                                      loadCategoryProducts('accents');
+                                    }
+                                  }
+                                }}
+                              >
+                                <Text style={styles.productsBtnTextSimple}>
+                                  {expandedCategoryProducts === 'accents' ? 'Hide products' : 'Suggested products'}
                           </Text>
+                              </Pressable>
+                              {expandedCategoryProducts === 'accents' && (
+                                <View style={styles.productsArea}>
+                                  {isLoadingCategoryProducts.accents ? (
+                                    <ActivityIndicator size="small" color="#6366f1" />
+                                  ) : categoryProducts.accents && categoryProducts.accents.length > 0 ? (
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                      {categoryProducts.accents.map((product, idx) => (
+                                        <Pressable
+                                          key={product.id || idx}
+                                          style={styles.colorProductCardSmall}
+                                          onPress={() => {
+                                            setCurrentProduct(product);
+                                            setRoute('product');
+                                          }}
+                                        >
+                                          {(product.image || product.imageUrl || product.image_url) ? (
+                                            <OptimizedImage
+                                              source={{ uri: product.image || product.imageUrl || product.image_url }}
+                                              style={styles.colorProductImageSmall}
+                                              resizeMode="cover"
+                                            />
+                                          ) : (
+                                            <View style={[styles.colorProductImageSmall, styles.colorProductPlaceholderSmall]}>
+                                              <Text>🛍️</Text>
                         </View>
                       )}
-                    </>
-                  )}
-                  
-                  {/* Initial state - no photo uploaded yet or no profile data (only show if we have a colorProfile but no data) */}
-                  {!isAnalyzingFace && !faceAnalysisError && colorProfile && (!colorProfile.tone && !colorProfile.depth && !colorProfile.season) && (
-                    <Text style={[styles.colorBestList, { fontSize: 13, lineHeight: 20, color: '#9ca3af', fontStyle: 'italic' }]}>
-                      {faceImage ? 'Re-upload face photo to get color analysis' : 'Upload a face photo to get color analysis'}
+                                        </Pressable>
+                                      ))}
+                                    </ScrollView>
+                                  ) : (
+                                    <View style={styles.colorProductsEmptySmall}>
+                                      <Text style={styles.colorProductsEmptyTextSmall}>No products available for this color category</Text>
+                                    </View>
+                                  )}
+                                </View>
+                              )}
+                            </View>
+                          );
+                        })()}
+
+                        {/* Brights */}
+                        {organized.brights.length > 0 && (() => {
+                          const mixedColor = mixColors(organized.brights);
+                          const bgColor = mixedColor ? `rgba(${mixedColor.r}, ${mixedColor.g}, ${mixedColor.b}, 0.2)` : 'rgba(255, 166, 77, 0.2)';
+                          return (
+                            <View style={[styles.colorCategoryCard, { backgroundColor: bgColor }]}>
+                              <Text style={styles.colorCategoryName}>Brights</Text>
+                              <View style={styles.swatchRowInline}>
+                                {organized.brights.map((color, idx) => (
+                                  <View key={idx} style={styles.swatchItem}>
+                                    <View style={[styles.swatchDot, { backgroundColor: color.hex }]} />
+                                    <Text style={styles.swatchName} numberOfLines={1} ellipsizeMode="tail">
+                                      {color.name}
                     </Text>
-                  )}
+                                  </View>
+                                ))}
+                              </View>
+                              <View style={styles.productsDivider} />
+                              <Pressable 
+                                onPress={() => {
+                                  if (expandedCategoryProducts === 'brights') {
+                                    setExpandedCategoryProducts(null);
+                                  } else {
+                                    setExpandedCategoryProducts('brights');
+                                    if (!categoryProducts.brights || categoryProducts.brights.length === 0) {
+                                      loadCategoryProducts('brights');
+                                    }
+                                  }
+                                }}
+                              >
+                                <Text style={styles.productsBtnTextSimple}>
+                                  {expandedCategoryProducts === 'brights' ? 'Hide products' : 'Suggested products'}
+                                </Text>
+                              </Pressable>
+                              {expandedCategoryProducts === 'brights' && (
+                                <View style={styles.productsArea}>
+                                  {isLoadingCategoryProducts.brights ? (
+                                    <ActivityIndicator size="small" color="#6366f1" />
+                                  ) : categoryProducts.brights && categoryProducts.brights.length > 0 ? (
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                      {categoryProducts.brights.map((product, idx) => (
+                                        <Pressable
+                                          key={product.id || idx}
+                                          style={styles.colorProductCardSmall}
+                                          onPress={() => {
+                                            setCurrentProduct(product);
+                                            setRoute('product');
+                                          }}
+                                        >
+                                          {(product.image || product.imageUrl || product.image_url) ? (
+                                            <OptimizedImage
+                                              source={{ uri: product.image || product.imageUrl || product.image_url }}
+                                              style={styles.colorProductImageSmall}
+                                              resizeMode="cover"
+                                            />
+                                          ) : (
+                                            <View style={[styles.colorProductImageSmall, styles.colorProductPlaceholderSmall]}>
+                                              <Text>🛍️</Text>
+                                            </View>
+                                          )}
+                                        </Pressable>
+                                      ))}
+                                    </ScrollView>
+                                  ) : (
+                                    <View style={styles.colorProductsEmptySmall}>
+                                      <Text style={styles.colorProductsEmptyTextSmall}>No products available for this color category</Text>
+                                    </View>
+                                  )}
+                                </View>
+                              )}
+                            </View>
+                          );
+                        })()}
+
+                        {/* Softs */}
+                        {organized.softs.length > 0 && (() => {
+                          const mixedColor = mixColors(organized.softs);
+                          const bgColor = mixedColor ? `rgba(${mixedColor.r}, ${mixedColor.g}, ${mixedColor.b}, 0.2)` : 'rgba(191, 230, 199, 0.2)';
+                          return (
+                            <View style={[styles.colorCategoryCard, { marginBottom: 0, backgroundColor: bgColor }]}>
+                              <Text style={styles.colorCategoryName}>Softs</Text>
+                              <View style={styles.swatchRowInline}>
+                                {organized.softs.map((color, idx) => (
+                                  <View key={idx} style={styles.swatchItem}>
+                                    <View style={[styles.swatchDot, { backgroundColor: color.hex }]} />
+                                    <Text style={styles.swatchName} numberOfLines={1} ellipsizeMode="tail">
+                                      {color.name}
+                                    </Text>
                 </View>
-                )}
-                
-                {/* Hide color profile details while analyzing */}
-                {!isAnalyzingFace && colorProfile && (
-                  <>
-                <View style={styles.colorSeasonBadge}>
-                  <Text style={styles.colorSeasonText}>{colorProfile.description}</Text>
-                </View>
-                <View style={styles.colorSwatchRow}>
-                  {getSeasonSwatches(colorProfile.season).slice(0, 6).map((color, idx) => (
-                    <View key={idx} style={[styles.colorSwatch, { backgroundColor: color }]} />
                   ))}
                 </View>
-                <Text style={styles.colorBestLabel}>Colors that love you:</Text>
-                <Text style={styles.colorBestList}>{colorProfile.bestColors.slice(0, 4).join(', ')}</Text>
+                              <View style={styles.productsDivider} />
                 <Pressable 
-                  style={styles.changeSeasonBtn}
-                  onPress={() => setShowSeasonPicker(true)}
-                >
-                      <Text style={styles.changeSeasonText}>Edit Season →</Text>
+                                onPress={() => {
+                                  if (expandedCategoryProducts === 'softs') {
+                                    setExpandedCategoryProducts(null);
+                                  } else {
+                                    setExpandedCategoryProducts('softs');
+                                    if (!categoryProducts.softs || categoryProducts.softs.length === 0) {
+                                      loadCategoryProducts('softs');
+                                    }
+                                  }
+                                }}
+                              >
+                                <Text style={styles.productsBtnTextSimple}>
+                                  {expandedCategoryProducts === 'softs' ? 'Hide products' : 'Suggested products'}
+                                </Text>
                 </Pressable>
-                  </>
-                )}
+                              {expandedCategoryProducts === 'softs' && (
+                                <View style={styles.productsArea}>
+                                  {isLoadingCategoryProducts.softs ? (
+                                    <ActivityIndicator size="small" color="#6366f1" />
+                                  ) : categoryProducts.softs && categoryProducts.softs.length > 0 ? (
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                      {categoryProducts.softs.map((product, idx) => (
+                                        <Pressable
+                                          key={product.id || idx}
+                                          style={styles.colorProductCardSmall}
+                                          onPress={() => {
+                                            setCurrentProduct(product);
+                                            setRoute('product');
+                                          }}
+                                        >
+                                          {(product.image || product.imageUrl || product.image_url) ? (
+                                            <OptimizedImage
+                                              source={{ uri: product.image || product.imageUrl || product.image_url }}
+                                              style={styles.colorProductImageSmall}
+                                              resizeMode="cover"
+                                            />
+                                          ) : (
+                                            <View style={[styles.colorProductImageSmall, styles.colorProductPlaceholderSmall]}>
+                                              <Text>🛍️</Text>
+                                            </View>
+                                          )}
+                                        </Pressable>
+                                      ))}
+                                    </ScrollView>
+                                  ) : (
+                                    <View style={styles.colorProductsEmptySmall}>
+                                      <Text style={styles.colorProductsEmptyTextSmall}>No products available for this color category</Text>
               </View>
+                                  )}
+                                </View>
+                              )}
+                            </View>
+                          );
+                        })()}
+                      </>
+                    );
+                  })()}
+                </>
+              ) : null}
             </View>
           )}
         </View>
 
         {/* SECTION 3: FIT PROFILE (Summary Card) */}
-        <SectionCard title="Fit Profile" style={{ marginBottom: 20 }}>
-          <View style={styles.fitProfileSummaryCard}>
+        <View style={styles.fitProfileSummaryCard}>
             {/* Profile Name with Photos */}
             <View style={styles.fitProfileHeaderRow}>
               <Text style={styles.fitProfileName}>Fit Profile</Text>
@@ -1732,7 +2611,6 @@ const StyleVaultScreen = () => {
               <Text style={styles.fitProfileEditBtnText}>Edit Fit Profile</Text>
             </Pressable>
           </View>
-        </SectionCard>
 
         {/* SECTION 4: YOUR WORKSPACE */}
         <View style={styles.section}>
@@ -4126,36 +5004,645 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  // Color Profile Styles
-  colorProfileSection: {
-    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+  // Color Profile Styles - New Design
+  colorSectionNew: {
+    marginBottom: 0,
+  },
+  colorTopSection: {
+    marginBottom: 20,
+  },
+  colorMainTitle: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginBottom: 12,
+  },
+  faceThumbnailNew: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: '#6366f1',
+    overflow: 'hidden',
+  },
+  faceThumbnailImage: {
+    width: '100%',
+    height: '100%',
+  },
+  facePhotoLabel: {
+    color: '#9ca3af',
+    fontSize: 11,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  colorSeasonInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  colorSeasonInfoRight: {
+    flex: 1,
+    flexDirection: 'column',
+    gap: 4,
+  },
+  colorSeasonInfoText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  colorSeasonInfoConfidence: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  colorNoteTextNew: {
+    color: '#9ca3af',
+    fontSize: 12,
+    lineHeight: 18,
+    fontStyle: 'italic',
+  },
+  colorNoteTextRed: {
+    color: '#ef4444',
+    fontSize: 12,
+    lineHeight: 18,
+    fontStyle: 'italic',
+  },
+  // Trait chips row - horizontal scroll
+  traitsRowWrap: {
+    marginTop: 10,
+    marginBottom: 12,
+  },
+  traitsRowWrapTight: {
+    marginTop: 4,
+    marginBottom: 12,
+  },
+  traitsRowContent: {
+    gap: 10,
+    paddingHorizontal: 0,
+  },
+  traitChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    alignSelf: 'flex-start',
+  },
+  traitChipActive: {
+    backgroundColor: 'rgba(99,102,241,0.16)',
+    borderColor: 'rgba(99,102,241,0.35)',
+  },
+  traitChipText: {
+    color: '#E5E7EB',
+    fontSize: 12,
+    fontWeight: '700',
+    flexShrink: 1,
+  },
+  traitChipArrow: {
+    color: '#9CA3AF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  colorExplanationCard: {
+    backgroundColor: 'rgba(15, 23, 42, 0.8)',
     borderRadius: 12,
     padding: 16,
-    marginTop: 16,
+    marginBottom: 20,
     borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  colorProfileTitle: {
+  colorExplanationTitle: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 12,
   },
-  colorSeasonBadge: {
-    backgroundColor: 'rgba(99, 102, 241, 0.3)',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-    marginBottom: 12,
+  colorExplanationTextNew: {
+    color: '#e5e7eb',
+    fontSize: 14,
+    lineHeight: 22,
   },
-  colorSeasonText: {
+  colorSeasonTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 20,
+    marginTop: 8,
+  },
+  colorCategoryCard: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  colorCategoryContent: {
+    paddingTop: 0,
+  },
+  colorCategoryName: {
+    color: '#FFF',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+    marginBottom: 8,
+  },
+  colorCategoryNameNeutrals: {
+    color: '#FFF',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+    marginBottom: 8,
+  },
+  // Swatches - inline, no scroll, reduced gap
+  swatchRowInline: {
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
+    gap: 6,
+    paddingVertical: 4,
+    marginBottom: 8,
+  },
+  swatchRow: {
+    gap: 12,
+    paddingVertical: 6,
+    paddingRight: 8,
+  },
+  swatchItem: {
+    alignItems: 'center',
+    flex: 1,
+    minWidth: 0,
+  },
+  swatchDot: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.20)',
+    marginBottom: 6,
+  },
+  swatchName: {
+    color: '#D1D5DB',
+    fontSize: 10,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  colorModelImageContainer: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 12,
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+  },
+  colorModelImage: {
+    width: '100%',
+    height: '100%',
+  },
+  colorModelPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(30, 41, 59, 0.8)',
+  },
+  colorModelPlaceholderText: {
+    fontSize: 48,
+    opacity: 0.5,
+  },
+  productsDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  productsBtnTextSimple: {
+    fontSize: 14,
+    color: '#6366f1',
+    fontWeight: '600',
+  },
+  productsArea: {
+    marginTop: 10,
+  },
+  colorProductCardSmall: {
+    width: 100,
+    height: 120,
+    marginRight: 12,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+  },
+  colorProductImageSmall: {
+    width: '100%',
+    height: '100%',
+  },
+  colorProductPlaceholderSmall: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(30, 41, 59, 0.8)',
+  },
+  colorProductsEmptySmall: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  colorProductsEmptyTextSmall: {
+    color: '#9ca3af',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  // Color Profile Styles - Clean, spacious layout (keeping for backward compatibility)
+  colorSectionClean: {
+    marginBottom: 32,
+    paddingHorizontal: 4,
+  },
+  colorHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  colorTitleClean: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  faceThumbnailClean: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 2,
+    borderColor: '#6366f1',
+  },
+  faceThumbnailLoading: {
+    backgroundColor: 'rgba(99, 102, 241, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  faceThumbnailPlaceholder: {
+    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  faceThumbnailIcon: {
+    fontSize: 24,
+  },
+  colorEmptyText: {
+    color: '#9ca3af',
+    fontSize: 15,
+    lineHeight: 24,
+    marginTop: 8,
+  },
+  colorAnalyzingState: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  colorAnalyzingText: {
+    color: '#9ca3af',
+    fontSize: 14,
+  },
+  colorErrorText: {
+    color: '#ef4444',
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 8,
+  },
+  colorSummaryClean: {
+    marginBottom: 24,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  colorSummaryText: {
+    color: '#e5e7eb',
+    fontSize: 15,
+    lineHeight: 24,
+    marginBottom: 8,
+  },
+  colorSummaryLabel: {
+    color: '#9ca3af',
+    fontWeight: '600',
+  },
+  colorConfidenceText: {
+    color: '#9ca3af',
+    fontSize: 13,
+    marginTop: 4,
+  },
+  colorsHeaderText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 16,
+    marginTop: 4,
+  },
+  colorCategoryLabelClean: {
+    color: '#9ca3af',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 20,
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  colorSwatchRowClean: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+    flexWrap: 'nowrap',
+  },
+  colorSwatchItemClean: {
+    alignItems: 'center',
+    flex: 1,
+    minWidth: 0,
+    maxWidth: '20%',
+  },
+  colorSwatchClean: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.3)',
+    marginBottom: 6,
+  },
+  colorSwatchNameClean: {
+    color: '#d1d5db',
+    fontSize: 9,
+    fontWeight: '500',
+    textAlign: 'center',
+    textTransform: 'capitalize',
+    lineHeight: 12,
+    paddingHorizontal: 2,
+  },
+  colorDetailsToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 24,
+    marginBottom: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: 'rgba(30, 41, 59, 0.6)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  colorDetailsToggleText: {
+    color: '#9ca3af',
+    fontSize: 13,
+    fontWeight: '600',
+    marginRight: 8,
+  },
+  colorDetailsToggleArrow: {
+    color: '#9ca3af',
+    fontSize: 12,
+  },
+  colorNoteText: {
+    color: '#9ca3af',
+    fontSize: 12,
+    lineHeight: 18,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 12,
+  },
+  colorDetailsSection: {
+    marginTop: 24,
+    paddingTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  colorDetailsTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 20,
+    letterSpacing: 0.5,
+  },
+  colorExplanationItem: {
+    marginBottom: 20,
+  },
+  colorExplanationLabelClean: {
+    color: '#9ca3af',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  colorExplanationValueClean: {
     color: '#a5b4fc',
+    fontWeight: '700',
+  },
+  colorExplanationTextClean: {
+    color: '#e5e7eb',
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  colorEditSeasonBtn: {
+    alignSelf: 'flex-start',
+    marginTop: 16,
+  },
+  colorEditSeasonText: {
+    color: '#6366f1',
     fontSize: 14,
     fontWeight: '600',
   },
+  colorSwatchRowWithNames: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+    flexWrap: 'nowrap',
+  },
+  colorSwatchWithName: {
+    alignItems: 'center',
+    flex: 1,
+    minWidth: 0,
+    maxWidth: '20%',
+  },
+  colorSwatchLarge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.3)',
+    marginBottom: 4,
+  },
+  colorSwatchName: {
+    color: '#d1d5db',
+    fontSize: 8,
+    fontWeight: '500',
+    textAlign: 'center',
+    textTransform: 'capitalize',
+    lineHeight: 11,
+    paddingHorizontal: 2,
+  },
+  tapForDetailsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: 'rgba(30, 41, 59, 0.8)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  tapForDetailsText: {
+    color: '#9ca3af',
+    fontSize: 12,
+    fontWeight: '600',
+    marginRight: 6,
+  },
+  tapForDetailsArrow: {
+    color: '#9ca3af',
+    fontSize: 11,
+  },
+  colorDetailCard: {
+    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  colorDetailCardTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 20,
+    letterSpacing: 0.5,
+  },
+  colorExplanationRow: {
+    marginBottom: 16,
+  },
+  colorExplanationLabel: {
+    color: '#9ca3af',
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  colorExplanationValue: {
+    color: '#a5b4fc',
+    fontWeight: '700',
+  },
+  colorExplanationText: {
+    color: '#e5e7eb',
+    fontSize: 14,
+    lineHeight: 22,
+  },
+  colorChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 12,
+  },
+  colorChip: {
+    alignItems: 'center',
+    minWidth: 60,
+  },
+  colorChipSwatch: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.25)',
+    marginBottom: 6,
+  },
+  colorChipText: {
+    color: '#9ca3af',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  colorProductsScroll: {
+    paddingVertical: 8,
+    paddingRight: 16,
+  },
+  colorProductCard: {
+    width: 160,
+    marginRight: 12,
+    backgroundColor: 'rgba(30, 41, 59, 0.75)',
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+    // Glass effect with subtle gradient overlay
+    overflow: 'hidden',
+  },
+  colorProductImage: {
+    width: '100%',
+    height: 180,
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+  },
+  colorProductPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(30, 41, 59, 0.8)',
+  },
+  colorProductPlaceholderIcon: {
+    fontSize: 32,
+    opacity: 0.5,
+  },
+  colorProductInfo: {
+    padding: 12,
+    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+  },
+  colorProductName: {
+    color: '#e5e7eb',
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 4,
+    lineHeight: 18,
+  },
+  colorProductPrice: {
+    color: '#6366f1',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  colorProductsLoading: {
+    paddingVertical: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  colorProductsLoadingText: {
+    color: '#9ca3af',
+    fontSize: 13,
+    marginTop: 8,
+  },
+  colorProductsEmpty: {
+    paddingVertical: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  colorProductsEmptyIcon: {
+    fontSize: 40,
+    marginBottom: 12,
+    opacity: 0.6,
+  },
+  colorProductsEmptyText: {
+    color: '#9ca3af',
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 20,
+    paddingHorizontal: 20,
+  },
   colorSwatchRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     marginBottom: 12,
   },
@@ -4172,9 +5659,10 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   colorBestList: {
-    color: '#fff',
+    color: '#f3f4f6',
     fontSize: 14,
     marginBottom: 12,
+    lineHeight: 22,
   },
   changeSeasonBtn: {
     alignSelf: 'flex-start',
@@ -4385,6 +5873,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
+    marginBottom: 32,
   },
   fitProfileSummaryRow: {
     flexDirection: 'row',

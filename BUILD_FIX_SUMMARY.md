@@ -11,6 +11,12 @@
 - **Added**: `react-native-reanimated/plugin` to `babel.config.js`
 - **Status**: ✅ Configured correctly
 
+### 3. **Folly Build Error (NEW)**
+- **Problem**: `'folly/coro/Coroutine.h' file not found` - New architecture requires Folly library
+- **Solution**: Disabled new architecture (`newArchEnabled: false`) to avoid Folly dependency
+- **Status**: ✅ Fixed
+- **Note**: `react-native-reanimated@3.15.5` works perfectly without new architecture
+
 ## 📦 Current Dependencies
 
 - `react-native-reanimated@3.15.5` ✅ (stable, compatible with Expo SDK 54)

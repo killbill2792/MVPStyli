@@ -614,12 +614,12 @@ const AdminGarmentsScreen = ({ onBack }) => {
             const stringValue = String(fieldValue).trim();
             if (stringValue !== '' && !isNaN(stringValue)) {
               let value = parseFloat(stringValue);
-              // Convert to inches if input is in cm
-              if (measurementUnit === 'cm') {
-                value = value / 2.54; // cm to inches
-              }
-              // Store in inches
-              processedSize[field] = value;
+            // Convert to inches if input is in cm
+            if (measurementUnit === 'cm') {
+              value = value / 2.54; // cm to inches
+            }
+            // Store in inches
+            processedSize[field] = value;
             }
           }
         });
@@ -633,12 +633,12 @@ const AdminGarmentsScreen = ({ onBack }) => {
             const stringValue = String(fieldValue).trim();
             if (stringValue !== '' && !isNaN(stringValue)) {
               let value = parseFloat(stringValue);
-              // Convert to inches if input is in cm
-              if (measurementUnit === 'cm') {
-                value = value / 2.54; // cm to inches
-              }
-              // Store in inches
-              processedSize[field] = value;
+            // Convert to inches if input is in cm
+            if (measurementUnit === 'cm') {
+              value = value / 2.54; // cm to inches
+            }
+            // Store in inches
+            processedSize[field] = value;
             }
           }
         });
@@ -2031,9 +2031,9 @@ const AdminGarmentsScreen = ({ onBack }) => {
                           {/* Measurements */}
                           {item.measurements && Object.entries(item.measurements).slice(0, 4).map(([key, val]) => (
                             <Text key={key} style={{ color: Colors.textPrimary, width: 70, marginLeft: 4, textAlign: 'center', fontSize: 12 }}>
-                              {typeof val === 'number' ? val.toFixed(1) : val}
-                            </Text>
-                          ))}
+                            {typeof val === 'number' ? val.toFixed(1) : val}
+                          </Text>
+                        ))}
                         </Pressable>
                       );
                     })}
