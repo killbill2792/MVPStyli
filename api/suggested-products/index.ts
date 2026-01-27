@@ -21,8 +21,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase client
-let supabase: ReturnType<typeof createClient> | null = null;
+// Initialize Supabase client with any type to avoid strict typing issues
+let supabase: ReturnType<typeof createClient<any, any>> | null = null;
 
 function getSupabaseClient() {
   if (!supabase) {
@@ -33,7 +33,8 @@ function getSupabaseClient() {
       throw new Error('Missing Supabase environment variables: SUPABASE_URL or SUPABASE_ANON_KEY');
     }
 
-    supabase = createClient(supabaseUrl, supabaseKey);
+    // Use 'any' type parameters to avoid strict schema typing
+    supabase = createClient<any, any>(supabaseUrl, supabaseKey);
   }
   return supabase;
 }
