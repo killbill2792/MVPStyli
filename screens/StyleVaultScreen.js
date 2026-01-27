@@ -334,6 +334,7 @@ const StyleVaultScreen = () => {
   const [receivedRequests, setReceivedRequests] = useState([]); // Friend requests received by user
   const [localPendingRequests, setLocalPendingRequests] = useState(new Set()); // Track locally pending requests for immediate UI update
   const [isUploadingBodyPhoto, setIsUploadingBodyPhoto] = useState(false); // Loading state for body photo upload
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false); // Loading state for account deletion
   const [isColorDetailsExpanded, setIsColorDetailsExpanded] = useState(false); // Collapsible color profile details
   const [colorProducts, setColorProducts] = useState([]); // Products matching user's colors
   const [isLoadingColorProducts, setIsLoadingColorProducts] = useState(false); // Loading state for color products
@@ -3680,6 +3681,85 @@ const StyleVaultScreen = () => {
         >
           <Text style={styles.signOutText}>Sign Out</Text>
         </Pressable>
+        
+        {/* Delete Account Button - Required by App Store */}
+        <Pressable
+          style={styles.deleteAccountButton}
+          disabled={isDeletingAccount}
+          onPress={() => {
+            Alert.alert(
+              'Delete Account',
+              'Are you sure you want to permanently delete your account? This action cannot be undone.\n\nAll your data including:\n• Profile and measurements\n• Color analysis\n• Saved outfits\n• Pods and votes\n• Friends list\n\nwill be permanently deleted.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete Account',
+                  style: 'destructive',
+                  onPress: () => {
+                    // Second confirmation with email input
+                    Alert.prompt(
+                      'Confirm Deletion',
+                      'Please type your email address to confirm account deletion:',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Delete Forever',
+                          style: 'destructive',
+                          onPress: async (inputEmail) => {
+                            if (!inputEmail || inputEmail.toLowerCase() !== user?.email?.toLowerCase()) {
+                              Alert.alert('Error', 'Email does not match your account email.');
+                              return;
+                            }
+                            
+                            setIsDeletingAccount(true);
+                            try {
+                              const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL;
+                              const response = await fetch(`${API_BASE}/api/delete-account`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  userId: user?.id,
+                                  confirmEmail: inputEmail,
+                                }),
+                              });
+                              
+                              const result = await response.json();
+                              
+                              if (response.ok && result.success) {
+                                // Sign out and navigate to auth
+                                await supabase.auth.signOut();
+                                if (setUser) setUser(null);
+                                if (setSavedFits) setSavedFits([]);
+                                if (setRoute) setRoute('auth');
+                                Alert.alert('Account Deleted', 'Your account has been permanently deleted.');
+                              } else {
+                                throw new Error(result.error || 'Failed to delete account');
+                              }
+                            } catch (error) {
+                              console.error('Error deleting account:', error);
+                              Alert.alert('Error', 'Failed to delete account. Please try again or contact support.');
+                            } finally {
+                              setIsDeletingAccount(false);
+                            }
+                          }
+                        }
+                      ],
+                      'plain-text',
+                      '',
+                      'email-address'
+                    );
+                  }
+                }
+              ]
+            );
+          }}
+        >
+          {isDeletingAccount ? (
+            <ActivityIndicator color="#ff4444" size="small" />
+          ) : (
+            <Text style={styles.deleteAccountText}>Delete Account</Text>
+          )}
+        </Pressable>
       </View>
 
     </ScrollView>
@@ -5199,6 +5279,21 @@ const styles = StyleSheet.create({
     color: '#ef4444',
     fontWeight: '600',
     fontSize: 16,
+  },
+  deleteAccountButton: {
+    backgroundColor: 'transparent',
+    padding: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 68, 68, 0.2)',
+  },
+  deleteAccountText: {
+    color: '#ff4444',
+    fontWeight: '500',
+    fontSize: 14,
+    opacity: 0.8,
   },
   friendsContainer: {
     backgroundColor: 'rgba(255,255,255,0.05)',

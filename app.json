@@ -23,6 +23,9 @@
       "bundleIdentifier": "ai.stylit.app",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "Stylit needs access to your photo library to upload photos for skin tone analysis, body measurements, and to share your outfits with friends.",
+        "NSCameraUsageDescription": "Stylit uses your camera to take selfies for skin tone analysis and capture photos of garments for personalized fit and color recommendations.",
+        "NSPhotoLibraryAddUsageDescription": "Stylit saves your styled outfit images to your photo library so you can share them with friends.",
         "LSApplicationQueriesSchemes": [
           "whatsapp",
           "instagram",
