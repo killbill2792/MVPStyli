@@ -335,6 +335,20 @@ const StyleVaultScreen = () => {
   const [localPendingRequests, setLocalPendingRequests] = useState(new Set()); // Track locally pending requests for immediate UI update
   const [isUploadingBodyPhoto, setIsUploadingBodyPhoto] = useState(false); // Loading state for body photo upload
   const [isDeletingAccount, setIsDeletingAccount] = useState(false); // Loading state for account deletion
+  
+  // Quick Color Check feature states
+  const [showQuickColorCheck, setShowQuickColorCheck] = useState(false);
+  const [quickCheckImage, setQuickCheckImage] = useState(null);
+  const [quickCheckColor, setQuickCheckColor] = useState(null);
+  const [quickCheckResult, setQuickCheckResult] = useState(null);
+  const [isQuickCheckAnalyzing, setIsQuickCheckAnalyzing] = useState(false);
+  
+  // Multi-photo face analysis states
+  const [showMultiPhotoModal, setShowMultiPhotoModal] = useState(false);
+  const [additionalPhotos, setAdditionalPhotos] = useState([null, null]); // 2 additional photos
+  const [additionalPhotosCropped, setAdditionalPhotosCropped] = useState([false, false]);
+  const [isAnalyzingMultiPhoto, setIsAnalyzingMultiPhoto] = useState(false);
+  const [multiPhotoResults, setMultiPhotoResults] = useState(null);
   const [isColorDetailsExpanded, setIsColorDetailsExpanded] = useState(false); // Collapsible color profile details
   const [colorProducts, setColorProducts] = useState([]); // Products matching user's colors
   const [isLoadingColorProducts, setIsLoadingColorProducts] = useState(false); // Loading state for color products
@@ -2233,9 +2247,17 @@ const StyleVaultScreen = () => {
                 <Text style={styles.colorErrorText}>{faceAnalysisError}</Text>
               ) : colorProfile && colorProfile.season ? (
                 <>
-                  {/* Top Title: Your Colors */}
+                  {/* Top Title: Your Colors + Quick Check Button */}
                   <View style={styles.colorTopSection}>
-                    <Text style={styles.colorMainTitle}>🎨 Your Colors</Text>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={styles.colorMainTitle}>🎨 Your Colors</Text>
+                      <Pressable
+                        style={styles.quickColorCheckBtn}
+                        onPress={() => setShowQuickColorCheck(true)}
+                      >
+                        <Text style={styles.quickColorCheckBtnText}>📷 Quick Check</Text>
+                      </Pressable>
+                    </View>
                     
                     {/* Analysed Season Row: Skin Tone Info (left) + Face Photo (right) */}
                     <View style={styles.colorSeasonInfoRow}>
@@ -2244,9 +2266,9 @@ const StyleVaultScreen = () => {
                         <Text style={styles.colorSeasonInfoText}>
                           Analysed Skin tone = {colorProfile.season.charAt(0).toUpperCase() + colorProfile.season.slice(1)}
                         </Text>
-                        {(colorProfile.seasonConfidence || colorProfile.confidence) && (
+                        {colorProfile.seasonConfidence && (
                           <Text style={styles.colorSeasonInfoConfidence}>
-                            Confidence = {Math.round((colorProfile.seasonConfidence || colorProfile.confidence) * 100)}%
+                            Confidence = {Math.round(colorProfile.seasonConfidence * 100)}%
                           </Text>
                         )}
                       </View>
@@ -2288,35 +2310,38 @@ const StyleVaultScreen = () => {
                       </View>
                     </View>
                     {colorProfile.needsConfirmation ? (
-                      <Text style={styles.colorNoteText}>
-                        <Text style={styles.colorNoteTextRed}>This is a suggested season. If you think the results are wrong, </Text>
-                        <Text>Please </Text>
-                        <Text 
-                          style={styles.colorNoteTextBtn} 
-                          onPress={() => setShowSeasonPicker(true)}
-                        >
-                          update your season manually
+                      <View>
+                        <Text style={styles.colorNoteText}>
+                          <Text style={styles.colorNoteTextRed}>This is a suggested season. </Text>
+                          <Text>Want more accurate results?</Text>
                         </Text>
-                        <Text> or </Text>
-                        <Text 
-                          style={styles.colorNoteTextBtn}
-                          onPress={() => setShowFacePhotoGuidelines(true)}
+                        <Pressable
+                          style={styles.improveAccuracyBtn}
+                          onPress={() => setShowMultiPhotoModal(true)}
                         >
-                          upload another photo
-                        </Text>
-                        <Text>.</Text>
-                      </Text>
+                          <Text style={styles.improveAccuracyBtnText}>📸 Add 2 More Photos for Better Accuracy</Text>
+                        </Pressable>
+                      </View>
                     ) : (
-                      <Text style={styles.colorNoteText}>
-                        <Text>If you think this analysis is wrong, please </Text>
-                        <Text 
-                          style={styles.colorNoteTextBtn}
-                          onPress={() => setShowSeasonPicker(true)}
-                        >
-                          edit the season
+                      <View>
+                        <Text style={styles.colorNoteText}>
+                          <Text>Want even more accurate results? </Text>
+                          <Text 
+                            style={styles.colorNoteTextBtn}
+                            onPress={() => setShowMultiPhotoModal(true)}
+                          >
+                            Add more photos
+                          </Text>
+                          <Text> or </Text>
+                          <Text 
+                            style={styles.colorNoteTextBtn}
+                            onPress={() => setShowSeasonPicker(true)}
+                          >
+                            edit manually
+                          </Text>
+                          <Text>.</Text>
                         </Text>
-                        <Text>.</Text>
-                      </Text>
+                      </View>
                     )}
                 </View>
                 
@@ -3763,6 +3788,526 @@ const StyleVaultScreen = () => {
       </View>
 
     </ScrollView>
+
+    {/* Multi-Photo Face Analysis Modal */}
+    <Modal visible={showMultiPhotoModal} transparent={true} animationType="slide">
+      <View style={styles.quickCheckModalContainer}>
+        <View style={styles.quickCheckModalContent}>
+          {/* Header */}
+          <View style={styles.quickCheckHeader}>
+            <Text style={styles.quickCheckTitle}>📸 Improve Accuracy</Text>
+            <Pressable 
+              onPress={() => {
+                setShowMultiPhotoModal(false);
+                setAdditionalPhotos([null, null]);
+                setAdditionalPhotosCropped([false, false]);
+                setMultiPhotoResults(null);
+              }}
+              style={styles.quickCheckCloseBtn}
+            >
+              <Text style={styles.quickCheckCloseBtnText}>✕</Text>
+            </Pressable>
+          </View>
+          
+          <Text style={styles.quickCheckSubtitle}>
+            Upload 2 more photos in different lighting conditions for more accurate skin tone analysis. We'll analyze all 3 photos and give you a combined result.
+          </Text>
+          
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }}>
+            {/* Current Photo */}
+            <View style={styles.quickCheckStep}>
+              <Text style={styles.quickCheckStepTitle}>✓ Photo 1 (Already uploaded)</Text>
+              <View style={styles.multiPhotoRow}>
+                {faceImage && (
+                  <View style={styles.multiPhotoItem}>
+                    <Image source={{ uri: faceImage }} style={styles.multiPhotoThumb} />
+                    <Text style={styles.multiPhotoLabel}>Original</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+            
+            {/* Additional Photos */}
+            <View style={styles.quickCheckStep}>
+              <Text style={styles.quickCheckStepTitle}>Add 2 More Photos</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginBottom: 12 }}>
+                Use different lighting: natural daylight, indoor light, etc.
+              </Text>
+              <View style={styles.multiPhotoRow}>
+                {[0, 1].map((index) => (
+                  <View key={index} style={styles.multiPhotoItem}>
+                    {additionalPhotos[index] ? (
+                      <Pressable
+                        onPress={() => {
+                          // Allow re-upload
+                          Alert.alert(
+                            'Change Photo',
+                            'Do you want to change this photo?',
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              {
+                                text: 'Change',
+                                onPress: () => {
+                                  const newPhotos = [...additionalPhotos];
+                                  newPhotos[index] = null;
+                                  setAdditionalPhotos(newPhotos);
+                                  const newCropped = [...additionalPhotosCropped];
+                                  newCropped[index] = false;
+                                  setAdditionalPhotosCropped(newCropped);
+                                }
+                              }
+                            ]
+                          );
+                        }}
+                      >
+                        <Image source={{ uri: additionalPhotos[index] }} style={styles.multiPhotoThumb} />
+                        <View style={styles.multiPhotoCheckmark}>
+                          <Text style={{ color: '#fff', fontSize: 12 }}>✓</Text>
+                        </View>
+                      </Pressable>
+                    ) : (
+                      <Pressable
+                        style={styles.multiPhotoUploadBtn}
+                        onPress={async () => {
+                          Alert.alert(
+                            'Add Photo',
+                            'Choose how to add photo',
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              {
+                                text: '📸 Camera',
+                                onPress: async () => {
+                                  const permission = await ImagePicker.requestCameraPermissionsAsync();
+                                  if (permission.granted) {
+                                    const result = await ImagePicker.launchCameraAsync({
+                                      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                                      quality: 0.8,
+                                      allowsEditing: true,
+                                      aspect: [1, 1],
+                                    });
+                                    if (!result.canceled && result.assets?.[0]?.uri) {
+                                      const newPhotos = [...additionalPhotos];
+                                      newPhotos[index] = result.assets[0].uri;
+                                      setAdditionalPhotos(newPhotos);
+                                      const newCropped = [...additionalPhotosCropped];
+                                      newCropped[index] = true;
+                                      setAdditionalPhotosCropped(newCropped);
+                                    }
+                                  } else {
+                                    Alert.alert('Permission Needed', 'Please allow camera access.');
+                                  }
+                                }
+                              },
+                              {
+                                text: '🖼️ Gallery',
+                                onPress: async () => {
+                                  const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                                  if (permission.granted) {
+                                    const result = await ImagePicker.launchImageLibraryAsync({
+                                      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                                      quality: 0.8,
+                                      allowsEditing: true,
+                                      aspect: [1, 1],
+                                    });
+                                    if (!result.canceled && result.assets?.[0]?.uri) {
+                                      const newPhotos = [...additionalPhotos];
+                                      newPhotos[index] = result.assets[0].uri;
+                                      setAdditionalPhotos(newPhotos);
+                                      const newCropped = [...additionalPhotosCropped];
+                                      newCropped[index] = true;
+                                      setAdditionalPhotosCropped(newCropped);
+                                    }
+                                  } else {
+                                    Alert.alert('Permission Needed', 'Please allow photo library access.');
+                                  }
+                                }
+                              }
+                            ]
+                          );
+                        }}
+                      >
+                        <Text style={{ color: '#6366f1', fontSize: 24 }}>+</Text>
+                        <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 4 }}>Photo {index + 2}</Text>
+                      </Pressable>
+                    )}
+                    <Text style={styles.multiPhotoLabel}>
+                      {index === 0 ? 'Different Light' : 'Another Angle'}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+            
+            {/* Analyze Button */}
+            <View style={styles.quickCheckStep}>
+              <Pressable
+                style={[
+                  styles.multiPhotoAnalyzeBtn,
+                  (!additionalPhotos[0] || !additionalPhotos[1]) && { opacity: 0.5 }
+                ]}
+                disabled={!additionalPhotos[0] || !additionalPhotos[1] || isAnalyzingMultiPhoto}
+                onPress={async () => {
+                  if (!additionalPhotos[0] || !additionalPhotos[1]) {
+                    Alert.alert('Photos Required', 'Please upload both additional photos.');
+                    return;
+                  }
+                  
+                  setIsAnalyzingMultiPhoto(true);
+                  try {
+                    const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL;
+                    const allPhotos = [faceImage, ...additionalPhotos].filter(Boolean);
+                    const results = [];
+                    
+                    // Analyze each photo
+                    for (const photoUri of allPhotos) {
+                      try {
+                        // Upload and analyze
+                        const uploadedUrl = await uploadImageAsync(photoUri, user?.id);
+                        const response = await fetch(`${API_BASE}/api/analyze-skin-tone`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ imageUrl: uploadedUrl }),
+                        });
+                        
+                        if (response.ok) {
+                          const data = await response.json();
+                          results.push({
+                            season: data.season,
+                            seasonConfidence: data.seasonConfidence,
+                            undertone: data.undertone,
+                            depth: data.depth,
+                            clarity: data.clarity,
+                          });
+                        }
+                      } catch (e) {
+                        console.error('Error analyzing photo:', e);
+                      }
+                    }
+                    
+                    if (results.length >= 2) {
+                      // Vote on season (majority wins)
+                      const seasonCounts = {};
+                      results.forEach(r => {
+                        seasonCounts[r.season] = (seasonCounts[r.season] || 0) + 1;
+                      });
+                      
+                      const winnerSeason = Object.entries(seasonCounts)
+                        .sort((a, b) => b[1] - a[1])[0][0];
+                      
+                      // Average confidence for winning season
+                      const winnerResults = results.filter(r => r.season === winnerSeason);
+                      const avgConfidence = winnerResults.reduce((sum, r) => sum + r.seasonConfidence, 0) / winnerResults.length;
+                      
+                      // Boost confidence based on agreement
+                      const agreementRatio = winnerResults.length / results.length;
+                      const boostedConfidence = Math.min(0.95, avgConfidence + (agreementRatio * 0.1));
+                      
+                      setMultiPhotoResults({
+                        season: winnerSeason,
+                        confidence: boostedConfidence,
+                        agreement: agreementRatio,
+                        photoCount: results.length,
+                      });
+                      
+                      // Update the main color profile
+                      const updatedProfile = {
+                        ...colorProfile,
+                        season: winnerSeason,
+                        seasonConfidence: boostedConfidence,
+                        needsConfirmation: boostedConfidence < 0.72,
+                      };
+                      
+                      // Save to user profile
+                      if (user?.id) {
+                        await supabase
+                          .from('profiles')
+                          .update({ color_profile: updatedProfile })
+                          .eq('id', user.id);
+                        
+                        setColorProfile(updatedProfile);
+                        if (setUser) {
+                          setUser({ ...user, colorProfile: updatedProfile });
+                        }
+                      }
+                      
+                      showBanner(`Analysis complete! Season: ${winnerSeason} (${Math.round(boostedConfidence * 100)}% confidence)`, 'success');
+                    } else {
+                      Alert.alert('Analysis Failed', 'Could not analyze enough photos. Please try again.');
+                    }
+                  } catch (error) {
+                    console.error('Multi-photo analysis error:', error);
+                    Alert.alert('Error', 'Failed to analyze photos. Please try again.');
+                  } finally {
+                    setIsAnalyzingMultiPhoto(false);
+                  }
+                }}
+              >
+                {isAnalyzingMultiPhoto ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <ActivityIndicator size="small" color="#fff" />
+                    <Text style={styles.multiPhotoAnalyzeBtnText}>  Analyzing 3 Photos...</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.multiPhotoAnalyzeBtnText}>✨ Analyze All 3 Photos</Text>
+                )}
+              </Pressable>
+            </View>
+            
+            {/* Results */}
+            {multiPhotoResults && (
+              <View style={styles.quickCheckStep}>
+                <View style={styles.quickCheckResultContainer}>
+                  <Text style={styles.quickCheckVerdictText}>
+                    🎉 {multiPhotoResults.season.charAt(0).toUpperCase() + multiPhotoResults.season.slice(1)}
+                  </Text>
+                  <Text style={styles.quickCheckConfidenceText}>
+                    {Math.round(multiPhotoResults.confidence * 100)}% confidence
+                  </Text>
+                  <Text style={styles.quickCheckExplanationText}>
+                    {Math.round(multiPhotoResults.agreement * 100)}% of photos agreed on this season.
+                    {multiPhotoResults.agreement === 1 ? ' All photos matched!' : ''}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+
+    {/* Quick Color Check Modal */}
+    <Modal visible={showQuickColorCheck} transparent={true} animationType="slide">
+      <View style={styles.quickCheckModalContainer}>
+        <View style={styles.quickCheckModalContent}>
+          {/* Header */}
+          <View style={styles.quickCheckHeader}>
+            <Text style={styles.quickCheckTitle}>📷 Quick Color Check</Text>
+            <Pressable 
+              onPress={() => {
+                setShowQuickColorCheck(false);
+                setQuickCheckImage(null);
+                setQuickCheckColor(null);
+                setQuickCheckResult(null);
+              }}
+              style={styles.quickCheckCloseBtn}
+            >
+              <Text style={styles.quickCheckCloseBtnText}>✕</Text>
+            </Pressable>
+          </View>
+          
+          <Text style={styles.quickCheckSubtitle}>
+            Shopping offline? Snap a photo of any garment and tap to pick a color to see if it matches your skin tone.
+          </Text>
+          
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }}>
+            {/* Step 1: Upload Image */}
+            {!quickCheckImage ? (
+              <View style={styles.quickCheckStep}>
+                <Text style={styles.quickCheckStepTitle}>Step 1: Take or Upload Photo</Text>
+                <View style={styles.quickCheckImageButtons}>
+                  <Pressable
+                    style={styles.quickCheckUploadBtn}
+                    onPress={async () => {
+                      const permission = await ImagePicker.requestCameraPermissionsAsync();
+                      if (permission.granted) {
+                        const result = await ImagePicker.launchCameraAsync({
+                          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                          quality: 0.8,
+                        });
+                        if (!result.canceled && result.assets?.[0]?.uri) {
+                          setQuickCheckImage(result.assets[0].uri);
+                          setQuickCheckColor(null);
+                          setQuickCheckResult(null);
+                        }
+                      } else {
+                        Alert.alert('Permission Needed', 'Please allow camera access to take photos.');
+                      }
+                    }}
+                  >
+                    <Text style={styles.quickCheckUploadBtnText}>📸 Take Photo</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.quickCheckUploadBtn}
+                    onPress={async () => {
+                      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                      if (permission.granted) {
+                        const result = await ImagePicker.launchImageLibraryAsync({
+                          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                          quality: 0.8,
+                        });
+                        if (!result.canceled && result.assets?.[0]?.uri) {
+                          setQuickCheckImage(result.assets[0].uri);
+                          setQuickCheckColor(null);
+                          setQuickCheckResult(null);
+                        }
+                      } else {
+                        Alert.alert('Permission Needed', 'Please allow photo library access.');
+                      }
+                    }}
+                  >
+                    <Text style={styles.quickCheckUploadBtnText}>🖼️ From Gallery</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : (
+              <>
+                {/* Step 2: Pick Color */}
+                <View style={styles.quickCheckStep}>
+                  <Text style={styles.quickCheckStepTitle}>Step 2: Tap on the garment color</Text>
+                  <View style={styles.quickCheckImageContainer}>
+                    <Pressable
+                      onPress={async (event) => {
+                        const { locationX, locationY } = event.nativeEvent;
+                        setIsQuickCheckAnalyzing(true);
+                        
+                        try {
+                          // Get image dimensions
+                          const imageInfo = await new Promise((resolve, reject) => {
+                            Image.getSize(quickCheckImage, (width, height) => {
+                              resolve({ width, height });
+                            }, reject);
+                          });
+                          
+                          // Calculate tap position relative to displayed image
+                          const displayWidth = width - 48; // Container width minus padding
+                          const displayHeight = 300; // Fixed height
+                          
+                          const scaleX = imageInfo.width / displayWidth;
+                          const scaleY = imageInfo.height / displayHeight;
+                          
+                          const imageX = Math.round(locationX * scaleX);
+                          const imageY = Math.round(locationY * scaleY);
+                          
+                          // Call color API
+                          const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL;
+                          
+                          // Convert image to base64
+                          const response = await fetch(quickCheckImage);
+                          const blob = await response.blob();
+                          const base64 = await new Promise((resolve) => {
+                            const reader = new FileReader();
+                            reader.onloadend = () => resolve(reader.result);
+                            reader.readAsDataURL(blob);
+                          });
+                          
+                          const colorResponse = await fetch(`${API_BASE}/api/color`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              mode: 'pick',
+                              imageBase64: base64,
+                              x: imageX,
+                              y: imageY,
+                              imageWidth: imageInfo.width,
+                              imageHeight: imageInfo.height,
+                            }),
+                          });
+                          
+                          if (colorResponse.ok) {
+                            const colorData = await colorResponse.json();
+                            setQuickCheckColor({
+                              hex: colorData.color,
+                              rgb: colorData.rgb,
+                            });
+                            
+                            // Now analyze against user's season
+                            if (colorProfile?.season) {
+                              const { computeColorScore } = require('../lib/colorScoring');
+                              const score = computeColorScore(colorData.color, colorProfile);
+                              setQuickCheckResult({
+                                verdict: score.verdict,
+                                confidence: score.confidence,
+                                explanation: score.explanation,
+                                deltaE: score.deltaE,
+                              });
+                            } else {
+                              setQuickCheckResult({
+                                verdict: 'unknown',
+                                explanation: 'Please complete your face analysis first to check color compatibility.',
+                              });
+                            }
+                          }
+                        } catch (error) {
+                          console.error('Quick check error:', error);
+                          Alert.alert('Error', 'Failed to analyze color. Please try again.');
+                        } finally {
+                          setIsQuickCheckAnalyzing(false);
+                        }
+                      }}
+                    >
+                      <Image
+                        source={{ uri: quickCheckImage }}
+                        style={styles.quickCheckImage}
+                        resizeMode="contain"
+                      />
+                      {isQuickCheckAnalyzing && (
+                        <View style={styles.quickCheckImageOverlay}>
+                          <ActivityIndicator size="large" color="#fff" />
+                          <Text style={styles.quickCheckOverlayText}>Analyzing...</Text>
+                        </View>
+                      )}
+                    </Pressable>
+                    <Pressable
+                      style={styles.quickCheckChangeImageBtn}
+                      onPress={() => {
+                        setQuickCheckImage(null);
+                        setQuickCheckColor(null);
+                        setQuickCheckResult(null);
+                      }}
+                    >
+                      <Text style={styles.quickCheckChangeImageText}>Change Image</Text>
+                    </Pressable>
+                  </View>
+                </View>
+                
+                {/* Step 3: Result */}
+                {quickCheckColor && (
+                  <View style={styles.quickCheckStep}>
+                    <Text style={styles.quickCheckStepTitle}>Result</Text>
+                    <View style={styles.quickCheckResultContainer}>
+                      {/* Color Swatch */}
+                      <View style={styles.quickCheckColorRow}>
+                        <View style={[styles.quickCheckColorSwatch, { backgroundColor: quickCheckColor.hex }]} />
+                        <Text style={styles.quickCheckColorHex}>{quickCheckColor.hex?.toUpperCase()}</Text>
+                      </View>
+                      
+                      {/* Verdict */}
+                      {quickCheckResult && (
+                        <View style={styles.quickCheckVerdictContainer}>
+                          <Text style={[
+                            styles.quickCheckVerdictText,
+                            quickCheckResult.verdict === 'great' && { color: '#22c55e' },
+                            quickCheckResult.verdict === 'good' && { color: '#84cc16' },
+                            quickCheckResult.verdict === 'ok' && { color: '#eab308' },
+                            quickCheckResult.verdict === 'risky' && { color: '#f97316' },
+                            quickCheckResult.verdict === 'avoid' && { color: '#ef4444' },
+                          ]}>
+                            {quickCheckResult.verdict === 'great' && '✨ Great Match!'}
+                            {quickCheckResult.verdict === 'good' && '👍 Good Match'}
+                            {quickCheckResult.verdict === 'ok' && '🤔 Okay Match'}
+                            {quickCheckResult.verdict === 'risky' && '⚠️ Risky'}
+                            {quickCheckResult.verdict === 'avoid' && '❌ Not Recommended'}
+                            {quickCheckResult.verdict === 'unknown' && '❓ Unknown'}
+                          </Text>
+                          {quickCheckResult.confidence && (
+                            <Text style={styles.quickCheckConfidenceText}>
+                              {Math.round(quickCheckResult.confidence * 100)}% confidence
+                            </Text>
+                          )}
+                          <Text style={styles.quickCheckExplanationText}>
+                            {quickCheckResult.explanation}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                )}
+              </>
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
 
     {/* Visibility Settings Modal */}
     <Modal visible={showVisibilitySettings} transparent={true} animationType="slide">
@@ -5294,6 +5839,239 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     fontSize: 14,
     opacity: 0.8,
+  },
+  // Quick Color Check Button
+  quickColorCheckBtn: {
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+  },
+  quickColorCheckBtnText: {
+    color: '#6366f1',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  // Quick Color Check Modal
+  quickCheckModalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'flex-end',
+  },
+  quickCheckModalContent: {
+    backgroundColor: '#1a1a2e',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '90%',
+    paddingBottom: 40,
+  },
+  quickCheckHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+  },
+  quickCheckTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  quickCheckCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quickCheckCloseBtnText: {
+    color: '#fff',
+    fontSize: 16,
+  },
+  quickCheckSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.7)',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    lineHeight: 20,
+  },
+  quickCheckStep: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  quickCheckStepTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 12,
+  },
+  quickCheckImageButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  quickCheckUploadBtn: {
+    flex: 1,
+    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    paddingVertical: 40,
+    borderRadius: 16,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(99, 102, 241, 0.4)',
+    borderStyle: 'dashed',
+  },
+  quickCheckUploadBtnText: {
+    color: '#6366f1',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  quickCheckImageContainer: {
+    alignItems: 'center',
+  },
+  quickCheckImage: {
+    width: width - 48,
+    height: 300,
+    borderRadius: 12,
+    backgroundColor: '#000',
+  },
+  quickCheckImageOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quickCheckOverlayText: {
+    color: '#fff',
+    marginTop: 8,
+    fontSize: 14,
+  },
+  quickCheckChangeImageBtn: {
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  quickCheckChangeImageText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 14,
+    textDecorationLine: 'underline',
+  },
+  quickCheckResultContainer: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 16,
+    padding: 16,
+  },
+  quickCheckColorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  quickCheckColorSwatch: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  quickCheckColorHex: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 12,
+  },
+  quickCheckVerdictContainer: {
+    alignItems: 'center',
+  },
+  quickCheckVerdictText: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  quickCheckConfidenceText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.6)',
+    marginBottom: 12,
+  },
+  quickCheckExplanationText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  // Improve Accuracy Button
+  improveAccuracyBtn: {
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+    alignSelf: 'flex-start',
+  },
+  improveAccuracyBtnText: {
+    color: '#6366f1',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  // Multi-Photo Styles
+  multiPhotoRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  multiPhotoItem: {
+    alignItems: 'center',
+  },
+  multiPhotoThumb: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    backgroundColor: '#333',
+  },
+  multiPhotoLabel: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 11,
+    marginTop: 6,
+  },
+  multiPhotoCheckmark: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#22c55e',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  multiPhotoUploadBtn: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+    borderWidth: 2,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  multiPhotoAnalyzeBtn: {
+    backgroundColor: '#6366f1',
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  multiPhotoAnalyzeBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   },
   friendsContainer: {
     backgroundColor: 'rgba(255,255,255,0.05)',

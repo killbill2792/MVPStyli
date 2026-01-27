@@ -1969,76 +1969,193 @@ const AdminGarmentsScreen = ({ onBack }) => {
               </Pressable>
             </View>
 
-            {/* Confirmation View for Brand/Screenshot */}
+            {/* Confirmation View for Brand/Screenshot - EDITABLE */}
             {showParsedSizeConfirmation && pendingParsedSizeData && Array.isArray(pendingParsedSizeData) && (
               <View style={styles.formSection}>
-                <Text style={styles.sectionTitle}>Select Sizes to Add</Text>
+                <Text style={styles.sectionTitle}>Review & Edit Sizes</Text>
                 <Text style={[styles.sectionSubtitle, { marginBottom: 12 }]}>
-                  Select one or more sizes to add to this product
+                  Tap any value to edit. Select sizes to add to this product.
                 </Text>
-                <ScrollView style={{ maxHeight: 400, marginTop: 12 }}>
+                <ScrollView horizontal style={{ marginTop: 12 }}>
                   <View>
                     {/* Header Row */}
-                    <View style={{ flexDirection: 'row', backgroundColor: Colors.primary, padding: 12, alignItems: 'center' }}>
-                      <View style={{ width: 50 }} />
-                      <Text style={[styles.inputLabel, { color: '#fff', flex: 1, textAlign: 'center' }]}>Size</Text>
-                      {pendingParsedSizeData[0]?.measurements && Object.keys(pendingParsedSizeData[0].measurements).slice(0, 4).map((m) => (
-                        <Text key={m} style={[styles.inputLabel, { color: '#fff', width: 70, marginLeft: 4, textAlign: 'center', fontSize: 11 }]}>
+                    <View style={{ flexDirection: 'row', backgroundColor: Colors.primary, padding: 8, alignItems: 'center' }}>
+                      <View style={{ width: 40 }} />
+                      <Text style={[styles.inputLabel, { color: '#fff', width: 60, textAlign: 'center', fontSize: 11 }]}>Size</Text>
+                      {pendingParsedSizeData[0]?.measurements && Object.keys(pendingParsedSizeData[0].measurements).map((m) => (
+                        <Text key={m} style={[styles.inputLabel, { color: '#fff', width: 65, marginLeft: 4, textAlign: 'center', fontSize: 10 }]}>
                           {m.charAt(0).toUpperCase() + m.slice(1)}
                         </Text>
                       ))}
+                      <View style={{ width: 40 }} />
                     </View>
-                    {/* Size Rows with Checkboxes */}
+                    {/* Size Rows with Editable Inputs */}
                     {pendingParsedSizeData.map((item, idx) => {
                       const isSelected = selectedSizes.includes(idx);
                       return (
-                        <Pressable
+                        <View
                           key={idx}
                           style={{
                             flexDirection: 'row',
-                            padding: 12,
+                            padding: 6,
                             borderBottomWidth: 1,
                             borderBottomColor: Colors.border,
                             backgroundColor: isSelected ? Colors.primary + '20' : 'transparent',
                             alignItems: 'center'
                           }}
-                          onPress={() => {
-                            if (isSelected) {
-                              setSelectedSizes(prev => prev.filter(i => i !== idx));
-                            } else {
-                              setSelectedSizes(prev => [...prev, idx]);
-                            }
-                          }}
                         >
                           {/* Checkbox */}
-                          <View style={{
-                            width: 24,
-                            height: 24,
-                            borderRadius: 4,
-                            borderWidth: 2,
-                            borderColor: isSelected ? Colors.primary : Colors.border,
-                            backgroundColor: isSelected ? Colors.primary : 'transparent',
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            marginRight: 8
-                          }}>
-                            {isSelected && <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>✓</Text>}
-                          </View>
-                          {/* Size Label */}
-                          <Text style={{ color: Colors.textPrimary, flex: 1, fontWeight: isSelected ? '600' : '400' }}>
-                            {item.size}
-                          </Text>
-                          {/* Measurements */}
-                          {item.measurements && Object.entries(item.measurements).slice(0, 4).map(([key, val]) => (
-                            <Text key={key} style={{ color: Colors.textPrimary, width: 70, marginLeft: 4, textAlign: 'center', fontSize: 12 }}>
-                            {typeof val === 'number' ? val.toFixed(1) : val}
-                          </Text>
-                        ))}
-                        </Pressable>
+                          <Pressable
+                            style={{
+                              width: 28,
+                              height: 28,
+                              borderRadius: 4,
+                              borderWidth: 2,
+                              borderColor: isSelected ? Colors.primary : Colors.border,
+                              backgroundColor: isSelected ? Colors.primary : 'transparent',
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                              marginRight: 6
+                            }}
+                            onPress={() => {
+                              if (isSelected) {
+                                setSelectedSizes(prev => prev.filter(i => i !== idx));
+                              } else {
+                                setSelectedSizes(prev => [...prev, idx]);
+                              }
+                            }}
+                          >
+                            {isSelected && <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>✓</Text>}
+                          </Pressable>
+                          {/* Size Label - Editable */}
+                          <TextInput
+                            style={{
+                              width: 60,
+                              backgroundColor: Colors.backgroundSecondary,
+                              borderRadius: 6,
+                              padding: 6,
+                              color: Colors.textPrimary,
+                              textAlign: 'center',
+                              fontSize: 12,
+                              fontWeight: '600'
+                            }}
+                            value={item.size}
+                            onChangeText={(text) => {
+                              const updated = [...pendingParsedSizeData];
+                              updated[idx] = { ...updated[idx], size: text };
+                              setPendingParsedSizeData(updated);
+                            }}
+                          />
+                          {/* Measurements - Editable */}
+                          {item.measurements && Object.entries(item.measurements).map(([key, val]) => (
+                            <TextInput
+                              key={key}
+                              style={{
+                                width: 65,
+                                marginLeft: 4,
+                                backgroundColor: Colors.backgroundSecondary,
+                                borderRadius: 6,
+                                padding: 6,
+                                color: Colors.textPrimary,
+                                textAlign: 'center',
+                                fontSize: 12
+                              }}
+                              value={String(typeof val === 'number' ? val.toFixed(1) : val || '')}
+                              keyboardType="decimal-pad"
+                              onChangeText={(text) => {
+                                const updated = [...pendingParsedSizeData];
+                                updated[idx] = {
+                                  ...updated[idx],
+                                  measurements: {
+                                    ...updated[idx].measurements,
+                                    [key]: text === '' ? '' : parseFloat(text) || text
+                                  }
+                                };
+                                setPendingParsedSizeData(updated);
+                              }}
+                            />
+                          ))}
+                          {/* Delete Row Button */}
+                          <Pressable
+                            style={{ width: 32, height: 32, justifyContent: 'center', alignItems: 'center', marginLeft: 4 }}
+                            onPress={() => {
+                              const updated = pendingParsedSizeData.filter((_, i) => i !== idx);
+                              setPendingParsedSizeData(updated);
+                              setSelectedSizes(prev => prev.filter(i => i !== idx).map(i => i > idx ? i - 1 : i));
+                            }}
+                          >
+                            <Text style={{ color: Colors.error, fontSize: 18 }}>✕</Text>
+                          </Pressable>
+                        </View>
                       );
                     })}
+                    {/* Add Row Button */}
+                    <Pressable
+                      style={{
+                        flexDirection: 'row',
+                        padding: 10,
+                        borderBottomWidth: 1,
+                        borderBottomColor: Colors.border,
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                      onPress={() => {
+                        // Get measurement keys from first row
+                        const measurementKeys = pendingParsedSizeData[0]?.measurements 
+                          ? Object.keys(pendingParsedSizeData[0].measurements) 
+                          : ['chest', 'waist', 'hips', 'length'];
+                        const newMeasurements = {};
+                        measurementKeys.forEach(k => { newMeasurements[k] = ''; });
+                        
+                        setPendingParsedSizeData([
+                          ...pendingParsedSizeData,
+                          { size: '', measurements: newMeasurements }
+                        ]);
+                      }}
+                    >
+                      <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: '600' }}>+ Add Row</Text>
+                    </Pressable>
                   </View>
                 </ScrollView>
+                
+                {/* Add Column Button */}
+                <Pressable
+                  style={{
+                    marginTop: 12,
+                    padding: 10,
+                    backgroundColor: Colors.backgroundSecondary,
+                    borderRadius: 8,
+                    alignItems: 'center'
+                  }}
+                  onPress={() => {
+                    Alert.prompt(
+                      'Add Column',
+                      'Enter measurement name (e.g., sleeve, inseam):',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Add',
+                          onPress: (columnName) => {
+                            if (!columnName || columnName.trim() === '') return;
+                            const key = columnName.toLowerCase().trim();
+                            const updated = pendingParsedSizeData.map(item => ({
+                              ...item,
+                              measurements: {
+                                ...item.measurements,
+                                [key]: ''
+                              }
+                            }));
+                            setPendingParsedSizeData(updated);
+                          }
+                        }
+                      ],
+                      'plain-text'
+                    );
+                  }}
+                >
+                  <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: '600' }}>+ Add Column</Text>
+                </Pressable>
+                
                 <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
                   <Pressable
                     style={[styles.addSizeButton, { flex: 1, backgroundColor: Colors.error }]}
