@@ -35,15 +35,16 @@ ADD COLUMN IF NOT EXISTS secondary_delta_e NUMERIC;
 -- Old values: 'ok', 'unclassified', 'ambiguous'
 -- New values: 'great', 'good', 'ambiguous', 'unclassified'
 
--- First, migrate existing 'ok' values to 'good' (we'll re-classify to get 'great' vs 'good')
+-- IMPORTANT: Drop constraint FIRST, before updating values
+ALTER TABLE garments 
+DROP CONSTRAINT IF EXISTS garments_classification_status_check;
+
+-- Now migrate existing 'ok' values to 'good' (we'll re-classify to get 'great' vs 'good')
 UPDATE garments 
 SET classification_status = 'good' 
 WHERE classification_status = 'ok';
 
--- Drop old constraint and add new one
-ALTER TABLE garments 
-DROP CONSTRAINT IF EXISTS garments_classification_status_check;
-
+-- Add new constraint with updated values
 ALTER TABLE garments
 ADD CONSTRAINT garments_classification_status_check 
 CHECK (classification_status IN ('great', 'good', 'ambiguous', 'unclassified') OR classification_status IS NULL);
