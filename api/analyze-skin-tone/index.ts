@@ -1045,6 +1045,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const ms = Date.now() - start;
 
+    // Determine micro-season internally (not shown to user, but used for color matching)
+    let microSeason: string | null = null;
+    try {
+      const { determineMicroSeason } = await import('../../lib/colorClassification');
+      microSeason = determineMicroSeason(
+        primary.season,
+        depthInfo.depth,
+        clarityInfo.clarity
+      );
+    } catch (error) {
+      console.warn('Could not determine micro-season:', error);
+    }
+
     return res.status(200).json({
       rgb,
       hex,
@@ -1054,10 +1067,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       depth: depthInfo.depth,
       clarity: clarityInfo.clarity,
 
-      // Primary season + confidence
+      // Primary season + confidence (shown to user)
       season: primary.season,
       seasonConfidence: Math.round(primary.seasonConfidence * 100) / 100,
       needsConfirmation,
+      
+      // Micro-season (internal use only, not displayed to user)
+      microSeason: microSeason || null,
 
       // Top-2 to improve real-world accuracy and UX
       seasonCandidates: top2.map(x => ({

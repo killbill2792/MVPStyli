@@ -12,6 +12,7 @@ export interface ColorProfile {
 
 export interface ExtendedColorProfile extends ColorProfile {
   confidence?: number;
+  microSeason?: string | null; // Internal use only (e.g., 'soft_autumn', 'bright_winter');
   seasonConfidence?: number;
   needsConfirmation?: boolean;
   skinHex?: string;
@@ -76,6 +77,7 @@ type ApiResponse = {
   needsConfirmation: boolean;
   seasonCandidates?: Array<{ season: string; score: number; reason?: string }>;
   qualityMessages?: string[];
+  microSeason?: string | null;
 
   quality?: {
     issues: string[];
@@ -135,6 +137,7 @@ export async function analyzeFaceForColorProfileFromCroppedImage(
       needsConfirmation: !!analysis.needsConfirmation,
       skinHex: analysis.hex,
       clarity: analysis.clarity,
+      microSeason: analysis.microSeason || null, // Internal use only, not displayed to user
 
       // Optional: store top-2 in your UI (recommended)
       seasonCandidates: analysis.seasonCandidates ?? undefined,
@@ -187,6 +190,7 @@ export async function analyzeFaceForColorProfileFromLocalUri(
       needsConfirmation: analysis.needsConfirmation,
       skinHex: analysis.hex,
       clarity: analysis.clarity,
+      microSeason: analysis.microSeason || null, // Internal use only
     };
 
     return {
@@ -215,7 +219,17 @@ export async function saveColorProfile(userId: string, profile: ColorProfile | E
       updated_at: new Date().toISOString(),
       skin_tone_confidence: extended.confidence ?? null,
       skin_hex: extended.skinHex ?? null,
+      // Save clarity and microSeason (added columns)
+      color_clarity: extended.clarity ?? null,
+      micro_season: extended.microSeason ?? null,
     };
+
+    console.log('🎨 [SAVE PROFILE] Saving color profile:', {
+      season: updateData.color_season,
+      depth: updateData.color_depth,
+      clarity: updateData.color_clarity,
+      microSeason: updateData.micro_season,
+    });
 
     const { error } = await supabase.from("profiles").update(updateData).eq("id", userId);
 
@@ -287,7 +301,7 @@ export async function loadColorProfile(userId: string): Promise<ColorProfile | E
   try {
     const { data, error } = await supabase
       .from("profiles")
-      .select("color_tone, color_depth, color_season, best_colors, avoid_colors, skin_tone_confidence, skin_hex")
+      .select("color_tone, color_depth, color_season, best_colors, avoid_colors, skin_tone_confidence, skin_hex, color_clarity, micro_season")
       .eq("id", userId)
       .maybeSingle();
 
@@ -317,6 +331,20 @@ export async function loadColorProfile(userId: string): Promise<ColorProfile | E
     if (data.skin_hex) {
       profile.skinHex = data.skin_hex;
     }
+    // Load clarity and microSeason (new columns)
+    if (data.color_clarity) {
+      profile.clarity = data.color_clarity;
+    }
+    if (data.micro_season) {
+      profile.microSeason = data.micro_season;
+    }
+
+    console.log('🎨 [LOAD PROFILE] Loaded color profile:', {
+      season: profile.season,
+      depth: profile.depth,
+      clarity: profile.clarity,
+      microSeason: profile.microSeason,
+    });
 
     return profile;
   } catch (error) {
@@ -371,6 +399,7 @@ export async function analyzeFaceForColorProfile(
       needsConfirmation: analysis.needsConfirmation,
       skinHex: analysis.hex,
       clarity: analysis.clarity,
+      microSeason: analysis.microSeason || null, // Internal use only
     };
 
     return profile;

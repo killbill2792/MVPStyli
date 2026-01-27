@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -52,24 +52,18 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
     const imageToUse = originalProductImage.current || product?.image;
     
     if (!imageToUse) {
-      console.log('🎨 [CLIENT COLOR] No product image available for color detection');
       return;
     }
     
     // Don't re-detect if already detecting
     if (isDetectingColor) {
-      console.log('🎨 [CLIENT COLOR] Color detection already in progress');
       return;
     }
     
     setIsDetectingColor(true);
     try {
-      console.log('🎨 [CLIENT COLOR] Starting color detection from ORIGINAL product image:', imageToUse.substring(0, 100));
-      
       // Use client-side color detection (no API call)
       const colorResult = await detectDominantColor(imageToUse);
-      
-      console.log('🎨 [CLIENT COLOR] Color detection result:', JSON.stringify(colorResult, null, 2));
       
       if (colorResult && colorResult.color && colorResult.confidence > 0) {
         const hex = colorResult.color;
@@ -78,14 +72,6 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         const { getNearestColorName } = require('../lib/colorNaming');
         const nearestColor = getNearestColorName(hex);
         const name = nearestColor.name;
-        
-        console.log('🎨 [CLIENT COLOR] Color detected successfully:', {
-          name: name,
-          hex: hex,
-          nearestMatch: nearestColor.hex,
-          rgb: colorResult.rgb || 'N/A',
-          confidence: colorResult.confidence,
-        });
         
         setDetectedColor(name);
         setDetectedColorHex(hex);
@@ -99,24 +85,14 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
           colorHex: hex, // Source of truth for logic
         };
         setProduct(updatedProduct);
-        console.log('🎨 [CLIENT COLOR] Product color updated:', { name, hex, nearestMatch: nearestColor.hex });
         
         // Reload insights with new color after a short delay
         // Pass updatedProduct to ensure loadInsights uses the new color
         setTimeout(() => {
-          console.log('🎨 [CLIENT COLOR] Reloading insights with new color');
           loadInsights(true, updatedProduct);
         }, 500);
-      } else {
-        console.warn('🎨 [CLIENT COLOR] Color detection failed or returned unknown:', {
-          name: colorResult?.name,
-          confidence: colorResult?.confidence,
-          fullResult: colorResult,
-        });
       }
     } catch (error) {
-      console.error('🎨 [CLIENT COLOR] Error auto-detecting color:', error);
-      console.error('🎨 [CLIENT COLOR] Error stack:', error.stack);
       // Silent fail - user can manually enter color
     } finally {
       setIsDetectingColor(false);
@@ -134,31 +110,33 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
     return '';
   };
   
-  // Manual Color Picker State (COMPLETELY SEPARATE from auto-detect)
-  const [imageLayout, setImageLayout] = useState({ width: 0, height: 0, x: 0, y: 0 });
-  const [imageNaturalSize, setImageNaturalSize] = useState({ width: 0, height: 0 });
+  // Manual Color Picker State & Refs
   const [pickerTouchPosition, setPickerTouchPosition] = useState(null);
-  const [magnifierPosition, setMagnifierPosition] = useState(null);
   const [livePickedColor, setLivePickedColor] = useState(null);
+  const [serverSampledCoords, setServerSampledCoords] = useState(null); // For debug overlay
   const [isSamplingColor, setIsSamplingColor] = useState(false);
-  const colorPickerImageUrlRef = useRef(null); // Pre-loaded image URL for API
-  const colorPickerApiInProgress = useRef(false);
   
+  const touchRef = useRef({ x: 0, y: 0 });
+  const showColorPickerRef = useRef(showColorPicker);
+  const colorPickerImageUrlRef = useRef(null);
+  const sampleAtCurrentTouchRef = useRef(null);
+  const colorPickerApiInProgress = useRef(false);
+  const imageLayoutRef = useRef({ width: 0, height: 0, x: 0, y: 0 });
+  const imageNaturalSizeRef = useRef({ width: 0, height: 0 });
+
   // Convert touch coordinates to image pixel coordinates (accounts for resizeMode: contain letterboxing)
-  // Follows exact specification: scale = min(containerW / naturalW, containerH / naturalH)
   const convertTouchToImageCoords = (touchX, touchY) => {
-    if (!imageLayout.width || !imageLayout.height || !imageNaturalSize.width || !imageNaturalSize.height) {
-      console.warn('🎨 [MANUAL PICKER] Missing layout or natural size:', {
-        layout: imageLayout,
-        natural: imageNaturalSize,
-      });
+    const layout = imageLayoutRef.current;
+    const natural = imageNaturalSizeRef.current;
+
+    if (!layout.width || !layout.height || !natural.width || !natural.height) {
       return null;
     }
     
-    const containerW = imageLayout.width;
-    const containerH = imageLayout.height;
-    const naturalW = imageNaturalSize.width;
-    const naturalH = imageNaturalSize.height;
+    const containerW = layout.width;
+    const containerH = layout.height;
+    const naturalW = natural.width;
+    const naturalH = natural.height;
     
     // Calculate scale: min(containerW / naturalW, containerH / naturalH)
     const scale = Math.min(containerW / naturalW, containerH / naturalH);
@@ -167,7 +145,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
     const displayW = naturalW * scale;
     const displayH = naturalH * scale;
     
-    // Calculate offsets (centering)
+    // Calculate offsets (centering/letterboxing)
     const offsetX = (containerW - displayW) / 2;
     const offsetY = (containerH - displayH) / 2;
     
@@ -176,126 +154,173 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
     const iy = touchY - offsetY;
     
     // Check if touch is outside displayed image rect
-    if (ix < 0 || ix > displayW || iy < 0 || iy > displayH) {
-      console.warn('🎨 [MANUAL PICKER] Touch outside image bounds:', {
-        touchX, touchY,
-        ix, iy,
-        displayW, displayH,
-        offsetX, offsetY,
-      });
-      return null; // Touch outside image
+    const TOLERANCE = 20;
+    const isOutsideBounds = ix < -TOLERANCE || ix > displayW + TOLERANCE || iy < -TOLERANCE || iy > displayH + TOLERANCE;
+    
+    if (isOutsideBounds) {
+      return null;
     }
     
     // Clamp to displayed image bounds
     const clampedIx = Math.max(0, Math.min(ix, displayW));
     const clampedIy = Math.max(0, Math.min(iy, displayH));
     
-    // Convert displayed image coordinates to actual image pixel coordinates
-    const pixelX = Math.floor((clampedIx / displayW) * naturalW);
-    const pixelY = Math.floor((clampedIy / displayH) * naturalH);
+    // Convert to natural image coordinate space
+    const ratioX = displayW > 0 ? clampedIx / displayW : 0;
+    const ratioY = displayH > 0 ? clampedIy / displayH : 0;
     
-    // Final clamp to image bounds
-    const finalX = Math.max(0, Math.min(pixelX, naturalW - 1));
-    const finalY = Math.max(0, Math.min(pixelY, naturalH - 1));
+    const pixelX = Math.round(ratioX * (naturalW - 1));
+    const pixelY = Math.round(ratioY * (naturalH - 1));
     
     return {
-      imageX: finalX,
-      imageY: finalY,
-      displayX: clampedIx,
-      displayY: clampedIy,
+      imageX: pixelX,
+      imageY: pixelY,
+      displayX: offsetX + clampedIx,
+      displayY: offsetY + clampedIy,
       displayWidth: displayW,
       displayHeight: displayH,
     };
+  };
+
+  // Convert image pixel coordinates back to display coordinates (for debug overlay)
+  const convertImageCoordsToDisplay = (imageX, imageY, imageWidth, imageHeight) => {
+    const layout = imageLayoutRef.current;
+    if (!layout.width || !layout.height || !imageWidth || !imageHeight) {
+      return null;
+    }
+    
+    const containerW = layout.width;
+    const containerH = layout.height;
+    const naturalW = imageWidth;
+    const naturalH = imageHeight;
+    
+    const scale = Math.min(containerW / naturalW, containerH / naturalH);
+    const displayW = naturalW * scale;
+    const displayH = naturalH * scale;
+    const offsetX = (containerW - displayW) / 2;
+    const offsetY = (containerH - displayH) / 2;
+    
+    // Convert image pixel to display coordinates
+    const displayX = offsetX + (imageX / naturalW) * displayW;
+    const displayY = offsetY + (imageY / naturalH) * displayH;
+    
+    return { displayX, displayY };
   };
   
   // Throttle for color name updates during drag (80ms debounce)
   const colorNameUpdateTimeout = useRef(null);
   
-  // Manual color picker - CLIENT-SIDE ONLY, never calls auto-detect
-  // Live preview handler - NO API CALLS, just UI updates for instant feedback
-  const handleManualColorPickerMove = (touchX, touchY) => {
-    // Convert touch coordinates to image coordinates (accounts for letterboxing)
-    const coords = convertTouchToImageCoords(touchX, touchY);
-    if (!coords) {
-      // Touch outside image - don't update
-      return;
-    }
-
-    // Update touch position for magnifier/crosshair (live preview) - immediate UI update (0ms latency)
-    setPickerTouchPosition({ x: touchX, y: touchY });
-    setMagnifierPosition({ x: touchX, y: Math.max(10, touchY - 150) }); // Position above finger
+  // Update touch position - SINGLE SOURCE OF TRUTH
+  // All UI elements (cursor, magnifier) derive from this
+  const updateTouch = (locationX, locationY) => {
+    touchRef.current = { x: locationX, y: locationY };
     
-    // NO API CALLS during move - only visual feedback
+    // Always show cursor at exact touch position if within PanResponder view
+    // This provides immediate visual feedback
+    setPickerTouchPosition({ x: locationX, y: locationY });
   };
   
+  // Update showColorPicker ref whenever it changes
+  useEffect(() => {
+    showColorPickerRef.current = showColorPicker;
+  }, [showColorPicker]);
+  
+  // Create PanResponder at component level (outside JSX) to avoid hooks order violation
+  // Always create a working PanResponder - check showColorPickerRef inside handlers
+  const colorPickerPanResponder = useMemo(() => {
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => {
+        return showColorPickerRef.current;
+      },
+      onMoveShouldSetPanResponder: () => {
+        return showColorPickerRef.current;
+      },
+      onPanResponderGrant: async (evt) => {
+        if (!showColorPickerRef.current) {
+          return;
+        }
+        const { locationX, locationY } = evt.nativeEvent;
+        updateTouch(locationX, locationY);
+        // Initial sample on touch
+        if (sampleAtCurrentTouchRef.current) {
+          await sampleAtCurrentTouchRef.current();
+        }
+      },
+      onPanResponderMove: (evt) => {
+        if (!showColorPickerRef.current) return;
+        const { locationX, locationY } = evt.nativeEvent;
+        updateTouch(locationX, locationY);
+      },
+      onPanResponderRelease: async () => {
+        if (!showColorPickerRef.current) return;
+        // Sample one last time on release (could also commit here)
+        if (sampleAtCurrentTouchRef.current) {
+          await sampleAtCurrentTouchRef.current({ commit: false }); // Release just updates preview
+        }
+      },
+      onPanResponderTerminationRequest: () => false,
+    });
+  }, []);
+  
+  // Primary touch handler using Pressable (more reliable than PanResponder)
+  const handleImagePress = async (event) => {
+    if (!showColorPicker) {
+      return;
+    }
+    const { locationX, locationY } = event.nativeEvent;
+    updateTouch(locationX, locationY);
+    if (sampleAtCurrentTouchRef.current) {
+      await sampleAtCurrentTouchRef.current();
+    }
+  };
+  
+  // Handle press in (for immediate feedback)
+  const handleImagePressIn = (event) => {
+    if (!showColorPicker) return;
+    const { locationX, locationY } = event.nativeEvent;
+    updateTouch(locationX, locationY);
+  }; 
+
   // Pick color at coordinates - called only on release
   const pickColorAtCoordinates = async (touchX, touchY) => {
     // Try to get image URL from multiple sources
     let imageUrl = colorPickerImageUrlRef.current;
     if (!imageUrl) {
-      // Fallback: try to get from current state
       imageUrl = originalProductImage.current || product?.image;
-      if (imageUrl) {
-        console.log('🎨 [MANUAL PICKER] Using fallback image URL');
-        colorPickerImageUrlRef.current = imageUrl;
-      }
+      if (imageUrl) colorPickerImageUrlRef.current = imageUrl;
     }
     
     if (!imageUrl) {
-      console.error('🎨 [MANUAL PICKER] No image available:', {
-        ref: colorPickerImageUrlRef.current,
-        original: originalProductImage.current,
-        product: product?.image,
-      });
       return null;
     }
 
-    if (!imageLayout.width || !imageLayout.height || !imageNaturalSize.width || !imageNaturalSize.height) {
-      console.error('🎨 [MANUAL PICKER] Missing layout or natural size:', {
-        layout: imageLayout,
-        natural: imageNaturalSize,
-      });
-      return null;
-    }
-
-    // Convert touch coordinates to image coordinates (accounts for letterboxing)
     const coords = convertTouchToImageCoords(touchX, touchY);
     if (!coords) {
-      console.warn('🎨 [MANUAL PICKER] Touch outside image bounds');
       return null;
     }
 
-    const startTime = Date.now();
     setIsSamplingColor(true);
     colorPickerApiInProgress.current = true;
 
+    const requestBody = {
+      mode: 'pick',
+      imageUrl: imageUrl,
+      x: coords.imageX,
+      y: coords.imageY,
+      imageWidth: imageNaturalSizeRef.current.width,
+      imageHeight: imageNaturalSizeRef.current.height,
+    };
+
     try {
       const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL;
-      if (!API_BASE) {
-        console.error('🎯 [MANUAL PICKER] API_BASE not configured');
-        Alert.alert('Error', 'API configuration missing. Please check environment variables.');
-        return;
-      }
-      const apiUrl = `${API_BASE}/api/color`;
-      console.log('🎯 [MANUAL PICKER] Calling API:', apiUrl);
-      console.log('🎯 [MANUAL PICKER] Request body:', { mode: 'pick', imageUrl: imageUrl?.substring(0, 50) + '...', x: coords.imageX, y: coords.imageY, imageWidth: imageNaturalSize.width, imageHeight: imageNaturalSize.height });
+      if (!API_BASE) return null;
       
-      // Send display coordinates (ix, iy) and display dimensions (displayW, displayH) as specified
-      // The API will convert these to actual pixel coordinates
+      const apiUrl = `${API_BASE}/api/color`;
       const apiResponse = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mode: 'pick',
-          imageUrl: imageUrl, // Use pre-loaded URL (much faster than base64)
-          x: coords.imageX, // Actual image pixel coordinates
-          y: coords.imageY,
-          imageWidth: imageNaturalSize.width, // Natural image dimensions
-          imageHeight: imageNaturalSize.height,
-        }),
+        body: JSON.stringify(requestBody),
       });
-
-      const timeTaken = Date.now() - startTime;
 
       if (apiResponse.ok) {
         const result = await apiResponse.json();
@@ -304,35 +329,25 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
           const hex = result.color;
           const { r, g, b } = result.rgb || { r: 0, g: 0, b: 0 };
           
-          // Use robust offline color naming system (Lab-based ΔE matching)
           const { getNearestColorName } = require('../lib/colorNaming');
           const nearestColor = getNearestColorName(hex);
           const colorName = nearestColor.name;
           
-          console.log('🎨 [MANUAL PICKER] Color picked successfully:', {
-            hex: hex,
-            rgb: { r, g, b },
-            name: colorName,
-            nearestMatch: nearestColor.hex,
-            imageCoords: { x: coords.imageX, y: coords.imageY },
-            displayCoords: { x: touchX, y: touchY },
-            imageSize: { width: imageNaturalSize.width, height: imageNaturalSize.height },
-            timeTaken: `${timeTaken}ms`,
-          });
+          const serverSampled = result.sampledAt || { x: coords.imageX, y: coords.imageY };
+          const serverImageSize = result.imageSize || { width: imageNaturalSizeRef.current.width, height: imageNaturalSizeRef.current.height };
+          const serverDisplayCoords = convertImageCoordsToDisplay(serverSampled.x, serverSampled.y, serverImageSize.width, serverImageSize.height);
           
-          return { hex, rgb: { r, g, b }, name: colorName };
+          return { 
+            hex, 
+            rgb: { r, g, b }, 
+            name: colorName,
+            serverSampled,
+            serverDisplayCoords,
+          };
         }
       } else {
         const errorText = await apiResponse.text();
-        console.error('🎨 [MANUAL PICKER] API error:', apiResponse.status, errorText);
-        console.error('🎨 [MANUAL PICKER] API URL was:', apiUrl);
-        if (apiResponse.status === 404) {
-          Alert.alert(
-            'API Endpoint Not Found',
-            `The color picker API endpoint is not available.\n\nURL: ${apiUrl}\n\nThis usually means the deployment is in progress. Please wait a few minutes and try again.`,
-            [{ text: 'OK' }]
-          );
-        }
+        console.error('🎨 [API] Error response:', apiResponse.status, errorText);
       }
     } catch (apiError) {
       console.error('🎨 [MANUAL PICKER] API error:', apiError);
@@ -340,7 +355,6 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       setIsSamplingColor(false);
       colorPickerApiInProgress.current = false;
     }
-    
     return null;
   };
 
@@ -349,7 +363,6 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
     const colorResult = event.colorResult;
     
     if (!colorResult) {
-      console.warn('🎨 [MANUAL PICKER] No color result available');
       return;
     }
 
@@ -374,18 +387,64 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
     };
     setProduct(updatedProduct);
     
-    console.log('🎨 [MANUAL PICKER] Color confirmed and product updated:', {
-      name: colorName,
-      hex: colorResult.hex,
-      rgb: colorResult.rgb,
-      source: 'manual-pick',
-    });
-    
     // Re-run fit analysis with new color
     setTimeout(() => {
       loadInsights(true);
     }, 100);
   };
+  
+  // Sample color at current touch position
+  // Defined after pickColorAtCoordinates and handleManualColorPickerTap so it can reference them
+  const sampleAtCurrentTouch = async ({ commit = false } = {}) => {
+    const { x, y } = touchRef.current;
+    
+    const coords = convertTouchToImageCoords(x, y);
+    if (!coords) {
+      return null;
+    }
+    
+    const colorResult = await pickColorAtCoordinates(x, y);
+    if (colorResult) {
+      // Update live preview
+      const { getNearestColorName } = require('../lib/colorNaming');
+      const nearestColor = getNearestColorName(colorResult.hex);
+      setLivePickedColor({ 
+        hex: colorResult.hex, 
+        rgb: colorResult.rgb, 
+        name: nearestColor.name 
+      });
+      
+      // Store server-sampled coordinates for debug overlay
+      // Use server's actual sampled coordinates if available, otherwise use frontend calculation
+      if (colorResult.serverSampled && colorResult.serverDisplayCoords) {
+        setServerSampledCoords({
+          imageX: colorResult.serverSampled.x,
+          imageY: colorResult.serverSampled.y,
+          displayX: colorResult.serverDisplayCoords.displayX,
+          displayY: colorResult.serverDisplayCoords.displayY,
+        });
+      } else {
+        // Fallback to frontend calculation
+        setServerSampledCoords({
+          imageX: coords.imageX,
+          imageY: coords.imageY,
+          displayX: coords.displayX,
+          displayY: coords.displayY,
+        });
+      }
+      
+      if (commit) {
+        handleManualColorPickerTap({ nativeEvent: { locationX: x, locationY: y }, colorResult });
+      }
+    }
+    
+    return colorResult;
+  };
+  
+  // Update the ref whenever sampleAtCurrentTouch changes
+  useEffect(() => {
+    sampleAtCurrentTouchRef.current = sampleAtCurrentTouch;
+  }, [sampleAtCurrentTouch]);
   
   // Pre-load image when color picker modal opens
   useEffect(() => {
@@ -393,20 +452,15 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       // Try multiple sources for the image
       const imageToUse = originalProductImage.current || product?.image;
       if (imageToUse) {
-        console.log('🎨 [MANUAL PICKER] Pre-loading image for picker:', imageToUse.substring(0, 100));
         colorPickerImageUrlRef.current = imageToUse;
-      } else {
-        console.warn('🎨 [MANUAL PICKER] No image available for pre-loading:', {
-          originalProductImage: originalProductImage.current,
-          productImage: product?.image,
-        });
       }
     } else {
       // Cleanup when modal closes
       colorPickerImageUrlRef.current = null;
       setLivePickedColor(null);
       setPickerTouchPosition(null);
-      setMagnifierPosition(null);
+      setServerSampledCoords(null);
+      touchRef.current = { x: 0, y: 0 };
     }
   }, [showColorPicker, product?.image]);
   
@@ -454,22 +508,34 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
   // Confirm manual color pick
   const confirmManualColorPick = () => {
     if (livePickedColor) {
-      console.log('🎨 [MANUAL PICKER] Confirming color pick:', livePickedColor);
+      // Update all color-related state FIRST (synchronously)
+      setPickedColorHex(livePickedColor.hex);
+      setPickedColorName(livePickedColor.name);
+      setDetectedColor(livePickedColor.name);
+      setDetectedColorHex(livePickedColor.hex);
+      setUserEnteredColor(livePickedColor.name);
+      setColorSource('manual');
+      
+      // Update product with the picked color
+      const updatedProduct = {
+        ...product,
+        color: livePickedColor.name, // For UI display
+        colorHex: livePickedColor.hex, // Source of truth for logic
+      };
+      setProduct(updatedProduct);
+      
+      // Close modal
       setShowColorPicker(false);
       setPickerTouchPosition(null);
-      setMagnifierPosition(null);
+      setServerSampledCoords(null);
+      touchRef.current = { x: 0, y: 0 };
       
       // Re-run fit analysis with manually picked color
-      console.log('🎨 [MANUAL PICKER] Re-running fit analysis with manually selected color:', livePickedColor.name);
+      // Pass updatedProduct to ensure colorHex is used
+      // Use a longer delay to ensure state updates have propagated
       setTimeout(() => {
-        loadInsights(true);
-      }, 300);
-      
-      Alert.alert(
-        'Color Picked',
-        `Selected: ${livePickedColor.name}\n\nFit analysis will update with this color.`,
-        [{ text: 'OK' }]
-      );
+        loadInsights(true, updatedProduct);
+      }, 500);
     }
   };
   
@@ -487,7 +553,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
   const [isRequesting, setIsRequesting] = useState(false); // Client-side throttling
   const requestInProgress = useRef(false); // Prevent multiple simultaneous requests
   const [userProfileDataState, setUserProfileDataState] = useState(null); // Store user profile for UI access
-  const [colorProfileState, setColorProfileState] = useState(null); // Store color profile for UI access
+  // Initialize from user.colorProfile if available (loaded on app startup)
+  const [colorProfileState, setColorProfileState] = useState(user?.colorProfile || null); // Store color profile for UI access
+  // Keep a ref for the latest colorProfile to avoid stale closures
+  const colorProfileRef = useRef(user?.colorProfile || null);
   
   // New state for missing data inputs
   const [showGarmentInputModal, setShowGarmentInputModal] = useState(false);
@@ -520,9 +589,24 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
     if (product?.image) {
       // Always use the original product image, never a try-on result
       originalProductImage.current = product.image;
-      console.log('🎨 [COLOR] Original product image stored:', product.image.substring(0, 100));
     }
   }, [product?.id]); // Only update when product ID changes
+  
+  // Sync colorProfileState when user object changes (e.g., after app startup load)
+  // Always sync to ensure we have the latest data
+  useEffect(() => {
+    if (user?.colorProfile?.season) {
+      setColorProfileState(user.colorProfile);
+      colorProfileRef.current = user.colorProfile;
+    }
+  }, [user?.colorProfile]);
+  
+  // Also update ref whenever colorProfileState changes
+  useEffect(() => {
+    if (colorProfileState?.season) {
+      colorProfileRef.current = colorProfileState;
+    }
+  }, [colorProfileState]);
 
   // Pan responder for drag-to-dismiss - ONLY on the header area
   const panResponder = useRef(
@@ -562,35 +646,52 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         openSheet();
       }, 100);
       
-      // Check if color is already in product name/metadata
-      const productColorFromName = inferColorFromName(product?.name || '');
-      if (productColorFromName && !product?.color) {
-        console.log('🎨 [COLOR] Color detected from product name:', productColorFromName);
+      // Check if product has color hex from admin (highest priority)
+      // Priority 1: Product has hex code from admin
+      if (product?.colorHex) {
         setColorSource('product');
-        setDetectedColor(productColorFromName);
-        setUserEnteredColor(productColorFromName);
-      } else if (product?.color && !detectedColor && !userEnteredColor) {
-        // Product already has color set
-        console.log('🎨 [COLOR] Color from product metadata:', product.color);
+        setDetectedColorHex(product.colorHex);
+        if (product?.color) {
+          setDetectedColor(product.color);
+          setUserEnteredColor(product.color);
+        }
+      }
+      // Priority 2: Product has color name but no hex
+      else if (product?.color && !detectedColor && !userEnteredColor) {
         setColorSource('product');
         setDetectedColor(product.color);
         setUserEnteredColor(product.color);
+        // Note: No hex, so analysis will trigger auto-detection or ask user to pick
+      }
+      // Priority 3: Try to infer color from product name
+      else {
+        const productColorFromName = inferColorFromName(product?.name || '');
+        if (productColorFromName) {
+          setColorSource('product');
+          setDetectedColor(productColorFromName);
+          setUserEnteredColor(productColorFromName);
+        }
       }
       
-      // Auto-detect color immediately when Fit Check opens (only if no color from product)
-      // Note: autoDetectColor will reload insights after detection, so we don't need to call loadInsights here
-      if (originalProductImage.current && !productColorFromName && !product?.color) {
-        console.log('🎨 [COLOR] Auto-detecting color from product image...');
+      // Auto-detect color if no hex available (product has no colorHex)
+      // Note: autoDetectColor will reload insights after detection
+      if (originalProductImage.current && !product?.colorHex && !detectedColorHex && !pickedColorHex) {
         // Start color detection (non-blocking) - it will reload insights after detection
         autoDetectColor().then(() => {
           // Only load insights if color detection didn't trigger a reload
           // (autoDetectColor already calls loadInsights after detection)
         });
       } else {
+        // Ensure colorProfile is synced from user object before loading insights
+        if (user?.colorProfile?.season && !colorProfileRef.current?.season) {
+          setColorProfileState(user.colorProfile);
+          colorProfileRef.current = user.colorProfile;
+        }
+        
         // Load insights immediately if we already have color or no image
         // Use a small delay to prevent double refresh
         setTimeout(() => {
-      loadInsights();
+          loadInsights();
         }, 100);
       }
     } else {
@@ -639,7 +740,6 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
     
     // Client-side throttling: prevent multiple simultaneous requests
     if (requestInProgress.current && !forceRefresh) {
-      console.log('⏳ Request already in progress, please wait...');
       return;
     }
     
@@ -663,12 +763,57 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         if (!error && profileData) {
           userProfileData = profileData;
           setUserProfileDataState(profileData); // Store in state for UI access
-          console.log('Loaded user profile for AI:', userProfileData);
         }
         
-        // Load color profile
-        colorProfile = await loadColorProfile(user.id);
-        setColorProfileState(colorProfile); // Store in state for UI access
+        // Load color profile - check multiple sources in order of priority
+        // Priority 1: Check ref (most up-to-date, set by useEffect)
+        if (colorProfileRef.current?.season) {
+          colorProfile = colorProfileRef.current;
+        }
+        // Priority 2: Check user object (from App.js)
+        else if (user?.colorProfile?.season) {
+          colorProfile = user.colorProfile;
+          setColorProfileState(colorProfile);
+          colorProfileRef.current = colorProfile;
+        }
+        // Priority 3: Check current state
+        else if (colorProfileState?.season) {
+          colorProfile = colorProfileState;
+        }
+        // Priority 4: Load from database
+        else {
+          colorProfile = await loadColorProfile(user.id);
+          if (colorProfile) {
+            setColorProfileState(colorProfile);
+            colorProfileRef.current = colorProfile;
+          }
+        }
+        
+        // Final fallback: build color profile from userProfileData if available
+        if (!colorProfile && userProfileData?.color_season) {
+          colorProfile = {
+            tone: userProfileData.color_tone || 'neutral',
+            depth: userProfileData.color_depth || 'medium',
+            season: userProfileData.color_season,
+            clarity: userProfileData.color_clarity || null,
+            microSeason: userProfileData.micro_season || null,
+            bestColors: userProfileData.best_colors || [],
+            avoidColors: userProfileData.avoid_colors || [],
+          };
+          setColorProfileState(colorProfile);
+          colorProfileRef.current = colorProfile;
+        }
+        
+        // CRITICAL: If still no colorProfile, try database one more time
+        // This handles edge cases where refs/state didn't catch updates
+        if (!colorProfile && user?.id) {
+          const dbProfile = await loadColorProfile(user.id);
+          if (dbProfile) {
+            colorProfile = dbProfile;
+            setColorProfileState(dbProfile);
+            colorProfileRef.current = dbProfile;
+          }
+        }
       }
 
       // Build user profile for API (for fit/style)
@@ -730,36 +875,6 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         gender: userProfileData?.gender || null,
       };
       
-      console.log('📏 Body measurements check:', {
-        heightIn: userProfileForFitLogic.heightIn,
-        chestIn: userProfileForFitLogic.chestIn,
-        waistIn: userProfileForFitLogic.waistIn,
-        hipsIn: userProfileForFitLogic.hipsIn,
-        shoulderIn: userProfileForFitLogic.shoulderIn,
-        inseamIn: userProfileForFitLogic.inseamIn,
-        rawData: {
-          height_in: userProfileData?.height_in,
-          chest_circ_in: userProfileData?.chest_circ_in,
-          chest_in: userProfileData?.chest_in,
-          chest: userProfileData?.chest,
-          waist_circ_in: userProfileData?.waist_circ_in,
-          waist_in: userProfileData?.waist_in,
-          waist: userProfileData?.waist,
-          hip_circ_in: userProfileData?.hip_circ_in,
-          hips_in: userProfileData?.hips_in,
-          hips: userProfileData?.hips,
-          shoulder_width_in: userProfileData?.shoulder_width_in,
-          shoulder_in: userProfileData?.shoulder_in,
-          shoulder: userProfileData?.shoulder,
-          inseam_in: userProfileData?.inseam_in,
-          inseam: userProfileData?.inseam,
-        },
-        allProfileKeys: Object.keys(userProfileData || {})
-      });
-      
-      console.log('User profile for AI advice:', userProfile);
-      console.log('User profile for fitLogic:', userProfileForFitLogic);
-
       // Build product info with URL for caching
       const productInfo = {
         name: productToUse?.name || 'Item',
@@ -811,13 +926,6 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         normalizedFabricStretch = hasStretchKeywords;
       }
       
-      console.log('🧵 Fabric stretch normalization:', {
-        material: materialStr,
-        fabricStretch: product?.fabricStretch,
-        hasStretchKeywords,
-        normalizedFabricStretch,
-      });
-      
       const productForFitLogic = {
         category: fitLogicCategory,
         name: product?.name || 'Item',
@@ -827,23 +935,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       };
       
       // Use fitLogic for size recommendations (NO-AI)
-      console.log('📏 [FIT CHECK] Using fitLogic for size recommendations');
-      console.log('📏 [FIT CHECK] Input to fitLogic - userProfileForFitLogic:', JSON.stringify(userProfileForFitLogic, null, 2));
-      console.log('📏 [FIT CHECK] Input to fitLogic - productForFitLogic:', JSON.stringify(productForFitLogic, null, 2));
-      console.log('📏 [FIT CHECK] Size chart data:', {
-        hasSizeChart: !!productForFitLogic.sizeChart && productForFitLogic.sizeChart.length > 0,
-        sizeCount: productForFitLogic.sizeChart?.length || 0,
-        sizes: productForFitLogic.sizeChart?.map(s => s.size) || [],
-        firstSizeMeasurements: productForFitLogic.sizeChart?.[0]?.measurements || null,
-      });
-      
       const sizeRecommendation = recommendSizeAndFit(userProfileForFitLogic, productForFitLogic, {});
-      
-      console.log('📏 [FIT CHECK] Size recommendation result:', JSON.stringify(sizeRecommendation, null, 2));
-      console.log('📏 [FIT CHECK] Missing measurements:', sizeRecommendation.missing);
-      console.log('📏 [FIT CHECK] Recommended size:', sizeRecommendation.recommendedSize);
-      console.log('📏 [FIT CHECK] Risk level:', sizeRecommendation.risk);
-      console.log('📏 [FIT CHECK] Confidence:', sizeRecommendation.confidence);
       
       // Convert fitLogic result to UI format
       const missingBody = sizeRecommendation.missing?.filter(m => 
@@ -856,13 +948,6 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       // Size advice is now part of fitSizeData, so we don't need separate setSizeAdvice calls
           
       // Use styleSuitability for color and body shape (NO-AI)
-      console.log('🎨 Using styleSuitability for color and body shape');
-      console.log('🎨 Color profile loaded:', colorProfile);
-      console.log('🎨 User profile data color fields:', {
-        color_tone: userProfileData?.color_tone,
-        color_season: userProfileData?.color_season,
-        color_depth: userProfileData?.color_depth,
-      });
       
       // Extract undertone from color_tone or colorProfile
       // Handle cases like "warm deep" - extract just "warm"
@@ -894,17 +979,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         // Include depth and clarity if available from skin tone analysis
         depth: colorProfile?.depth || userProfileData?.color_depth || null,
         clarity: colorProfile?.clarity || null,
+        // Include micro-season if available (internal use only, not displayed)
+        microSeason: colorProfile?.microSeason || null,
       };
       
-      console.log('🎨 [FIT CHECK] User color profile for suitability:', {
-        undertone,
-        season,
-        depth: userProfileForSuitability.depth,
-        clarity: userProfileForSuitability.clarity,
-        source: colorProfile ? 'from colorProfile (face analysis)' : 'from userProfileData (database)',
-      });
-      
-      console.log('🎨 Final suitability profile:', userProfileForSuitability);
       
       // Get color - check multiple possible fields
       // IMPORTANT: Use productToUse (which may be productOverride) for color values
@@ -916,7 +994,6 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       
       // If we have a detected/entered color but product doesn't have it, update product
       if ((detectedColor || userEnteredColor || pickedColorName) && !productToUse?.color && productColor) {
-        console.log('🎨 [FIT CHECK] Updating product color from detected/entered:', productColor);
         const updatedProduct = {
           ...productToUse,
           color: productColor,
@@ -924,23 +1001,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         setProduct(updatedProduct);
       }
       
-      // LOG: Color detection for debugging
-      console.log('🎨 [FIT CHECK] Product color check:', {
-        productColor: productColor,
-        detectedColor: detectedColor,
-        pickedColorName: pickedColorName,
-        productToUseColor: productToUse?.color,
-        productToUseColorRaw: productToUse?.color_raw,
-        productToUsePrimaryColor: productToUse?.primaryColor,
-        productToUseName: productToUse?.name,
-        inferred: inferColor(productToUse?.name),
-        userEnteredColor: userEnteredColor,
-        hasColor: !!productColor && productColor !== 'unknown',
-      });
-      
       // Get colorHex as source of truth (fallback to primaryColor for UI display)
-      // Priority: detected/picked hex > productToUse colorHex
-      const productColorHex = detectedColorHex || pickedColorHex || productToUse?.colorHex || null;
+      // Priority: productToUse colorHex (from productOverride) > detected/picked hex > product state
+      // When productOverride is passed (e.g., from confirmManualColorPick), use its colorHex first
+      const productColorHex = productToUse?.colorHex || detectedColorHex || pickedColorHex || null;
       
       const productForSuitability = {
         primaryColor: productColor, // For UI display/fallback - includes detected/picked colors
@@ -949,27 +1013,16 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         fitType: productToUse?.fit || productToUse?.fitType || null,
       };
       
-      console.log('🎨 Input to styleSuitability - productForSuitability:', JSON.stringify(productForSuitability, null, 2));
-      console.log('🎨 Input to styleSuitability - userProfileForSuitability:', JSON.stringify(userProfileForSuitability, null, 2));
-      
       const suitability = evaluateSuitability(userProfileForSuitability, productForSuitability);
-      console.log('🎨 Suitability result:', JSON.stringify(suitability, null, 2));
       
       setColorSuitability(suitability.color);
       setBodyShapeSuitability(suitability.body);
       
       // Use fabricComfort for fabric analysis (NO-AI)
-      console.log('🧵 Using fabricComfort for fabric analysis');
-      console.log('🧵 Product material/fabric:', {
-        material: productToUse?.material,
-        fabric: productToUse?.fabric,
-        productToUse: productToUse ? 'exists' : 'null'
-      });
       const fabricAnalysis = analyzeFabricComfort({
         material: productToUse?.material || productToUse?.fabric || null,
         fabric: productToUse?.fabric || null,
       });
-      console.log('🧵 Fabric analysis result:', fabricAnalysis);
       setFabricComfort(fabricAnalysis);
       
       // Build FIT & SIZE combined data with proper status labels
@@ -1032,20 +1085,15 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       });
       
       // Build HOW TO WEAR data (enhanced rule-based with 40+ rules)
-      console.log('👔 [HOW TO WEAR] ========== BUILDING HOW TO WEAR DATA ==========');
+      // IMPORTANT: Use fresh suitability results (suitability.color, suitability.body) not stale state
       const howToWearResult = buildHowToWearData(
         productToUse || product,
         userProfileForSuitability,
-        colorSuitability,
-        bodyShapeSuitability,
-        fabricComfort,
+        suitability.color,  // Use fresh result, not state variable
+        suitability.body,   // Use fresh result, not state variable
+        fabricAnalysis,     // Use fresh result, not state variable
         sizeRecommendation
       );
-      console.log('👔 [HOW TO WEAR] Result:', {
-        occasions: howToWearResult.occasions,
-        stylingTips: howToWearResult.stylingTips,
-        rulesApplied: howToWearResult.rulesApplied,
-      });
       setHowToWearData({
         occasions: howToWearResult.occasions,
         stylingTips: howToWearResult.stylingTips,
@@ -1085,19 +1133,6 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
    * Uses all available product, user profile, and analysis data
    */
   const buildHowToWearData = (product, userProfile, colorSuitability, bodyShapeSuitability, fabricComfort, sizeRecommendation) => {
-    console.log('👔 [HOW TO WEAR] Building with data:', {
-      productCategory: product?.category,
-      productFit: product?.fit || product?.fitType,
-      productMaterial: product?.material || product?.fabric,
-      productColor: product?.color,
-      userBodyShape: userProfile?.bodyShape,
-      userSeason: userProfile?.season,
-      colorVerdict: colorSuitability?.verdict,
-      bodyVerdict: bodyShapeSuitability?.verdict,
-      fabricVerdict: fabricComfort?.verdict,
-      sizeStatus: sizeRecommendation?.status,
-    });
-
     // Always start with safe defaults
     const defaultOccasions = ['Casual', 'Work', 'Weekend'];
     const defaultTips = ['Layer with basics for versatility', 'Add statement piece for interest'];
@@ -1122,6 +1157,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       const bodyShape = (userProfile?.bodyShape || userProfile?.body_shape || '').toLowerCase();
       const colorSeason = (userProfile?.season || userProfile?.color_season || '').toLowerCase();
       const colorVerdict = colorSuitability?.verdict || null;
+      const colorVerdictLower = (colorVerdict || '').toLowerCase(); // Normalize for comparison
       const bodyVerdict = bodyShapeSuitability?.verdict || null;
       const fabricVerdict = fabricComfort?.verdict || null;
       const sizeStatus = sizeRecommendation?.status || null;
@@ -1262,8 +1298,34 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         }
       }
       
-      // Remove duplicates and limit to 5
-      const uniqueOccasions = [...new Set(occasions)];
+      // Remove duplicates and prioritize based on color verdict
+      let uniqueOccasions = [...new Set(occasions)];
+      
+      // If color is risky, remove formal/special occasions
+      if (colorVerdictLower === 'risky') {
+        uniqueOccasions = uniqueOccasions.filter(o => 
+          !['Formal', 'Gala', 'Wedding', 'Special Event', 'Date Night', 'Cocktail Party'].includes(o)
+        );
+        // Add more casual alternatives
+        if (!uniqueOccasions.includes('Casual')) uniqueOccasions.unshift('Casual');
+        rulesApplied.push('color-risky-occasions-adjusted');
+      }
+      
+      // If color is great, prioritize special occasions
+      if (colorVerdictLower === 'great' && (category.includes('dress') || fitType === 'fitted')) {
+        // Move special occasions to front
+        const specialOccasions = uniqueOccasions.filter(o => 
+          ['Date Night', 'Formal', 'Special Event', 'Wedding'].includes(o)
+        );
+        const otherOccasions = uniqueOccasions.filter(o => 
+          !['Date Night', 'Formal', 'Special Event', 'Wedding'].includes(o)
+        );
+        uniqueOccasions = [...specialOccasions, ...otherOccasions];
+        rulesApplied.push('color-great-occasions-prioritized');
+      }
+      
+      // Limit to 5 most relevant
+      uniqueOccasions = uniqueOccasions.slice(0, 5);
       
       // ========== STYLING TIPS LOGIC (40+ rules) ==========
       
@@ -1327,21 +1389,53 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         }
       }
       
-      // RULE 11-20: Color suitability tips
-      if (colorVerdict === 'Great' || colorVerdict === 'great') {
-        stylingTips.push(`This ${product?.color || 'color'} complements your skin tone beautifully`);
+      // RULE 11-20: Color suitability tips based on CIEDE2000 analysis
+      if (colorVerdictLower === 'great') {
+        stylingTips.push(`This ${color || 'color'} is perfect for your ${colorSeason || 'skin tone'} coloring`);
         rulesApplied.push('color-verdict-great');
-      } else if (colorVerdict === 'Risky' || colorVerdict === 'risky') {
-        if (colorSuitability?.alternatives?.[0]) {
-          stylingTips.push(`Consider ${colorSuitability.alternatives[0]} for better harmony with your skin tone`);
-          rulesApplied.push('color-verdict-risky-alternative');
-        } else {
-          stylingTips.push('Try pairing with accessories in your best colors');
-          rulesApplied.push('color-verdict-risky-accessories');
+        // Add specific tip based on category
+        if (category.includes('upper') || category.includes('top')) {
+          stylingTips.push('Wear near your face to brighten your complexion');
+          rulesApplied.push('color-great-near-face');
         }
-      } else if (colorVerdict === 'OK' || colorVerdict === 'ok') {
-        stylingTips.push('This color works well - add accessories in your best colors for extra impact');
+      } else if (colorVerdictLower === 'good') {
+        stylingTips.push(`${color ? color.charAt(0).toUpperCase() + color.slice(1) : 'This color'} harmonizes well with your coloring`);
+        rulesApplied.push('color-verdict-good');
+      } else if (colorVerdictLower === 'risky') {
+        // Get specific advice from analysis
+        const colorSummary = colorSuitability?.summary || '';
+        if (colorSummary.includes('intense') || colorSummary.includes('vivid')) {
+          stylingTips.push('This bold color may overpower your natural coloring - keep it away from your face');
+          rulesApplied.push('color-risky-intensity');
+        } else if (colorSummary.includes('undertone')) {
+          stylingTips.push('The undertone clashes with your skin - pair with a scarf or necklace in your best colors near your face');
+          rulesApplied.push('color-risky-undertone');
+        } else {
+          stylingTips.push('Wear this as a bottom or with a flattering color near your face');
+          rulesApplied.push('color-risky-general');
+        }
+        // Suggest styling to make it work
+        if (category.includes('upper') || category.includes('top') || category.includes('dress')) {
+          stylingTips.push('Add a cardigan, jacket, or scarf in your best colors to break up the color near your face');
+          rulesApplied.push('color-risky-styling-tip');
+        }
+      } else if (colorVerdictLower === 'ok') {
+        stylingTips.push(`${color ? color.charAt(0).toUpperCase() + color.slice(1) : 'This color'} works - elevate with accessories in your best colors`);
         rulesApplied.push('color-verdict-ok');
+      }
+      
+      // Add season-specific pairing tips
+      if (colorSeason && colorVerdictLower && colorVerdictLower !== 'great') {
+        const seasonTips = {
+          'spring': 'Pair with warm, clear colors like coral, peach, or warm green',
+          'summer': 'Complement with soft, muted colors like dusty rose, slate blue, or sage',
+          'autumn': 'Layer with warm earth tones like rust, olive, or camel',
+          'winter': 'Contrast with cool, clear colors like icy pink, bright white, or cobalt blue'
+        };
+        if (seasonTips[colorSeason]) {
+          stylingTips.push(seasonTips[colorSeason]);
+          rulesApplied.push(`season-${colorSeason}-pairing`);
+        }
       }
       
       // RULE 21-25: Fit-specific tips
@@ -1452,8 +1546,6 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       
       // Remove duplicates and limit to 4
       const uniqueTips = [...new Set(stylingTips)];
-      
-      console.log('👔 [HOW TO WEAR] Rules applied:', rulesApplied.length, rulesApplied);
       
       return {
         occasions: uniqueOccasions.length > 0 ? uniqueOccasions.slice(0, 5) : defaultOccasions,
@@ -1679,12 +1771,20 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                   {/* Color Source Label */}
                   <View style={styles.colorSourceRow}>
                     <Text style={styles.colorSourceLabel}>
-                      {colorSource === 'product' && 'Color detected from product'}
-                      {colorSource === 'auto-detected' && 'Color auto-detected'}
-                      {colorSource === 'manual' && 'Color selected manually'}
-                      {!colorSource && (product?.color || detectedColor || userEnteredColor) && 'Color detected from product'}
-                      {!colorSource && !product?.color && !detectedColor && !userEnteredColor && 'No color detected'}
+                      {colorSource === 'manual' && '✓ Color selected manually'}
+                      {colorSource === 'product' && product?.colorHex && '✓ Product color from product details'}
+                      {colorSource === 'product' && !product?.colorHex && 'Color name from product'}
+                      {colorSource === 'auto-detected' && '⚡ Color auto-detected'}
+                      {!colorSource && product?.colorHex && '✓ Product color from product details'}
+                      {!colorSource && (product?.color || detectedColor || userEnteredColor) && !product?.colorHex && 'Color detected'}
+                      {!colorSource && !product?.color && !detectedColor && !userEnteredColor && '⚠️ No color detected'}
                     </Text>
+                    {/* Note for auto-detected colors */}
+                    {colorSource === 'auto-detected' && (
+                      <Text style={styles.colorAutoDetectNote}>
+                        For accurate results, pick color manually
+                      </Text>
+                    )}
                   </View>
 
                   {/* Color Display: Swatch + Name + Hex */}
@@ -1737,29 +1837,30 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                 {colorSuitability?.status === 'INSUFFICIENT_DATA' ? (
                   <View style={styles.missingDataBox}>
                     <Text style={styles.missingDataText}>
-                      {colorSuitability.reasons?.[0]?.includes('Color Profile') 
-                        ? 'Need Color Info: Set your Color Profile (undertone + depth)'
-                        : (pickedColorName || detectedColor || product?.color) 
-                          ? 'Need Color Info: Set your Color Profile to get personalized color feedback'
-                          : 'Need Color Info: Product color not detected'}
+                      {colorSuitability.reasons?.[0]?.includes('Product color not detected')
+                        ? 'Product color not detected. Pick the color to get analysis.'
+                        : colorSuitability.reasons?.[0]?.includes('Color Profile') || colorSuitability.reasons?.[0]?.includes('season')
+                          ? 'Set your Color Profile to get personalized color feedback'
+                          : colorSuitability.summary || 'Need color info for analysis'}
                     </Text>
                     <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                      {colorSuitability.reasons?.[0]?.includes('Color Profile') && (
+                      {/* Show Pick Color button if product color not detected */}
+                      {colorSuitability.reasons?.[0]?.includes('Product color not detected') && (
                         <Pressable 
                           style={styles.addDataBtn}
                           onPress={() => {
-                            closeSheet();
-                            setRoute('account');
+                            if (originalProductImage.current || product?.image) {
+                              setShowColorPicker(true);
+                            } else {
+                              setShowColorInputModal(true);
+                            }
                           }}
                         >
-                          <Text style={styles.addDataBtnText}>
-                            {userProfileDataState?.face_image_url || colorProfileState 
-                              ? 'Set Color Profile →' 
-                              : 'Upload Face Photo →'}
-                          </Text>
+                          <Text style={styles.addDataBtnText}>🎯 Pick Color →</Text>
                         </Pressable>
                       )}
-                      {!colorSuitability.reasons?.[0]?.includes('Color Profile') && (pickedColorName || detectedColor || product?.color) && (
+                      {/* Show Set Color Profile button if user season not set */}
+                      {(colorSuitability.reasons?.[0]?.includes('Color Profile') || colorSuitability.reasons?.[0]?.includes('season')) && (
                         <Pressable 
                           style={styles.addDataBtn}
                           onPress={() => {
@@ -1768,9 +1869,9 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                           }}
                         >
                           <Text style={styles.addDataBtnText}>
-                            {userProfileDataState?.face_image_url || colorProfileState 
-                              ? 'Set Color Profile →' 
-                              : 'Upload Face Photo →'}
+                            {colorProfileState?.season 
+                              ? 'Update Color Profile →' 
+                              : 'Set Color Profile →'}
                           </Text>
                         </Pressable>
                       )}
@@ -1781,32 +1882,51 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                     <View style={[
                       styles.verdictBadge,
                       colorSuitability?.verdict === 'great' && styles.verdictGood,
+                      colorSuitability?.verdict === 'good' && styles.verdictGood,
                       colorSuitability?.verdict === 'ok' && styles.verdictNeutral,
                       colorSuitability?.verdict === 'risky' && styles.verdictWarning,
                     ]}>
                       <Text style={styles.verdictText}>
                         {colorSuitability?.verdict === 'great' && '✅ Great'}
+                        {colorSuitability?.verdict === 'good' && '✅ Good'}
                         {colorSuitability?.verdict === 'ok' && '⚡ OK'}
                         {colorSuitability?.verdict === 'risky' && '⚠️ Risky'}
                       </Text>
                     </View>
 
-                    {colorSuitability?.reasons && colorSuitability.reasons.length > 0 && (
+                    {/* Summary */}
+                    {colorSuitability?.summary && (
+                      <Text style={styles.colorSummaryText}>
+                        {colorSuitability.summary}
+                      </Text>
+                    )}
+
+                    {/* Bullets - supports new format with isMicronote flag */}
+                    {colorSuitability?.bullets && colorSuitability.bullets.length > 0 && (
                       <View style={styles.adviceSection}>
-                        {colorSuitability.reasons.slice(0, 4).map((reason, idx) => (
+                        {colorSuitability.bullets.map((bullet, idx) => {
+                          // Handle both old format (string) and new format (object with text/isMicronote)
+                          const bulletText = typeof bullet === 'string' ? bullet : bullet.text;
+                          const isMicronote = typeof bullet === 'object' && bullet.isMicronote;
+                          return (
+                            <Text key={idx} style={isMicronote ? styles.colorMicroNote : styles.adviceItem}>
+                              {isMicronote ? '💡 ' : '• '}{bulletText}
+                            </Text>
+                          );
+                        })}
+                      </View>
+                    )}
+
+                    {/* Fallback to reasons if bullets not available */}
+                    {(!colorSuitability?.bullets || colorSuitability.bullets.length === 0) && 
+                     colorSuitability?.reasons && colorSuitability.reasons.length > 0 && (
+                      <View style={styles.adviceSection}>
+                        {colorSuitability.reasons.slice(0, 3).map((reason, idx) => (
                           <Text key={idx} style={styles.adviceItem}>• {reason}</Text>
                         ))}
                       </View>
                     )}
 
-                    {colorSuitability?.alternatives && colorSuitability.alternatives.length > 0 && (
-                      <View style={styles.alternativesSection}>
-                        <Text style={styles.alternativesTitle}>Alternate Colors:</Text>
-                        {colorSuitability.alternatives.slice(0, 3).map((alt, idx) => (
-                          <Text key={idx} style={styles.alternativeItem}>• {alt}</Text>
-                        ))}
-                      </View>
-                    )}
                   </>
                 ) : null}
               </View>
@@ -1846,6 +1966,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                         {bodyShapeSuitability?.verdict === 'risky' && '⚠️ Risky'}
                       </Text>
                       </View>
+
+                    {bodyShapeSuitability?.bodyShapeLabel && (
+                      <Text style={styles.bodyShapeLabel}>Based on your {bodyShapeSuitability.bodyShapeLabel} shape:</Text>
+                    )}
 
                     {bodyShapeSuitability?.reasons && bodyShapeSuitability.reasons.length > 0 && (
                       <View style={styles.adviceSection}>
@@ -2061,32 +2185,23 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                         setOcrParsingStatus('Preparing image...');
                         const imageUri = result.assets[0].uri;
                         
-                        console.log('📊 [FRONTEND] Image selected:', imageUri);
-                        
                         // Convert image to base64
                         try {
                           setOcrParsingStatus('Converting image to base64...');
                         const response = await fetch(imageUri);
                         const blob = await response.blob();
-                          console.log('📊 [FRONTEND] Image blob size:', blob.size, 'bytes');
-                          console.log('📊 [FRONTEND] Image blob type:', blob.type);
                           
                         const reader = new FileReader();
                         reader.onloadend = async () => {
                           const base64 = reader.result;
-                            console.log('📊 [FRONTEND] Base64 length:', base64?.length || 0);
                           
                           // Call fit-check-utils API for parsing size chart
                           try {
                             const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL;
                             if (!API_BASE) {
-                              console.error('📊 [FRONTEND] API_BASE not configured');
                               setOcrParsingStatus('Error: API configuration missing');
                               return;
                             }
-                            console.log('📊 [FRONTEND] Uploading size chart image...');
-                            console.log('📊 [FRONTEND] Image size:', blob.size, 'bytes');
-                            console.log('📊 [FRONTEND] API endpoint:', `${API_BASE}/api/ocr-sizechart`);
                               
                               setOcrParsingStatus('Analysing the screenshot...');
                             
@@ -2096,11 +2211,8 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                               body: JSON.stringify({ imageBase64: base64 }),
                             });
                             
-                            console.log('📊 [FRONTEND] OCR response status:', parseResponse.status);
-                            
                             if (!parseResponse.ok) {
                               const errorText = await parseResponse.text();
-                              console.error('📊 [FRONTEND] OCR API error:', parseResponse.status, errorText);
                                 setOcrParsingStatus(`Error: ${parseResponse.status}`);
                               throw new Error(`OCR API error: ${parseResponse.status}`);
                             }
@@ -2108,10 +2220,6 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                               setOcrParsingStatus('Processing OCR results...');
                             
                             const parseData = await parseResponse.json();
-                            console.log('📊 [FRONTEND] Size chart parse result:', JSON.stringify(parseData, null, 2));
-                            console.log('📊 [FRONTEND] Parse success:', parseData.success);
-                            console.log('📊 [FRONTEND] Parsed data:', parseData.data);
-                            console.log('📊 [FRONTEND] Raw text length:', parseData.rawText?.length || 0);
                             
                             if (parseData.success && parseData.data) {
                                 setOcrParsingStatus('✓ Successfully parsed size chart!');
@@ -2481,8 +2589,9 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         onRequestClose={() => {
           setShowColorPicker(false);
           setPickerTouchPosition(null);
-          setMagnifierPosition(null);
           setLivePickedColor(null);
+          setServerSampledCoords(null);
+          touchRef.current = { x: 0, y: 0 };
           colorPickerImageUrlRef.current = null;
         }}
       >
@@ -2493,8 +2602,9 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
               <Pressable onPress={() => {
                 setShowColorPicker(false);
                 setPickerTouchPosition(null);
-                setMagnifierPosition(null);
                 setLivePickedColor(null);
+                setServerSampledCoords(null);
+                touchRef.current = { x: 0, y: 0 };
               }}>
                 <Text style={styles.modalCloseBtn}>✕</Text>
               </Pressable>
@@ -2512,104 +2622,101 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
               
               {originalProductImage.current || product?.image ? (
                 <View style={{ flex: 1, position: 'relative' }}>
-                  {/* PanResponder for live preview as user moves finger */}
-                  {(() => {
-                    // Create PanResponder using useMemo pattern (created once per render cycle)
-                    const colorPickerPanResponder = PanResponder.create({
-                      onStartShouldSetPanResponder: () => true,
-                      onMoveShouldSetPanResponder: () => true,
-                      onPanResponderGrant: (evt) => {
-                        // User started touching - show live preview
-                        const { locationX, locationY } = evt.nativeEvent;
-                        handleManualColorPickerMove(locationX, locationY);
-                      },
-                      onPanResponderMove: (evt) => {
-                        // User is moving finger - update live preview
-                        const { locationX, locationY } = evt.nativeEvent;
-                        handleManualColorPickerMove(locationX, locationY);
-                      },
-                      onPanResponderRelease: async (evt) => {
-                        // User lifted finger - confirm color selection (ONLY API CALL HERE)
-                        const { locationX, locationY } = evt.nativeEvent;
-                        const colorResult = await pickColorAtCoordinates(locationX, locationY);
-                        if (colorResult) {
-                          handleManualColorPickerTap({ nativeEvent: { locationX, locationY }, colorResult });
+                  {/* Image - behind the touch layer */}
+                  <View style={{ flex: 1 }}>
+                    <OptimizedImage
+                      source={{ uri: originalProductImage.current || product?.image }}
+                      style={{ 
+                        width: '100%', 
+                        flex: 1,
+                        minHeight: 500,
+                      }}
+                      resizeMode="contain"
+                      pointerEvents="none"
+                      onLoad={(event) => {
+                        const { width, height } = event.nativeEvent.source;
+                        imageNaturalSizeRef.current = { width, height };
+                      }}
+                    />
+                  </View>
+                  
+                  {/* Touch handler - Pressable for reliable touch detection */}
+                  <Pressable
+                    style={{ 
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundColor: 'transparent',
+                    }}
+                    onPress={handleImagePress}
+                    onPressIn={handleImagePressIn}
+                    onLayout={(event) => {
+                      const { width, height, x, y } = event.nativeEvent.layout;
+                      imageLayoutRef.current = { width, height, x, y };
+                    }}
+                  />
+                        
+                  {/* Color picker cursor - circle showing exact pick location */}
+                  {/* Rendered outside PanResponder View to prevent clipping, but uses same coordinates */}
+                  {pickerTouchPosition && (
+                    <View
+                      style={[
+                        styles.colorPickerCursorBox,
+                        {
+                          position: 'absolute',
+                          left: pickerTouchPosition.x - 15,
+                          top: pickerTouchPosition.y - 15,
+                          opacity: 1,
+                          zIndex: 1000,
                         }
-                      },
-                    });
-                    
-                    return (
-                      <View style={{ flex: 1, width: '100%' }} {...colorPickerPanResponder.panHandlers}>
-                        <OptimizedImage
-                          source={{ uri: originalProductImage.current || product?.image }}
-                          style={{ 
-                            width: '100%', 
-                            flex: 1,
-                            minHeight: 500,
-                            resizeMode: 'contain',
-                          }}
-                          onLayout={(event) => {
-                            const { width, height, x, y } = event.nativeEvent.layout;
-                            setImageLayout({ width, height, x, y });
-                          }}
-                          onLoad={(event) => {
-                            const { width, height } = event.nativeEvent.source;
-                            setImageNaturalSize({ width, height });
-                          }}
-                        />
-                        
-                        {/* Crosshair at tap position - crisp, professional design */}
-                        {pickerTouchPosition && (
-                          <View
-                            style={[
-                              styles.crosshair,
-                              {
-                                left: pickerTouchPosition.x - 12,
-                                top: pickerTouchPosition.y - 12,
-                              }
-                            ]}
-                            pointerEvents="none"
-                          >
-                            {/* Outer ring */}
-                            <View style={styles.crosshairRing} />
-                            {/* Center dot */}
-                            <View style={styles.crosshairDot} />
-                            {/* Horizontal line */}
-                            <View style={[styles.crosshairLine, { width: 24, height: 1, top: 11 }]} />
-                            {/* Vertical line */}
-                            <View style={[styles.crosshairLine, { width: 1, height: 24, left: 11 }]} />
-                          </View>
-                        )}
-                        
-                        {/* Magnifier/Loupe above finger - shows zoomed view */}
-                        {magnifierPosition && livePickedColor && (
-                          <View
-                            style={[
-                              styles.magnifier,
-                              {
-                                left: Math.max(10, Math.min(magnifierPosition.x - 60, width - 130)),
-                                top: Math.max(10, magnifierPosition.y - 140),
-                              }
-                            ]}
-                          >
-                            <View style={styles.magnifierContent}>
-                              {/* Zoomed color swatch (larger for better visibility) */}
-                              <View style={[styles.magnifierColorSwatch, { backgroundColor: livePickedColor.hex }]} />
-                              <Text style={styles.magnifierText}>
-                                {livePickedColor.hex.toUpperCase()}
-                              </Text>
-                              <Text style={styles.magnifierTextSmall}>
-                                Name: {livePickedColor.name}
-                              </Text>
-                              <Text style={styles.magnifierTextSmall}>
-                                RGB: {livePickedColor.rgb.r}, {livePickedColor.rgb.g}, {livePickedColor.rgb.b}
-                              </Text>
-                            </View>
+                      ]}
+                      pointerEvents="none"
+                    >
+                      <View style={styles.colorPickerCursorOuter} />
+                      <View style={styles.colorPickerCursorInner} />
+                      <View style={styles.colorPickerCursorCenter} />
+                    </View>
+                  )}
+                  
+                  {/* Magnifier/Loupe above finger - shows zoomed view */}
+                  {pickerTouchPosition && (
+                    <View
+                      style={[
+                        styles.magnifier,
+                        {
+                          position: 'absolute',
+                          left: Math.max(10, Math.min(pickerTouchPosition.x - 60, width - 130)),
+                          top: Math.max(10, pickerTouchPosition.y - 140),
+                          opacity: 1,
+                          zIndex: 1001,
+                        }
+                      ]}
+                      pointerEvents="none"
+                    >
+                      <View style={styles.magnifierContent}>
+                        {isSamplingColor ? (
+                          <ActivityIndicator size="small" color="#fff" />
+                        ) : livePickedColor ? (
+                          <>
+                            <View style={[styles.magnifierColorSwatch, { backgroundColor: livePickedColor.hex }]} />
+                            <Text style={styles.magnifierText}>
+                              {livePickedColor.hex.toUpperCase()}
+                            </Text>
+                            <Text style={styles.magnifierTextSmall}>
+                              {livePickedColor.name}
+                            </Text>
+                          </>
+                        ) : (
+                          <View style={{ alignItems: 'center' }}>
+                            <ActivityIndicator size="small" color="#fff" style={{ marginBottom: 4 }} />
+                            <Text style={styles.magnifierText}>Sampling...</Text>
                           </View>
                         )}
                       </View>
-                    );
-                  })()}
+                    </View>
+                  )}
                 </View>
               ) : (
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
@@ -2673,13 +2780,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                   style={[styles.saveButton, isDetectingColor && { opacity: 0.5 }]}
                   onPress={async () => {
                     if (isDetectingColor) {
-                      console.log('🎨 [COLOR MODAL] Color detection already in progress, ignoring click');
                       return;
                     }
                     
-                    console.log('🎨 [COLOR MODAL] Detect Color button clicked');
                     const imageToUse = originalProductImage.current || product?.image;
-                    console.log('🎨 [COLOR MODAL] Using ORIGINAL product image:', imageToUse?.substring(0, 100));
                     
                     if (!imageToUse) {
                       Alert.alert('Error', 'No product image available for color detection');
@@ -2687,13 +2791,10 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                     }
                     
                     // Clear cache to force fresh detection
-                    console.log('🎨 [COLOR MODAL] Clearing color cache...');
                     clearColorCache();
                     
-                    console.log('🎨 [COLOR MODAL] Starting color detection from original image...');
                     setColorSource('auto-detected');
                     await autoDetectColor();
-                    console.log('🎨 [COLOR MODAL] Color detection completed');
                   }}
                   disabled={isDetectingColor}
                 >
@@ -2748,7 +2849,6 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                   onPress={() => {
                     const colorToSave = userEnteredColor || detectedColor || product?.color;
                     if (colorToSave && colorToSave.trim() !== '') {
-                      console.log('🎨 [COLOR MODAL] Saving color:', colorToSave);
                       const updatedProduct = {
                         ...product,
                         color: colorToSave.trim(),
@@ -2761,7 +2861,6 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                       }
                       setShowColorInputModal(false);
                       setTimeout(() => {
-                        console.log('🎨 [COLOR MODAL] Reloading insights with saved color');
                         loadInsights(true);
                       }, 100);
                     } else {
@@ -3079,6 +3178,13 @@ const styles = StyleSheet.create({
   adviceSection: {
     marginBottom: 12,
   },
+  bodyShapeLabel: {
+    color: '#a5b4fc',
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 8,
+    fontStyle: 'italic',
+  },
   adviceSectionTitle: {
     color: '#9ca3af',
     fontSize: 12,
@@ -3091,6 +3197,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
     marginBottom: 4,
+  },
+  colorSummaryText: {
+    color: '#e5e7eb',
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  colorMicroNote: {
+    color: '#9ca3af',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 12,
+    fontStyle: 'italic',
+  },
+  lightingDisclaimer: {
+    color: '#9ca3af',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 8,
+    fontStyle: 'italic',
   },
   sizeRecommendation: {
     flexDirection: 'row',
@@ -3390,6 +3517,12 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
+  colorAutoDetectNote: {
+    fontSize: 11,
+    color: '#f59e0b',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
   colorDisplayRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3444,6 +3577,62 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.8)',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 4,
+  },
+  // New square/circle cursor box for color picker
+  colorPickerCursorBox: {
+    position: 'absolute',
+    width: 30,
+    height: 30,
+    zIndex: 10000, // Very high z-index to ensure visibility
+    justifyContent: 'center',
+    alignItems: 'center',
+    pointerEvents: 'none',
+  },
+  colorPickerCursorOuter: {
+    position: 'absolute',
+    width: 30,
+    height: 30,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    borderRadius: 15, // Circle
+    backgroundColor: 'transparent',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.9,
+    shadowRadius: 4,
+    elevation: 10, // Android shadow (higher for visibility)
+  },
+  colorPickerCursorInner: {
+    position: 'absolute',
+    width: 20,
+    height: 20,
+    borderWidth: 2, // Thicker border for visibility
+    borderColor: '#000000',
+    borderRadius: 10, // Circle to match outer
+    backgroundColor: 'transparent',
+    left: 5, // Center within outer (30-20)/2 = 5
+    top: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.8,
+    shadowRadius: 2,
+    elevation: 8,
+  },
+  colorPickerCursorCenter: {
+    position: 'absolute',
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#FFFFFF',
+    left: 13, // Center: (30-4)/2 = 13
+    top: 13,
+    borderWidth: 1,
+    borderColor: '#000000',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 1,
+    elevation: 10,
   },
   crosshair: {
     position: 'absolute',

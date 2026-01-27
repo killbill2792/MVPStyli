@@ -228,7 +228,7 @@ function Explore() {
   const { setRoute, state } = useApp();
   const { user } = state;
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState('friends'); // 'friends', 'twins', 'global'
+  const [activeTab, setActiveTab] = useState('global'); // 'friends', 'twins', 'global'
   const [pods, setPods] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -2116,6 +2116,25 @@ export default function App() {
             .eq('id', userId)
             .single();
           
+          // Build color profile from database fields (load on startup!)
+          const colorProfileData = (profile?.color_season || profile?.color_tone) ? {
+            tone: profile.color_tone || 'neutral',
+            depth: profile.color_depth || 'medium',
+            season: profile.color_season,
+            clarity: profile.color_clarity || null,
+            microSeason: profile.micro_season || null,
+            bestColors: profile.best_colors || [],
+            avoidColors: profile.avoid_colors || [],
+          } : null;
+          
+          if (colorProfileData) {
+            logger.log('🎨 Loaded color profile on startup:', {
+              season: colorProfileData.season,
+              depth: colorProfileData.depth,
+              clarity: colorProfileData.clarity,
+            });
+          }
+          
           setUser({
             id: userId,
             email: session.user.email,
@@ -2124,6 +2143,8 @@ export default function App() {
             avatar_url: profile?.avatar_url,
             body_image_url: profile?.body_image_url, // Load body image
             face_image_url: profile?.face_image_url, // Load face image
+            // Color profile fields loaded on app startup
+            colorProfile: colorProfileData,
           });
           
           // Auto-fill body image for try-on
@@ -2137,7 +2158,7 @@ export default function App() {
           refreshStyleProfile(userId).catch(e => logger.log('Style profile refresh error:', e));
           
           logger.log('Restored session for:', session.user.email);
-          setRoute('shop'); // User is logged in, go to shop
+          setRoute('feed'); // User is logged in, go to explore
         } else {
           // No session - show login screen
           logger.log('No session found, showing login screen');
@@ -2183,11 +2204,44 @@ export default function App() {
         const userId = session.user.id;
         
         // Load profile
-        const { data: profile } = await supabase
+        let { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', userId)
           .single();
+        
+        // If profile doesn't exist for new user, create it
+        if (profileError && profileError.code === 'PGRST116') {
+          logger.log('Creating profile for new user:', userId);
+          const newProfile = {
+            id: userId,
+            email: session.user.email,
+            name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
+          };
+          const { data: createdProfile, error: createError } = await supabase
+            .from('profiles')
+            .insert(newProfile)
+            .select()
+            .single();
+          
+          if (createError) {
+            logger.log('Failed to create profile:', createError);
+          } else {
+            profile = createdProfile;
+            logger.log('Profile created successfully');
+          }
+        }
+        
+        // Build color profile from database fields
+        const colorProfileData = (profile?.color_season || profile?.color_tone) ? {
+          tone: profile.color_tone || 'neutral',
+          depth: profile.color_depth || 'medium',
+          season: profile.color_season,
+          clarity: profile.color_clarity || null,
+          microSeason: profile.micro_season || null,
+          bestColors: profile.best_colors || [],
+          avoidColors: profile.avoid_colors || [],
+        } : null;
         
         setUser({
           id: userId,
@@ -2196,6 +2250,8 @@ export default function App() {
           name: profile?.name || session.user.user_metadata?.name,
           avatar_url: profile?.avatar_url,
           body_image_url: profile?.body_image_url,
+          face_image_url: profile?.face_image_url,
+          colorProfile: colorProfileData,
         });
 
         // Auto-fill body image for try-on
@@ -2227,10 +2283,10 @@ export default function App() {
               
               // If it's a pod invite, navigate to the pod
               if (invite.type === 'pod' && invite.podId) {
-                // Navigate to shop first, then to pod so back works correctly
-                setRoute('shop');
+                // Navigate to explore first, then to pod so back works correctly
+                setRoute('feed');
                 setTimeout(() => handleSetRoute('podlive', { id: invite.podId }), 100);
-                return; // Don't navigate to shop again
+                return; // Don't navigate to explore again
               }
             } else {
               logger.log('Failed to claim invite:', result.message);
@@ -2240,8 +2296,8 @@ export default function App() {
           }
         }
         
-        // Navigate to shop after successful login
-        setRoute('shop');
+        // Navigate to explore after successful login
+        setRoute('feed');
       } else if (event === 'SIGNED_OUT') {
         // Clear user data and go to login screen
         logger.log('Signed out, going to login screen');
@@ -2317,8 +2373,8 @@ export default function App() {
                   
                   // If it's a pod invite, navigate to the pod
                   if (parsed.type === 'pod' && parsed.podId) {
-                    // Navigate to shop first, then to pod so back works correctly
-                    setRoute('shop');
+                    // Navigate to explore first, then to pod so back works correctly
+                    setRoute('feed');
                     setTimeout(() => handleSetRoute('podlive', { id: parsed.podId }), 100);
                   }
                 }
@@ -2366,8 +2422,8 @@ export default function App() {
               
               // If it's a pod invite, navigate to the pod
               if (parsed.type === 'pod' && parsed.podId) {
-                // Navigate to shop first, then to pod so back works correctly
-                setRoute('shop');
+                // Navigate to explore first, then to pod so back works correctly
+                setRoute('feed');
                 setTimeout(() => handleSetRoute('podlive', { id: parsed.podId }), 100);
               }
             }
@@ -2427,8 +2483,8 @@ export default function App() {
       setRouteParams(previous.params || {});
       setRoute(previous.route);
     } else {
-      // Fallback: go to shop if no stack
-      setRoute('shop');
+      // Fallback: go to explore if no stack
+      setRoute('feed');
     }
   };
 
@@ -2540,7 +2596,7 @@ export default function App() {
                 </ScrollView>
               </View>
                 
-              <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: 100, paddingTop: 180 }}>
+              <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: 100, paddingTop: 155 }}>
                 {/* Product Grid */}
                 <View style={styles.productGrid}>
                     {(allProducts || []).map((p) => (
@@ -2795,17 +2851,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
     paddingTop: 60,
     paddingHorizontal: 20,
-    paddingBottom: 12,
+    paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.1)',
   },
   stickySearchBarContent: {
     backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 20,
-    padding: 12,
+    borderRadius: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   searchBarIconContainer: {
     width: 32,
@@ -2827,14 +2884,14 @@ const styles = StyleSheet.create({
   },
   filterBar: {
     position: 'absolute',
-    top: 120,
+    top: 112,
     left: 0,
     right: 0,
     zIndex: 999,
     backgroundColor: '#000',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.1)',
-    paddingVertical: 12,
+    paddingVertical: 6,
     paddingHorizontal: 16,
   },
   filterScroll: {

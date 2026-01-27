@@ -64,8 +64,6 @@ export interface Notification {
 // Create a new pod
 export const createPod = async (podData: Omit<Pod, 'id' | 'created_at' | 'status'>): Promise<Pod | null> => {
   try {
-    console.log('Creating pod with data:', podData);
-    
     // Validate required fields
     if (!podData.owner_id || !podData.image_url || !podData.audience || !podData.title) {
       console.error('Missing required pod data:', podData);
@@ -82,17 +80,13 @@ export const createPod = async (podData: Omit<Pod, 'id' | 'created_at' | 'status
       .single();
 
     if (error) {
-      console.error('Supabase error creating pod:', error);
-      console.error('Error details:', JSON.stringify(error, null, 2));
+      console.error('Error creating pod:', error);
       throw error;
     }
     
-    console.log('Pod created successfully:', data);
     return data;
   } catch (error: any) {
-    console.error('Error creating pod:', error);
-    console.error('Error message:', error?.message);
-    console.error('Error code:', error?.code);
+    console.error('Error creating pod:', error?.message);
     return null;
   }
 };
@@ -124,7 +118,6 @@ export const getPodVotes = async (podId: string): Promise<PodVote[]> => {
       .eq('pod_id', podId);
 
     if (error) {
-      console.log('Pod votes error:', error.message);
       return [];
     }
     return data || [];
@@ -375,7 +368,6 @@ export const hasUserCommentedOnPod = async (podId: string, userId: string): Prom
 // Get user's active pods
 export const getUserActivePods = async (userId: string): Promise<Pod[]> => {
   try {
-    console.log('Fetching active pods for user:', userId);
     
     const now = new Date().toISOString();
     
@@ -402,17 +394,20 @@ export const getUserActivePods = async (userId: string): Promise<Pod[]> => {
     });
     
     // Filter out pods with invalid or missing image URLs
+    // image_url can be a string OR an array of strings
     const validPods = activePods.filter(pod => {
-      const hasValidImage = pod.image_url && 
-                           typeof pod.image_url === 'string' && 
-                           pod.image_url.startsWith('http');
-      if (!hasValidImage) {
-        console.log('⚠️ Filtering out pod with invalid image:', pod.id, pod.image_url);
+      if (!pod.image_url) return false;
+      
+      // Handle array of images
+      if (Array.isArray(pod.image_url)) {
+        return pod.image_url.length > 0 && 
+               pod.image_url.some(url => typeof url === 'string' && url.startsWith('http'));
       }
-      return hasValidImage;
+      
+      // Handle single image string
+      return typeof pod.image_url === 'string' && pod.image_url.startsWith('http');
     });
     
-    console.log('Active pods fetched successfully:', validPods.length, 'valid out of', data?.length || 0, 'total');
     return validPods;
   } catch (error) {
     console.error('Error fetching user active pods:', error);
@@ -424,7 +419,6 @@ export const getUserActivePods = async (userId: string): Promise<Pod[]> => {
 // Get user's past pods
 export const getUserPastPods = async (userId: string): Promise<Pod[]> => {
   try {
-    console.log('Fetching past pods for user:', userId);
     
     const now = new Date().toISOString();
     
@@ -442,14 +436,18 @@ export const getUserPastPods = async (userId: string): Promise<Pod[]> => {
     }
     
     // Filter out pods with invalid or missing image URLs
+    // image_url can be a string OR an array of strings
     const validPods = (data || []).filter(pod => {
-      const hasValidImage = pod.image_url && 
-                           typeof pod.image_url === 'string' && 
-                           pod.image_url.startsWith('http');
-      if (!hasValidImage) {
-        console.log('⚠️ Filtering out pod with invalid image:', pod.id, pod.image_url);
+      if (!pod.image_url) return false;
+      
+      // Handle array of images
+      if (Array.isArray(pod.image_url)) {
+        return pod.image_url.length > 0 && 
+               pod.image_url.some(url => typeof url === 'string' && url.startsWith('http'));
       }
-      return hasValidImage;
+      
+      // Handle single image string
+      return typeof pod.image_url === 'string' && pod.image_url.startsWith('http');
     });
     
     // Double-check: Only include pods that have actually ended (ends_at < now)
@@ -459,7 +457,6 @@ export const getUserPastPods = async (userId: string): Promise<Pod[]> => {
       return endsAtTime <= nowTime; // Only include pods that have actually ended
     });
     
-    console.log('Past pods fetched successfully:', trulyPastPods.length, 'valid out of', data?.length || 0);
     return trulyPastPods;
   } catch (error) {
     console.error('Error fetching user past pods:', error);
@@ -583,72 +580,40 @@ export const deletePod = async (podId: string): Promise<boolean> => {
   }
   
   try {
-    console.log('🗑️ Starting pod deletion:', podId);
-    
     // Delete related records first (even though CASCADE should handle this)
-    // This ensures clean deletion even if CASCADE isn't set up
     try {
-      const { error: votesError } = await supabase
-        .from('pod_votes')
-        .delete()
-        .eq('pod_id', podId);
-      console.log('Votes delete result:', votesError ? votesError.message : 'success');
-    } catch (e) {
-      console.log('Votes delete skipped');
-    }
+      await supabase.from('pod_votes').delete().eq('pod_id', podId);
+    } catch (e) {}
     
     try {
-      const { error: commentsError } = await supabase
-        .from('pod_comments')
-        .delete()
-        .eq('pod_id', podId);
-      console.log('Comments delete result:', commentsError ? commentsError.message : 'success');
-    } catch (e) {
-      console.log('Comments delete skipped');
-    }
+      await supabase.from('pod_comments').delete().eq('pod_id', podId);
+    } catch (e) {}
     
     try {
-      const { error: invitesError } = await supabase
-        .from('pod_invites')
-        .delete()
-        .eq('pod_id', podId);
-      console.log('Invites delete result:', invitesError ? invitesError.message : 'success');
-    } catch (e) {
-      console.log('Invites delete skipped');
-    }
+      await supabase.from('pod_invites').delete().eq('pod_id', podId);
+    } catch (e) {}
     
-    // Now delete the pod itself (hard delete)
-    console.log('🗑️ Deleting pod record...');
+    // Now delete the pod itself
     const { error } = await supabase
       .from('pods')
       .delete()
       .eq('id', podId);
     
     if (error) {
-      console.error('❌ Error deleting pod:', error.message, error.code, error.details);
-      // Check if it's an RLS error
-      if (error.code === '42501' || error.message.includes('policy')) {
-        console.error('⚠️ RLS policy issue. Run FIX_POD_DELETION.sql in Supabase.');
-      }
+      console.error('Error deleting pod:', error.message);
       throw error;
     }
     
-    // Verify deletion by trying to fetch the pod
+    // Verify deletion
     const { data: verifyData } = await supabase
       .from('pods')
       .select('id')
       .eq('id', podId)
       .single();
     
-    if (verifyData) {
-      console.error('❌ Pod still exists after deletion! This is likely an RLS issue.');
-      return false;
-    }
-    
-    console.log('✅ Pod deleted and verified:', podId);
-    return true;
+    return !verifyData;
   } catch (error: any) {
-    console.error('❌ Error in deletePod:', error?.message || error);
+    console.error('Error in deletePod:', error?.message);
     return false;
   }
 };
@@ -672,7 +637,6 @@ export const subscribeToPodVotes = (podId: string, callback: (votes: PodVote[]) 
 // Create pod invites for friends
 export const createPodInvites = async (podId: string, friendIds: string[], fromUserId: string): Promise<boolean> => {
   if (!podId || !fromUserId || friendIds.length === 0) {
-    console.log('Skipping pod invites - missing required data');
     return true;
   }
   
@@ -683,7 +647,6 @@ export const createPodInvites = async (podId: string, friendIds: string[], fromU
   });
   
   if (validFriendIds.length === 0) {
-    console.log('No valid friend IDs to invite (demo friends skipped)');
     return true;
   }
   
@@ -702,13 +665,11 @@ export const createPodInvites = async (podId: string, friendIds: string[], fromU
     if (error) {
       // If table doesn't exist, that's ok
       if (error.code === '42P01') {
-        console.log('pod_invites table does not exist');
         return true;
       }
       console.error('Pod invite insert error:', error);
       return false;
     }
-    console.log('Pod invites created for', validFriendIds.length, 'friends');
     return true;
   } catch (error) {
     console.error('Error creating pod invites:', error);
@@ -808,7 +769,7 @@ const enrichPodsWithOwner = async (pods: Pod[]): Promise<Pod[]> => {
       owner_avatar: profileMap.get(pod.owner_id)?.avatar_url || null,
     }));
   } catch (error) {
-    console.log('Error enriching pods:', error);
+    console.error('Error enriching pods:', error);
     return pods;
   }
 };

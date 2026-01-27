@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,15 @@ import {
   Linking,
   KeyboardAvoidingView,
   Platform,
+  Animated,
+  LayoutAnimation,
+  UIManager,
 } from 'react-native';
+
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from '../lib/SimpleGradient';
 import * as ImagePicker from 'expo-image-picker';
@@ -32,7 +40,22 @@ import { getStyleProfile, refreshStyleProfile } from '../lib/styleEngine';
 import { loadColorProfile, saveColorProfile, getAllSeasons, getSeasonSwatches, analyzeFaceForColorProfile, analyzeFaceForColorProfileFromLocalUri, analyzeFaceForColorProfileFromCroppedImage } from '../lib/colorAnalysis';
 import { fetchGarmentsAsProducts } from '../lib/garmentUtils';
 
-// Import COLOR_SEASONS for color organization - Updated with exact colors provided
+// Import micro-season palette system
+let getMicroSeasonPalette = null;
+let determineMicroSeason = null;
+let MICRO_SEASON_PALETTE = null;
+let getMicroSeasonsForParent = null;
+try {
+  const colorClassification = require('../lib/colorClassification');
+  getMicroSeasonPalette = colorClassification.getMicroSeasonPalette || colorClassification.default?.getMicroSeasonPalette;
+  determineMicroSeason = colorClassification.determineMicroSeason || colorClassification.default?.determineMicroSeason;
+  MICRO_SEASON_PALETTE = colorClassification.MICRO_SEASON_PALETTE || colorClassification.default?.MICRO_SEASON_PALETTE;
+  getMicroSeasonsForParent = colorClassification.getMicroSeasonsForParent || colorClassification.default?.getMicroSeasonsForParent;
+} catch (error) {
+  console.warn('Could not load micro-season palette system:', error.message);
+}
+
+// Legacy COLOR_SEASONS for fallback - Updated with exact colors provided
 const COLOR_SEASONS = {
   spring: {
     neutrals: [
@@ -227,12 +250,6 @@ const StyleVaultScreen = () => {
   // Check if user is admin - only admin@stylit.ai should see admin section
   const isAdmin = user?.email === 'admin@stylit.ai';
   
-  // Debug: Log user email and admin status
-  useEffect(() => {
-    console.log('🔐 StyleVaultScreen - User email:', user?.email);
-    console.log('🔐 StyleVaultScreen - Is Admin:', isAdmin);
-  }, [user?.email, isAdmin]);
-  
   // State
   const [username, setUsername] = useState(user?.name || 'Fashionista');
   const [profilePic, setProfilePic] = useState(user?.avatar_url || null);
@@ -252,7 +269,17 @@ const StyleVaultScreen = () => {
   }, [user?.body_image_url, user?.face_image_url, twinUrl]);
   const [isAnalyzingFace, setIsAnalyzingFace] = useState(false);
   const [faceAnalysisError, setFaceAnalysisError] = useState(null);
-  const [colorProfile, setColorProfile] = useState(null);
+  // Initialize colorProfile from user object (loaded on app startup) if available
+  const [colorProfile, setColorProfile] = useState(user?.colorProfile || null);
+  
+  // Update colorProfile when user object changes (e.g., after login or app startup)
+  useEffect(() => {
+    if (user?.colorProfile?.season) {
+      setColorProfile(user.colorProfile);
+      // Immediately stop loading if we have the profile
+      setIsLoadingProfile(false);
+    }
+  }, [user?.colorProfile]);
   const [showSeasonPicker, setShowSeasonPicker] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [showFaceCrop, setShowFaceCrop] = useState(false);
@@ -292,7 +319,8 @@ const StyleVaultScreen = () => {
   // For showing dropdown picker
   const [showPrivacyPicker, setShowPrivacyPicker] = useState(null); // { type: 'tryon' | 'pod', id: string }
   const [styleProfile, setStyleProfile] = useState(null);
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true); // Loading state for initial profile data
+  // If colorProfile is already available from app startup, don't show loading state
+  const [isLoadingProfile, setIsLoadingProfile] = useState(!user?.colorProfile); // Loading state for initial profile data
   const [fullScreenImage, setFullScreenImage] = useState(null); // Added for saved fits
   const [showBodyPhotoGuidelines, setShowBodyPhotoGuidelines] = useState(false);
   const [showFacePhotoGuidelines, setShowFacePhotoGuidelines] = useState(false);
@@ -313,6 +341,23 @@ const StyleVaultScreen = () => {
   const [expandedCategoryProducts, setExpandedCategoryProducts] = useState(null); // 'neutrals' | 'accents' | 'brights' | 'softs' | null
   const [categoryProducts, setCategoryProducts] = useState({}); // { neutrals: [], accents: [], brights: [], softs: [] }
   const [isLoadingCategoryProducts, setIsLoadingCategoryProducts] = useState({}); // { neutrals: false, accents: false, ... }
+  const [showSecondaryColors, setShowSecondaryColors] = useState({}); // { neutrals: false, accents: false, ... } - show all micro-season colors
+  
+  // Helper to toggle secondary colors with animation - collapses other categories
+  const toggleSecondaryColors = (category) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setShowSecondaryColors(prev => {
+      const isCurrentlyExpanded = prev[category];
+      // Collapse all, then expand the clicked one (if it was collapsed)
+      return {
+        neutrals: false,
+        accents: false,
+        brights: false,
+        softs: false,
+        [category]: !isCurrentlyExpanded,
+      };
+    });
+  };
   
   // Password change modal states
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
@@ -357,8 +402,66 @@ const StyleVaultScreen = () => {
     return { r: mixedR, g: mixedG, b: mixedB };
   };
 
+  // Helper function to get secondary colors from all micro-seasons of a parent season
+  // Returns colors grouped by micro-season (array of arrays)
+  // Excludes the user's primary micro-season colors
+  const getSecondaryColorsGrouped = (parentSeason, userMicroSeason, category) => {
+    if (!getMicroSeasonsForParent || !getMicroSeasonPalette || !parentSeason) {
+      return [];
+    }
+    
+    try {
+      const allMicroSeasons = getMicroSeasonsForParent(parentSeason);
+      const groupedColors = [];
+      
+      for (const microSeason of allMicroSeasons) {
+        // Skip user's own micro-season (those are primary colors)
+        if (microSeason === userMicroSeason) continue;
+        
+        const palette = getMicroSeasonPalette(microSeason);
+        if (palette && palette[category]) {
+          const colors = palette[category].map(c => ({
+            name: c.name,
+            hex: c.hex,
+          }));
+          if (colors.length > 0) {
+            groupedColors.push(colors);
+          }
+        }
+      }
+      
+      return groupedColors;
+    } catch (error) {
+      console.warn('Error getting secondary colors:', error);
+      return [];
+    }
+  };
+
   // Helper function to get organized colors by category for each season
-  const getOrganizedColors = (season) => {
+  // Uses micro-season palettes if available, falls back to parent season colors
+  const getOrganizedColors = (season, depth = null, clarity = null) => {
+    // Try to use micro-season palette system
+    if (determineMicroSeason && getMicroSeasonPalette && season) {
+      try {
+        const microSeason = determineMicroSeason(season, depth, clarity);
+        if (microSeason) {
+          const microPalette = getMicroSeasonPalette(microSeason);
+          if (microPalette) {
+            // Convert palette colors to the format expected by the UI
+            return {
+              neutrals: microPalette.neutrals.map(c => ({ name: c.name, hex: c.hex })),
+              accents: microPalette.accents.map(c => ({ name: c.name, hex: c.hex })),
+              brights: microPalette.brights.map(c => ({ name: c.name, hex: c.hex })),
+              softs: microPalette.softs.map(c => ({ name: c.name, hex: c.hex })),
+            };
+          }
+        }
+      } catch (error) {
+        console.warn('Error getting micro-season palette, falling back to parent season:', error);
+      }
+    }
+    
+    // Fallback to parent season colors
     const seasonData = COLOR_SEASONS[season];
     if (!seasonData) return { neutrals: [], accents: [], brights: [], softs: [] };
 
@@ -654,7 +757,6 @@ const StyleVaultScreen = () => {
         .update({ visibility: newVisibility })
         .eq('id', tryOnId);
     } catch (error) {
-      console.log('Error saving try-on visibility:', error);
     }
   };
   
@@ -670,7 +772,6 @@ const StyleVaultScreen = () => {
         .update({ visibility: newVisibility })
         .eq('id', podId);
     } catch (error) {
-      console.log('Error saving pod visibility:', error);
     }
   };
   
@@ -729,7 +830,10 @@ const StyleVaultScreen = () => {
   useEffect(() => {
     const loadAllData = async () => {
       if (user?.id) {
-        setIsLoadingProfile(true);
+        // Only show loading if we don't already have color profile from app startup
+        if (!colorProfile) {
+          setIsLoadingProfile(true);
+        }
         try {
           // Load critical profile data first (parallel)
           await Promise.all([
@@ -755,14 +859,12 @@ const StyleVaultScreen = () => {
 
   // Handler for body photo upload after guidelines
   const handleBodyPhotoUpload = async () => {
-    console.log('📸 handleBodyPhotoUpload START');
     // Don't close modal yet - open ImagePicker first
     const res = await ImagePicker.launchImageLibraryAsync({ 
       mediaTypes: ['images'],
       allowsEditing: false,
       quality: 0.8
     });
-    console.log('📸 ImagePicker returned:', res.canceled ? 'CANCELLED' : 'SELECTED');
     // Now close the modal
     setShowBodyPhotoGuidelines(false);
     
@@ -773,25 +875,35 @@ const StyleVaultScreen = () => {
       setBodyImage(localUri); // Show local image immediately
       
       try {
-        console.log('📸 Uploading image...');
         const uploadedUrl = await uploadImageAsync(localUri);
-        console.log('📸 Uploaded URL:', uploadedUrl);
         if (user?.id) {
-           await supabase.from('profiles').update({ body_image_url: uploadedUrl }).eq('id', user.id);
+          const { error: updateError } = await supabase.from('profiles').update({ body_image_url: uploadedUrl }).eq('id', user.id);
+          if (updateError) {
+            // If profile doesn't exist, create it
+            if (updateError.code === 'PGRST116' || updateError.message?.includes('0 rows')) {
+              const { error: upsertError } = await supabase.from('profiles').upsert({
+                id: user.id,
+                body_image_url: uploadedUrl,
+                email: user.email,
+              });
+              if (upsertError) {
+                throw upsertError;
+              }
+            } else {
+              throw updateError;
+            }
+          }
         }
         setBodyImage(uploadedUrl); // Update to remote URL
         if (setUser) setUser(prev => ({ ...prev, body_image_url: uploadedUrl }));
         if (setTwinUrl) setTwinUrl(uploadedUrl);
         showBanner('✓ Body photo saved!', 'success');
       } catch (error) {
-        console.error('❌ Error saving body photo:', error);
         setBodyImage(null); // Clear on error
         showBanner('Failed to upload photo', 'error');
       } finally {
         setIsUploadingBodyPhoto(false);
       }
-    } else {
-      console.log('📸 No image selected or cancelled');
     }
   };
 
@@ -800,8 +912,6 @@ const StyleVaultScreen = () => {
   const proceedWithAnalysis = async (imageUri, cropInfo) => {
                 try {
                   setIsAnalyzingFace(true);
-                  
-      console.log('🎨 [FACE CROP] Proceeding with analysis...');
       
       let profile, uploadedUrl, qualityMessages;
       
@@ -822,28 +932,30 @@ const StyleVaultScreen = () => {
         uploadedUrl = result.uploadedUrl;
         qualityMessages = undefined;
       }
-      
-      console.log('🎨 [FACE CROP] Analysis complete, profile:', profile ? 'exists' : 'null');
-      console.log('🎨 [FACE CROP] Quality messages:', qualityMessages);
                   
                   setIsAnalyzingFace(false);
                   
                   if (uploadedUrl && user?.id) {
-                    await supabase.from('profiles').update({ face_image_url: uploadedUrl }).eq('id', user.id);
+                    const { error: faceUpdateError } = await supabase.from('profiles').update({ face_image_url: uploadedUrl }).eq('id', user.id);
+                    if (faceUpdateError) {
+                      // If profile doesn't exist, create it
+                      if (faceUpdateError.code === 'PGRST116' || faceUpdateError.message?.includes('0 rows')) {
+                        const { error: upsertError } = await supabase.from('profiles').upsert({
+                          id: user.id,
+                          face_image_url: uploadedUrl,
+                          email: user.email,
+                        });
+                      }
+                    }
                     setFaceImage(uploadedUrl);
                     if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
                   }
                   
                   if (profile && user?.id) {
-        console.log('🎨 [FACE CROP] Saving profile from API:', {
-          tone: profile.tone,
-          depth: profile.depth,
-          season: profile.season,
-          confidence: profile.confidence,
-          needsConfirmation: profile.needsConfirmation,
-        });
                     await saveColorProfile(user.id, profile);
                     setColorProfile(profile);
+                    // Update user object so FitCheck can access the color profile
+                    if (setUser) setUser(prev => ({ ...prev, colorProfile: profile }));
         setFaceAnalysisError(null);
         
                     const confidencePercent = profile.confidence ? Math.round(profile.confidence * 100) : 0;
@@ -870,7 +982,6 @@ const StyleVaultScreen = () => {
                       );
                     }
                   } else {
-        console.log('🎨 [FACE CROP] No profile returned from API - face not detected or API error');
                     setIsAnalyzingFace(false);
                     setFaceAnalysisError('No face detected. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.');
                     Alert.alert(
@@ -941,20 +1052,13 @@ const StyleVaultScreen = () => {
     // Only load from database if we're not currently analyzing
     // This prevents showing cached results during analysis
     if (isAnalyzingFace) {
-      console.log('🎨 [COLOR PROFILE] Skipping database load - analysis in progress');
       return;
     }
     const profile = await loadColorProfile(user.id);
     if (profile) {
-      console.log('🎨 [COLOR PROFILE] Loaded from database:', {
-        tone: profile.tone,
-        depth: profile.depth,
-        season: profile.season,
-        source: 'database'
-      });
       setColorProfile(profile);
-    } else {
-      console.log('🎨 [COLOR PROFILE] No profile found in database');
+      // Update user object so FitCheck can access the color profile
+      if (setUser) setUser(prev => ({ ...prev, colorProfile: profile }));
     }
   };
 
@@ -1017,7 +1121,6 @@ const StyleVaultScreen = () => {
       }).slice(0, 12); // Limit to 12 products
 
       setColorProducts(filteredProducts);
-      console.log(`🎨 [COLOR PRODUCTS] Found ${filteredProducts.length} products matching colors out of ${allGarments.length} total`);
     } catch (error) {
       console.error('Error loading color products:', error);
       setColorProducts([]);
@@ -1079,9 +1182,13 @@ const StyleVaultScreen = () => {
       if (apiUrl) {
         try {
           const baseUrl = apiUrl.replace(/\/$/, '');
-          const response = await fetch(
-            `${baseUrl}/api/suggested-products?season=${colorProfile.season}&group=${category}&limit=20`
-          );
+          
+          // Always use parent season for suggested products to show all matching clothes
+          // This gives users more variety within their season (e.g., all autumn clothes, not just soft autumn)
+          const apiUrlWithParams = `${baseUrl}/api/suggested-products?season=${colorProfile.season}&group=${category}&limit=20`;
+          
+          
+          const response = await fetch(apiUrlWithParams);
 
           if (response.ok) {
             const data = await response.json();
@@ -1146,7 +1253,7 @@ const StyleVaultScreen = () => {
       const allGarments = await fetchGarmentsAsProducts({});
       
       // Comprehensive color variations mapping for all palette colors
-      const colorVariations = {
+          const colorVariations = {
         // Spring Neutrals
         'warm ivory': ['ivory', 'cream', 'beige', 'off-white', 'ecru'],
         'cream': ['ivory', 'beige', 'off-white', 'ecru', 'warm ivory'],
@@ -1240,7 +1347,7 @@ const StyleVaultScreen = () => {
         'frost blue': ['blue', 'sky blue', 'powder blue', 'azure'],
         'soft wine': ['wine', 'burgundy', 'maroon', 'red'],
         'cool plum': ['plum', 'purple', 'burgundy', 'wine'],
-      };
+          };
 
       const filteredProducts = allGarments.filter(product => {
         if (!product) return false;
@@ -1271,7 +1378,7 @@ const StyleVaultScreen = () => {
               return true;
             }
             // Check color variations
-            const variations = colorVariations[colorName] || [];
+          const variations = colorVariations[colorName] || [];
             return variations.some(v => productColor.includes(v) || v.includes(productColor));
           })) {
             return true;
@@ -1460,12 +1567,10 @@ const StyleVaultScreen = () => {
         .order('created_at', { ascending: false });
       
       if (error) {
-        console.log('Error fetching try-on history:', error.message);
         return;
       }
 
       if (data && data.length > 0) {
-        console.log('Loaded', data.length, 'try-ons from Supabase');
         // Filter valid items
         const validData = data.filter(item => 
             (item.result_url || item.resultUrl) && typeof (item.result_url || item.resultUrl) === 'string'
@@ -1490,10 +1595,8 @@ const StyleVaultScreen = () => {
         });
         setTryOnVisibilities(visibilities);
       } else {
-        console.log('No try-on history found in Supabase');
       }
     } catch (error) {
-      console.log('Error loading try-on history:', error);
     }
   };
 
@@ -1507,13 +1610,11 @@ const StyleVaultScreen = () => {
       
       if (error) {
         // Table might not exist - don't overwrite local data
-        console.log('Error fetching saved fits (table may not exist):', error.message);
         return;
       }
       
       // Only update if we got data back
       if (data && data.length > 0 && setSavedFits) {
-        console.log('Loaded', data.length, 'saved fits from Supabase');
         // Filter valid items
         const validData = data.filter(item => 
             (item.image_url || item.image) && typeof (item.image_url || item.image) === 'string'
@@ -1530,10 +1631,8 @@ const StyleVaultScreen = () => {
           createdAt: item.created_at || item.createdAt
         })));
       } else {
-        console.log('No saved fits found in Supabase');
       }
     } catch (error) {
-      console.log('Error loading saved fits:', error);
     }
   };
 
@@ -1600,7 +1699,6 @@ const StyleVaultScreen = () => {
                 text: "Delete", 
                 style: "destructive", 
                 onPress: async () => {
-                    console.log('🗑️ Deleting pod from StyleVault:', item.id);
                     
                     // Optimistic update
                     setActivePods(prev => prev.filter(p => p.id !== item.id));
@@ -1611,7 +1709,6 @@ const StyleVaultScreen = () => {
                         const success = await deletePod(item.id);
                         
                         if (success) {
-                            console.log('✅ Pod deleted successfully');
                             showBanner('Pod deleted', 'success');
                         } else {
                             console.error('❌ Delete returned false');
@@ -1752,7 +1849,6 @@ const StyleVaultScreen = () => {
         }
       }
     } catch (error) {
-      console.log('Error loading profile:', error);
     }
   };
   
@@ -2102,10 +2198,28 @@ const StyleVaultScreen = () => {
           </View>
 
           {/* Your Colors - Redesigned to match image */}
-          {!isLoadingProfile && (
-            <View style={styles.colorSectionNew}>
-              {/* Empty state */}
-              {!colorProfile && !isAnalyzingFace && !faceAnalysisError ? (
+          <View style={styles.colorSectionNew}>
+            {/* Show content immediately if we have colorProfile, regardless of loading state */}
+            {/* Loading state - only show if truly loading with no data */}
+            {!colorProfile && isLoadingProfile && !faceImage && !isAnalyzingFace ? (
+              <View style={styles.colorAnalyzingState}>
+                <ActivityIndicator size="small" color="#6366f1" />
+                <Text style={styles.colorAnalyzingText}>Loading your colors...</Text>
+              </View>
+            ) : !colorProfile && !faceImage && !isAnalyzingFace && !faceAnalysisError ? (
+                <View style={styles.colorEmptyStateContainer}>
+                  <Text style={styles.colorEmptyTitle}>🎨 Your Colors</Text>
+                  <Text style={styles.colorEmptyText}>
+                    Upload a face photo to analyze your skin tone and discover your best colors.
+                  </Text>
+                  <Pressable 
+                    style={styles.colorEmptyUploadBtn}
+                    onPress={() => setShowFacePhotoGuidelines(true)}
+                  >
+                    <Text style={styles.colorEmptyUploadBtnText}>📸 Upload Face Photo</Text>
+                  </Pressable>
+                </View>
+              ) : !colorProfile && !isAnalyzingFace && !faceAnalysisError ? (
                 <Text style={styles.colorEmptyText}>
                   Add a face photo to discover your color season, undertone, and best colors to wear.
                 </Text>
@@ -2144,12 +2258,24 @@ const StyleVaultScreen = () => {
                               <ActivityIndicator size="small" color="#6366f1" />
                             </View>
                           ) : faceImage ? (
-                            <View style={styles.faceThumbnailNew}>
-                              <OptimizedImage 
-                                source={{ uri: faceImage }} 
-                                style={styles.faceThumbnailImage}
-                                onError={() => setFaceImage(null)}
-                              />
+                            <View style={{ position: 'relative' }}>
+                              <View style={styles.faceThumbnailNew}>
+                                <OptimizedImage 
+                                  source={{ uri: faceImage }} 
+                                  style={styles.faceThumbnailImage}
+                                  onError={() => setFaceImage(null)}
+                                />
+                              </View>
+                              {/* Edit Icon */}
+                              <Pressable
+                                style={styles.photoEditIcon}
+                                onPress={(e) => {
+                                  e.stopPropagation();
+                                  setShowFacePhotoGuidelines(true);
+                                }}
+                              >
+                                <Text style={styles.photoEditIconText}>✏️</Text>
+                              </Pressable>
                             </View>
                           ) : (
                             <View style={[styles.faceThumbnailNew, styles.faceThumbnailPlaceholder]}>
@@ -2160,11 +2286,37 @@ const StyleVaultScreen = () => {
                         <Text style={[styles.facePhotoLabel, { marginTop: 4 }]}>Your Face Photo</Text>
                       </View>
                     </View>
-                    <Text style={styles.colorNoteTextRed}>
-                      {colorProfile.needsConfirmation 
-                        ? 'This is a suggested season. If you think the results are wrong, please update your season manually or upload another photo.'
-                        : 'If you think this analysis is wrong, please edit the season.'}
-                    </Text>
+                    {colorProfile.needsConfirmation ? (
+                      <Text style={styles.colorNoteText}>
+                        <Text style={styles.colorNoteTextRed}>This is a suggested season. If you think the results are wrong, </Text>
+                        <Text>Please </Text>
+                        <Text 
+                          style={styles.colorNoteTextBtn} 
+                          onPress={() => setShowSeasonPicker(true)}
+                        >
+                          update your season manually
+                        </Text>
+                        <Text> or </Text>
+                        <Text 
+                          style={styles.colorNoteTextBtn}
+                          onPress={() => setShowFacePhotoGuidelines(true)}
+                        >
+                          upload another photo
+                        </Text>
+                        <Text>.</Text>
+                      </Text>
+                    ) : (
+                      <Text style={styles.colorNoteText}>
+                        <Text>If you think this analysis is wrong, please </Text>
+                        <Text 
+                          style={styles.colorNoteTextBtn}
+                          onPress={() => setShowSeasonPicker(true)}
+                        >
+                          edit the season
+                        </Text>
+                        <Text>.</Text>
+                      </Text>
+                    )}
                 </View>
                 
                   {/* Clickable Trait Chips: Undertone, Depth, Clarity - Horizontal Scroll */}
@@ -2212,20 +2364,29 @@ const StyleVaultScreen = () => {
 
                   {/* What this means - shown when banner is clicked */}
                   {expandedBanner && (() => {
-                    const explanations = getColorExplanations(
-                      colorProfile.season,
-                      colorProfile.tone,
-                      colorProfile.depth,
-                      colorProfile.clarity || 'muted'
-                    );
+                    const { getUndertoneExplanation, getDepthExplanation, getClarityExplanation } = require('../lib/colorTraitExplanations');
+                    
+                    let explanation = null;
+                    if (expandedBanner === 'undertone') {
+                      explanation = getUndertoneExplanation(colorProfile.tone || 'warm', colorProfile.tone === 'neutral' ? 'warm' : null);
+                    } else if (expandedBanner === 'depth') {
+                      explanation = getDepthExplanation(colorProfile.depth || 'medium');
+                    } else if (expandedBanner === 'clarity') {
+                      explanation = getClarityExplanation(colorProfile.clarity || 'muted');
+                    }
+                    
+                    if (!explanation) return null;
+                    
                     return (
                       <View style={styles.colorExplanationCard}>
-                        <Text style={styles.colorExplanationTitle}>What this means</Text>
                         <Text style={styles.colorExplanationTextNew}>
-                          {expandedBanner === 'undertone' && explanations.undertone}
-                          {expandedBanner === 'depth' && explanations.depth}
-                          {expandedBanner === 'clarity' && explanations.clarity}
+                          {explanation.definition}
                         </Text>
+                        <View style={{ marginTop: 12 }}>
+                          <Text style={styles.colorExplanationBullet}>• {explanation.bullet1}</Text>
+                          <Text style={styles.colorExplanationBullet}>• {explanation.bullet2}</Text>
+                          <Text style={styles.colorExplanationBullet}>• {explanation.bullet3}</Text>
+                        </View>
                       </View>
                     );
                   })()}
@@ -2237,27 +2398,62 @@ const StyleVaultScreen = () => {
 
                   {/* Color Category Cards */}
                   {(() => {
-                    const organized = getOrganizedColors(colorProfile.season);
+                    const organized = getOrganizedColors(colorProfile.season, colorProfile.depth, colorProfile.clarity);
+                    const userMicroSeason = colorProfile.microSeason || (determineMicroSeason ? determineMicroSeason(colorProfile.season, colorProfile.depth, colorProfile.clarity) : null);
                     return (
                       <>
                         {organized.neutrals.length > 0 && (() => {
-                          const mixedColor = mixColors(organized.neutrals);
-                          const bgColor = mixedColor ? `rgba(${mixedColor.r}, ${mixedColor.g}, ${mixedColor.b}, 0.2)` : 'rgba(246, 234, 215, 0.2)';
+                          // Use a subtle dark background for better swatch visibility
+                          const bgColor = 'rgba(30, 30, 35, 0.85)';
+                          const secondaryNeutralsGrouped = getSecondaryColorsGrouped(colorProfile.season, userMicroSeason, 'neutrals');
                           return (
                             <View style={[styles.colorCategoryCard, { backgroundColor: bgColor }]}>
-                              {/* Category heading - just text, no background box */}
-                              <Text style={styles.colorCategoryNameNeutrals}>Neutrals</Text>
-                              {/* Swatches in one row - no scroll, reduced gap */}
-                              <View style={styles.swatchRowInline}>
-                                {organized.neutrals.map((color, idx) => (
-                                  <View key={idx} style={styles.swatchItem}>
-                                    <View style={[styles.swatchDot, { backgroundColor: color.hex }]} />
-                                    <Text style={styles.swatchName} numberOfLines={1} ellipsizeMode="tail">
-                                      {color.name}
-                          </Text>
-                        </View>
-                                ))}
+                              {/* Category heading with See Secondary Colors button */}
+                              <View style={styles.colorCategoryHeader}>
+                                <Text style={styles.colorCategoryNameNeutrals}>Neutrals</Text>
+                                <Pressable onPress={() => toggleSecondaryColors('neutrals')}>
+                                  <Text style={styles.secondaryColorsBtn}>
+                                    {showSecondaryColors.neutrals ? 'Hide Secondary' : 'Show Secondary Colors'}
+                                  </Text>
+                                </Pressable>
                               </View>
+                              {/* Primary colors - horizontal scroll */}
+                              <ScrollView 
+                                horizontal 
+                                showsHorizontalScrollIndicator={false} 
+                                contentContainerStyle={styles.swatchScrollContent}
+                              >
+                                {organized.neutrals.map((color, idx) => (
+                                  <View key={`primary-${idx}`} style={styles.swatchItem}>
+                                    <View style={[styles.swatchDot, { backgroundColor: color.hex }]} />
+                                    <Text style={styles.swatchName} numberOfLines={2}>
+                                      {color.name}
+                                    </Text>
+                                  </View>
+                                ))}
+                              </ScrollView>
+                              {/* Secondary colors - shown in rows when expanded */}
+                              {showSecondaryColors.neutrals && secondaryNeutralsGrouped.length > 0 && (
+                                <View style={styles.secondaryColorsContainer}>
+                                  {secondaryNeutralsGrouped.map((microSeasonColors, groupIdx) => (
+                                    <ScrollView 
+                                      key={`group-${groupIdx}`}
+                                      horizontal 
+                                      showsHorizontalScrollIndicator={false} 
+                                      contentContainerStyle={styles.swatchScrollContentSecondary}
+                                    >
+                                      {microSeasonColors.map((color, idx) => (
+                                        <View key={`secondary-${groupIdx}-${idx}`} style={styles.swatchItem}>
+                                          <View style={[styles.swatchDot, styles.swatchDotSecondary, { backgroundColor: color.hex }]} />
+                                          <Text style={[styles.swatchName, styles.swatchNameSecondary]} numberOfLines={2}>
+                                            {color.name}
+                                          </Text>
+                                        </View>
+                                      ))}
+                                    </ScrollView>
+                                  ))}
+                                </View>
+                              )}
                               {/* Divider line above Suggested Products */}
                               <View style={styles.productsDivider} />
                               {/* Suggested Products Button - like + Create button */}
@@ -2320,21 +2516,56 @@ const StyleVaultScreen = () => {
 
                         {/* Accents */}
                         {organized.accents.length > 0 && (() => {
-                          const mixedColor = mixColors(organized.accents);
-                          const bgColor = mixedColor ? `rgba(${mixedColor.r}, ${mixedColor.g}, ${mixedColor.b}, 0.2)` : 'rgba(255, 111, 97, 0.2)';
+                          // Use a subtle dark background for better swatch visibility
+                          const bgColor = 'rgba(30, 30, 35, 0.85)';
+                          const secondaryAccentsGrouped = getSecondaryColorsGrouped(colorProfile.season, userMicroSeason, 'accents');
                           return (
                             <View style={[styles.colorCategoryCard, { backgroundColor: bgColor }]}>
-                              <Text style={styles.colorCategoryName}>Accents</Text>
-                              <View style={styles.swatchRowInline}>
+                              <View style={styles.colorCategoryHeader}>
+                                <Text style={styles.colorCategoryName}>Accents</Text>
+                                <Pressable onPress={() => toggleSecondaryColors('accents')}>
+                                  <Text style={styles.secondaryColorsBtn}>
+                                    {showSecondaryColors.accents ? 'Hide Secondary' : 'Show Secondary Colors'}
+                                  </Text>
+                                </Pressable>
+                              </View>
+                              {/* Primary colors - horizontal scroll */}
+                              <ScrollView 
+                                horizontal 
+                                showsHorizontalScrollIndicator={false} 
+                                contentContainerStyle={styles.swatchScrollContent}
+                              >
                                 {organized.accents.map((color, idx) => (
-                                  <View key={idx} style={styles.swatchItem}>
+                                  <View key={`primary-${idx}`} style={styles.swatchItem}>
                                     <View style={[styles.swatchDot, { backgroundColor: color.hex }]} />
-                                    <Text style={styles.swatchName} numberOfLines={1} ellipsizeMode="tail">
+                                    <Text style={styles.swatchName} numberOfLines={2}>
                                       {color.name}
-                          </Text>
+                                    </Text>
                                   </View>
                                 ))}
-                              </View>
+                              </ScrollView>
+                              {/* Secondary colors - shown in rows when expanded */}
+                              {showSecondaryColors.accents && secondaryAccentsGrouped.length > 0 && (
+                                <View style={styles.secondaryColorsContainer}>
+                                  {secondaryAccentsGrouped.map((microSeasonColors, groupIdx) => (
+                                    <ScrollView 
+                                      key={`group-${groupIdx}`}
+                                      horizontal 
+                                      showsHorizontalScrollIndicator={false} 
+                                      contentContainerStyle={styles.swatchScrollContentSecondary}
+                                    >
+                                      {microSeasonColors.map((color, idx) => (
+                                        <View key={`secondary-${groupIdx}-${idx}`} style={styles.swatchItem}>
+                                          <View style={[styles.swatchDot, styles.swatchDotSecondary, { backgroundColor: color.hex }]} />
+                                          <Text style={[styles.swatchName, styles.swatchNameSecondary]} numberOfLines={2}>
+                                            {color.name}
+                                          </Text>
+                                        </View>
+                                      ))}
+                                    </ScrollView>
+                                  ))}
+                                </View>
+                              )}
                               <View style={styles.productsDivider} />
                               <Pressable 
                                 onPress={() => {
@@ -2394,21 +2625,56 @@ const StyleVaultScreen = () => {
 
                         {/* Brights */}
                         {organized.brights.length > 0 && (() => {
-                          const mixedColor = mixColors(organized.brights);
-                          const bgColor = mixedColor ? `rgba(${mixedColor.r}, ${mixedColor.g}, ${mixedColor.b}, 0.2)` : 'rgba(255, 166, 77, 0.2)';
+                          // Use a subtle dark background for better swatch visibility
+                          const bgColor = 'rgba(30, 30, 35, 0.85)';
+                          const secondaryBrightsGrouped = getSecondaryColorsGrouped(colorProfile.season, userMicroSeason, 'brights');
                           return (
                             <View style={[styles.colorCategoryCard, { backgroundColor: bgColor }]}>
-                              <Text style={styles.colorCategoryName}>Brights</Text>
-                              <View style={styles.swatchRowInline}>
+                              <View style={styles.colorCategoryHeader}>
+                                <Text style={styles.colorCategoryName}>Brights</Text>
+                                <Pressable onPress={() => toggleSecondaryColors('brights')}>
+                                  <Text style={styles.secondaryColorsBtn}>
+                                    {showSecondaryColors.brights ? 'Hide Secondary' : 'Show Secondary Colors'}
+                                  </Text>
+                                </Pressable>
+                              </View>
+                              {/* Primary colors - horizontal scroll */}
+                              <ScrollView 
+                                horizontal 
+                                showsHorizontalScrollIndicator={false} 
+                                contentContainerStyle={styles.swatchScrollContent}
+                              >
                                 {organized.brights.map((color, idx) => (
-                                  <View key={idx} style={styles.swatchItem}>
+                                  <View key={`primary-${idx}`} style={styles.swatchItem}>
                                     <View style={[styles.swatchDot, { backgroundColor: color.hex }]} />
-                                    <Text style={styles.swatchName} numberOfLines={1} ellipsizeMode="tail">
+                                    <Text style={styles.swatchName} numberOfLines={2}>
                                       {color.name}
-                    </Text>
+                                    </Text>
                                   </View>
                                 ))}
-                              </View>
+                              </ScrollView>
+                              {/* Secondary colors - shown in rows when expanded */}
+                              {showSecondaryColors.brights && secondaryBrightsGrouped.length > 0 && (
+                                <View style={styles.secondaryColorsContainer}>
+                                  {secondaryBrightsGrouped.map((microSeasonColors, groupIdx) => (
+                                    <ScrollView 
+                                      key={`group-${groupIdx}`}
+                                      horizontal 
+                                      showsHorizontalScrollIndicator={false} 
+                                      contentContainerStyle={styles.swatchScrollContentSecondary}
+                                    >
+                                      {microSeasonColors.map((color, idx) => (
+                                        <View key={`secondary-${groupIdx}-${idx}`} style={styles.swatchItem}>
+                                          <View style={[styles.swatchDot, styles.swatchDotSecondary, { backgroundColor: color.hex }]} />
+                                          <Text style={[styles.swatchName, styles.swatchNameSecondary]} numberOfLines={2}>
+                                            {color.name}
+                                          </Text>
+                                        </View>
+                                      ))}
+                                    </ScrollView>
+                                  ))}
+                                </View>
+                              )}
                               <View style={styles.productsDivider} />
                               <Pressable 
                                 onPress={() => {
@@ -2468,21 +2734,56 @@ const StyleVaultScreen = () => {
 
                         {/* Softs */}
                         {organized.softs.length > 0 && (() => {
-                          const mixedColor = mixColors(organized.softs);
-                          const bgColor = mixedColor ? `rgba(${mixedColor.r}, ${mixedColor.g}, ${mixedColor.b}, 0.2)` : 'rgba(191, 230, 199, 0.2)';
+                          // Use a subtle dark background for better swatch visibility
+                          const bgColor = 'rgba(30, 30, 35, 0.85)';
+                          const secondarySoftsGrouped = getSecondaryColorsGrouped(colorProfile.season, userMicroSeason, 'softs');
                           return (
                             <View style={[styles.colorCategoryCard, { marginBottom: 0, backgroundColor: bgColor }]}>
-                              <Text style={styles.colorCategoryName}>Softs</Text>
-                              <View style={styles.swatchRowInline}>
+                              <View style={styles.colorCategoryHeader}>
+                                <Text style={styles.colorCategoryName}>Softs</Text>
+                                <Pressable onPress={() => toggleSecondaryColors('softs')}>
+                                  <Text style={styles.secondaryColorsBtn}>
+                                    {showSecondaryColors.softs ? 'Hide Secondary' : 'Show Secondary Colors'}
+                                  </Text>
+                                </Pressable>
+                              </View>
+                              {/* Primary colors - horizontal scroll */}
+                              <ScrollView 
+                                horizontal 
+                                showsHorizontalScrollIndicator={false} 
+                                contentContainerStyle={styles.swatchScrollContent}
+                              >
                                 {organized.softs.map((color, idx) => (
-                                  <View key={idx} style={styles.swatchItem}>
+                                  <View key={`primary-${idx}`} style={styles.swatchItem}>
                                     <View style={[styles.swatchDot, { backgroundColor: color.hex }]} />
-                                    <Text style={styles.swatchName} numberOfLines={1} ellipsizeMode="tail">
+                                    <Text style={styles.swatchName} numberOfLines={2}>
                                       {color.name}
                                     </Text>
-                </View>
-                  ))}
-                </View>
+                                  </View>
+                                ))}
+                              </ScrollView>
+                              {/* Secondary colors - shown in rows when expanded */}
+                              {showSecondaryColors.softs && secondarySoftsGrouped.length > 0 && (
+                                <View style={styles.secondaryColorsContainer}>
+                                  {secondarySoftsGrouped.map((microSeasonColors, groupIdx) => (
+                                    <ScrollView 
+                                      key={`group-${groupIdx}`}
+                                      horizontal 
+                                      showsHorizontalScrollIndicator={false} 
+                                      contentContainerStyle={styles.swatchScrollContentSecondary}
+                                    >
+                                      {microSeasonColors.map((color, idx) => (
+                                        <View key={`secondary-${groupIdx}-${idx}`} style={styles.swatchItem}>
+                                          <View style={[styles.swatchDot, styles.swatchDotSecondary, { backgroundColor: color.hex }]} />
+                                          <Text style={[styles.swatchName, styles.swatchNameSecondary]} numberOfLines={2}>
+                                            {color.name}
+                                          </Text>
+                                        </View>
+                                      ))}
+                                    </ScrollView>
+                                  ))}
+                                </View>
+                              )}
                               <View style={styles.productsDivider} />
                 <Pressable 
                                 onPress={() => {
@@ -2545,8 +2846,7 @@ const StyleVaultScreen = () => {
                 </>
               ) : null}
             </View>
-          )}
-        </View>
+          </View>
 
         {/* SECTION 3: FIT PROFILE (Summary Card) */}
         <View style={styles.fitProfileSummaryCard}>
@@ -2558,17 +2858,29 @@ const StyleVaultScreen = () => {
                 <View style={{ alignItems: 'flex-end', marginLeft: 'auto' }}>
                 <Pressable onPress={() => setShowBodyPhotoGuidelines(true)}>
                   {bodyImage ? (
-                    <View style={styles.fitProfilePhotoThumbnail}>
-                      <OptimizedImage 
-                        source={{ uri: bodyImage }} 
-                        style={styles.fitProfilePhotoImage}
-                        onError={() => setBodyImage(null)}
-                      />
-                      {isUploadingBodyPhoto && (
-                        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' }}>
-                          <ActivityIndicator size="large" color="#6366f1" />
-                        </View>
-                      )}
+                    <View style={{ position: 'relative' }}>
+                      <View style={styles.fitProfilePhotoThumbnail}>
+                        <OptimizedImage 
+                          source={{ uri: bodyImage }} 
+                          style={styles.fitProfilePhotoImage}
+                          onError={() => setBodyImage(null)}
+                        />
+                        {isUploadingBodyPhoto && (
+                          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' }}>
+                            <ActivityIndicator size="large" color="#6366f1" />
+                          </View>
+                        )}
+                      </View>
+                      {/* Edit Icon */}
+                      <Pressable
+                        style={styles.photoEditIcon}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          setShowBodyPhotoGuidelines(true);
+                        }}
+                      >
+                        <Text style={styles.photoEditIconText}>✏️</Text>
+                      </Pressable>
                     </View>
                   ) : null}
                   {!bodyImage && (
@@ -2686,7 +2998,6 @@ const StyleVaultScreen = () => {
                           // Ensure we use the correct state setter for visibility picker
                           // This needs to be outside the list to avoid z-index issues if possible, 
                           // but for now let's just make sure it sets the state.
-                          console.log('Opening privacy picker for tryon:', item.id);
                           setShowPrivacyPicker({ type: 'tryon', id: item.id });
                         }}
                       >
@@ -2994,8 +3305,7 @@ const StyleVaultScreen = () => {
                           </View>
                         )}
                         <View style={{ flex: 1, marginLeft: 12 }}>
-                          <Text style={styles.friendItemName}>{profile.name || profile.email?.split('@')[0] || 'User'}</Text>
-                          <Text style={[styles.friendItemName, { fontSize: 12, color: '#9ca3af', marginTop: 2 }]}>{profile.email}</Text>
+                          <Text style={styles.friendItemName}>{profile.name || 'User'}</Text>
                         </View>
                       </Pressable>
                       <Pressable
@@ -3358,7 +3668,6 @@ const StyleVaultScreen = () => {
                       
                       showBanner('Signed out', 'success');
                     } catch (error) {
-                      console.log('Sign out error:', error);
                       // Still clear local state and navigate
                       if (setUser) setUser(null);
                       if (setRoute) setRoute('auth');
@@ -3766,8 +4075,6 @@ const StyleVaultScreen = () => {
                       thigh: thighInches != null ? String(thighInches) : null,
                     };
                     
-                    console.log('💾 Saving fit profile for user:', user.id);
-                    console.log('💾 Data to save:', fallbackData);
                     
                     let saveError = null;
                     try {
@@ -3835,6 +4142,8 @@ const StyleVaultScreen = () => {
                   const { getSeasonProfile } = await import('../lib/colorAnalysis');
                   const profile = getSeasonProfile(season.id);
                   setColorProfile(profile);
+                  // Update user object so FitCheck can access the color profile
+                  if (setUser) setUser(prev => ({ ...prev, colorProfile: profile }));
                   if (user?.id) {
                     await saveColorProfile(user.id, profile);
                   }
@@ -3900,23 +4209,13 @@ const StyleVaultScreen = () => {
             setFaceAnalysisError(null);
             setColorProfile(null);
             
-            console.log('🎨 [FACE CROP] ========== CROP COMPLETE, STARTING ANALYSIS ==========');
-            
             // Handle both old format (string URI) and new format (object with imageUri + cropInfo)
             const imageUri = typeof cropData === 'string' ? cropData : cropData.imageUri;
             const cropInfo = typeof cropData === 'object' ? cropData.cropInfo : null;
             
-            console.log('🎨 [FACE CROP] Image URI:', imageUri.substring(0, 100));
-            if (cropInfo) {
-              console.log('🎨 [FACE CROP] Crop info:', cropInfo);
-            }
-            
             // Run app-side quality checks
-            console.log('🎨 [FACE CROP] Running app-side quality checks...');
             const qualityChecks = await runQualityChecks(imageUri);
             if (qualityChecks.hasIssues) {
-              console.log('🎨 [FACE CROP] Quality issues detected:', qualityChecks.issues);
-              console.log('🎨 [FACE CROP] Recommendations:', qualityChecks.recommendations);
               
               // Show warning but allow user to proceed
               Alert.alert(
@@ -4025,7 +4324,6 @@ const StyleVaultScreen = () => {
                         });
                       
                       if (error) {
-                        console.log('Profile save error:', error);
                       }
                       
                       if (setUser) {
@@ -5004,6 +5302,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  photoEditIcon: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  photoEditIconText: {
+    color: '#fff',
+    fontSize: 12,
+    transform: [{ scaleX: -1 }], // Mirror the pencil icon horizontally
+  },
   // Color Profile Styles - New Design
   colorSectionNew: {
     marginBottom: 0,
@@ -5064,11 +5379,21 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontStyle: 'italic',
   },
+  colorNoteText: {
+    color: '#9ca3af',
+    fontSize: 12,
+    lineHeight: 18,
+  },
   colorNoteTextRed: {
     color: '#ef4444',
     fontSize: 12,
     lineHeight: 18,
-    fontStyle: 'italic',
+  },
+  colorNoteTextBtn: {
+    color: '#6366f1',
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '600',
   },
   // Trait chips row - horizontal scroll
   traitsRowWrap: {
@@ -5129,17 +5454,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
   },
+  colorExplanationBullet: {
+    color: '#d1d5db',
+    fontSize: 14,
+    lineHeight: 22,
+    marginTop: 8,
+  },
   colorSeasonTitle: {
     color: '#fff',
     fontSize: 20,
     fontWeight: '700',
-    marginBottom: 20,
+    marginBottom: 10,
     marginTop: 8,
   },
   colorCategoryCard: {
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginBottom: 5,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
   },
@@ -5166,7 +5498,36 @@ const styles = StyleSheet.create({
     flexWrap: 'nowrap',
     gap: 6,
     paddingVertical: 4,
+    marginBottom: 2, // Reduced from 8 to minimize space before divider
+  },
+  swatchScrollContent: {
+    flexDirection: 'row',
+    paddingVertical: 8,
+    paddingLeft: 4,
+    paddingRight: 16,
+  },
+  colorCategoryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 8,
+  },
+  secondaryColorsBtn: {
+    fontSize: 12,
+    color: '#818cf8',
+    fontWeight: '600',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+    borderRadius: 12,
+  },
+  swatchDotSecondary: {
+    opacity: 0.85,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  swatchNameSecondary: {
+    color: '#9ca3af',
   },
   swatchRow: {
     gap: 12,
@@ -5175,22 +5536,42 @@ const styles = StyleSheet.create({
   },
   swatchItem: {
     alignItems: 'center',
-    flex: 1,
-    minWidth: 0,
+    width: 64, // Fixed width to fit 5 per screen with spacing
+    marginRight: 8,
   },
   swatchDot: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.20)',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.25)',
     marginBottom: 6,
+    // Add subtle shadow for depth
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
   },
   swatchName: {
     color: '#D1D5DB',
-    fontSize: 10,
-    fontWeight: '700',
+    fontSize: 9,
+    fontWeight: '600',
     textAlign: 'center',
+    lineHeight: 12,
+    height: 24, // Fixed height for 2 lines
+  },
+  secondaryColorsContainer: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.08)',
+  },
+  swatchScrollContentSecondary: {
+    flexDirection: 'row',
+    paddingVertical: 6,
+    paddingLeft: 4,
+    paddingRight: 16,
   },
   colorModelImageContainer: {
     width: '100%',
@@ -5216,7 +5597,7 @@ const styles = StyleSheet.create({
   productsDivider: {
     height: 1,
     backgroundColor: 'rgba(255,255,255,0.10)',
-    marginTop: 6,
+    marginTop: 2, // Reduced from 6
     marginBottom: 4,
   },
   productsBtnTextSimple: {
@@ -5295,6 +5676,31 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 24,
     marginTop: 8,
+  },
+  colorEmptyStateContainer: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+  },
+  colorEmptyTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  colorEmptyUploadBtn: {
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.4)',
+  },
+  colorEmptyUploadBtnText: {
+    color: '#818cf8',
+    fontSize: 15,
+    fontWeight: '600',
   },
   colorAnalyzingState: {
     flexDirection: 'row',

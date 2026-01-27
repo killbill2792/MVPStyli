@@ -270,10 +270,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             lab_l: classification.lab.L,
             lab_a: classification.lab.a,
             lab_b: classification.lab.b,
+            // Primary classification
             season_tag: classification.seasonTag,
+            micro_season_tag: classification.microSeasonTag,
             group_tag: classification.groupTag,
             nearest_palette_color_name: classification.nearestPaletteColor?.name || null,
             min_delta_e: classification.minDeltaE,
+            // Secondary classification (for crossover colors)
+            secondary_micro_season_tag: classification.secondaryMicroSeasonTag || null,
+            secondary_season_tag: classification.secondarySeasonTag || null,
+            secondary_group_tag: classification.secondaryGroupTag || null,
+            secondary_delta_e: classification.secondaryDeltaE || null,
+            // Status: 'great', 'good', 'ambiguous', or 'unclassified'
             classification_status: classification.classificationStatus,
           };
         } catch (error) {
@@ -426,10 +434,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           updateData.lab_l = classification.lab.L;
           updateData.lab_a = classification.lab.a;
           updateData.lab_b = classification.lab.b;
+          // Primary classification
           updateData.season_tag = classification.seasonTag;
+          updateData.micro_season_tag = classification.microSeasonTag;
           updateData.group_tag = classification.groupTag;
           updateData.nearest_palette_color_name = classification.nearestPaletteColor?.name || null;
           updateData.min_delta_e = classification.minDeltaE;
+          // Secondary classification (for crossover colors)
+          updateData.secondary_micro_season_tag = classification.secondaryMicroSeasonTag || null;
+          updateData.secondary_season_tag = classification.secondarySeasonTag || null;
+          updateData.secondary_group_tag = classification.secondaryGroupTag || null;
+          updateData.secondary_delta_e = classification.secondaryDeltaE || null;
+          // Status: 'great', 'good', 'ambiguous', or 'unclassified'
           updateData.classification_status = classification.classificationStatus;
         } catch (error) {
           console.error('Error classifying color:', error);
@@ -453,7 +469,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'back_width', 'arm_width', 'shoulder_width', 'collar_girth', 'cuff_girth',
         'armscye_depth', 'across_chest_width', 'front_rise', 'back_rise', 'inseam',
         'outseam', 'thigh_girth', 'knee_girth', 'hem_girth', 'side_neck_to_hem', 'back_neck_to_hem',
-        'lab_l', 'lab_a', 'lab_b', 'min_delta_e' // Include Lab and deltaE fields
+        'lab_l', 'lab_a', 'lab_b', 'min_delta_e', 'secondary_delta_e' // Include Lab and deltaE fields
       ];
 
       numericFields.forEach((field) => {

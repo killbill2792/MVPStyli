@@ -4,10 +4,18 @@
  * Uses pre-computed classification stored in database
  * 
  * Query parameters:
- * - season: 'spring' | 'summer' | 'autumn' | 'winter'
- * - group: 'neutrals' | 'accents' | 'brights' | 'softs'
+ * - season: 'spring' | 'summer' | 'autumn' | 'winter' (parent season, required)
+ * - microSeason: 'light_spring' | 'warm_spring' | etc. (optional, more specific)
+ * - group: 'neutrals' | 'accents' | 'brights' | 'softs' (required)
  * - limit: number (default: 20)
  * - minDeltaE: number (optional, filter by max deltaE)
+ * - includeSecondary: 'true' | 'false' (default: 'true', include products with matching secondary season)
+ * 
+ * Products are returned if:
+ * - Primary season matches AND status is 'great' or 'good', OR
+ * - Secondary season matches AND status is 'great' or 'good' (crossover products)
+ * 
+ * Products with status 'ambiguous' or 'unclassified' are excluded.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -52,7 +60,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const supabase = getSupabaseClient();
-    const { season, group, limit, minDeltaE } = req.query;
+    const { season, microSeason, group, limit, minDeltaE, includeSecondary } = req.query;
 
     // Validate required parameters
     if (!season || !group) {
@@ -69,6 +77,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ 
         error: 'Invalid season',
         message: `season must be one of: ${validSeasons.join(', ')}`
+      });
+    }
+
+    // Validate microSeason if provided
+    const validMicroSeasons = [
+      'light_spring', 'warm_spring', 'bright_spring',
+      'soft_summer', 'cool_summer', 'light_summer',
+      'deep_autumn', 'soft_autumn', 'warm_autumn',
+      'bright_winter', 'cool_winter', 'deep_winter'
+    ];
+    if (microSeason && !validMicroSeasons.includes(microSeason as string)) {
+      return res.status(400).json({ 
+        error: 'Invalid microSeason',
+        message: `microSeason must be one of: ${validMicroSeasons.join(', ')}`
       });
     }
 
@@ -99,42 +121,120 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    // Build query
-    let query = supabase
+    // Parse includeSecondary (default: true)
+    const shouldIncludeSecondary = includeSecondary !== 'false';
+
+    // Classification statuses to include: 'great' and 'good' (not 'ambiguous' or 'unclassified')
+    const validStatuses = ['great', 'good'];
+
+    // We need to run two queries if includeSecondary is true:
+    // 1. Primary season matches
+    // 2. Secondary season matches (crossover products)
+    
+    let allGarments: any[] = [];
+
+    // Query 1: Primary season matches (matching group_tag required)
+    let primaryQuery = supabase
       .from('garments')
       .select('*')
-      .eq('season_tag', season)
       .eq('group_tag', group)
-      .eq('classification_status', 'ok') // Only return successfully classified products
-      .eq('is_active', true) // Only active garments
-      .order('min_delta_e', { ascending: true }); // Best matches first (lower ΔE = better match)
+      .in('classification_status', validStatuses)
+      .eq('is_active', true);
+
+    // Query by micro-season if provided (more accurate), otherwise by parent season
+    if (microSeason) {
+      primaryQuery = primaryQuery.eq('micro_season_tag', microSeason);
+    } else {
+      primaryQuery = primaryQuery.eq('season_tag', season);
+    }
 
     // Apply minDeltaE filter if provided
     if (minDeltaENum !== null) {
-      query = query.lte('min_delta_e', minDeltaENum);
+      primaryQuery = primaryQuery.lte('min_delta_e', minDeltaENum);
     }
 
-    // Apply limit
-    query = query.limit(limitNum);
+    const { data: primaryGarments, error: primaryError } = await primaryQuery;
 
-    // Execute query
-    const { data: garments, error } = await query;
-
-    if (error) {
-      console.error('Error fetching suggested products:', error);
+    if (primaryError) {
+      console.error('Error fetching primary products:', primaryError);
       return res.status(500).json({ 
         error: 'Database error',
-        details: error.message 
+        details: primaryError.message 
       });
     }
 
+    // Add primary matches with a flag
+    if (primaryGarments) {
+      allGarments = primaryGarments.map(g => ({ ...g, matchType: 'primary' }));
+    }
+
+    // Query 2: Secondary season matches (crossover products)
+    if (shouldIncludeSecondary) {
+      let secondaryQuery = supabase
+        .from('garments')
+        .select('*')
+        .eq('secondary_group_tag', group)
+        .in('classification_status', validStatuses)
+        .eq('is_active', true);
+
+      // Query by secondary season
+      if (microSeason) {
+        secondaryQuery = secondaryQuery.eq('secondary_micro_season_tag', microSeason);
+      } else {
+        secondaryQuery = secondaryQuery.eq('secondary_season_tag', season);
+      }
+
+      // Apply minDeltaE filter using secondary_delta_e
+      if (minDeltaENum !== null) {
+        secondaryQuery = secondaryQuery.lte('secondary_delta_e', minDeltaENum);
+      }
+
+      const { data: secondaryGarments, error: secondaryError } = await secondaryQuery;
+
+      if (secondaryError) {
+        console.error('Error fetching secondary products:', secondaryError);
+        // Don't fail the whole request, just skip secondary results
+      } else if (secondaryGarments) {
+        // Add secondary matches, but skip duplicates (already in primary)
+        const primaryIds = new Set(allGarments.map(g => g.id));
+        const newSecondary = secondaryGarments
+          .filter(g => !primaryIds.has(g.id))
+          .map(g => ({ ...g, matchType: 'secondary' }));
+        allGarments = [...allGarments, ...newSecondary];
+      }
+    }
+
+    // Sort all garments: 
+    // 1. Primary matches first (they're better matches for this season)
+    // 2. Then by classification_status ('great' before 'good')
+    // 3. Then by min_delta_e (lower is better)
+    allGarments.sort((a, b) => {
+      // Primary matches first
+      if (a.matchType === 'primary' && b.matchType !== 'primary') return -1;
+      if (a.matchType !== 'primary' && b.matchType === 'primary') return 1;
+      
+      // 'great' status before 'good'
+      if (a.classification_status === 'great' && b.classification_status !== 'great') return -1;
+      if (a.classification_status !== 'great' && b.classification_status === 'great') return 1;
+      
+      // Lower deltaE is better (use appropriate deltaE based on match type)
+      const aDeltaE = a.matchType === 'secondary' ? (a.secondary_delta_e || 999) : (a.min_delta_e || 999);
+      const bDeltaE = b.matchType === 'secondary' ? (b.secondary_delta_e || 999) : (b.min_delta_e || 999);
+      return aDeltaE - bDeltaE;
+    });
+
+    // Apply limit
+    const limitedGarments = allGarments.slice(0, limitNum);
+
     // Return results
     return res.status(200).json({
-      products: garments || [],
-      count: garments?.length || 0,
+      products: limitedGarments,
+      count: limitedGarments.length,
+      totalBeforeLimit: allGarments.length,
       season,
       group,
       limit: limitNum,
+      includesSecondary: shouldIncludeSecondary,
     });
 
   } catch (error: any) {

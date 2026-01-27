@@ -114,17 +114,70 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       let pixelY = y;
 
       if (imageWidth && imageHeight && imageWidth > 0 && imageHeight > 0) {
+        // Convert coordinates from natural image space to actual image pixel coordinates
+        // If the image URL is optimized/resized, actualWidth/Height may differ from imageWidth/Height
         const scaleX = actualWidth / imageWidth;
         const scaleY = actualHeight / imageHeight;
-        pixelX = Math.floor(x * scaleX);
-        pixelY = Math.floor(y * scaleY);
+        // Use Math.round for better accuracy (prevents off-by-one errors)
+        pixelX = Math.round(x * scaleX);
+        pixelY = Math.round(y * scaleY);
+        
+        console.log('🎯 [COLOR API] Coordinate scaling:', {
+          input: { x, y },
+          naturalSize: { width: imageWidth, height: imageHeight },
+          actualSize: { width: actualWidth, height: actualHeight },
+          scale: { x: scaleX.toFixed(4), y: scaleY.toFixed(4) },
+          output: { x: pixelX, y: pixelY },
+          scaleMismatch: actualWidth !== imageWidth || actualHeight !== imageHeight,
+        });
+        
+        // WARNING: If image dimensions don't match, coordinates will be wrong!
+        if (actualWidth !== imageWidth || actualHeight !== imageHeight) {
+          console.warn('⚠️ [COLOR API] Image dimension mismatch!', {
+            expected: { width: imageWidth, height: imageHeight },
+            actual: { width: actualWidth, height: actualHeight },
+            'This will cause incorrect color picking!': true,
+          });
+        }
       }
 
       pixelX = Math.max(0, Math.min(pixelX, actualWidth - 1));
       pixelY = Math.max(0, Math.min(pixelY, actualHeight - 1));
 
-      // 16px radius circle sampling
-      const SAMPLE_RADIUS = 16;
+      // Adaptive sampling radius: reduce near edges to avoid picking background
+      const BASE_RADIUS = 12; // Reduced from 16 to be more precise
+      const EDGE_THRESHOLD = 30; // Increased from 20 to start reducing earlier
+      
+      // Calculate distance to each edge
+      const distToLeft = pixelX;
+      const distToRight = actualWidth - 1 - pixelX;
+      const distToTop = pixelY;
+      const distToBottom = actualHeight - 1 - pixelY;
+      
+      // Find minimum distance to any edge
+      const minDistToEdge = Math.min(distToLeft, distToRight, distToTop, distToBottom);
+      
+      // Reduce radius if near edge (prevents sampling background)
+      // More aggressive reduction near edges
+      let SAMPLE_RADIUS = BASE_RADIUS;
+      if (minDistToEdge < EDGE_THRESHOLD) {
+        // More aggressive reduction: at edge (0px), radius = 2px
+        // At 10px from edge, radius = 6px
+        // At 20px from edge, radius = 10px
+        // At 30px from edge, radius = 12px (full)
+        if (minDistToEdge < 10) {
+          SAMPLE_RADIUS = Math.max(2, Math.floor(BASE_RADIUS * (minDistToEdge / 10) * 0.5));
+        } else {
+          SAMPLE_RADIUS = Math.max(6, Math.floor(BASE_RADIUS * ((minDistToEdge - 10) / 20) + 6));
+        }
+        console.log('🎯 [COLOR API] Reduced sampling radius near edge:', {
+          minDistToEdge,
+          originalRadius: BASE_RADIUS,
+          adjustedRadius: SAMPLE_RADIUS,
+          edgeDistances: { left: distToLeft, right: distToRight, top: distToTop, bottom: distToBottom },
+        });
+      }
+      
       const radiusSquared = SAMPLE_RADIUS * SAMPLE_RADIUS;
 
       // Calculate bounding box for extraction (square that contains the circle)
@@ -140,6 +193,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         center: { x: pixelX, y: pixelY },
         radius: SAMPLE_RADIUS,
         bounds: { left: extractLeft, top: extractTop, width: extractWidth, height: extractHeight },
+        imageBounds: { width: actualWidth, height: actualHeight },
+        nearEdge: {
+          left: pixelX < SAMPLE_RADIUS,
+          right: pixelX > actualWidth - SAMPLE_RADIUS,
+          top: pixelY < SAMPLE_RADIUS,
+          bottom: pixelY > actualHeight - SAMPLE_RADIUS,
+        },
       });
 
       // Extract the bounding box region
@@ -156,10 +216,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { data, info } = result;
       const channels = info.channels || 3;
       
-      // Collect all pixels within the circular area
+      // Collect all pixels within the circular area, filtering out white/background colors near edges
       const samples: Array<{ r: number; g: number; b: number }> = [];
       const centerX = pixelX - extractLeft;
       const centerY = pixelY - extractTop;
+      
+      // Helper function to check if a color is likely background (white/very light)
+      const isBackgroundColor = (r: number, g: number, b: number): boolean => {
+        // Very bright colors (likely white background)
+        const brightness = (r + g + b) / 3;
+        if (brightness > 240) return true;
+        
+        // Very low saturation bright colors (grey/white)
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        const saturation = max === 0 ? 0 : (max - min) / max;
+        if (brightness > 220 && saturation < 0.15) return true;
+        
+        return false;
+      };
       
       for (let y = 0; y < extractHeight; y++) {
         for (let x = 0; x < extractWidth; x++) {
@@ -175,8 +250,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const g = channels >= 2 ? data[idx + 1] : data[idx];
             const b = channels >= 3 ? data[idx + 2] : data[idx];
             
+            // Filter out white/background colors when near edges (prevents picking background)
+            const isNearEdge = minDistToEdge < 20;
+            if (isNearEdge && isBackgroundColor(r, g, b)) {
+              // Skip background colors when near edge
+              continue;
+            }
+            
             samples.push({ r, g, b });
           }
+        }
+      }
+      
+      // If we filtered out too many samples near edges, include some back (to handle white garments)
+      if (samples.length < 3 && minDistToEdge < 20) {
+        // Re-sample without filtering to get at least some pixels
+        for (let y = 0; y < extractHeight; y++) {
+          for (let x = 0; x < extractWidth; x++) {
+            const dx = x - centerX;
+            const dy = y - centerY;
+            const distanceSquared = dx * dx + dy * dy;
+            
+            if (distanceSquared <= radiusSquared) {
+              const idx = (y * extractWidth + x) * channels;
+              const r = data[idx];
+              const g = channels >= 2 ? data[idx + 1] : data[idx];
+              const b = channels >= 3 ? data[idx + 2] : data[idx];
+              
+              // Only add if not already in samples
+              const exists = samples.some(s => s.r === r && s.g === g && s.b === b);
+              if (!exists) {
+                samples.push({ r, g, b });
+                if (samples.length >= 10) break; // Get enough samples
+              }
+            }
+          }
+          if (samples.length >= 10) break;
         }
       }
 
@@ -196,6 +305,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           name: colorName.name,
           source: 'manual-pick-fallback',
           pixelsSampled: 1,
+          sampledAt: { x: pixelX, y: pixelY }, // Exact coordinates server sampled (image pixel coords)
+          imageSize: { width: actualWidth, height: actualHeight }, // Actual image dimensions
         });
       }
 
@@ -224,6 +335,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         source: 'manual-pick-circular-trimmed-mean',
         pixelsSampled: samples.length,
         radius: SAMPLE_RADIUS,
+        sampledAt: { x: pixelX, y: pixelY }, // Exact coordinates server sampled (image pixel coords)
+        imageSize: { width: actualWidth, height: actualHeight }, // Actual image dimensions
       });
     }
 

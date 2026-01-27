@@ -4,12 +4,50 @@ import {
   Text,
   Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
+  Image,
+  Dimensions,
+  Linking,
 } from 'react-native';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const IMAGE_WIDTH = (SCREEN_WIDTH - 64) / 2;
+const IMAGE_HEIGHT = IMAGE_WIDTH * 1.35;
 
 const PhotoGuidelinesModal = ({ visible, type, onClose, onContinue }) => {
   const isBodyPhoto = type === 'body';
+  
+  // Image assets
+  const bodyGood1 = require('../assets/guidelines/body_good_1.png');
+  const bodyGood2 = require('../assets/guidelines/body_good_2.png');
+  const bodyBad1 = require('../assets/guidelines/body_bad_1.png');
+  const bodyBad2 = require('../assets/guidelines/body_bad_2.png');
+  const faceGood = require('../assets/guidelines/face_good.png');
+  const faceBad = require('../assets/guidelines/face_bad.png');
+
+  // Good/bad tips for each type
+  const bodyGoodTips = ['Full body', 'Neutral pose', 'Fitted clothes'];
+  const bodyBadTips = ['Baggy clothes', 'Mirror selfie', 'Cropped'];
+  const faceGoodTips = ['Clear face', 'Natural light'];
+  const faceBadTips = ['Sunglasses', 'Hats', 'Filters'];
+
+  const goodTips = isBodyPhoto ? bodyGoodTips : faceGoodTips;
+  const badTips = isBodyPhoto ? bodyBadTips : faceBadTips;
+
+  // Tag chip component
+  const TagChip = ({ label, isGood }) => (
+    <View style={[styles.tagChip, isGood ? styles.goodChip : styles.badChip]}>
+      <Text style={[styles.tagChipIcon, isGood ? styles.goodChipIcon : styles.badChipIcon]}>
+        {isGood ? '✓' : '✕'}
+      </Text>
+      <Text style={[styles.tagChipText, isGood ? styles.goodChipText : styles.badChipText]}>
+        {label}
+      </Text>
+    </View>
+  );
+
+  const openPrivacy = () => Linking.openURL('https://stylit.ai/privacy.html');
+  const openTerms = () => Linking.openURL('https://stylit.ai/terms.html');
   
   return (
     <Modal
@@ -20,86 +58,95 @@ const PhotoGuidelinesModal = ({ visible, type, onClose, onContinue }) => {
     >
       <View style={styles.overlay}>
         <View style={styles.modalContainer}>
-          <ScrollView 
-            style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={true}
-          >
-            {/* Title */}
-            <Text style={styles.title}>
-              {isBodyPhoto ? 'Get the best try-on results' : 'Find your best colors'}
-            </Text>
+          {/* Close button - top right */}
+          <Pressable style={styles.closeButton} onPress={onClose}>
+            <Text style={styles.closeButtonText}>✕</Text>
+          </Pressable>
 
-            {/* Short explanation */}
-            <Text style={styles.explanation}>
-              {isBodyPhoto 
-                ? 'Stylit uses your body photo to understand fit, proportions, and how clothes fall on you.'
-                : 'We analyze your face photo to understand undertone, contrast, and color harmony.'}
-            </Text>
+          {/* Title */}
+          <Text style={styles.title}>
+            {isBodyPhoto ? 'Upload a body photo' : 'Upload a face photo'}
+          </Text>
 
-            {/* Works best section */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>✅ Works best if:</Text>
+          {/* Good Examples Section */}
+          <View style={styles.section}>
+            <Text style={styles.goodTitle}>✓ What works best</Text>
+            
+            <View style={[styles.imageRow, !isBodyPhoto && styles.imageRowCentered]}>
               {isBodyPhoto ? (
-                <View style={styles.bulletList}>
-                  <Text style={styles.bulletPoint}>• Full body or waist-up photo</Text>
-                  <Text style={styles.bulletPoint}>• Neutral pose (standing straight)</Text>
-                  <Text style={styles.bulletPoint}>• Fitted clothing (tee, tank, jeans, leggings)</Text>
-                  <Text style={styles.bulletPoint}>• Good lighting, plain background</Text>
-                </View>
+                <>
+                  <View style={[styles.imageContainer, styles.goodImageContainer]}>
+                    <Image source={bodyGood1} style={styles.guideImage} resizeMode="cover" />
+                  </View>
+                  <View style={[styles.imageContainer, styles.goodImageContainer]}>
+                    <Image source={bodyGood2} style={styles.guideImage} resizeMode="cover" />
+                  </View>
+                </>
               ) : (
-                <View style={styles.bulletList}>
-                  <Text style={styles.bulletPoint}>• Clear face photo</Text>
-                  <Text style={styles.bulletPoint}>• Natural light</Text>
-                  <Text style={styles.bulletPoint}>• No heavy makeup</Text>
-                  <Text style={styles.bulletPoint}>• Neutral expression</Text>
+                <View style={[styles.singleImageContainer, styles.goodImageContainer]}>
+                  <Image source={faceGood} style={styles.guideImageSingle} resizeMode="cover" />
                 </View>
               )}
             </View>
-
-            {/* Avoid section */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>⚠️ Avoid:</Text>
-              {isBodyPhoto ? (
-                <View style={styles.bulletList}>
-                  <Text style={styles.bulletPoint}>• Nude or underwear-only photos</Text>
-                  <Text style={styles.bulletPoint}>• Very loose outfits (oversized hoodies, blankets)</Text>
-                  <Text style={styles.bulletPoint}>• Cropped or mirror selfies</Text>
-                  <Text style={styles.bulletPoint}>• Group photos</Text>
-                  <Text style={styles.bulletPoint}>• Heavy filters or extreme angles</Text>
-                </View>
-              ) : (
-                <View style={styles.bulletList}>
-                  <Text style={styles.bulletPoint}>• Sunglasses or hats</Text>
-                  <Text style={styles.bulletPoint}>• Strong filters</Text>
-                  <Text style={styles.bulletPoint}>• Low-light photos</Text>
-                </View>
-              )}
+            
+            <View style={styles.tagsContainer}>
+              {goodTips.map((tip, index) => (
+                <TagChip key={index} label={tip} isGood={true} />
+              ))}
             </View>
-
-            {/* Reassurance / Fun payoff */}
-            <Text style={styles.reassurance}>
-              {isBodyPhoto 
-                ? "Your photo is used only for AI processing. You're always in control."
-                : 'This helps us suggest colors that actually suit you — not trends.'}
-            </Text>
-          </ScrollView>
-
-          {/* Buttons */}
-          <View style={styles.buttonContainer}>
-            <Pressable 
-              style={styles.continueButton}
-              onPress={onContinue}
-            >
-              <Text style={styles.continueButtonText}>Got it — Upload</Text>
-            </Pressable>
-            <Pressable 
-              style={styles.cancelButton}
-              onPress={onClose}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </Pressable>
           </View>
+
+          {/* Bad Examples Section */}
+          <View style={styles.section}>
+            <Text style={styles.badTitle}>✕ Avoid</Text>
+            
+            <View style={[styles.imageRow, !isBodyPhoto && styles.imageRowCentered]}>
+              {isBodyPhoto ? (
+                <>
+                  <View style={[styles.imageContainer, styles.badImageContainer]}>
+                    <Image source={bodyBad1} style={styles.guideImage} resizeMode="cover" />
+                  </View>
+                  <View style={[styles.imageContainer, styles.badImageContainer]}>
+                    <Image source={bodyBad2} style={styles.guideImage} resizeMode="cover" />
+                  </View>
+                </>
+              ) : (
+                <View style={[styles.singleImageContainer, styles.badImageContainer]}>
+                  <Image source={faceBad} style={styles.guideImageSingle} resizeMode="cover" />
+                </View>
+              )}
+            </View>
+            
+            <View style={styles.tagsContainer}>
+              {badTips.map((tip, index) => (
+                <TagChip key={index} label={tip} isGood={false} />
+              ))}
+            </View>
+          </View>
+
+          {/* Body photo warning */}
+          {isBodyPhoto && (
+            <View style={styles.warningContainer}>
+              <View style={styles.warningTags}>
+                <View style={styles.warningChip}><Text style={styles.warningChipText}>No bikini</Text></View>
+                <View style={styles.warningChip}><Text style={styles.warningChipText}>No nudes</Text></View>
+                <View style={styles.warningChip}><Text style={styles.warningChipText}>No lingerie</Text></View>
+              </View>
+            </View>
+          )}
+
+          {/* Privacy note */}
+          <Text style={styles.privacyNote}>
+            By uploading, you agree to our{' '}
+            <Text style={styles.privacyLink} onPress={openPrivacy}>Privacy Policy</Text>
+            {' '}&{' '}
+            <Text style={styles.privacyLink} onPress={openTerms}>Terms</Text>.
+          </Text>
+
+          {/* Upload Button */}
+          <Pressable style={styles.continueButton} onPress={onContinue}>
+            <Text style={styles.continueButtonText}>Got it — Upload</Text>
+          </Pressable>
         </View>
       </View>
     </Modal>
@@ -109,99 +156,195 @@ const PhotoGuidelinesModal = ({ visible, type, onClose, onContinue }) => {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 16,
+    padding: 12,
   },
   modalContainer: {
     backgroundColor: '#1a1a1a',
-    borderRadius: 24,
+    borderRadius: 20,
     width: '100%',
-    maxWidth: 500,
-    minHeight: 500,
-    maxHeight: '90%',
+    maxWidth: 420,
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 20,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
-    overflow: 'hidden',
-    flexDirection: 'column',
+    position: 'relative',
   },
-  scrollView: {
-    flexShrink: 1,
+  closeButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
   },
-  scrollContent: {
-    padding: 28,
-    paddingBottom: 20,
+  closeButtonText: {
+    color: '#9ca3af',
+    fontSize: 16,
+    fontWeight: '600',
   },
   title: {
-    fontSize: 24,
+    fontSize: 21,
     fontWeight: '700',
     color: '#ffffff',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  explanation: {
-    fontSize: 16,
-    color: '#d1d5db',
-    lineHeight: 24,
-    marginBottom: 28,
+    marginBottom: 18,
+    marginTop: 8,
     textAlign: 'center',
   },
   section: {
-    marginBottom: 24,
+    marginBottom: 18,
   },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#ffffff',
+  goodTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#22c55e',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  badTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#ef4444',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  imageRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  imageRowCentered: {
+    justifyContent: 'center',
+  },
+  imageContainer: {
+    width: IMAGE_WIDTH,
+    height: IMAGE_HEIGHT,
+    borderRadius: 14,
+    overflow: 'hidden',
+    backgroundColor: '#2a2a2a',
+  },
+  singleImageContainer: {
+    width: IMAGE_WIDTH,
+    height: IMAGE_HEIGHT,
+    borderRadius: 14,
+    overflow: 'hidden',
+    backgroundColor: '#2a2a2a',
+  },
+  goodImageContainer: {
+    borderWidth: 2,
+    borderColor: '#22c55e',
+    shadowColor: '#22c55e',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  badImageContainer: {
+    borderWidth: 2,
+    borderColor: '#ef4444',
+    shadowColor: '#ef4444',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  guideImage: {
+    width: '100%',
+    height: '100%',
+  },
+  guideImageSingle: {
+    width: '100%',
+    height: '100%',
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  tagChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    borderRadius: 14,
+  },
+  goodChip: {
+    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+  },
+  badChip: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+  },
+  tagChipIcon: {
+    fontSize: 11,
+    fontWeight: '700',
+    marginRight: 5,
+  },
+  goodChipIcon: {
+    color: '#22c55e',
+  },
+  badChipIcon: {
+    color: '#ef4444',
+  },
+  tagChipText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  goodChipText: {
+    color: '#22c55e',
+  },
+  badChipText: {
+    color: '#ef4444',
+  },
+  warningContainer: {
     marginBottom: 14,
   },
-  bulletList: {
-    marginLeft: 8,
+  warningTags: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
   },
-  bulletPoint: {
-    fontSize: 15,
-    color: '#d1d5db',
-    lineHeight: 24,
-    marginBottom: 10,
+  warningChip: {
+    backgroundColor: 'rgba(251, 191, 36, 0.15)',
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    borderRadius: 14,
   },
-  reassurance: {
-    fontSize: 15,
-    color: '#9ca3af',
-    lineHeight: 22,
-    marginTop: 12,
-    fontStyle: 'italic',
+  warningChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#fbbf24',
+  },
+  privacyNote: {
+    fontSize: 12,
+    color: '#6b7280',
     textAlign: 'center',
-    paddingHorizontal: 8,
+    lineHeight: 17,
+    marginBottom: 16,
   },
-  buttonContainer: {
-    padding: 24,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
-    backgroundColor: '#1a1a1a',
+  privacyLink: {
+    color: '#818cf8',
+    textDecorationLine: 'underline',
   },
   continueButton: {
     backgroundColor: '#6366f1',
-    borderRadius: 12,
+    borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
-    marginBottom: 12,
   },
   continueButtonText: {
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
   },
-  cancelButton: {
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    color: '#9ca3af',
-    fontSize: 14,
-  },
 });
 
 export default PhotoGuidelinesModal;
-

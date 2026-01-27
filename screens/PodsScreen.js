@@ -285,6 +285,7 @@ const PodsScreen = ({ onBack, onCreatePod, userId, userName, params }) => {
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [createdPodTitle, setCreatedPodTitle] = useState('');
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const handleAddImage = async () => {
     setShowImageSourceModal(true);
@@ -518,6 +519,7 @@ const PodsScreen = ({ onBack, onCreatePod, userId, userName, params }) => {
   const handleCopyLink = async () => {
     if (!podLink) return;
     Clipboard.setString(podLink);
+    setLinkCopied(true);
     showBanner('📋 Link copied!', 'success');
   };
 
@@ -643,6 +645,7 @@ const PodsScreen = ({ onBack, onCreatePod, userId, userName, params }) => {
         // Show success and share modal - don't navigate yet
         setCreatedPodTitle(finalTitle);
         setCreatedPodId(pod.id);
+        setLinkCopied(false); // Reset link copied state for new pod
         setShowShareModal(true);
         showBanner('🎉 Pod is live!', 'success');
       } else {
@@ -1379,15 +1382,15 @@ const PodsScreen = ({ onBack, onCreatePod, userId, userName, params }) => {
                 flexDirection: 'row', 
                 alignItems: 'center', 
                 justifyContent: 'center',
-                backgroundColor: 'rgba(255,255,255,0.1)',
+                backgroundColor: linkCopied ? 'rgba(34, 197, 94, 0.2)' : 'rgba(255,255,255,0.1)',
                 paddingVertical: 12,
                 paddingHorizontal: 20,
                 borderRadius: 10,
                 marginBottom: 16
               }}
             >
-              <Ionicons name="link" size={20} color="#fff" style={{ marginRight: 8 }} />
-              <Text style={{ color: '#fff', fontSize: 14 }}>Copy Link</Text>
+              <Ionicons name={linkCopied ? "checkmark-circle" : "link"} size={20} color={linkCopied ? "#22c55e" : "#fff"} style={{ marginRight: 8 }} />
+              <Text style={{ color: linkCopied ? '#22c55e' : '#fff', fontSize: 14 }}>{linkCopied ? 'Link Copied ✓' : 'Copy Link'}</Text>
             </Pressable>
             
             {/* Done Button */}
