@@ -4367,11 +4367,13 @@ const StyleVaultScreen = () => {
               
               {/* Live Color Preview with Confirm Button */}
               {quickCheckLiveColor && (
-                <View style={styles.quickCheckColorPreview}>
-                  <View style={[styles.quickCheckPreviewSwatch, { backgroundColor: quickCheckLiveColor.hex }]} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.quickCheckPreviewName}>{quickCheckLiveColor.name}</Text>
-                    <Text style={styles.quickCheckPreviewHex}>{quickCheckLiveColor.hex.toUpperCase()}</Text>
+                <View style={styles.quickCheckColorPreviewContainer}>
+                  <View style={styles.quickCheckColorPreviewRow}>
+                    <View style={[styles.quickCheckPreviewSwatch, { backgroundColor: quickCheckLiveColor.hex }]} />
+                    <View style={styles.quickCheckPreviewInfo}>
+                      <Text style={styles.quickCheckPreviewName} numberOfLines={1}>{quickCheckLiveColor.name}</Text>
+                      <Text style={styles.quickCheckPreviewHex}>{quickCheckLiveColor.hex.toUpperCase()}</Text>
+                    </View>
                   </View>
                   <Pressable
                     style={styles.quickCheckConfirmBtn}
@@ -4384,10 +4386,11 @@ const StyleVaultScreen = () => {
                         if (colorProfile?.season) {
                           const { computeColorScore } = require('../lib/colorScoring');
                           const score = computeColorScore(quickCheckLiveColor.hex, colorProfile);
+                          console.log('Quick check score:', score);
                           setQuickCheckResult({
-                            verdict: score.verdict,
+                            verdict: score.verdict || 'unknown',
                             confidence: score.confidence,
-                            explanation: score.explanation,
+                            explanation: score.explanation || 'Analysis complete.',
                             deltaE: score.deltaE,
                           });
                         } else {
@@ -4398,7 +4401,10 @@ const StyleVaultScreen = () => {
                         }
                       } catch (error) {
                         console.error('Quick check analysis error:', error);
-                        Alert.alert('Error', 'Failed to analyze color. Please try again.');
+                        setQuickCheckResult({
+                          verdict: 'unknown',
+                          explanation: 'Failed to analyze color. Please try again.',
+                        });
                       } finally {
                         setIsQuickCheckAnalyzing(false);
                       }
@@ -4436,24 +4442,28 @@ const StyleVaultScreen = () => {
                   styles.quickCheckVerdictBox,
                   quickCheckResult.verdict === 'great' && { borderColor: '#22c55e', backgroundColor: 'rgba(34, 197, 94, 0.1)' },
                   quickCheckResult.verdict === 'good' && { borderColor: '#84cc16', backgroundColor: 'rgba(132, 204, 22, 0.1)' },
-                  quickCheckResult.verdict === 'ok' && { borderColor: '#eab308', backgroundColor: 'rgba(234, 179, 8, 0.1)' },
+                  (quickCheckResult.verdict === 'ok' || quickCheckResult.verdict === 'neutral') && { borderColor: '#eab308', backgroundColor: 'rgba(234, 179, 8, 0.1)' },
                   quickCheckResult.verdict === 'risky' && { borderColor: '#f97316', backgroundColor: 'rgba(249, 115, 22, 0.1)' },
-                  quickCheckResult.verdict === 'avoid' && { borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)' },
+                  (quickCheckResult.verdict === 'avoid' || quickCheckResult.verdict === 'clash') && { borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)' },
+                  quickCheckResult.verdict === 'unknown' && { borderColor: '#6366f1', backgroundColor: 'rgba(99, 102, 241, 0.1)' },
                 ]}>
                   <Text style={[
                     styles.quickCheckVerdictText,
                     quickCheckResult.verdict === 'great' && { color: '#22c55e' },
                     quickCheckResult.verdict === 'good' && { color: '#84cc16' },
-                    quickCheckResult.verdict === 'ok' && { color: '#eab308' },
+                    (quickCheckResult.verdict === 'ok' || quickCheckResult.verdict === 'neutral') && { color: '#eab308' },
                     quickCheckResult.verdict === 'risky' && { color: '#f97316' },
-                    quickCheckResult.verdict === 'avoid' && { color: '#ef4444' },
+                    (quickCheckResult.verdict === 'avoid' || quickCheckResult.verdict === 'clash') && { color: '#ef4444' },
+                    quickCheckResult.verdict === 'unknown' && { color: '#6366f1' },
                   ]}>
-                    {quickCheckResult.verdict === 'great' && '✨ Great Match!'}
-                    {quickCheckResult.verdict === 'good' && '👍 Good Match'}
-                    {quickCheckResult.verdict === 'ok' && '🤔 Okay Match'}
-                    {quickCheckResult.verdict === 'risky' && '⚠️ Risky'}
-                    {quickCheckResult.verdict === 'avoid' && '❌ Not Recommended'}
-                    {quickCheckResult.verdict === 'unknown' && '❓ Unknown'}
+                    {quickCheckResult.verdict === 'great' ? '✨ Great Match!' : 
+                     quickCheckResult.verdict === 'good' ? '👍 Good Match' :
+                     quickCheckResult.verdict === 'ok' ? '🤔 Okay Match' :
+                     quickCheckResult.verdict === 'neutral' ? '🤔 Neutral' :
+                     quickCheckResult.verdict === 'risky' ? '⚠️ Risky' :
+                     quickCheckResult.verdict === 'avoid' ? '❌ Not Recommended' :
+                     quickCheckResult.verdict === 'clash' ? '❌ Color Clash' :
+                     '❓ Analysis Complete'}
                   </Text>
                 </View>
                 
@@ -6303,6 +6313,18 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.7)',
     fontSize: 10,
   },
+  quickCheckColorPreviewContainer: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 16,
+    padding: 16,
+    marginHorizontal: 20,
+    marginTop: 16,
+  },
+  quickCheckColorPreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
   quickCheckColorPreview: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -6320,6 +6342,10 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: '#fff',
   },
+  quickCheckPreviewInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
   quickCheckPreviewName: {
     color: '#fff',
     fontSize: 16,
@@ -6332,13 +6358,14 @@ const styles = StyleSheet.create({
   },
   quickCheckConfirmBtn: {
     backgroundColor: '#6366f1',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
     borderRadius: 12,
+    alignItems: 'center',
   },
   quickCheckConfirmBtnText: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
   },
   quickCheckInstructions: {

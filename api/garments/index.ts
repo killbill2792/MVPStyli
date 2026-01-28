@@ -422,19 +422,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // PUT - Update garment
     if (req.method === 'PUT') {
-      const { id, admin_email, sizes, ...updateData } = req.body;
+      const { id, admin_email, sizes, ...rawData } = req.body;
 
       if (!id) {
         return res.status(400).json({ error: 'id is required for updates' });
       }
 
-      // Remove admin_email and sizes from updateData (they're not columns in garments table)
-      // admin_email is only used for authentication check
-      // sizes are handled separately in garment_sizes table
+      // Only allow specific fields to be updated (whitelist approach)
+      const allowedFields = [
+        'name', 'description', 'category', 'gender', 'image_url', 'additional_images',
+        'product_link', 'brand', 'price', 'material', 'color', 'color_hex',
+        'fit_type', 'fabric_stretch', 'tags', 'is_active', 'measurement_unit',
+        // Color classification fields
+        'dominant_hex', 'lab_l', 'lab_a', 'lab_b',
+        'season_tag', 'micro_season_tag', 'group_tag', 
+        'nearest_palette_color_name', 'min_delta_e', 'classification_status',
+      ];
+
+      // Filter to only allowed fields
+      const updateData: Record<string, any> = {};
+      allowedFields.forEach((field) => {
+        if (rawData[field] !== undefined) {
+          updateData[field] = rawData[field];
+        }
+      });
 
       // Classify color if color_hex is being updated
-      // Track if we're using new or old schema values for fallback
-      let usingNewSchemaValues = false;
       if (updateData.color_hex && typeof updateData.color_hex === 'string') {
         try {
           const classification = classifyGarment(updateData.color_hex);
@@ -448,14 +461,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           updateData.group_tag = classification.groupTag;
           updateData.nearest_palette_color_name = classification.nearestPaletteColor?.name || null;
           updateData.min_delta_e = classification.minDeltaE;
-          // Secondary classification (for crossover colors) - only set if columns exist
-          if (classification.secondarySeasonTag) {
-            updateData.secondary_micro_season_tag = classification.secondaryMicroSeasonTag;
-            updateData.secondary_season_tag = classification.secondarySeasonTag;
-            updateData.secondary_group_tag = classification.secondaryGroupTag;
-            updateData.secondary_delta_e = classification.secondaryDeltaE;
-            usingNewSchemaValues = true;
-          }
           // Status handling: map new values to 'ok' for backward compatibility
           // New: 'great', 'good', 'ambiguous', 'unclassified'
           // Old: 'ok', 'ambiguous', 'unclassified'
@@ -484,11 +489,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Parse numeric fields
       const numericFields = [
-        'price', 'chest', 'waist', 'hip', 'front_length', 'back_length', 'sleeve_length',
-        'back_width', 'arm_width', 'shoulder_width', 'collar_girth', 'cuff_girth',
-        'armscye_depth', 'across_chest_width', 'front_rise', 'back_rise', 'inseam',
-        'outseam', 'thigh_girth', 'knee_girth', 'hem_girth', 'side_neck_to_hem', 'back_neck_to_hem',
-        'lab_l', 'lab_a', 'lab_b', 'min_delta_e', 'secondary_delta_e' // Include Lab and deltaE fields
+        'price', 'lab_l', 'lab_a', 'lab_b', 'min_delta_e'
       ];
 
       numericFields.forEach((field) => {
@@ -504,12 +505,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       });
 
-      // Remove secondary fields if they might not exist in database schema
-      // This ensures backward compatibility with older database schemas
-      delete updateData.secondary_micro_season_tag;
-      delete updateData.secondary_season_tag;
-      delete updateData.secondary_group_tag;
-      delete updateData.secondary_delta_e;
+      console.log('Updating garment with data:', JSON.stringify(updateData, null, 2));
       
       // Update the garment
       const result = await supabase
