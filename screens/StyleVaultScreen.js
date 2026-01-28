@@ -3841,7 +3841,8 @@ const StyleVaultScreen = () => {
               onPress={() => {
                 setShowMultiPhotoModal(false);
                 setAdditionalPhotos([null, null]);
-                setAdditionalPhotosCropped([false, false]);
+                setAdditionalPhotosCropped([null, null]);
+                setAdditionalPhotosCropInfo([null, null]);
                 setMultiPhotoResults(null);
               }}
               style={styles.quickCheckCloseBtn}
@@ -3924,8 +3925,13 @@ const StyleVaultScreen = () => {
                                       const newPhotos = [...additionalPhotos];
                                       newPhotos[index] = result.assets[0].uri;
                                       setAdditionalPhotos(newPhotos);
+                                      // Close multi-photo modal and show FaceCropScreen
+                                      setShowMultiPhotoModal(false);
                                       setAdditionalPhotoIndexToCrop(index);
-                                      setShowFaceCropForAdditional(true);
+                                      // Small delay to ensure modal closes before opening FaceCropScreen
+                                      setTimeout(() => {
+                                        setShowFaceCropForAdditional(true);
+                                      }, 100);
                                     }
                                   } else {
                                     Alert.alert('Permission Needed', 'Please allow camera access.');
@@ -3947,8 +3953,13 @@ const StyleVaultScreen = () => {
                                       const newPhotos = [...additionalPhotos];
                                       newPhotos[index] = result.assets[0].uri;
                                       setAdditionalPhotos(newPhotos);
+                                      // Close multi-photo modal and show FaceCropScreen
+                                      setShowMultiPhotoModal(false);
                                       setAdditionalPhotoIndexToCrop(index);
-                                      setShowFaceCropForAdditional(true);
+                                      // Small delay to ensure modal closes before opening FaceCropScreen
+                                      setTimeout(() => {
+                                        setShowFaceCropForAdditional(true);
+                                      }, 100);
                                     }
                                   } else {
                                     Alert.alert('Permission Needed', 'Please allow photo library access.');
@@ -5181,14 +5192,27 @@ const StyleVaultScreen = () => {
             const newCropInfo = [...additionalPhotosCropInfo];
             newCropInfo[index] = cropInfo;
             setAdditionalPhotosCropInfo(newCropInfo);
+            
+            // Re-open multi-photo modal after cropping
+            setTimeout(() => {
+              setShowMultiPhotoModal(true);
+            }, 100);
           } catch (error) {
             console.error('Error processing cropped photo:', error);
             Alert.alert('Error', 'Failed to process photo. Please try again.');
+            // Re-open multi-photo modal even on error
+            setTimeout(() => {
+              setShowMultiPhotoModal(true);
+            }, 100);
           }
         }}
         onCancel={() => {
           setShowFaceCropForAdditional(false);
           setAdditionalPhotoIndexToCrop(null);
+          // Re-open multi-photo modal if cancelled
+          setTimeout(() => {
+            setShowMultiPhotoModal(true);
+          }, 100);
         }}
       />
 
