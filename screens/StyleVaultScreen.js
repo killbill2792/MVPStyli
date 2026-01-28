@@ -20,6 +20,7 @@ import {
   Animated,
   LayoutAnimation,
   UIManager,
+  Image,
 } from 'react-native';
 
 // Enable LayoutAnimation on Android
