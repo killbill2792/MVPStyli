@@ -34,10 +34,6 @@ const PhotoGuidelinesModal = ({ visible, type, onClose, onContinue }) => {
   const goodTips = isBodyPhoto ? bodyGoodTips : faceGoodTips;
   const badTips = isBodyPhoto ? bodyBadTips : faceBadTips;
 
-  // Permission explanation specific to photo type
-  const permissionExplanation = isBodyPhoto
-    ? "Stylit uses your body photo to calculate your measurements and body shape. This helps us recommend the perfect size and fit for any clothing item you're interested in."
-    : "Stylit analyzes your face photo to determine your skin tone and color season (like 'Warm Spring' or 'Cool Winter'). This helps us suggest clothing colors that complement your natural features.";
 
   // Tag chip component
   const TagChip = ({ label, isGood }) => (
@@ -69,12 +65,6 @@ const PhotoGuidelinesModal = ({ visible, type, onClose, onContinue }) => {
           <Text style={styles.title}>
             {isBodyPhoto ? 'Upload a Body Photo' : 'Upload a Face Photo'}
           </Text>
-
-          {/* Permission Explanation - Why we need this photo */}
-          <View style={styles.permissionBox}>
-            <Text style={styles.permissionIcon}>📷</Text>
-            <Text style={styles.permissionText}>{permissionExplanation}</Text>
-          </View>
 
           {/* Good Examples Section */}
           <View style={styles.section}>
@@ -184,29 +174,8 @@ const styles = StyleSheet.create({
     fontSize: 21,
     fontWeight: '700',
     color: '#ffffff',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  permissionBox: {
-    backgroundColor: 'rgba(99, 102, 241, 0.1)',
-    borderRadius: 12,
-    padding: 14,
     marginBottom: 16,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.2)',
-  },
-  permissionIcon: {
-    fontSize: 20,
-    marginRight: 10,
-    marginTop: 2,
-  },
-  permissionText: {
-    flex: 1,
-    fontSize: 13,
-    color: '#a5b4fc',
-    lineHeight: 19,
+    textAlign: 'center',
   },
   section: {
     marginBottom: 16,

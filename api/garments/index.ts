@@ -266,6 +266,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (color_hex && typeof color_hex === 'string') {
         try {
           const classification = classifyGarment(color_hex);
+          // Map new status values to 'ok' for backward compatibility
+          let backwardCompatibleStatus = classification.classificationStatus;
+          if (backwardCompatibleStatus === 'great' || backwardCompatibleStatus === 'good') {
+            backwardCompatibleStatus = 'ok';
+          }
           classificationData = {
             dominant_hex: classification.dominantHex,
             lab_l: classification.lab.L,
@@ -277,16 +282,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             group_tag: classification.groupTag,
             nearest_palette_color_name: classification.nearestPaletteColor?.name || null,
             min_delta_e: classification.minDeltaE,
-            // Status: 'great', 'good', 'ambiguous', or 'unclassified'
-            classification_status: classification.classificationStatus,
+            // Status: use backward compatible value
+            classification_status: backwardCompatibleStatus,
           };
-          // Secondary classification (for crossover colors) - only set if values exist
-          if (classification.secondarySeasonTag) {
-            classificationData.secondary_micro_season_tag = classification.secondaryMicroSeasonTag;
-            classificationData.secondary_season_tag = classification.secondarySeasonTag;
-            classificationData.secondary_group_tag = classification.secondaryGroupTag;
-            classificationData.secondary_delta_e = classification.secondaryDeltaE;
-          }
+          // Note: Secondary classification fields are not included for backward compatibility
+          // with databases that don't have these columns yet
         } catch (error) {
           console.error('Error classifying color:', error);
           // Continue without classification if it fails
@@ -322,44 +322,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       });
 
-      // Create the garment first
-      let garment: any = null;
-      let garmentError: any = null;
-      
+      // Create the garment
       const result = await supabase
         .from('garments')
         .insert(garmentData)
         .select()
         .single();
       
-      garment = result.data;
-      garmentError = result.error;
-
-      // If insert failed due to constraint violation (likely new status values not supported),
-      // retry with backward-compatible values
-      if (garmentError && garmentError.message?.includes('classification_status')) {
-        console.log('Retrying insert with backward-compatible classification_status...');
-        
-        // Map new status values to old
-        if (garmentData.classification_status === 'great' || garmentData.classification_status === 'good') {
-          garmentData.classification_status = 'ok';
-        }
-        
-        // Remove secondary fields that might not exist in old schema
-        delete garmentData.secondary_micro_season_tag;
-        delete garmentData.secondary_season_tag;
-        delete garmentData.secondary_group_tag;
-        delete garmentData.secondary_delta_e;
-        
-        const retryResult = await supabase
-          .from('garments')
-          .insert(garmentData)
-          .select()
-          .single();
-        
-        garment = retryResult.data;
-        garmentError = retryResult.error;
-      }
+      const garment = result.data;
+      const garmentError = result.error;
 
       if (garmentError || !garment) {
         console.error('Error creating garment:', garmentError);
@@ -462,6 +433,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // sizes are handled separately in garment_sizes table
 
       // Classify color if color_hex is being updated
+      // Track if we're using new or old schema values for fallback
+      let usingNewSchemaValues = false;
       if (updateData.color_hex && typeof updateData.color_hex === 'string') {
         try {
           const classification = classifyGarment(updateData.color_hex);
@@ -481,14 +454,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             updateData.secondary_season_tag = classification.secondarySeasonTag;
             updateData.secondary_group_tag = classification.secondaryGroupTag;
             updateData.secondary_delta_e = classification.secondaryDeltaE;
+            usingNewSchemaValues = true;
           }
-          // Status: map new values to old for backward compatibility if needed
+          // Status handling: map new values to 'ok' for backward compatibility
           // New: 'great', 'good', 'ambiguous', 'unclassified'
           // Old: 'ok', 'ambiguous', 'unclassified'
           const status = classification.classificationStatus;
-          // For backward compatibility, map 'great' and 'good' to the appropriate value
-          // If database supports new values, use them; otherwise this will work with old schema too
-          updateData.classification_status = status;
+          if (status === 'great' || status === 'good') {
+            // Use 'ok' for backward compatibility - this always works
+            updateData.classification_status = 'ok';
+          } else {
+            updateData.classification_status = status;
+          }
         } catch (error) {
           console.error('Error classifying color:', error);
           // Continue without classification if it fails
@@ -527,11 +504,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       });
 
-      // Update the garment
-      let garment: any = null;
-      let garmentError: any = null;
+      // Remove secondary fields if they might not exist in database schema
+      // This ensures backward compatibility with older database schemas
+      delete updateData.secondary_micro_season_tag;
+      delete updateData.secondary_season_tag;
+      delete updateData.secondary_group_tag;
+      delete updateData.secondary_delta_e;
       
-      // Try update with all fields first
+      // Update the garment
       const result = await supabase
         .from('garments')
         .update(updateData as Record<string, any>)
@@ -539,39 +519,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .select()
         .single();
       
-      garment = result.data;
-      garmentError = result.error;
-
-      // If update failed due to constraint violation (likely new status values not supported),
-      // retry with backward-compatible values
-      if (garmentError && garmentError.message?.includes('classification_status')) {
-        console.log('Retrying update with backward-compatible classification_status...');
-        
-        // Map new status values to old
-        if (updateData.classification_status === 'great' || updateData.classification_status === 'good') {
-          updateData.classification_status = 'ok';
-        }
-        
-        // Remove secondary fields that might not exist in old schema
-        delete updateData.secondary_micro_season_tag;
-        delete updateData.secondary_season_tag;
-        delete updateData.secondary_group_tag;
-        delete updateData.secondary_delta_e;
-        
-        const retryResult = await supabase
-          .from('garments')
-          .update(updateData as Record<string, any>)
-          .eq('id', id)
-          .select()
-          .single();
-        
-        garment = retryResult.data;
-        garmentError = retryResult.error;
-      }
+      const garment = result.data;
+      const garmentError = result.error;
 
       if (garmentError) {
         console.error('Error updating garment:', garmentError);
-        return res.status(500).json({ error: 'Failed to update garment', details: garmentError.message });
+        return res.status(500).json({ error: 'Failed to update garment', details: garmentError.message || JSON.stringify(garmentError) });
       }
 
       if (!garment) {
