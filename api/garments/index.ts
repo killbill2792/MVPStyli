@@ -429,17 +429,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       // Only allow specific fields to be updated (whitelist approach)
-      const allowedFields = [
+      // Start with base fields that always exist
+      const baseAllowedFields = [
         'name', 'description', 'category', 'gender', 'image_url', 'additional_images',
         'product_link', 'brand', 'price', 'material', 'color', 'color_hex',
         'fit_type', 'fabric_stretch', 'tags', 'is_active', 'measurement_unit',
-        // Color classification fields
+        // Color classification fields (always present from ADD_COLOR_CLASSIFICATION_TO_GARMENTS.sql)
         'dominant_hex', 'lab_l', 'lab_a', 'lab_b',
-        'season_tag', 'micro_season_tag', 'group_tag', 
+        'season_tag', 'group_tag', 
         'nearest_palette_color_name', 'min_delta_e', 'classification_status',
-        // Secondary season fields (for crossover colors)
-        'secondary_micro_season_tag', 'secondary_season_tag', 'secondary_group_tag', 'secondary_delta_e',
       ];
+      
+      // Optional fields that may not exist in older schemas
+      // Only include if they're being sent (suggests they exist) or if we're classifying color
+      const optionalFields = [];
+      if (rawData.micro_season_tag !== undefined || rawData.color_hex) {
+        // If micro_season_tag is being sent OR we're classifying color, try to include it
+        optionalFields.push('micro_season_tag');
+      }
+      if (rawData.secondary_season_tag !== undefined || rawData.secondary_micro_season_tag !== undefined || rawData.color_hex) {
+        // If secondary fields are being sent OR we're classifying color, try to include them
+        optionalFields.push('secondary_micro_season_tag', 'secondary_season_tag', 'secondary_group_tag', 'secondary_delta_e');
+      }
+      
+      const allowedFields = [...baseAllowedFields, ...optionalFields];
 
       // Filter to only allowed fields
       const updateData: Record<string, any> = {};
@@ -457,10 +470,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           updateData.lab_l = classification.lab.L;
           updateData.lab_a = classification.lab.a;
           updateData.lab_b = classification.lab.b;
-          // Primary classification
+          // Primary classification - only set fields that exist in database
           updateData.season_tag = classification.seasonTag;
-          updateData.micro_season_tag = classification.microSeasonTag;
           updateData.group_tag = classification.groupTag;
+          // Only set micro_season_tag if column exists (check allowedFields)
+          // This field is added by ADD_MICRO_SEASON_TO_GARMENTS.sql migration
+          if (allowedFields.includes('micro_season_tag')) {
+            updateData.micro_season_tag = classification.microSeasonTag;
+          }
           updateData.nearest_palette_color_name = classification.nearestPaletteColor?.name || null;
           updateData.min_delta_e = classification.minDeltaE;
           // Status handling: map new values to 'ok' for backward compatibility
@@ -473,18 +490,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           } else {
             updateData.classification_status = status;
           }
-          // Secondary classification (for crossover colors) - include if present
-          if (classification.secondarySeasonTag) {
-            updateData.secondary_micro_season_tag = classification.secondaryMicroSeasonTag;
+          // Secondary classification (for crossover colors) - only set if columns exist
+          if (allowedFields.includes('secondary_season_tag') && classification.secondarySeasonTag) {
+            if (allowedFields.includes('secondary_micro_season_tag')) {
+              updateData.secondary_micro_season_tag = classification.secondaryMicroSeasonTag;
+            }
             updateData.secondary_season_tag = classification.secondarySeasonTag;
-            updateData.secondary_group_tag = classification.secondaryGroupTag;
-            updateData.secondary_delta_e = classification.secondaryDeltaE;
-          } else {
-            // Clear secondary fields if no secondary classification
-            updateData.secondary_micro_season_tag = null;
+            if (allowedFields.includes('secondary_group_tag')) {
+              updateData.secondary_group_tag = classification.secondaryGroupTag;
+            }
+            if (allowedFields.includes('secondary_delta_e')) {
+              updateData.secondary_delta_e = classification.secondaryDeltaE;
+            }
+          } else if (allowedFields.includes('secondary_season_tag')) {
+            // Clear secondary fields if no secondary classification and columns exist
+            if (allowedFields.includes('secondary_micro_season_tag')) {
+              updateData.secondary_micro_season_tag = null;
+            }
             updateData.secondary_season_tag = null;
-            updateData.secondary_group_tag = null;
-            updateData.secondary_delta_e = null;
+            if (allowedFields.includes('secondary_group_tag')) {
+              updateData.secondary_group_tag = null;
+            }
+            if (allowedFields.includes('secondary_delta_e')) {
+              updateData.secondary_delta_e = null;
+            }
           }
         } catch (error) {
           console.error('Error classifying color:', error);
