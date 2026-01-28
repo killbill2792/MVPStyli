@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, Image, Alert, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Pressable, Image, Alert, StyleSheet, Linking } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { analyzeProductUrl, analyzeProductImage, saveDetectedProduct } from '../lib/productApi';
 
@@ -38,6 +38,20 @@ export const ProductDetector = ({ onProductDetected, onClose }) => {
   };
 
   const handleImagePick = async () => {
+    // Request permission first - Apple compliance
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert(
+        'Photo Access Required',
+        'Stylit needs access to your photos to upload product images for detection.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() }
+        ]
+      );
+      return;
+    }
+    
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,

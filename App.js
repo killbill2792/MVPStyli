@@ -1326,6 +1326,20 @@ const TryOn = () => {
   }, []);
 
   const handleImageUpload = async () => {
+    // Request permission first - Apple compliance
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert(
+        'Photo Access Required',
+        'Stylit needs access to your photos to upload garment images for virtual try-on. Please allow access in Settings.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() }
+        ]
+      );
+      return;
+    }
+    
     const res = await ImagePicker.launchImageLibraryAsync({ 
       mediaTypes: ['images'],
       allowsEditing: false,
@@ -1341,6 +1355,20 @@ const TryOn = () => {
   };
 
   const handleScreenshotUpload = async () => {
+    // Request permission first - Apple compliance
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert(
+        'Photo Access Required',
+        'Stylit needs access to your photos to upload screenshots of clothing items you want to try on virtually.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() }
+        ]
+      );
+      return;
+    }
+    
     const res = await ImagePicker.launchImageLibraryAsync({ 
       mediaTypes: ['images'],
       allowsEditing: false,
@@ -1377,6 +1405,12 @@ const TryOn = () => {
     if (!twinUrl) {
       Alert.alert("Add your photo", "Please upload a photo of yourself first.", [
         { text: "Upload", onPress: async () => {
+           // Request permission first - Apple compliance
+           const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+           if (!permission.granted) {
+             Alert.alert('Photo Access Required', 'Please allow photo access to upload your body photo for virtual try-on.');
+             return;
+           }
            const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'] });
            if (!res.canceled && res.assets[0]) setTwinUrl(res.assets[0].uri);
         }},
@@ -1896,15 +1930,30 @@ const TryOn = () => {
         onClose={() => setShowBodyPhotoGuidelines(false)}
         onContinue={async () => {
           logger.log('📸 onContinue START in TryOn');
-          // Don't close modal yet - open ImagePicker first
+          // Close guidelines modal first
+          setShowBodyPhotoGuidelines(false);
+          
+          // Request permission - Apple compliance (shows system alert)
+          const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (!permission.granted) {
+            Alert.alert(
+              'Photo Access Required',
+              'Stylit needs access to your photos to upload a body photo for virtual try-on and size recommendations.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Open Settings', onPress: () => Linking.openSettings() }
+              ]
+            );
+            return;
+          }
+          
+          // Now open ImagePicker after permission granted
           const res = await ImagePicker.launchImageLibraryAsync({ 
             mediaTypes: ['images'],
             allowsEditing: false,
             quality: 0.8
           });
           logger.log('📸 ImagePicker returned:', res.canceled ? 'CANCELLED' : 'SELECTED');
-          // Now close the modal
-          setShowBodyPhotoGuidelines(false);
           
           if (!res.canceled && res.assets && res.assets[0]) {
             try {

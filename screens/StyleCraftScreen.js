@@ -11,6 +11,7 @@ import {
   Animated,
   Alert,
   Modal,
+  Linking,
 } from 'react-native';
 import { LinearGradient } from '../lib/SimpleGradient';
 import * as ImagePicker from 'expo-image-picker';
@@ -67,6 +68,20 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
   ];
 
   const handleImageUpload = async () => {
+    // Request permission first - Apple compliance
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert(
+        'Photo Access Required',
+        'Stylit needs access to your photos to upload inspiration images for custom design requests.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() }
+        ]
+      );
+      return;
+    }
+    
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: false, // Allow full image selection

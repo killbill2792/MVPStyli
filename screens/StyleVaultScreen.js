@@ -4153,7 +4153,14 @@ const StyleVaultScreen = () => {
                           setQuickCheckResult(null);
                         }
                       } else {
-                        Alert.alert('Permission Needed', 'Please allow camera access to take photos.');
+                        Alert.alert(
+                          'Camera Access Required',
+                          'Stylit needs camera access to photograph garments and check if their colors suit your skin tone.',
+                          [
+                            { text: 'Cancel', style: 'cancel' },
+                            { text: 'Open Settings', onPress: () => Linking.openSettings() }
+                          ]
+                        );
                       }
                     }}
                   >
@@ -4174,7 +4181,14 @@ const StyleVaultScreen = () => {
                           setQuickCheckResult(null);
                         }
                       } else {
-                        Alert.alert('Permission Needed', 'Please allow photo library access.');
+                        Alert.alert(
+                          'Photo Access Required',
+                          'Stylit needs access to your photos to upload garment images and check if their colors suit your skin tone.',
+                          [
+                            { text: 'Cancel', style: 'cancel' },
+                            { text: 'Open Settings', onPress: () => Linking.openSettings() }
+                          ]
+                        );
                       }
                     }}
                   >
@@ -4930,6 +4944,20 @@ const StyleVaultScreen = () => {
                 <Pressable 
                   style={styles.avatarContainer}
                   onPress={async () => {
+                    // Request permission first - Apple compliance
+                    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                    if (!permission.granted) {
+                      Alert.alert(
+                        'Photo Access Required',
+                        'Stylit needs access to your photos to update your profile picture.',
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Open Settings', onPress: () => Linking.openSettings() }
+                        ]
+                      );
+                      return;
+                    }
+                    
                     const res = await ImagePicker.launchImageLibraryAsync({ 
                       mediaTypes: ['images'],
                       allowsEditing: true,
