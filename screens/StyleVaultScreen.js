@@ -5176,7 +5176,7 @@ const StyleVaultScreen = () => {
             const base64 = await new Promise((resolve) => {
               const reader = new FileReader();
               reader.onloadend = () => {
-                const result = reader.result as string;
+                const result = reader.result;
                 // Remove data:image/jpeg;base64, prefix if present
                 const base64Data = result.includes(',') ? result.split(',')[1] : result;
                 resolve(base64Data);
