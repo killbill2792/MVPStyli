@@ -4217,6 +4217,7 @@ const StyleVaultScreen = () => {
           ) : !quickCheckResult ? (
             /* Step 2: Color Picker Mode - Like FitCheck */
             <View style={{ flex: 1 }}>
+              {/* Image Container - Full Screen */}
               <View 
                 style={styles.quickCheckImageContainer}
                 onLayout={(e) => {
@@ -4351,78 +4352,88 @@ const StyleVaultScreen = () => {
                 </Pressable>
               </View>
               
-              {/* Change Image Button */}
-              <Pressable
-                style={styles.quickCheckChangeImageBtn}
-                onPress={() => {
-                  setQuickCheckImage(null);
-                  setQuickCheckColor(null);
-                  setQuickCheckResult(null);
-                  setQuickCheckLiveColor(null);
-                  setQuickCheckTouchPosition(null);
-                }}
-              >
-                <Text style={styles.quickCheckChangeImageText}>Change Image</Text>
-              </Pressable>
-              
-              {/* Live Color Preview with Confirm Button */}
-              {quickCheckLiveColor && (
-                <View style={styles.quickCheckColorPreviewContainer}>
-                  <View style={styles.quickCheckColorPreviewRow}>
-                    <View style={[styles.quickCheckPreviewSwatch, { backgroundColor: quickCheckLiveColor.hex }]} />
-                    <View style={styles.quickCheckPreviewInfo}>
-                      <Text style={styles.quickCheckPreviewName} numberOfLines={1}>{quickCheckLiveColor.name}</Text>
-                      <Text style={styles.quickCheckPreviewHex}>{quickCheckLiveColor.hex.toUpperCase()}</Text>
+              {/* Bottom Section - Color Preview and Confirm (Like FitCheck) */}
+              <View style={styles.quickCheckBottomSection}>
+                {/* Change Image Button */}
+                <Pressable
+                  style={styles.quickCheckChangeImageBtn}
+                  onPress={() => {
+                    setQuickCheckImage(null);
+                    setQuickCheckColor(null);
+                    setQuickCheckResult(null);
+                    setQuickCheckLiveColor(null);
+                    setQuickCheckTouchPosition(null);
+                  }}
+                >
+                  <Text style={styles.quickCheckChangeImageText}>Change Image</Text>
+                </Pressable>
+                
+                {/* Live Color Preview with Confirm Button */}
+                {quickCheckLiveColor ? (
+                  <View style={styles.quickCheckColorPreviewContainer}>
+                    <View style={styles.quickCheckColorPreviewRow}>
+                      <View style={[styles.quickCheckPreviewSwatch, { backgroundColor: quickCheckLiveColor.hex }]} />
+                      <View style={styles.quickCheckPreviewInfo}>
+                        <Text style={styles.quickCheckPreviewName} numberOfLines={1}>{quickCheckLiveColor.name}</Text>
+                        <Text style={styles.quickCheckPreviewHex}>{quickCheckLiveColor.hex.toUpperCase()}</Text>
+                      </View>
                     </View>
-                  </View>
-                  <Pressable
-                    style={styles.quickCheckConfirmBtn}
-                    onPress={async () => {
-                      // Confirm color and run analysis
-                      setQuickCheckColor(quickCheckLiveColor);
-                      setIsQuickCheckAnalyzing(true);
-                      
-                      try {
-                        if (colorProfile?.season) {
-                          const { computeColorScore } = require('../lib/colorScoring');
-                          const score = computeColorScore(quickCheckLiveColor.hex, colorProfile);
-                          console.log('Quick check score:', score);
-                          setQuickCheckResult({
-                            verdict: score.verdict || 'unknown',
-                            confidence: score.confidence,
-                            explanation: score.explanation || 'Analysis complete.',
-                            deltaE: score.deltaE,
-                          });
-                        } else {
+                    <Pressable
+                      style={styles.quickCheckConfirmBtn}
+                      onPress={async () => {
+                        // Confirm color and run analysis
+                        setQuickCheckColor(quickCheckLiveColor);
+                        setIsQuickCheckAnalyzing(true);
+                        
+                        try {
+                          if (colorProfile?.season && colorProfile?.depth && colorProfile?.clarity) {
+                            const { computeColorScore } = require('../lib/colorScoring');
+                            const score = computeColorScore(
+                              quickCheckLiveColor.hex,
+                              colorProfile.season,
+                              colorProfile.depth,
+                              colorProfile.clarity,
+                              colorProfile.microSeason || null,
+                              colorProfile.undertone || null,
+                              true // nearFace = true for color check
+                            );
+                            console.log('Quick check score:', score);
+                            setQuickCheckResult({
+                              verdict: score.rating || 'unknown',
+                              confidence: score.minDistance ? (1 - Math.min(score.minDistance / 50, 1)) : null,
+                              explanation: score.reason || score.explanation?.summary || 'Analysis complete.',
+                              deltaE: score.minDistance || score.deltaE,
+                            });
+                          } else {
+                            setQuickCheckResult({
+                              verdict: 'unknown',
+                              explanation: 'Please complete your face analysis first to check color compatibility.',
+                            });
+                          }
+                        } catch (error) {
+                          console.error('Quick check analysis error:', error);
                           setQuickCheckResult({
                             verdict: 'unknown',
-                            explanation: 'Please complete your face analysis first to check color compatibility.',
+                            explanation: 'Failed to analyze color. Please try again.',
                           });
+                        } finally {
+                          setIsQuickCheckAnalyzing(false);
                         }
-                      } catch (error) {
-                        console.error('Quick check analysis error:', error);
-                        setQuickCheckResult({
-                          verdict: 'unknown',
-                          explanation: 'Failed to analyze color. Please try again.',
-                        });
-                      } finally {
-                        setIsQuickCheckAnalyzing(false);
-                      }
-                    }}
-                  >
-                    <Text style={styles.quickCheckConfirmBtnText}>✓ Analyze This Color</Text>
-                  </Pressable>
-                </View>
-              )}
-              
-              {/* Instructions */}
-              {!quickCheckLiveColor && (
-                <View style={styles.quickCheckInstructions}>
-                  <Text style={styles.quickCheckInstructionsText}>
-                    Tap anywhere on the garment to pick a color
-                  </Text>
-                </View>
-              )}
+                      }}
+                    >
+                      <Text style={styles.quickCheckConfirmBtnText}>
+                        {isQuickCheckAnalyzing ? 'Analyzing...' : '✓ Analyze This Color'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <View style={styles.quickCheckInstructions}>
+                    <Text style={styles.quickCheckInstructionsText}>
+                      Tap anywhere on the garment to pick a color
+                    </Text>
+                  </View>
+                )}
+              </View>
             </View>
           ) : (
             /* Step 3: Result Screen */
@@ -6185,13 +6196,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   quickCheckImageContainer: {
+    flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#000',
   },
   quickCheckImage: {
     width: width - 48,
-    height: 300,
-    borderRadius: 12,
+    height: '100%',
+    borderRadius: 0,
     backgroundColor: '#000',
+  },
+  quickCheckBottomSection: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
+    padding: 20,
+    backgroundColor: '#1a1a2e',
   },
   quickCheckImageOverlay: {
     position: 'absolute',
@@ -6210,9 +6230,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   quickCheckChangeImageBtn: {
-    marginTop: 12,
+    marginBottom: 16,
     paddingVertical: 8,
     paddingHorizontal: 16,
+    alignSelf: 'flex-start',
   },
   quickCheckChangeImageText: {
     color: 'rgba(255,255,255,0.6)',
@@ -6317,8 +6338,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 16,
     padding: 16,
-    marginHorizontal: 20,
-    marginTop: 16,
   },
   quickCheckColorPreviewRow: {
     flexDirection: 'row',
@@ -6370,11 +6389,12 @@ const styles = StyleSheet.create({
   },
   quickCheckInstructions: {
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 12,
   },
   quickCheckInstructionsText: {
     color: 'rgba(255,255,255,0.5)',
     fontSize: 14,
+    textAlign: 'center',
   },
   // Quick Check Result Screen
   quickCheckResultScreen: {

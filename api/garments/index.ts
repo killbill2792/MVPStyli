@@ -505,6 +505,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       });
 
+      // Remove any fields that might cause issues
+      // Remove read-only fields
+      delete updateData.id;
+      delete updateData.created_at;
+      delete updateData.updated_at;
+      delete updateData.created_by;
+      
+      // Remove any undefined/null/empty values
+      Object.keys(updateData).forEach((key) => {
+        if (updateData[key] === undefined || updateData[key] === null || updateData[key] === '') {
+          delete updateData[key];
+        }
+      });
+      
       console.log('Updating garment with data:', JSON.stringify(updateData, null, 2));
       
       // Update the garment
@@ -520,7 +534,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (garmentError) {
         console.error('Error updating garment:', garmentError);
-        return res.status(500).json({ error: 'Failed to update garment', details: garmentError.message || JSON.stringify(garmentError) });
+        console.error('Error code:', garmentError.code);
+        console.error('Error message:', garmentError.message);
+        console.error('Error details:', garmentError.details);
+        console.error('Error hint:', garmentError.hint);
+        return res.status(500).json({ 
+          error: 'Failed to update garment', 
+          details: garmentError.message || JSON.stringify(garmentError),
+          code: garmentError.code,
+          hint: garmentError.hint
+        });
       }
 
       if (!garment) {
