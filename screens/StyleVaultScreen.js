@@ -3953,13 +3953,16 @@ const StyleVaultScreen = () => {
                                       const newPhotos = [...additionalPhotos];
                                       newPhotos[index] = result.assets[0].uri;
                                       setAdditionalPhotos(newPhotos);
-                                      // Close multi-photo modal and show FaceCropScreen
-                                      setShowMultiPhotoModal(false);
+                                      // Set which photo to crop
                                       setAdditionalPhotoIndexToCrop(index);
-                                      // Small delay to ensure modal closes before opening FaceCropScreen
-                                      setTimeout(() => {
-                                        setShowFaceCropForAdditional(true);
-                                      }, 100);
+                                      // Close multi-photo modal first
+                                      setShowMultiPhotoModal(false);
+                                      // Use requestAnimationFrame to ensure state updates before showing FaceCropScreen
+                                      requestAnimationFrame(() => {
+                                        setTimeout(() => {
+                                          setShowFaceCropForAdditional(true);
+                                        }, 200);
+                                      });
                                     }
                                   } else {
                                     Alert.alert('Permission Needed', 'Please allow photo library access.');
@@ -4332,46 +4335,92 @@ const StyleVaultScreen = () => {
           ) : !quickCheckResult ? (
             /* Step 2: Color Picker Mode - Like FitCheck */
             <View style={{ flex: 1 }}>
-              {/* Image Container - Full Screen */}
+              {/* Image Container - Full Screen Like FitCheck */}
               <View 
                 style={styles.quickCheckImageContainer}
                 onLayout={(e) => {
                   quickCheckImageLayoutRef.current = {
                     width: e.nativeEvent.layout.width,
                     height: e.nativeEvent.layout.height,
+                    x: e.nativeEvent.layout.x,
+                    y: e.nativeEvent.layout.y,
                   };
                 }}
               >
-                <Pressable
-                  style={{ flex: 1 }}
-                  onPress={async (event) => {
-                    const { locationX, locationY } = event.nativeEvent;
-                    setQuickCheckTouchPosition({ x: locationX, y: locationY });
-                    setIsQuickCheckSampling(true);
-                    
-                    try {
-                      // Get natural image dimensions
-                      let naturalWidth = quickCheckImageNaturalSizeRef.current.width;
-                      let naturalHeight = quickCheckImageNaturalSizeRef.current.height;
+                <View style={{ flex: 1, position: 'relative' }}>
+                  {/* Image - behind the touch layer */}
+                  <Image
+                    source={{ uri: quickCheckImage }}
+                    style={styles.quickCheckImage}
+                    resizeMode="contain"
+                    onLoad={(event) => {
+                      const { width, height } = event.nativeEvent.source;
+                      quickCheckImageNaturalSizeRef.current = { width, height };
+                    }}
+                  />
+                  
+                  {/* Touch handler - Pressable for reliable touch detection */}
+                  <Pressable
+                    style={{ 
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundColor: 'transparent',
+                    }}
+                    onPress={async (event) => {
+                      const { locationX, locationY } = event.nativeEvent;
+                      setQuickCheckTouchPosition({ x: locationX, y: locationY });
+                      setIsQuickCheckSampling(true);
                       
-                      if (!naturalWidth || !naturalHeight) {
-                        const imageInfo = await new Promise((resolve, reject) => {
-                          Image.getSize(quickCheckImage, (w, h) => resolve({ width: w, height: h }), reject);
-                        });
-                        naturalWidth = imageInfo.width;
-                        naturalHeight = imageInfo.height;
-                        quickCheckImageNaturalSizeRef.current = { width: naturalWidth, height: naturalHeight };
-                      }
-                      
-                      // Calculate tap position in image coordinates
-                      const displayWidth = quickCheckImageLayoutRef.current.width || (width - 48);
-                      const displayHeight = quickCheckImageLayoutRef.current.height || 300;
-                      
-                      const scaleX = naturalWidth / displayWidth;
-                      const scaleY = naturalHeight / displayHeight;
-                      
-                      const imageX = Math.round(locationX * scaleX);
-                      const imageY = Math.round(locationY * scaleY);
+                      try {
+                        // Get natural image dimensions
+                        let naturalWidth = quickCheckImageNaturalSizeRef.current.width;
+                        let naturalHeight = quickCheckImageNaturalSizeRef.current.height;
+                        
+                        if (!naturalWidth || !naturalHeight) {
+                          const imageInfo = await new Promise((resolve, reject) => {
+                            Image.getSize(quickCheckImage, (w, h) => resolve({ width: w, height: h }), reject);
+                          });
+                          naturalWidth = imageInfo.width;
+                          naturalHeight = imageInfo.height;
+                          quickCheckImageNaturalSizeRef.current = { width: naturalWidth, height: naturalHeight };
+                        }
+                        
+                        // Calculate tap position in image coordinates
+                        // Get the actual displayed image dimensions (may be smaller than container due to contain mode)
+                        const containerWidth = quickCheckImageLayoutRef.current.width || width;
+                        const containerHeight = quickCheckImageLayoutRef.current.height || (height * 0.6);
+                        
+                        // Calculate actual image display size (accounting for contain resize mode)
+                        const imageAspect = naturalWidth / naturalHeight;
+                        const containerAspect = containerWidth / containerHeight;
+                        
+                        let displayWidth, displayHeight, offsetX = 0, offsetY = 0;
+                        
+                        if (imageAspect > containerAspect) {
+                          // Image is wider - fit to width
+                          displayWidth = containerWidth;
+                          displayHeight = containerWidth / imageAspect;
+                          offsetY = (containerHeight - displayHeight) / 2;
+                        } else {
+                          // Image is taller - fit to height
+                          displayHeight = containerHeight;
+                          displayWidth = containerHeight * imageAspect;
+                          offsetX = (containerWidth - displayWidth) / 2;
+                        }
+                        
+                        // Adjust locationX/locationY by offset
+                        const adjustedX = locationX - offsetX;
+                        const adjustedY = locationY - offsetY;
+                        
+                        // Calculate scale
+                        const scaleX = naturalWidth / displayWidth;
+                        const scaleY = naturalHeight / displayHeight;
+                        
+                        const imageX = Math.round(Math.max(0, Math.min(adjustedX, displayWidth)) * scaleX);
+                        const imageY = Math.round(Math.max(0, Math.min(adjustedY, displayHeight)) * scaleY);
                       
                       // Call color API
                       const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL;
@@ -4411,15 +4460,10 @@ const StyleVaultScreen = () => {
                       }
                     } catch (error) {
                       console.error('Quick check color pick error:', error);
-                    } finally {
-                      setIsQuickCheckSampling(false);
-                    }
-                  }}
-                >
-                  <Image
-                    source={{ uri: quickCheckImage }}
-                    style={styles.quickCheckImage}
-                    resizeMode="contain"
+                      } finally {
+                        setIsQuickCheckSampling(false);
+                      }
+                    }}
                   />
                   
                   {/* Touch cursor */}
@@ -4428,8 +4472,10 @@ const StyleVaultScreen = () => {
                       style={[
                         styles.quickCheckCursor,
                         {
+                          position: 'absolute',
                           left: quickCheckTouchPosition.x - 15,
                           top: quickCheckTouchPosition.y - 15,
+                          zIndex: 1000,
                         }
                       ]}
                       pointerEvents="none"
@@ -4445,8 +4491,10 @@ const StyleVaultScreen = () => {
                       style={[
                         styles.quickCheckMagnifier,
                         {
-                          left: Math.max(10, Math.min(quickCheckTouchPosition.x - 50, width - 130)),
-                          top: Math.max(10, quickCheckTouchPosition.y - 110),
+                          position: 'absolute',
+                          left: Math.max(10, Math.min(quickCheckTouchPosition.x - 60, width - 130)),
+                          top: Math.max(10, quickCheckTouchPosition.y - 140),
+                          zIndex: 1001,
                         }
                       ]}
                       pointerEvents="none"
@@ -4464,7 +4512,7 @@ const StyleVaultScreen = () => {
                       )}
                     </View>
                   )}
-                </Pressable>
+                </View>
               </View>
               
               {/* Bottom Section - Color Preview and Confirm (Like FitCheck) */}
@@ -6381,14 +6429,12 @@ const styles = StyleSheet.create({
   },
   quickCheckImageContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
     backgroundColor: '#000',
   },
   quickCheckImage: {
-    width: width - 48,
-    height: '100%',
-    borderRadius: 0,
+    width: '100%',
+    flex: 1,
+    minHeight: 400,
     backgroundColor: '#000',
   },
   quickCheckBottomSection: {
