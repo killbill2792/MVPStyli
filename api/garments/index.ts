@@ -437,6 +437,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'dominant_hex', 'lab_l', 'lab_a', 'lab_b',
         'season_tag', 'micro_season_tag', 'group_tag', 
         'nearest_palette_color_name', 'min_delta_e', 'classification_status',
+        // Secondary season fields (for crossover colors)
+        'secondary_micro_season_tag', 'secondary_season_tag', 'secondary_group_tag', 'secondary_delta_e',
       ];
 
       // Filter to only allowed fields
@@ -470,6 +472,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             updateData.classification_status = 'ok';
           } else {
             updateData.classification_status = status;
+          }
+          // Secondary classification (for crossover colors) - include if present
+          if (classification.secondarySeasonTag) {
+            updateData.secondary_micro_season_tag = classification.secondaryMicroSeasonTag;
+            updateData.secondary_season_tag = classification.secondarySeasonTag;
+            updateData.secondary_group_tag = classification.secondaryGroupTag;
+            updateData.secondary_delta_e = classification.secondaryDeltaE;
+          } else {
+            // Clear secondary fields if no secondary classification
+            updateData.secondary_micro_season_tag = null;
+            updateData.secondary_season_tag = null;
+            updateData.secondary_group_tag = null;
+            updateData.secondary_delta_e = null;
           }
         } catch (error) {
           console.error('Error classifying color:', error);

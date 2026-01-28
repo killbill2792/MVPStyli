@@ -4401,20 +4401,23 @@ const StyleVaultScreen = () => {
                             setQuickCheckResult({
                               verdict: score.rating || 'unknown',
                               confidence: score.minDistance ? (1 - Math.min(score.minDistance / 50, 1)) : null,
-                              explanation: score.reason || score.explanation?.summary || 'Analysis complete.',
+                              summary: score.reason || score.explanation?.summary || '',
+                              bullets: score.explanation?.bullets || [],
                               deltaE: score.minDistance || score.deltaE,
                             });
                           } else {
                             setQuickCheckResult({
                               verdict: 'unknown',
-                              explanation: 'Please complete your face analysis first to check color compatibility.',
+                              summary: 'Please complete your face analysis first to check color compatibility.',
+                              bullets: [],
                             });
                           }
                         } catch (error) {
                           console.error('Quick check analysis error:', error);
                           setQuickCheckResult({
                             verdict: 'unknown',
-                            explanation: 'Failed to analyze color. Please try again.',
+                            summary: 'Failed to analyze color. Please try again.',
+                            bullets: [],
                           });
                         } finally {
                           setIsQuickCheckAnalyzing(false);
@@ -4448,45 +4451,49 @@ const StyleVaultScreen = () => {
                   </View>
                 </View>
                 
-                {/* Verdict */}
+                {/* Verdict Badge - Like FitCheck */}
                 <View style={[
-                  styles.quickCheckVerdictBox,
-                  quickCheckResult.verdict === 'great' && { borderColor: '#22c55e', backgroundColor: 'rgba(34, 197, 94, 0.1)' },
-                  quickCheckResult.verdict === 'good' && { borderColor: '#84cc16', backgroundColor: 'rgba(132, 204, 22, 0.1)' },
-                  (quickCheckResult.verdict === 'ok' || quickCheckResult.verdict === 'neutral') && { borderColor: '#eab308', backgroundColor: 'rgba(234, 179, 8, 0.1)' },
-                  quickCheckResult.verdict === 'risky' && { borderColor: '#f97316', backgroundColor: 'rgba(249, 115, 22, 0.1)' },
-                  (quickCheckResult.verdict === 'avoid' || quickCheckResult.verdict === 'clash') && { borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)' },
-                  quickCheckResult.verdict === 'unknown' && { borderColor: '#6366f1', backgroundColor: 'rgba(99, 102, 241, 0.1)' },
+                  styles.quickCheckVerdictBadge,
+                  (quickCheckResult.verdict === 'great' || quickCheckResult.verdict === 'good') && styles.quickCheckVerdictGood,
+                  (quickCheckResult.verdict === 'ok' || quickCheckResult.verdict === 'neutral') && styles.quickCheckVerdictNeutral,
+                  quickCheckResult.verdict === 'risky' && styles.quickCheckVerdictWarning,
+                  (quickCheckResult.verdict === 'avoid' || quickCheckResult.verdict === 'clash') && styles.quickCheckVerdictWarning,
+                  quickCheckResult.verdict === 'unknown' && styles.quickCheckVerdictNeutral,
                 ]}>
-                  <Text style={[
-                    styles.quickCheckVerdictText,
-                    quickCheckResult.verdict === 'great' && { color: '#22c55e' },
-                    quickCheckResult.verdict === 'good' && { color: '#84cc16' },
-                    (quickCheckResult.verdict === 'ok' || quickCheckResult.verdict === 'neutral') && { color: '#eab308' },
-                    quickCheckResult.verdict === 'risky' && { color: '#f97316' },
-                    (quickCheckResult.verdict === 'avoid' || quickCheckResult.verdict === 'clash') && { color: '#ef4444' },
-                    quickCheckResult.verdict === 'unknown' && { color: '#6366f1' },
-                  ]}>
-                    {quickCheckResult.verdict === 'great' ? '✨ Great Match!' : 
-                     quickCheckResult.verdict === 'good' ? '👍 Good Match' :
-                     quickCheckResult.verdict === 'ok' ? '🤔 Okay Match' :
-                     quickCheckResult.verdict === 'neutral' ? '🤔 Neutral' :
+                  <Text style={styles.quickCheckVerdictText}>
+                    {quickCheckResult.verdict === 'great' ? '✅ Great' : 
+                     quickCheckResult.verdict === 'good' ? '✅ Good' :
+                     quickCheckResult.verdict === 'ok' ? '⚡ OK' :
+                     quickCheckResult.verdict === 'neutral' ? '⚡ Neutral' :
                      quickCheckResult.verdict === 'risky' ? '⚠️ Risky' :
-                     quickCheckResult.verdict === 'avoid' ? '❌ Not Recommended' :
-                     quickCheckResult.verdict === 'clash' ? '❌ Color Clash' :
-                     '❓ Analysis Complete'}
+                     quickCheckResult.verdict === 'avoid' ? '⚠️ Not Recommended' :
+                     quickCheckResult.verdict === 'clash' ? '⚠️ Color Clash' :
+                     '❓ Unknown'}
                   </Text>
                 </View>
                 
-                {quickCheckResult.confidence && (
-                  <Text style={styles.quickCheckResultConfidence}>
-                    {Math.round(quickCheckResult.confidence * 100)}% match confidence
+                {/* Summary */}
+                {quickCheckResult.summary && (
+                  <Text style={styles.quickCheckSummaryText}>
+                    {quickCheckResult.summary}
                   </Text>
                 )}
                 
-                <Text style={styles.quickCheckResultExplanation}>
-                  {quickCheckResult.explanation}
-                </Text>
+                {/* Bullets - Like FitCheck */}
+                {quickCheckResult.bullets && quickCheckResult.bullets.length > 0 && (
+                  <View style={styles.quickCheckAdviceSection}>
+                    {quickCheckResult.bullets.map((bullet, idx) => {
+                      // Handle both old format (string) and new format (object with text/isMicronote)
+                      const bulletText = typeof bullet === 'string' ? bullet : bullet.text;
+                      const isMicronote = typeof bullet === 'object' && bullet.isMicronote;
+                      return (
+                        <Text key={idx} style={isMicronote ? styles.quickCheckMicroNote : styles.quickCheckAdviceItem}>
+                          {isMicronote ? '💡 ' : '• '}{bulletText}
+                        </Text>
+                      );
+                    })}
+                  </View>
+                )}
                 
                 {/* Try Another Color Button */}
                 <Pressable
@@ -6182,17 +6189,17 @@ const styles = StyleSheet.create({
   },
   quickCheckUploadBtn: {
     flex: 1,
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
-    paddingVertical: 40,
-    borderRadius: 16,
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 12,
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(99, 102, 241, 0.4)',
-    borderStyle: 'dashed',
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
   },
   quickCheckUploadBtnText: {
-    color: '#6366f1',
-    fontSize: 16,
+    color: '#a5b4fc',
+    fontSize: 15,
     fontWeight: '600',
   },
   quickCheckImageContainer: {
@@ -6424,25 +6431,54 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 2,
   },
-  quickCheckVerdictBox: {
-    borderWidth: 2,
-    borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
+  quickCheckVerdictBadge: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
     marginBottom: 16,
-    width: '100%',
   },
-  quickCheckResultConfidence: {
-    color: 'rgba(255,255,255,0.6)',
+  quickCheckVerdictGood: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  quickCheckVerdictNeutral: {
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+  },
+  quickCheckVerdictWarning: {
+    backgroundColor: 'rgba(251, 191, 36, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(251, 191, 36, 0.3)',
+  },
+  quickCheckVerdictText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  quickCheckSummaryText: {
+    color: '#e5e7eb',
     fontSize: 14,
+    lineHeight: 20,
     marginBottom: 12,
   },
-  quickCheckResultExplanation: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 15,
-    textAlign: 'center',
+  quickCheckAdviceSection: {
+    marginBottom: 12,
+  },
+  quickCheckAdviceItem: {
+    color: '#fff',
+    fontSize: 14,
     lineHeight: 22,
-    marginBottom: 24,
+    marginBottom: 4,
+  },
+  quickCheckMicroNote: {
+    color: '#9ca3af',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 12,
+    fontStyle: 'italic',
   },
   quickCheckTryAnotherBtn: {
     backgroundColor: 'rgba(99, 102, 241, 0.2)',
