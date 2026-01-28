@@ -34,6 +34,11 @@ const PhotoGuidelinesModal = ({ visible, type, onClose, onContinue }) => {
   const goodTips = isBodyPhoto ? bodyGoodTips : faceGoodTips;
   const badTips = isBodyPhoto ? bodyBadTips : faceBadTips;
 
+  // Permission explanation specific to photo type
+  const permissionExplanation = isBodyPhoto
+    ? "Stylit uses your body photo to calculate your measurements and body shape. This helps us recommend the perfect size and fit for any clothing item you're interested in."
+    : "Stylit analyzes your face photo to determine your skin tone and color season (like 'Warm Spring' or 'Cool Winter'). This helps us suggest clothing colors that complement your natural features.";
+
   // Tag chip component
   const TagChip = ({ label, isGood }) => (
     <View style={[styles.tagChip, isGood ? styles.goodChip : styles.badChip]}>
@@ -54,19 +59,22 @@ const PhotoGuidelinesModal = ({ visible, type, onClose, onContinue }) => {
       visible={visible}
       transparent={true}
       animationType="fade"
-      onRequestClose={onClose}
+      onRequestClose={onContinue} // Use onContinue instead of onClose since we removed X button
     >
       <View style={styles.overlay}>
         <View style={styles.modalContainer}>
-          {/* Close button - top right */}
-          <Pressable style={styles.closeButton} onPress={onClose}>
-            <Text style={styles.closeButtonText}>✕</Text>
-          </Pressable>
+          {/* No X close button - Apple guideline compliance */}
 
           {/* Title */}
           <Text style={styles.title}>
-            {isBodyPhoto ? 'Upload a body photo' : 'Upload a face photo'}
+            {isBodyPhoto ? 'Upload a Body Photo' : 'Upload a Face Photo'}
           </Text>
+
+          {/* Permission Explanation - Why we need this photo */}
+          <View style={styles.permissionBox}>
+            <Text style={styles.permissionIcon}>📷</Text>
+            <Text style={styles.permissionText}>{permissionExplanation}</Text>
+          </View>
 
           {/* Good Examples Section */}
           <View style={styles.section}>
@@ -135,17 +143,17 @@ const PhotoGuidelinesModal = ({ visible, type, onClose, onContinue }) => {
             </View>
           )}
 
-          {/* Privacy note */}
+          {/* Privacy note - simplified */}
           <Text style={styles.privacyNote}>
-            By uploading, you agree to our{' '}
+            Your photos are processed securely.{' '}
             <Text style={styles.privacyLink} onPress={openPrivacy}>Privacy Policy</Text>
-            {' '}&{' '}
-            <Text style={styles.privacyLink} onPress={openTerms}>Terms</Text>.
+            {' '}•{' '}
+            <Text style={styles.privacyLink} onPress={openTerms}>Terms</Text>
           </Text>
 
-          {/* Upload Button */}
+          {/* Continue Button - Single button as per Apple guidelines */}
           <Pressable style={styles.continueButton} onPress={onContinue}>
-            <Text style={styles.continueButtonText}>Got it — Upload</Text>
+            <Text style={styles.continueButtonText}>Continue</Text>
           </Pressable>
         </View>
       </View>
@@ -167,39 +175,41 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 420,
     paddingHorizontal: 18,
-    paddingTop: 16,
+    paddingTop: 20,
     paddingBottom: 20,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
-    position: 'relative',
-  },
-  closeButton: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  closeButtonText: {
-    color: '#9ca3af',
-    fontSize: 16,
-    fontWeight: '600',
   },
   title: {
     fontSize: 21,
     fontWeight: '700',
     color: '#ffffff',
-    marginBottom: 18,
-    marginTop: 8,
+    marginBottom: 12,
     textAlign: 'center',
   },
+  permissionBox: {
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.2)',
+  },
+  permissionIcon: {
+    fontSize: 20,
+    marginRight: 10,
+    marginTop: 2,
+  },
+  permissionText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#a5b4fc',
+    lineHeight: 19,
+  },
   section: {
-    marginBottom: 18,
+    marginBottom: 16,
   },
   goodTitle: {
     fontSize: 15,
@@ -305,7 +315,7 @@ const styles = StyleSheet.create({
     color: '#ef4444',
   },
   warningContainer: {
-    marginBottom: 14,
+    marginBottom: 12,
   },
   warningTags: {
     flexDirection: 'row',
@@ -324,15 +334,14 @@ const styles = StyleSheet.create({
     color: '#fbbf24',
   },
   privacyNote: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#6b7280',
     textAlign: 'center',
-    lineHeight: 17,
-    marginBottom: 16,
+    lineHeight: 16,
+    marginBottom: 14,
   },
   privacyLink: {
     color: '#818cf8',
-    textDecorationLine: 'underline',
   },
   continueButton: {
     backgroundColor: '#6366f1',
