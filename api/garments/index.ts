@@ -266,11 +266,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (color_hex && typeof color_hex === 'string') {
         try {
           const classification = classifyGarment(color_hex);
-          // Map new status values to 'ok' for backward compatibility
-          let backwardCompatibleStatus = classification.classificationStatus;
-          if (backwardCompatibleStatus === 'great' || backwardCompatibleStatus === 'good') {
-            backwardCompatibleStatus = 'ok';
-          }
+          // Use the classification status directly
+          // New constraint (from ADD_SECONDARY_SEASON_AND_STATUS.sql): 'great', 'good', 'ambiguous', 'unclassified'
+          // Old constraint: 'ok', 'ambiguous', 'unclassified'
+          // Since user ran ADD_SECONDARY_SEASON_AND_STATUS.sql, use new values directly
           classificationData = {
             dominant_hex: classification.dominantHex,
             lab_l: classification.lab.L,
@@ -282,8 +281,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             group_tag: classification.groupTag,
             nearest_palette_color_name: classification.nearestPaletteColor?.name || null,
             min_delta_e: classification.minDeltaE,
-            // Status: use backward compatible value
-            classification_status: backwardCompatibleStatus,
+            // Status: use new values directly (great, good, ambiguous, unclassified)
+            classification_status: classification.classificationStatus,
           };
           // Note: Secondary classification fields are not included for backward compatibility
           // with databases that don't have these columns yet
@@ -481,16 +480,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
           updateData.nearest_palette_color_name = classification.nearestPaletteColor?.name || null;
           updateData.min_delta_e = classification.minDeltaE;
-          // Status handling: map new values to 'ok' for backward compatibility
-          // New: 'great', 'good', 'ambiguous', 'unclassified'
-          // Old: 'ok', 'ambiguous', 'unclassified'
+          // Status handling: Use the classification status directly
+          // New constraint (from ADD_SECONDARY_SEASON_AND_STATUS.sql): 'great', 'good', 'ambiguous', 'unclassified'
+          // Old constraint (from ADD_COLOR_CLASSIFICATION_TO_GARMENTS.sql): 'ok', 'ambiguous', 'unclassified'
+          // Since user ran ADD_SECONDARY_SEASON_AND_STATUS.sql, use new values directly
+          // If database has old constraint, we'll get an error and can handle it
           const status = classification.classificationStatus;
-          if (status === 'great' || status === 'good') {
-            // Use 'ok' for backward compatibility - this always works
-            updateData.classification_status = 'ok';
-          } else {
-            updateData.classification_status = status;
-          }
+          updateData.classification_status = status;
           // Secondary classification (for crossover colors) - only set if columns exist
           // Only set if they were explicitly in the request (columns exist)
           const hasSecondaryFields = rawData.secondary_season_tag !== undefined || rawData.secondary_micro_season_tag !== undefined;
