@@ -836,6 +836,10 @@ export function classifyGarment(hex: string): ClassificationResult {
       nearestPaletteColor: null,
       minDeltaE: null,
       classificationStatus: 'unclassified',
+      secondaryMicroSeasonTag: null,
+      secondarySeasonTag: null,
+      secondaryGroupTag: null,
+      secondaryDeltaE: null,
     };
   }
   
