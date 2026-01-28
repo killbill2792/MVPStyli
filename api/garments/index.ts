@@ -441,14 +441,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ];
       
       // Optional fields that may not exist in older schemas
-      // Only include if they're being sent (suggests they exist) or if we're classifying color
+      // Only include if they're explicitly being sent (suggests they exist in DB)
       const optionalFields = [];
-      if (rawData.micro_season_tag !== undefined || rawData.color_hex) {
-        // If micro_season_tag is being sent OR we're classifying color, try to include it
+      if (rawData.micro_season_tag !== undefined) {
+        // Only include if explicitly being sent (not from classification)
         optionalFields.push('micro_season_tag');
       }
-      if (rawData.secondary_season_tag !== undefined || rawData.secondary_micro_season_tag !== undefined || rawData.color_hex) {
-        // If secondary fields are being sent OR we're classifying color, try to include them
+      if (rawData.secondary_season_tag !== undefined || rawData.secondary_micro_season_tag !== undefined) {
+        // Only include if explicitly being sent (not from classification)
         optionalFields.push('secondary_micro_season_tag', 'secondary_season_tag', 'secondary_group_tag', 'secondary_delta_e');
       }
       
@@ -473,9 +473,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           // Primary classification - only set fields that exist in database
           updateData.season_tag = classification.seasonTag;
           updateData.group_tag = classification.groupTag;
-          // Only set micro_season_tag if column exists (check allowedFields)
+          // Only set micro_season_tag if it was explicitly in the request (column exists)
           // This field is added by ADD_MICRO_SEASON_TO_GARMENTS.sql migration
-          if (allowedFields.includes('micro_season_tag')) {
+          // Don't set it from classification if column might not exist
+          if (rawData.micro_season_tag !== undefined || allowedFields.includes('micro_season_tag')) {
             updateData.micro_season_tag = classification.microSeasonTag;
           }
           updateData.nearest_palette_color_name = classification.nearestPaletteColor?.name || null;
@@ -491,23 +492,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             updateData.classification_status = status;
           }
           // Secondary classification (for crossover colors) - only set if columns exist
-          if (allowedFields.includes('secondary_season_tag') && classification.secondarySeasonTag) {
+          // Only set if they were explicitly in the request (columns exist)
+          const hasSecondaryFields = rawData.secondary_season_tag !== undefined || rawData.secondary_micro_season_tag !== undefined;
+          if (hasSecondaryFields && classification.secondarySeasonTag) {
             if (allowedFields.includes('secondary_micro_season_tag')) {
               updateData.secondary_micro_season_tag = classification.secondaryMicroSeasonTag;
             }
-            updateData.secondary_season_tag = classification.secondarySeasonTag;
+            if (allowedFields.includes('secondary_season_tag')) {
+              updateData.secondary_season_tag = classification.secondarySeasonTag;
+            }
             if (allowedFields.includes('secondary_group_tag')) {
               updateData.secondary_group_tag = classification.secondaryGroupTag;
             }
             if (allowedFields.includes('secondary_delta_e')) {
               updateData.secondary_delta_e = classification.secondaryDeltaE;
             }
-          } else if (allowedFields.includes('secondary_season_tag')) {
+          } else if (hasSecondaryFields) {
             // Clear secondary fields if no secondary classification and columns exist
             if (allowedFields.includes('secondary_micro_season_tag')) {
               updateData.secondary_micro_season_tag = null;
             }
-            updateData.secondary_season_tag = null;
+            if (allowedFields.includes('secondary_season_tag')) {
+              updateData.secondary_season_tag = null;
+            }
             if (allowedFields.includes('secondary_group_tag')) {
               updateData.secondary_group_tag = null;
             }
