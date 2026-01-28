@@ -352,8 +352,11 @@ const StyleVaultScreen = () => {
   
   // Multi-photo face analysis states
   const [showMultiPhotoModal, setShowMultiPhotoModal] = useState(false);
-  const [additionalPhotos, setAdditionalPhotos] = useState([null, null]); // 2 additional photos
-  const [additionalPhotosCropped, setAdditionalPhotosCropped] = useState([false, false]);
+  const [additionalPhotos, setAdditionalPhotos] = useState([null, null]); // 2 additional photos (original URIs)
+  const [additionalPhotosCropped, setAdditionalPhotosCropped] = useState([null, null]); // Cropped base64 images
+  const [additionalPhotosCropInfo, setAdditionalPhotosCropInfo] = useState([null, null]); // Crop info for each photo
+  const [showFaceCropForAdditional, setShowFaceCropForAdditional] = useState(false);
+  const [additionalPhotoIndexToCrop, setAdditionalPhotoIndexToCrop] = useState(null); // 0 or 1
   const [isAnalyzingMultiPhoto, setIsAnalyzingMultiPhoto] = useState(false);
   const [multiPhotoResults, setMultiPhotoResults] = useState(null);
   const [isColorDetailsExpanded, setIsColorDetailsExpanded] = useState(false); // Collapsible color profile details
@@ -3890,14 +3893,17 @@ const StyleVaultScreen = () => {
                                   newPhotos[index] = null;
                                   setAdditionalPhotos(newPhotos);
                                   const newCropped = [...additionalPhotosCropped];
-                                  newCropped[index] = false;
+                                  newCropped[index] = null;
                                   setAdditionalPhotosCropped(newCropped);
+                                  const newCropInfo = [...additionalPhotosCropInfo];
+                                  newCropInfo[index] = null;
+                                  setAdditionalPhotosCropInfo(newCropInfo);
                                 }
                               }
                             ]
                           );
                         } else {
-                          // Upload new photo
+                          // Upload new photo - will show FaceCropScreen after selection
                           Alert.alert(
                             'Add Photo',
                             'Choose how to add photo',
@@ -3911,16 +3917,15 @@ const StyleVaultScreen = () => {
                                     const result = await ImagePicker.launchCameraAsync({
                                       mediaTypes: ImagePicker.MediaTypeOptions.Images,
                                       quality: 0.8,
-                                      allowsEditing: true,
-                                      aspect: [1, 1],
+                                      allowsEditing: false, // We'll use FaceCropScreen instead
                                     });
                                     if (!result.canceled && result.assets?.[0]?.uri) {
+                                      // Store the image and show FaceCropScreen
                                       const newPhotos = [...additionalPhotos];
                                       newPhotos[index] = result.assets[0].uri;
                                       setAdditionalPhotos(newPhotos);
-                                      const newCropped = [...additionalPhotosCropped];
-                                      newCropped[index] = true;
-                                      setAdditionalPhotosCropped(newCropped);
+                                      setAdditionalPhotoIndexToCrop(index);
+                                      setShowFaceCropForAdditional(true);
                                     }
                                   } else {
                                     Alert.alert('Permission Needed', 'Please allow camera access.');
@@ -3935,16 +3940,15 @@ const StyleVaultScreen = () => {
                                     const result = await ImagePicker.launchImageLibraryAsync({
                                       mediaTypes: ImagePicker.MediaTypeOptions.Images,
                                       quality: 0.8,
-                                      allowsEditing: true,
-                                      aspect: [1, 1],
+                                      allowsEditing: false, // We'll use FaceCropScreen instead
                                     });
                                     if (!result.canceled && result.assets?.[0]?.uri) {
+                                      // Store the image and show FaceCropScreen
                                       const newPhotos = [...additionalPhotos];
                                       newPhotos[index] = result.assets[0].uri;
                                       setAdditionalPhotos(newPhotos);
-                                      const newCropped = [...additionalPhotosCropped];
-                                      newCropped[index] = true;
-                                      setAdditionalPhotosCropped(newCropped);
+                                      setAdditionalPhotoIndexToCrop(index);
+                                      setShowFaceCropForAdditional(true);
                                     }
                                   } else {
                                     Alert.alert('Permission Needed', 'Please allow photo library access.');
@@ -3981,8 +3985,11 @@ const StyleVaultScreen = () => {
                                       newPhotos[index] = null;
                                       setAdditionalPhotos(newPhotos);
                                       const newCropped = [...additionalPhotosCropped];
-                                      newCropped[index] = false;
+                                      newCropped[index] = null;
                                       setAdditionalPhotosCropped(newCropped);
+                                      const newCropInfo = [...additionalPhotosCropInfo];
+                                      newCropInfo[index] = null;
+                                      setAdditionalPhotosCropInfo(newCropInfo);
                                     }
                                   }
                                 ]
@@ -4013,55 +4020,90 @@ const StyleVaultScreen = () => {
                   styles.multiPhotoAnalyzeBtn,
                   (!additionalPhotos[0] || !additionalPhotos[1]) && { opacity: 0.5 }
                 ]}
-                disabled={!additionalPhotos[0] || !additionalPhotos[1] || isAnalyzingMultiPhoto}
+                disabled={!additionalPhotosCropped[0] || !additionalPhotosCropped[1] || isAnalyzingMultiPhoto}
                 onPress={async () => {
-                  if (!additionalPhotos[0] || !additionalPhotos[1]) {
-                    Alert.alert('Photos Required', 'Please upload both additional photos.');
+                  if (!additionalPhotosCropped[0] || !additionalPhotosCropped[1]) {
+                    Alert.alert('Photos Required', 'Please crop both additional photos using the face container.');
                     return;
                   }
                   
                   setIsAnalyzingMultiPhoto(true);
                   try {
                     const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL;
-                    const allPhotos = [faceImage, ...additionalPhotos].filter(Boolean);
                     const results = [];
                     
                     // Analyze each photo
+                    // Photo 0 = original faceImage, Photos 1-2 = additionalPhotos
                     for (let i = 0; i < allPhotos.length; i++) {
-                      const photoUri = allPhotos[i];
                       try {
-                        // Check if URI is accessible (local file:// or already uploaded URL)
-                        let imageUrl = photoUri;
+                        let requestBody: any = {};
                         
-                        // If it's a local file URI, upload it first
-                        if (photoUri.startsWith('file://') || photoUri.startsWith('content://') || photoUri.startsWith('ph://')) {
-                          try {
-                            imageUrl = await uploadImageAsync(photoUri);
-                          } catch (uploadError) {
-                            console.error(`Error uploading photo ${i + 1}:`, uploadError);
-                            // Try to continue with next photo
-                            continue;
+                        if (i === 0) {
+                          // Original face photo - use existing method (may have cropInfo from original upload)
+                          const photoUri = faceImage;
+                          let imageUrl = photoUri;
+                          
+                          // If it's a local file URI, upload it first
+                          if (photoUri && (photoUri.startsWith('file://') || photoUri.startsWith('content://') || photoUri.startsWith('ph://'))) {
+                            try {
+                              imageUrl = await uploadImageAsync(photoUri);
+                            } catch (uploadError) {
+                              console.error(`Error uploading photo ${i + 1}:`, uploadError);
+                              continue;
+                            }
+                          }
+                          
+                          requestBody = { imageUrl: imageUrl };
+                        } else {
+                          // Additional photos - use cropped base64 if available
+                          const additionalIndex = i - 1;
+                          const croppedBase64 = additionalPhotosCropped[additionalIndex];
+                          
+                          if (croppedBase64) {
+                            // Use pre-cropped face image (best method - no extract_area errors)
+                            requestBody = { croppedFaceBase64: croppedBase64 };
+                          } else {
+                            // Fallback: upload full image and let API detect face
+                            const photoUri = additionalPhotos[additionalIndex];
+                            if (!photoUri) continue;
+                            
+                            let imageUrl = photoUri;
+                            if (photoUri.startsWith('file://') || photoUri.startsWith('content://') || photoUri.startsWith('ph://')) {
+                              try {
+                                imageUrl = await uploadImageAsync(photoUri);
+                              } catch (uploadError) {
+                                console.error(`Error uploading photo ${i + 1}:`, uploadError);
+                                continue;
+                              }
+                            }
+                            
+                            requestBody = { imageUrl: imageUrl };
                           }
                         }
                         
-                        // Analyze the uploaded/remote image
+                        // Analyze the image
                         const response = await fetch(`${API_BASE}/api/analyze-skin-tone`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ imageUrl: imageUrl }),
+                          body: JSON.stringify(requestBody),
                         });
                         
                         if (response.ok) {
                           const data = await response.json();
+                          if (data.error) {
+                            console.error(`Analysis error for photo ${i + 1}:`, data.error);
+                            continue;
+                          }
                           results.push({
                             season: data.season,
-                            seasonConfidence: data.seasonConfidence,
+                            seasonConfidence: data.seasonConfidence || 0,
                             undertone: data.undertone,
                             depth: data.depth,
                             clarity: data.clarity,
                           });
                         } else {
-                          console.error(`Analysis failed for photo ${i + 1}:`, await response.text());
+                          const errorText = await response.text();
+                          console.error(`Analysis failed for photo ${i + 1}:`, errorText);
                         }
                       } catch (e) {
                         console.error(`Error analyzing photo ${i + 1}:`, e);
@@ -5099,6 +5141,55 @@ const StyleVaultScreen = () => {
       <PhotoGuidelinesScreen
         visible={showPhotoGuidelinesScreen}
         onClose={() => setShowPhotoGuidelinesScreen(false)}
+      />
+
+      {/* Face Crop Screen for Additional Photos */}
+      <FaceCropScreen
+        visible={showFaceCropForAdditional}
+        imageUri={additionalPhotoIndexToCrop !== null ? additionalPhotos[additionalPhotoIndexToCrop] : null}
+        onCropComplete={async (cropData) => {
+          setShowFaceCropForAdditional(false);
+          const index = additionalPhotoIndexToCrop;
+          setAdditionalPhotoIndexToCrop(null);
+          
+          if (index === null) return;
+          
+          try {
+            // Handle both old format (string URI) and new format (object with imageUri + cropInfo)
+            const imageUri = typeof cropData === 'string' ? cropData : cropData.imageUri;
+            const cropInfo = typeof cropData === 'object' ? cropData.cropInfo : null;
+            
+            // Convert cropped image to base64 for API
+            const response = await fetch(imageUri);
+            const blob = await response.blob();
+            const base64 = await new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                const result = reader.result as string;
+                // Remove data:image/jpeg;base64, prefix if present
+                const base64Data = result.includes(',') ? result.split(',')[1] : result;
+                resolve(base64Data);
+              };
+              reader.readAsDataURL(blob);
+            });
+            
+            // Store cropped base64 and crop info
+            const newCropped = [...additionalPhotosCropped];
+            newCropped[index] = base64;
+            setAdditionalPhotosCropped(newCropped);
+            
+            const newCropInfo = [...additionalPhotosCropInfo];
+            newCropInfo[index] = cropInfo;
+            setAdditionalPhotosCropInfo(newCropInfo);
+          } catch (error) {
+            console.error('Error processing cropped photo:', error);
+            Alert.alert('Error', 'Failed to process photo. Please try again.');
+          }
+        }}
+        onCancel={() => {
+          setShowFaceCropForAdditional(false);
+          setAdditionalPhotoIndexToCrop(null);
+        }}
       />
 
       {/* Face Crop Screen with Oval Guide */}
