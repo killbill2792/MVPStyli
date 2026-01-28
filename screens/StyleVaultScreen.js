@@ -3865,18 +3865,18 @@ const StyleVaultScreen = () => {
               </View>
             </View>
             
-            {/* Additional Photos */}
+            {/* Additional Photos - Using Same Face Container UI */}
             <View style={styles.quickCheckStep}>
               <Text style={styles.quickCheckStepTitle}>Add 2 More Photos</Text>
-              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginBottom: 12 }}>
+              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginBottom: 16 }}>
                 Use different lighting: natural daylight, indoor light, etc.
               </Text>
-              <View style={styles.multiPhotoRow}>
+              <View style={{ flexDirection: 'row', gap: 16, justifyContent: 'center' }}>
                 {[0, 1].map((index) => (
-                  <View key={index} style={styles.multiPhotoItem}>
-                    {additionalPhotos[index] ? (
-                      <Pressable
-                        onPress={() => {
+                  <View key={index} style={{ alignItems: 'center' }}>
+                    <Pressable
+                      onPress={() => {
+                        if (additionalPhotos[index]) {
                           // Allow re-upload
                           Alert.alert(
                             'Change Photo',
@@ -3896,17 +3896,8 @@ const StyleVaultScreen = () => {
                               }
                             ]
                           );
-                        }}
-                      >
-                        <Image source={{ uri: additionalPhotos[index] }} style={styles.multiPhotoThumb} />
-                        <View style={styles.multiPhotoCheckmark}>
-                          <Text style={{ color: '#fff', fontSize: 12 }}>✓</Text>
-                        </View>
-                      </Pressable>
-                    ) : (
-                      <Pressable
-                        style={styles.multiPhotoUploadBtn}
-                        onPress={async () => {
+                        } else {
+                          // Upload new photo
                           Alert.alert(
                             'Add Photo',
                             'Choose how to add photo',
@@ -3962,14 +3953,53 @@ const StyleVaultScreen = () => {
                               }
                             ]
                           );
-                        }}
-                      >
-                        <Text style={{ color: '#6366f1', fontSize: 24 }}>+</Text>
-                        <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 4 }}>Photo {index + 2}</Text>
-                      </Pressable>
-                    )}
-                    <Text style={styles.multiPhotoLabel}>
-                      {index === 0 ? 'Different Light' : 'Another Angle'}
+                        }
+                      }}
+                    >
+                      {additionalPhotos[index] ? (
+                        <View style={{ position: 'relative' }}>
+                          <View style={styles.faceThumbnailNew}>
+                            <Image 
+                              source={{ uri: additionalPhotos[index] }} 
+                              style={styles.faceThumbnailImage}
+                            />
+                          </View>
+                          {/* Edit Icon */}
+                          <Pressable
+                            style={styles.photoEditIcon}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              Alert.alert(
+                                'Change Photo',
+                                'Do you want to change this photo?',
+                                [
+                                  { text: 'Cancel', style: 'cancel' },
+                                  {
+                                    text: 'Change',
+                                    onPress: () => {
+                                      const newPhotos = [...additionalPhotos];
+                                      newPhotos[index] = null;
+                                      setAdditionalPhotos(newPhotos);
+                                      const newCropped = [...additionalPhotosCropped];
+                                      newCropped[index] = false;
+                                      setAdditionalPhotosCropped(newCropped);
+                                    }
+                                  }
+                                ]
+                              );
+                            }}
+                          >
+                            <Text style={styles.photoEditIconText}>✏️</Text>
+                          </Pressable>
+                        </View>
+                      ) : (
+                        <View style={[styles.faceThumbnailNew, styles.faceThumbnailPlaceholder]}>
+                          <Text style={styles.faceThumbnailIcon}>📸</Text>
+                        </View>
+                      )}
+                    </Pressable>
+                    <Text style={[styles.facePhotoLabel, { marginTop: 4 }]}>
+                      {index === 0 ? 'Photo 2' : 'Photo 3'}
                     </Text>
                   </View>
                 ))}
@@ -3997,14 +4027,28 @@ const StyleVaultScreen = () => {
                     const results = [];
                     
                     // Analyze each photo
-                    for (const photoUri of allPhotos) {
+                    for (let i = 0; i < allPhotos.length; i++) {
+                      const photoUri = allPhotos[i];
                       try {
-                        // Upload and analyze
-                        const uploadedUrl = await uploadImageAsync(photoUri, user?.id);
+                        // Check if URI is accessible (local file:// or already uploaded URL)
+                        let imageUrl = photoUri;
+                        
+                        // If it's a local file URI, upload it first
+                        if (photoUri.startsWith('file://') || photoUri.startsWith('content://') || photoUri.startsWith('ph://')) {
+                          try {
+                            imageUrl = await uploadImageAsync(photoUri);
+                          } catch (uploadError) {
+                            console.error(`Error uploading photo ${i + 1}:`, uploadError);
+                            // Try to continue with next photo
+                            continue;
+                          }
+                        }
+                        
+                        // Analyze the uploaded/remote image
                         const response = await fetch(`${API_BASE}/api/analyze-skin-tone`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ imageUrl: uploadedUrl }),
+                          body: JSON.stringify({ imageUrl: imageUrl }),
                         });
                         
                         if (response.ok) {
@@ -4016,13 +4060,30 @@ const StyleVaultScreen = () => {
                             depth: data.depth,
                             clarity: data.clarity,
                           });
+                        } else {
+                          console.error(`Analysis failed for photo ${i + 1}:`, await response.text());
                         }
                       } catch (e) {
-                        console.error('Error analyzing photo:', e);
+                        console.error(`Error analyzing photo ${i + 1}:`, e);
+                        // Continue with next photo instead of failing completely
                       }
                     }
                     
                     if (results.length >= 2) {
+                      // ============================================================================
+                      // 3-PHOTO ANALYSIS LOGIC:
+                      // ============================================================================
+                      // 1. Each photo is analyzed independently to get its season prediction
+                      // 2. We count votes: How many photos predicted each season?
+                      // 3. Majority wins: The season with the most votes becomes the final result
+                      // 4. Confidence boost: If all 3 photos agree (100% agreement), confidence is boosted
+                      //    - Average the confidence scores of photos that voted for the winning season
+                      //    - Add a bonus based on agreement ratio (more agreement = higher confidence)
+                      //    - Example: 3 photos all say "spring" → 100% agreement → +0.1 confidence boost
+                      //    - Example: 2 photos say "spring", 1 says "summer" → 67% agreement → +0.067 boost
+                      // 5. Final confidence is capped at 95% to leave room for uncertainty
+                      // ============================================================================
+                      
                       // Vote on season (majority wins)
                       const seasonCounts = {};
                       results.forEach(r => {
@@ -4037,6 +4098,7 @@ const StyleVaultScreen = () => {
                       const avgConfidence = winnerResults.reduce((sum, r) => sum + r.seasonConfidence, 0) / winnerResults.length;
                       
                       // Boost confidence based on agreement
+                      // More photos agreeing = higher confidence (up to +0.1 boost)
                       const agreementRatio = winnerResults.length / results.length;
                       const boostedConfidence = Math.min(0.95, avgConfidence + (agreementRatio * 0.1));
                       
