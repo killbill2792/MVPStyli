@@ -116,7 +116,6 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
       });
       
       if (error) {
-        console.log('Error saving stylecraft request:', error);
         // Still continue even if save fails - table might not exist yet
       }
       
@@ -132,7 +131,7 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
       setPreviousEnquiries([newEnquiry, ...previousEnquiries]);
       
     } catch (err) {
-      console.log('Error saving request:', err);
+      // Error saving request
     } finally {
       setIsProcessing(false);
       // Show beta testing modal
@@ -311,7 +310,6 @@ const StyleCraftScreen = ({ onBack, onShowQuotes }) => {
                         key={index}
                         style={styles.suggestionChip}
                         onPress={() => {
-                          console.log('Suggestion tapped:', suggestion);
                           setPrompt(suggestion);
                           setShowSuggestions(false);
                         }}

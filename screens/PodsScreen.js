@@ -233,7 +233,6 @@ const PodsScreen = ({ onBack, onCreatePod, userId, userName, params }) => {
     try {
       console.log('Loading friends for user:', userId);
       const friendsList = await getUserFriends(userId);
-      console.log('Friends loaded:', friendsList);
       setFriends(friendsList);
       // Select all friends by default
       setSelectedFriends(friendsList.map(f => f.friend_id));

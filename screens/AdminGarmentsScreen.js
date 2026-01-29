@@ -115,15 +115,10 @@ const AdminGarmentsScreen = ({ onBack }) => {
       if (filterCategory !== 'all') url += `&category=${filterCategory}`;
       if (filterGender !== 'all') url += `&gender=${filterGender}`;
 
-      logger.log('Fetching garments from:', url);
       const response = await fetch(url);
-      
-      logger.log('Response status:', response.status);
-      logger.log('Response headers:', Object.fromEntries(response.headers.entries()));
       
       // Always try to get text first to see what we're dealing with
       const text = await response.text();
-      logger.log('Response text (first 500 chars):', text.substring(0, 500));
       
       // Handle different response types
       let data;
@@ -532,7 +527,6 @@ const AdminGarmentsScreen = ({ onBack }) => {
   // Confirm color pick - same logic as fit check
   const confirmColorPick = () => {
     if (livePickedColor) {
-      logger.log('🎨 [ADMIN] Confirming color pick:', livePickedColor);
       // Use color naming system to get the best name
       const { getNearestColorName } = require('../lib/colorNaming');
       const nearestColor = getNearestColorName(livePickedColor.hex);
@@ -551,12 +545,6 @@ const AdminGarmentsScreen = ({ onBack }) => {
       setPickerTouchPosition(null);
       setMagnifierPosition(null);
       colorPickerImageUrlRef.current = null;
-      
-      logger.log('🎨 [ADMIN] Color saved:', {
-        hex: livePickedColor.hex,
-        name: colorName,
-        rgb: livePickedColor.rgb,
-      });
     }
   };
 
@@ -970,7 +958,6 @@ const AdminGarmentsScreen = ({ onBack }) => {
       <View style={styles.header}>
         <Pressable 
           onPress={() => {
-            logger.log('🎨 [ADMIN] Back button pressed');
             onBack && onBack();
           }} 
           style={styles.backButton}
@@ -982,7 +969,6 @@ const AdminGarmentsScreen = ({ onBack }) => {
         <Pressable
           style={styles.addButton}
           onPress={() => {
-            logger.log('🎨 [ADMIN] + Add button pressed');
             resetForm();
             setShowForm(true);
           }}
@@ -1328,9 +1314,7 @@ const AdminGarmentsScreen = ({ onBack }) => {
                     style={styles.colorPickerButton}
                     onPress={() => {
                       try {
-                        logger.log('🎨 [ADMIN] Pick button clicked, image_url:', formData.image_url ? 'exists' : 'missing');
                         if (formData.image_url) {
-                          logger.log('🎨 [ADMIN] Opening color picker modal');
                           setShowColorPicker(true);
                         } else {
                           Alert.alert('Image Required', 'Please upload a product image first to pick a color from it.');
@@ -1363,11 +1347,9 @@ const AdminGarmentsScreen = ({ onBack }) => {
                 <Pressable
                   style={[styles.input, { minHeight: 44, justifyContent: 'center' }]}
                   onPress={() => {
-                    logger.log('🎨 [ADMIN] Style Tags button pressed, current showTagPicker:', showTagPicker);
                     // Temporarily hide form modal to allow tag picker to show
                     setShowForm(false);
                     setShowTagPicker(true);
-                    logger.log('🎨 [ADMIN] Set showTagPicker to true, form modal hidden');
                   }}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   disabled={saving}
@@ -1487,11 +1469,9 @@ const AdminGarmentsScreen = ({ onBack }) => {
                 <Pressable 
                   style={styles.addSizeButton} 
                   onPress={() => {
-                    logger.log('🎨 [ADMIN] Add Size button pressed, current showSizeEntryModal:', showSizeEntryModal);
                     // Temporarily hide form modal to allow size entry modal to show
                     setShowForm(false);
                     setShowSizeEntryModal(true);
-                    logger.log('🎨 [ADMIN] Set showSizeEntryModal to true, form modal hidden');
                   }}
                   disabled={saving}
                 >
@@ -1508,7 +1488,6 @@ const AdminGarmentsScreen = ({ onBack }) => {
                 <View style={styles.colorPickerModalHeader}>
                   <Text style={styles.colorPickerModalTitle}>Pick Color from Product</Text>
                   <Pressable onPress={() => {
-                    logger.log('🎨 [ADMIN] Closing color picker');
                     setShowColorPicker(false);
                     setPickerTouchPosition(null);
                     setMagnifierPosition(null);
@@ -1694,7 +1673,6 @@ const AdminGarmentsScreen = ({ onBack }) => {
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Pressable onPress={() => {
-              logger.log('Closing tag picker modal');
               setShowTagPicker(false);
               // Reopen form modal
               setShowForm(true);
@@ -1703,7 +1681,6 @@ const AdminGarmentsScreen = ({ onBack }) => {
             </Pressable>
             <Text style={styles.modalTitle}>Select Style Tags</Text>
             <Pressable onPress={() => {
-              logger.log('Tag picker done, closing modal');
               setShowTagPicker(false);
               // Reopen form modal
               setShowForm(true);

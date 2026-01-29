@@ -117,7 +117,6 @@ export async function getUserFriends(userId: string): Promise<Friend[]> {
       });
     }
 
-    console.log('Friends loaded:', friends.length, friends.map(f => f.friend_name));
     return friends;
   } catch (error) {
     console.error('Error fetching friends:', error);

@@ -3804,12 +3804,6 @@ const StyleVaultScreen = () => {
               onChangeText={setDeleteConfirmText}
               autoCapitalize="none"
               autoCorrect={false}
-              onFocus={() => {
-                // Ensure the input is visible when focused
-                setTimeout(() => {
-                  scrollViewRef.current?.scrollToEnd({ animated: true });
-                }, 100);
-              }}
             />
           </View>
         </KeyboardAvoidingView>
