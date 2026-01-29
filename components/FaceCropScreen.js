@@ -23,6 +23,9 @@ const HANDLE_VISUAL_SIZE = 24; // Visual size of corner handles
 const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
 
 export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCancel }) {
+  // Debug logging
+  console.log('📸 [FaceCropScreen] Props:', { visible, imageUri: imageUri ? 'SET' : 'null' });
+  
   const insets = useSafeAreaInsets();
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const [loading, setLoading] = useState(false);
@@ -264,6 +267,7 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
   };
 
   if (!imageUri) {
+    console.log('📸 [FaceCropScreen] No imageUri, showing error modal');
     return (
       <Modal visible={visible} animationType="slide" onRequestClose={handleCancel}>
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -276,6 +280,7 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
     );
   }
 
+  console.log('📸 [FaceCropScreen] Rendering main modal with image');
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={handleCancel}>
       <View style={[styles.container, { paddingTop: insets.top }]}>
