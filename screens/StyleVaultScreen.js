@@ -361,17 +361,15 @@ const StyleVaultScreen = () => {
   const [isAnalyzingMultiPhoto, setIsAnalyzingMultiPhoto] = useState(false);
   const [multiPhotoResults, setMultiPhotoResults] = useState(null);
   
-  // Auto-show FaceCropScreen when pendingImageUri and index are set
+  // Debug: Log state changes for FaceCropScreen
   useEffect(() => {
-    if (pendingImageUri && additionalPhotoIndexToCrop !== null && !showFaceCropForAdditional) {
-      console.log('📸 [DEBUG] Auto-showing FaceCropScreen:', { pendingImageUri, additionalPhotoIndexToCrop });
-      // Use setTimeout to ensure modal transition completes
-      const timer = setTimeout(() => {
-        setShowFaceCropForAdditional(true);
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [pendingImageUri, additionalPhotoIndexToCrop, showFaceCropForAdditional]);
+    console.log('📸 [DEBUG] FaceCropScreen state:', { 
+      pendingImageUri: pendingImageUri ? 'SET' : 'null', 
+      additionalPhotoIndexToCrop, 
+      showFaceCropForAdditional,
+      showMultiPhotoModal 
+    });
+  }, [pendingImageUri, additionalPhotoIndexToCrop, showFaceCropForAdditional, showMultiPhotoModal]);
   const [isColorDetailsExpanded, setIsColorDetailsExpanded] = useState(false); // Collapsible color profile details
   const [colorProducts, setColorProducts] = useState([]); // Products matching user's colors
   const [isLoadingColorProducts, setIsLoadingColorProducts] = useState(false); // Loading state for color products
@@ -3940,11 +3938,15 @@ const StyleVaultScreen = () => {
                                       const newPhotos = [...additionalPhotos];
                                       newPhotos[index] = selectedImageUri;
                                       setAdditionalPhotos(newPhotos);
-                                      // Close multi-photo modal first
-                                      setShowMultiPhotoModal(false);
-                                      // Set pending image and index - useEffect will show FaceCropScreen
+                                      // Set pending image and index
                                       setPendingImageUri(selectedImageUri);
                                       setAdditionalPhotoIndexToCrop(index);
+                                      // Close multi-photo modal THEN show FaceCropScreen with delay
+                                      setShowMultiPhotoModal(false);
+                                      setTimeout(() => {
+                                        console.log('📸 [DEBUG] Now showing FaceCropScreen');
+                                        setShowFaceCropForAdditional(true);
+                                      }, 350); // Wait for modal animation to complete
                                     }
                                   } else {
                                     Alert.alert('Permission Needed', 'Please allow camera access.');
@@ -3968,11 +3970,15 @@ const StyleVaultScreen = () => {
                                       const newPhotos = [...additionalPhotos];
                                       newPhotos[index] = selectedImageUri;
                                       setAdditionalPhotos(newPhotos);
-                                      // Close multi-photo modal first
-                                      setShowMultiPhotoModal(false);
-                                      // Set pending image and index - useEffect will show FaceCropScreen
+                                      // Set pending image and index
                                       setPendingImageUri(selectedImageUri);
                                       setAdditionalPhotoIndexToCrop(index);
+                                      // Close multi-photo modal THEN show FaceCropScreen with delay
+                                      setShowMultiPhotoModal(false);
+                                      setTimeout(() => {
+                                        console.log('📸 [DEBUG] Now showing FaceCropScreen');
+                                        setShowFaceCropForAdditional(true);
+                                      }, 350); // Wait for modal animation to complete
                                     }
                                   } else {
                                     Alert.alert('Permission Needed', 'Please allow photo library access.');
