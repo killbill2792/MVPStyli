@@ -357,9 +357,9 @@ const StyleVaultScreen = () => {
   const [additionalPhotosCropInfo, setAdditionalPhotosCropInfo] = useState([null, null]); // Crop info for each photo
   const [showFaceCropForAdditional, setShowFaceCropForAdditional] = useState(false);
   const [additionalPhotoIndexToCrop, setAdditionalPhotoIndexToCrop] = useState(null); // 0 or 1
+  const [pendingImageUri, setPendingImageUri] = useState(null); // Store imageUri for FaceCropScreen
   const [isAnalyzingMultiPhoto, setIsAnalyzingMultiPhoto] = useState(false);
   const [multiPhotoResults, setMultiPhotoResults] = useState(null);
-  const pendingImageUriRef = useRef(null); // Store imageUri temporarily before state updates
   const [isColorDetailsExpanded, setIsColorDetailsExpanded] = useState(false); // Collapsible color profile details
   const [colorProducts, setColorProducts] = useState([]); // Products matching user's colors
   const [isLoadingColorProducts, setIsLoadingColorProducts] = useState(false); // Loading state for color products
@@ -3923,22 +3923,17 @@ const StyleVaultScreen = () => {
                                     });
                                     if (!result.canceled && result.assets?.[0]?.uri) {
                                       const selectedImageUri = result.assets[0].uri;
-                                      // Store imageUri in ref immediately (before state update)
-                                      pendingImageUriRef.current = selectedImageUri;
                                       // Store the image in state
                                       const newPhotos = [...additionalPhotos];
                                       newPhotos[index] = selectedImageUri;
                                       setAdditionalPhotos(newPhotos);
-                                      // Close multi-photo modal first
+                                      // Store imageUri in state (triggers re-render)
+                                      setPendingImageUri(selectedImageUri);
+                                      // Set index and show FaceCropScreen
+                                      setAdditionalPhotoIndexToCrop(index);
+                                      // Close multi-photo modal and show FaceCropScreen
                                       setShowMultiPhotoModal(false);
-                                      // Set which photo to crop and show FaceCropScreen
-                                      // Use ref to ensure imageUri is available immediately
-                                      setTimeout(() => {
-                                        setAdditionalPhotoIndexToCrop(index);
-                                        if (pendingImageUriRef.current) {
-                                          setShowFaceCropForAdditional(true);
-                                        }
-                                      }, 300);
+                                      setShowFaceCropForAdditional(true);
                                     }
                                   } else {
                                     Alert.alert('Permission Needed', 'Please allow camera access.');
@@ -3957,22 +3952,17 @@ const StyleVaultScreen = () => {
                                     });
                                     if (!result.canceled && result.assets?.[0]?.uri) {
                                       const selectedImageUri = result.assets[0].uri;
-                                      // Store imageUri in ref immediately (before state update)
-                                      pendingImageUriRef.current = selectedImageUri;
                                       // Store the image in state
                                       const newPhotos = [...additionalPhotos];
                                       newPhotos[index] = selectedImageUri;
                                       setAdditionalPhotos(newPhotos);
-                                      // Close multi-photo modal first
+                                      // Store imageUri in state (triggers re-render)
+                                      setPendingImageUri(selectedImageUri);
+                                      // Set index and show FaceCropScreen
+                                      setAdditionalPhotoIndexToCrop(index);
+                                      // Close multi-photo modal and show FaceCropScreen
                                       setShowMultiPhotoModal(false);
-                                      // Set which photo to crop and show FaceCropScreen
-                                      // Use ref to ensure imageUri is available immediately
-                                      setTimeout(() => {
-                                        setAdditionalPhotoIndexToCrop(index);
-                                        if (pendingImageUriRef.current) {
-                                          setShowFaceCropForAdditional(true);
-                                        }
-                                      }, 300);
+                                      setShowFaceCropForAdditional(true);
                                     }
                                   } else {
                                     Alert.alert('Permission Needed', 'Please allow photo library access.');
@@ -5215,16 +5205,12 @@ const StyleVaultScreen = () => {
       {/* Face Crop Screen for Additional Photos */}
       <FaceCropScreen
         visible={showFaceCropForAdditional && additionalPhotoIndexToCrop !== null}
-        imageUri={
-          additionalPhotoIndexToCrop !== null 
-            ? (additionalPhotos[additionalPhotoIndexToCrop] || pendingImageUriRef.current)
-            : null
-        }
+        imageUri={pendingImageUri || (additionalPhotoIndexToCrop !== null ? additionalPhotos[additionalPhotoIndexToCrop] : null)}
         onCropComplete={async (cropData) => {
           setShowFaceCropForAdditional(false);
           const index = additionalPhotoIndexToCrop;
           setAdditionalPhotoIndexToCrop(null);
-          pendingImageUriRef.current = null; // Clear ref after cropping
+          setPendingImageUri(null); // Clear pending image after cropping
           
           if (index === null) return;
           
@@ -5272,6 +5258,7 @@ const StyleVaultScreen = () => {
         onCancel={() => {
           setShowFaceCropForAdditional(false);
           setAdditionalPhotoIndexToCrop(null);
+          setPendingImageUri(null); // Clear pending image on cancel
           // Re-open multi-photo modal if cancelled
           setTimeout(() => {
             setShowMultiPhotoModal(true);
