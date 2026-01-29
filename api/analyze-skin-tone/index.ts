@@ -1048,7 +1048,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Determine micro-season internally (not shown to user, but used for color matching)
     let microSeason: string | null = null;
     try {
-      const { determineMicroSeason } = await import('../../lib/colorClassification');
+      const { determineMicroSeason } = await import('../../lib/colorClassification.js');
       microSeason = determineMicroSeason(
         primary.season,
         depthInfo.depth,

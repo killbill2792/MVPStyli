@@ -2166,6 +2166,15 @@ export default function App() {
             .single();
           
           // Build color profile from database fields (load on startup!)
+          // Also try to load seasonConfidence from color_profile JSON field
+          let seasonConfidence = null;
+          if (profile?.color_profile && typeof profile.color_profile === 'object' && profile.color_profile.seasonConfidence !== undefined) {
+            seasonConfidence = profile.color_profile.seasonConfidence;
+          } else if (profile?.skin_tone_confidence !== undefined && profile?.skin_tone_confidence !== null) {
+            // Fallback to skin_tone_confidence column if color_profile JSON doesn't have it
+            seasonConfidence = profile.skin_tone_confidence;
+          }
+          
           const colorProfileData = (profile?.color_season || profile?.color_tone) ? {
             tone: profile.color_tone || 'neutral',
             depth: profile.color_depth || 'medium',
@@ -2174,6 +2183,8 @@ export default function App() {
             microSeason: profile.micro_season || null,
             bestColors: profile.best_colors || [],
             avoidColors: profile.avoid_colors || [],
+            seasonConfidence: seasonConfidence,
+            confidence: seasonConfidence, // Also set confidence field for consistency
           } : null;
           
           if (colorProfileData) {

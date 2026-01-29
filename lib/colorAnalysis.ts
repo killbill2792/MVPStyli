@@ -223,13 +223,25 @@ export async function saveColorProfile(userId: string, profile: ColorProfile | E
       color_clarity: extended.clarity ?? null,
       micro_season: extended.microSeason ?? null,
     };
+    
+    // Save seasonConfidence if available - try to save to color_profile JSON field if column exists
+    // If column doesn't exist, we'll save it separately via direct update
+    if (extended.seasonConfidence !== undefined && extended.seasonConfidence !== null) {
+      try {
+        // Try to update color_profile JSON field (may not exist in all databases)
+        await supabase
+          .from("profiles")
+          .update({ 
+            color_profile: {
+              seasonConfidence: extended.seasonConfidence,
+            }
+          })
+          .eq("id", userId);
+      } catch (e) {
+        // Column doesn't exist, that's okay - we'll store it in a separate way if needed
+      }
+    }
 
-    console.log('🎨 [SAVE PROFILE] Saving color profile:', {
-      season: updateData.color_season,
-      depth: updateData.color_depth,
-      clarity: updateData.color_clarity,
-      microSeason: updateData.micro_season,
-    });
 
     const { error } = await supabase.from("profiles").update(updateData).eq("id", userId);
 
@@ -299,9 +311,12 @@ export function getSeasonSwatches(season: string): string[] {
 // Load color profile from user's profile
 export async function loadColorProfile(userId: string): Promise<ColorProfile | ExtendedColorProfile | null> {
   try {
+    // Try to select color_profile, but handle if column doesn't exist
+    let selectFields = "color_tone, color_depth, color_season, best_colors, avoid_colors, skin_tone_confidence, skin_hex, color_clarity, micro_season";
+    
     const { data, error } = await supabase
       .from("profiles")
-      .select("color_tone, color_depth, color_season, best_colors, avoid_colors, skin_tone_confidence, skin_hex, color_clarity, micro_season")
+      .select(selectFields)
       .eq("id", userId)
       .maybeSingle();
 
@@ -322,6 +337,8 @@ export async function loadColorProfile(userId: string): Promise<ColorProfile | E
       bestColors: data.best_colors || [],
       avoidColors: data.avoid_colors || [],
       description: getSeasonProfile(data.color_season).description,
+      confidence: data.skin_tone_confidence || null,
+      seasonConfidence: data.skin_tone_confidence || null,
     };
 
     // Add optional fields if present
@@ -338,13 +355,25 @@ export async function loadColorProfile(userId: string): Promise<ColorProfile | E
     if (data.micro_season) {
       profile.microSeason = data.micro_season;
     }
+    // Try to load seasonConfidence from color_profile JSON field if available
+    // This is a separate query to avoid errors if column doesn't exist
+    try {
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("color_profile, skin_tone_confidence")
+        .eq("id", userId)
+        .maybeSingle();
+      
+      if (profileData?.color_profile && typeof profileData.color_profile === 'object' && profileData.color_profile.seasonConfidence !== undefined) {
+        profile.seasonConfidence = profileData.color_profile.seasonConfidence;
+      } else if (profileData?.skin_tone_confidence !== undefined && profileData?.skin_tone_confidence !== null) {
+        // Fallback to skin_tone_confidence column
+        profile.seasonConfidence = profileData.skin_tone_confidence;
+      }
+    } catch (e) {
+      // Column doesn't exist, that's okay
+    }
 
-    console.log('🎨 [LOAD PROFILE] Loaded color profile:', {
-      season: profile.season,
-      depth: profile.depth,
-      clarity: profile.clarity,
-      microSeason: profile.microSeason,
-    });
 
     return profile;
   } catch (error) {

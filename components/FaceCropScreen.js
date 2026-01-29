@@ -280,7 +280,7 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
     );
   }
 
-  console.log('📸 [FaceCropScreen] Rendering main modal with image');
+  // console.log('📸 [FaceCropScreen] Rendering main modal with image');
   return (
     <Modal 
       visible={visible} 
@@ -368,7 +368,7 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
 
         {/* Instructions - at the bottom */}
         <View style={[styles.instructions, { paddingBottom: insets.bottom + 10 }]}>
-          <Text style={styles.instructionText}>• Drag inside the box to move it</Text>
+          <Text style={styles.instructionText}>• Hold and Place the box on your face</Text>
           <Text style={styles.instructionText}>• Drag corners to resize</Text>
           <Text style={styles.instructionText}>• Face should fill 60–75% of the box</Text>
         </View>

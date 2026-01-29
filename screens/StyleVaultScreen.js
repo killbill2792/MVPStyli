@@ -53,7 +53,7 @@ try {
   MICRO_SEASON_PALETTE = colorClassification.MICRO_SEASON_PALETTE || colorClassification.default?.MICRO_SEASON_PALETTE;
   getMicroSeasonsForParent = colorClassification.getMicroSeasonsForParent || colorClassification.default?.getMicroSeasonsForParent;
 } catch (error) {
-  console.warn('Could not load micro-season palette system:', error.message);
+  // Could not load micro-season palette system
 }
 
 // Legacy COLOR_SEASONS for fallback - Updated with exact colors provided
@@ -361,15 +361,6 @@ const StyleVaultScreen = () => {
   const [isAnalyzingMultiPhoto, setIsAnalyzingMultiPhoto] = useState(false);
   const [multiPhotoResults, setMultiPhotoResults] = useState(null);
   
-  // Debug: Log state changes for FaceCropScreen
-  useEffect(() => {
-    console.log('📸 [DEBUG] FaceCropScreen state:', { 
-      pendingImageUri: pendingImageUri ? 'SET' : 'null', 
-      additionalPhotoIndexToCrop, 
-      showFaceCropForAdditional,
-      showMultiPhotoModal 
-    });
-  }, [pendingImageUri, additionalPhotoIndexToCrop, showFaceCropForAdditional, showMultiPhotoModal]);
   const [isColorDetailsExpanded, setIsColorDetailsExpanded] = useState(false); // Collapsible color profile details
   const [colorProducts, setColorProducts] = useState([]); // Products matching user's colors
   const [isLoadingColorProducts, setIsLoadingColorProducts] = useState(false); // Loading state for color products
@@ -468,7 +459,7 @@ const StyleVaultScreen = () => {
       
       return groupedColors;
     } catch (error) {
-      console.warn('Error getting secondary colors:', error);
+      // Error getting secondary colors
       return [];
     }
   };
@@ -493,7 +484,7 @@ const StyleVaultScreen = () => {
           }
         }
       } catch (error) {
-        console.warn('Error getting micro-season palette, falling back to parent season:', error);
+        // Error getting micro-season palette, falling back to parent season
       }
     }
     
@@ -1250,15 +1241,19 @@ const StyleVaultScreen = () => {
           
           // Always use parent season for suggested products to show all matching clothes
           // This gives users more variety within their season (e.g., all autumn clothes, not just soft autumn)
-          const apiUrlWithParams = `${baseUrl}/api/suggested-products?season=${colorProfile.season}&group=${category}&limit=20`;
+          let apiUrlWithParams = `${baseUrl}/api/suggested-products?season=${colorProfile.season}&group=${category}&limit=20`;
           
+          // Filter by gender if user has gender set
+          if (user?.gender) {
+            // Note: API doesn't support gender filter yet, so we'll filter on client side
+          }
           
           const response = await fetch(apiUrlWithParams);
 
           if (response.ok) {
             const data = await response.json();
             // Convert garments to product format using existing utility
-            const products = (data.products || []).map(garment => {
+            let products = (data.products || []).map(garment => {
               // Use fetchGarmentsAsProducts conversion logic
               const images = [];
               if (garment.image_url) images.push(garment.image_url);
@@ -1292,19 +1287,35 @@ const StyleVaultScreen = () => {
                 is_active: garment.is_active !== false,
                 created_at: garment.created_at,
                 source: 'admin_garment',
+                gender: garment.gender || 'unisex', // Include gender for filtering
               };
             });
+
+            // Filter by gender if user has gender set (from fit profile)
+            const userGender = fitProfile?.gender || user?.gender;
+            if (userGender) {
+              products = products.filter(product => {
+                const productGender = product.gender?.toLowerCase();
+                const normalizedUserGender = userGender.toLowerCase();
+                // Normalize gender values: 'Female' -> 'women', 'Male' -> 'men'
+                let normalizedGender = normalizedUserGender;
+                if (normalizedUserGender === 'female') normalizedGender = 'women';
+                if (normalizedUserGender === 'male') normalizedGender = 'men';
+                // Show unisex products for both genders, and products matching user's gender
+                return productGender === 'unisex' || productGender === normalizedGender;
+              });
+            }
 
             setCategoryProducts(prev => ({ ...prev, [category]: products }));
             return;
           }
         } catch (apiError) {
-          console.warn('API call failed, falling back to client-side filtering:', apiError);
+          // API call failed, falling back to client-side filtering
         }
       }
 
       // Fallback to old method if API URL not configured or API call failed
-      console.warn('Using fallback client-side filtering');
+      // Using fallback client-side filtering
       const organized = getOrganizedColors(colorProfile.season);
       const categoryColors = organized[category] || [];
       const colorNames = categoryColors.map(c => c.name.toLowerCase());
@@ -1454,11 +1465,26 @@ const StyleVaultScreen = () => {
       });
 
       // Sort by relevance (products with hex match first, then name match)
-      const sortedProducts = filteredProducts.sort((a, b) => {
+      let sortedProducts = filteredProducts.sort((a, b) => {
         const aHasHex = a.colorHex ? 1 : 0;
         const bHasHex = b.colorHex ? 1 : 0;
         return bHasHex - aHasHex; // Hex matches first
       });
+
+      // Filter by gender if user has gender set (from fit profile)
+      const userGender = fitProfile?.gender || user?.gender;
+      if (userGender) {
+        sortedProducts = sortedProducts.filter(product => {
+          const productGender = product.gender?.toLowerCase();
+          const normalizedUserGender = userGender.toLowerCase();
+          // Normalize gender values: 'Female' -> 'women', 'Male' -> 'men'
+          let normalizedGender = normalizedUserGender;
+          if (normalizedUserGender === 'female') normalizedGender = 'women';
+          if (normalizedUserGender === 'male') normalizedGender = 'men';
+          // Show unisex products for both genders, and products matching user's gender
+          return productGender === 'unisex' || productGender === normalizedGender;
+        });
+      }
 
       setCategoryProducts(prev => ({ ...prev, [category]: sortedProducts.slice(0, 20) }));
     } catch (error) {
@@ -2299,7 +2325,7 @@ const StyleVaultScreen = () => {
                 <>
                   {/* Top Title: Your Colors + Quick Check Button */}
                   <View style={styles.colorTopSection}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
                     <Text style={styles.colorMainTitle}>🎨 Your Colors</Text>
                       <Pressable
                         style={styles.quickColorCheckBtn}
@@ -2316,9 +2342,9 @@ const StyleVaultScreen = () => {
                         <Text style={styles.colorSeasonInfoText}>
                           Analysed Skin tone = {colorProfile.season.charAt(0).toUpperCase() + colorProfile.season.slice(1)}
                         </Text>
-                        {colorProfile.seasonConfidence && (
+                        {(colorProfile.seasonConfidence || colorProfile.confidence) && (
                           <Text style={styles.colorSeasonInfoConfidence}>
-                            Confidence = {Math.round(colorProfile.seasonConfidence * 100)}%
+                            Confidence = {Math.round((colorProfile.seasonConfidence || colorProfile.confidence) * 100)}%
                           </Text>
                         )}
                       </View>
@@ -3758,26 +3784,35 @@ const StyleVaultScreen = () => {
         </Pressable>
         
         {/* Delete Account Section - Required by App Store */}
-        <View style={styles.deleteAccountSection}>
-          <Text style={styles.deleteAccountWarning}>
-            ⚠️ Danger Zone
-          </Text>
-          <Text style={styles.deleteAccountDescription}>
-            Permanently delete your account and all data including profile, measurements, color analysis, saved outfits, and friends list.
-          </Text>
-          <Text style={styles.deleteAccountInstruction}>
-            Type "delete" to enable account deletion:
-          </Text>
-          <TextInput
-            style={styles.deleteConfirmInput}
-            placeholder='Type "delete" to confirm'
-            placeholderTextColor="rgba(255,68,68,0.4)"
-            value={deleteConfirmText}
-            onChangeText={setDeleteConfirmText}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-        </View>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 20}
+          style={{ width: '100%' }}
+        >
+          <View style={styles.deleteAccountSection}>
+            <Text style={styles.deleteAccountDescription}>
+              Permanently delete your account and all data including profile, measurements, color analysis, saved outfits, and friends list.
+            </Text>
+            <Text style={styles.deleteAccountInstruction}>
+              Type "delete" to enable account deletion:
+            </Text>
+            <TextInput
+              style={styles.deleteConfirmInput}
+              placeholder='Type "delete" to confirm'
+              placeholderTextColor="rgba(255,68,68,0.4)"
+              value={deleteConfirmText}
+              onChangeText={setDeleteConfirmText}
+              autoCapitalize="none"
+              autoCorrect={false}
+              onFocus={() => {
+                // Ensure the input is visible when focused
+                setTimeout(() => {
+                  scrollViewRef.current?.scrollToEnd({ animated: true });
+                }, 100);
+              }}
+            />
+          </View>
+        </KeyboardAvoidingView>
         <Pressable
           style={[
             styles.deleteAccountButton,
@@ -3933,7 +3968,6 @@ const StyleVaultScreen = () => {
                                     });
                                     if (!result.canceled && result.assets?.[0]?.uri) {
                                       const selectedImageUri = result.assets[0].uri;
-                                      console.log('📸 [DEBUG] Camera photo selected:', selectedImageUri);
                                       // Store the image in state
                                       const newPhotos = [...additionalPhotos];
                                       newPhotos[index] = selectedImageUri;
@@ -3944,7 +3978,6 @@ const StyleVaultScreen = () => {
                                       // Close multi-photo modal THEN show FaceCropScreen with delay
                                       setShowMultiPhotoModal(false);
                                       setTimeout(() => {
-                                        console.log('📸 [DEBUG] Now showing FaceCropScreen');
                                         setShowFaceCropForAdditional(true);
                                       }, 500); // Increased to 500ms to ensure modal is fully gone
                                     }
@@ -3965,7 +3998,6 @@ const StyleVaultScreen = () => {
                                     });
                                     if (!result.canceled && result.assets?.[0]?.uri) {
                                       const selectedImageUri = result.assets[0].uri;
-                                      console.log('📸 [DEBUG] Gallery photo selected:', selectedImageUri);
                                       // Store the image in state
                                       const newPhotos = [...additionalPhotos];
                                       newPhotos[index] = selectedImageUri;
@@ -3976,7 +4008,6 @@ const StyleVaultScreen = () => {
                                       // Close multi-photo modal THEN show FaceCropScreen with delay
                                       setShowMultiPhotoModal(false);
                                       setTimeout(() => {
-                                        console.log('📸 [DEBUG] Now showing FaceCropScreen');
                                         setShowFaceCropForAdditional(true);
                                       }, 500); // Increased to 500ms to ensure modal is fully gone
                                     }
@@ -4061,6 +4092,7 @@ const StyleVaultScreen = () => {
                   try {
                     const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL;
                     const results = [];
+                    const failedPhotos = [];
                     
                     // Define all photos to analyze: original face + 2 additional photos
                     const allPhotos = [
@@ -4072,6 +4104,7 @@ const StyleVaultScreen = () => {
                     // Analyze each photo
                     // Photo 0 = original faceImage, Photos 1-2 = additionalPhotos
                     for (let i = 0; i < allPhotos.length; i++) {
+                      const photoNumber = i === 0 ? 'Main photo' : `Photo ${i}`;
                       try {
                         let requestBody = {};
                         
@@ -4085,7 +4118,7 @@ const StyleVaultScreen = () => {
                             try {
                               imageUrl = await uploadImageAsync(photoUri);
                             } catch (uploadError) {
-                              console.error(`Error uploading photo ${i + 1}:`, uploadError);
+                              failedPhotos.push(photoNumber);
                               continue;
                             }
                           }
@@ -4102,14 +4135,17 @@ const StyleVaultScreen = () => {
                           } else {
                             // Fallback: upload full image and let API detect face
                             const photoUri = additionalPhotos[additionalIndex];
-                            if (!photoUri) continue;
+                            if (!photoUri) {
+                              failedPhotos.push(photoNumber);
+                              continue;
+                            }
                             
                             let imageUrl = photoUri;
                             if (photoUri.startsWith('file://') || photoUri.startsWith('content://') || photoUri.startsWith('ph://')) {
                               try {
                                 imageUrl = await uploadImageAsync(photoUri);
                               } catch (uploadError) {
-                                console.error(`Error uploading photo ${i + 1}:`, uploadError);
+                                failedPhotos.push(photoNumber);
                                 continue;
                               }
                             }
@@ -4128,7 +4164,7 @@ const StyleVaultScreen = () => {
                         if (response.ok) {
                           const data = await response.json();
                           if (data.error) {
-                            console.error(`Analysis error for photo ${i + 1}:`, data.error);
+                            failedPhotos.push(photoNumber);
                             continue;
                           }
                           results.push({
@@ -4140,10 +4176,10 @@ const StyleVaultScreen = () => {
                           });
                         } else {
                           const errorText = await response.text();
-                          console.error(`Analysis failed for photo ${i + 1}:`, errorText);
+                          failedPhotos.push(photoNumber);
                         }
                       } catch (e) {
-                        console.error(`Error analyzing photo ${i + 1}:`, e);
+                        failedPhotos.push(photoNumber);
                         // Continue with next photo instead of failing completely
                       }
                     }
@@ -4198,10 +4234,19 @@ const StyleVaultScreen = () => {
                       
                       // Save to user profile
                       if (user?.id) {
-                        await supabase
-                          .from('profiles')
-                          .update({ color_profile: updatedProfile })
-                          .eq('id', user.id);
+                        // Save using saveColorProfile to ensure all fields are saved correctly
+                        // This will update skin_tone_confidence and other columns
+                        await saveColorProfile(user.id, updatedProfile);
+                        
+                        // Also try to save color_profile JSON field if column exists
+                        try {
+                          await supabase
+                            .from('profiles')
+                            .update({ color_profile: updatedProfile })
+                            .eq('id', user.id);
+                        } catch (e) {
+                          // Column doesn't exist, that's okay - saveColorProfile already saved the data
+                        }
                         
                         setColorProfile(updatedProfile);
                         if (setUser) {
@@ -4209,13 +4254,21 @@ const StyleVaultScreen = () => {
                         }
                       }
                       
-                      showBanner(`Analysis complete! Season: ${winnerSeason} (${Math.round(boostedConfidence * 100)}% confidence)`, 'success');
+                      // Show success message with info about failed photos if any
+                      let successMessage = `Analysis complete! Season: ${winnerSeason} (${Math.round(boostedConfidence * 100)}% confidence)`;
+                      if (failedPhotos.length > 0) {
+                        successMessage += `\n\nNote: ${failedPhotos.join(', ')} ${failedPhotos.length === 1 ? 'was' : 'were'} not processed.`;
+                      }
+                      showBanner(successMessage, 'success');
                       // Close modal after successful analysis
                       setTimeout(() => {
                         setShowMultiPhotoModal(false);
-                      }, 2000); // Give user time to see the success message
+                      }, 3000); // Give user time to see the success message
                     } else {
-                      Alert.alert('Analysis Failed', 'Could not analyze enough photos. Please try again.');
+                      const errorMessage = failedPhotos.length > 0 
+                        ? `Could not analyze enough photos. ${failedPhotos.join(', ')} ${failedPhotos.length === 1 ? 'was' : 'were'} not processed. Please try again with different photos.`
+                        : 'Could not analyze enough photos. Please try again.';
+                      Alert.alert('Analysis Failed', errorMessage);
                     }
                   } catch (error) {
                     console.error('Multi-photo analysis error:', error);
@@ -4588,7 +4641,6 @@ const StyleVaultScreen = () => {
                               colorProfile.undertone || null,
                               true // nearFace = true for color check
                             );
-                            console.log('Quick check score:', score);
                             setQuickCheckResult({
                               verdict: score.rating || 'unknown',
                               confidence: score.minDistance ? (1 - Math.min(score.minDistance / 50, 1)) : null,
@@ -4918,7 +4970,7 @@ const StyleVaultScreen = () => {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Shoulder Width ({measurementUnit.toUpperCase()}) *</Text>
+              <Text style={styles.inputLabel}>Shoulder Width ({measurementUnit.toUpperCase()})</Text>
               <TextInput
                 style={styles.input}
                 placeholder={`e.g., ${measurementUnit === 'in' ? "16" : "40"}`}
@@ -4930,7 +4982,7 @@ const StyleVaultScreen = () => {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Inseam ({measurementUnit.toUpperCase()}) *</Text>
+              <Text style={styles.inputLabel}>Inseam ({measurementUnit.toUpperCase()})</Text>
               <TextInput
                 style={styles.input}
                 placeholder={`e.g., ${measurementUnit === 'in' ? "30" : "76"}`}
@@ -4942,7 +4994,7 @@ const StyleVaultScreen = () => {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Fit Preference *</Text>
+              <Text style={styles.inputLabel}>Fit Preference</Text>
               <View style={styles.radioGroup}>
                 {['snug', 'regular', 'relaxed', 'oversized'].map((fit) => (
                   <Pressable
@@ -6370,17 +6422,15 @@ const styles = StyleSheet.create({
   },
   // Quick Color Check Button
   quickColorCheckBtn: {
-    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    backgroundColor: '#6366f1',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.3)',
   },
   quickColorCheckBtnText: {
-    color: '#6366f1',
+    color: '#ffffff',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   // Quick Color Check Modal
   quickCheckModalContainer: {
@@ -6941,7 +6991,7 @@ const styles = StyleSheet.create({
   photoEditIconText: {
     color: '#fff',
     fontSize: 12,
-    transform: [{ scaleX: -1 }], // Mirror the pencil icon horizontally
+    transform: [{ scaleX: -1 }], // Mirror the pencil icon horizontally (correct angle)
   },
   // Color Profile Styles - New Design
   colorSectionNew: {
