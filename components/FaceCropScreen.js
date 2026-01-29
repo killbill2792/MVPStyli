@@ -282,8 +282,14 @@ export default function FaceCropScreen({ visible, imageUri, onCropComplete, onCa
 
   console.log('📸 [FaceCropScreen] Rendering main modal with image');
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={handleCancel}>
-      <View style={[styles.container, { paddingTop: insets.top }]}>
+    <Modal 
+      visible={visible} 
+      animationType="fade" 
+      transparent={false}
+      presentationStyle="overFullScreen" 
+      onRequestClose={handleCancel}
+    >
+      <View style={[styles.container, { paddingTop: insets.top, backgroundColor: '#000' }]}>
         {/* Header - with proper padding */}
         <View style={styles.header}>
           <TouchableOpacity onPress={handleCancel} style={styles.headerButton} disabled={loading}>
