@@ -3946,7 +3946,7 @@ const StyleVaultScreen = () => {
                                       setTimeout(() => {
                                         console.log('📸 [DEBUG] Now showing FaceCropScreen');
                                         setShowFaceCropForAdditional(true);
-                                      }, 350); // Wait for modal animation to complete
+                                      }, 500); // Increased to 500ms to ensure modal is fully gone
                                     }
                                   } else {
                                     Alert.alert('Permission Needed', 'Please allow camera access.');
@@ -3978,7 +3978,7 @@ const StyleVaultScreen = () => {
                                       setTimeout(() => {
                                         console.log('📸 [DEBUG] Now showing FaceCropScreen');
                                         setShowFaceCropForAdditional(true);
-                                      }, 350); // Wait for modal animation to complete
+                                      }, 500); // Increased to 500ms to ensure modal is fully gone
                                     }
                                   } else {
                                     Alert.alert('Permission Needed', 'Please allow photo library access.');
