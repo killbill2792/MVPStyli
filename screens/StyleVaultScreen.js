@@ -868,7 +868,7 @@ const StyleVaultScreen = () => {
       if (user?.id) {
         // Only show loading if we don't already have color profile from app startup
         if (!colorProfile) {
-          setIsLoadingProfile(true);
+        setIsLoadingProfile(true);
         }
         try {
           // Load critical profile data first (parallel)
@@ -2263,7 +2263,7 @@ const StyleVaultScreen = () => {
           </View>
 
           {/* Your Colors - Redesigned to match image */}
-          <View style={styles.colorSectionNew}>
+            <View style={styles.colorSectionNew}>
             {/* Show content immediately if we have colorProfile, regardless of loading state */}
             {/* Loading state - only show if truly loading with no data */}
             {!colorProfile && isLoadingProfile && !faceImage && !isAnalyzingFace ? (
@@ -2300,7 +2300,7 @@ const StyleVaultScreen = () => {
                   {/* Top Title: Your Colors + Quick Check Button */}
                   <View style={styles.colorTopSection}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Text style={styles.colorMainTitle}>🎨 Your Colors</Text>
+                    <Text style={styles.colorMainTitle}>🎨 Your Colors</Text>
                       <Pressable
                         style={styles.quickColorCheckBtn}
                         onPress={() => setShowQuickColorCheck(true)}
@@ -2332,12 +2332,12 @@ const StyleVaultScreen = () => {
                             </View>
                           ) : faceImage ? (
                             <View style={{ position: 'relative' }}>
-                              <View style={styles.faceThumbnailNew}>
-                                <OptimizedImage 
-                                  source={{ uri: faceImage }} 
-                                  style={styles.faceThumbnailImage}
-                                  onError={() => setFaceImage(null)}
-                                />
+                            <View style={styles.faceThumbnailNew}>
+                              <OptimizedImage 
+                                source={{ uri: faceImage }} 
+                                style={styles.faceThumbnailImage}
+                                onError={() => setFaceImage(null)}
+                              />
                               </View>
                               {/* Edit Icon */}
                               <Pressable
@@ -2364,7 +2364,7 @@ const StyleVaultScreen = () => {
                         <Text style={styles.colorNoteText}>
                           <Text style={styles.colorNoteTextRed}>This is a suggested season. </Text>
                           <Text>Want more accurate results?</Text>
-                        </Text>
+                    </Text>
                         <Pressable
                           style={styles.improveAccuracyBtn}
                           onPress={() => setShowMultiPhotoModal(true)}
@@ -2486,7 +2486,7 @@ const StyleVaultScreen = () => {
                             <View style={[styles.colorCategoryCard, { backgroundColor: bgColor }]}>
                               {/* Category heading with See Secondary Colors button */}
                               <View style={styles.colorCategoryHeader}>
-                                <Text style={styles.colorCategoryNameNeutrals}>Neutrals</Text>
+                              <Text style={styles.colorCategoryNameNeutrals}>Neutrals</Text>
                                 <Pressable onPress={() => toggleSecondaryColors('neutrals')}>
                                   <Text style={styles.secondaryColorsBtn}>
                                     {showSecondaryColors.neutrals ? 'Hide Secondary' : 'Show Secondary Colors'}
@@ -2504,8 +2504,8 @@ const StyleVaultScreen = () => {
                                     <View style={[styles.swatchDot, { backgroundColor: color.hex }]} />
                                     <Text style={styles.swatchName} numberOfLines={2}>
                                       {color.name}
-                                    </Text>
-                                  </View>
+                          </Text>
+                        </View>
                                 ))}
                               </ScrollView>
                               {/* Secondary colors - shown in rows when expanded */}
@@ -2524,7 +2524,7 @@ const StyleVaultScreen = () => {
                                           <Text style={[styles.swatchName, styles.swatchNameSecondary]} numberOfLines={2}>
                                             {color.name}
                                           </Text>
-                                        </View>
+                              </View>
                                       ))}
                                     </ScrollView>
                                   ))}
@@ -2598,7 +2598,7 @@ const StyleVaultScreen = () => {
                           return (
                             <View style={[styles.colorCategoryCard, { backgroundColor: bgColor }]}>
                               <View style={styles.colorCategoryHeader}>
-                                <Text style={styles.colorCategoryName}>Accents</Text>
+                              <Text style={styles.colorCategoryName}>Accents</Text>
                                 <Pressable onPress={() => toggleSecondaryColors('accents')}>
                                   <Text style={styles.secondaryColorsBtn}>
                                     {showSecondaryColors.accents ? 'Hide Secondary' : 'Show Secondary Colors'}
@@ -2616,7 +2616,7 @@ const StyleVaultScreen = () => {
                                     <View style={[styles.swatchDot, { backgroundColor: color.hex }]} />
                                     <Text style={styles.swatchName} numberOfLines={2}>
                                       {color.name}
-                                    </Text>
+                          </Text>
                                   </View>
                                 ))}
                               </ScrollView>
@@ -2636,7 +2636,7 @@ const StyleVaultScreen = () => {
                                           <Text style={[styles.swatchName, styles.swatchNameSecondary]} numberOfLines={2}>
                                             {color.name}
                                           </Text>
-                                        </View>
+                              </View>
                                       ))}
                                     </ScrollView>
                                   ))}
@@ -2707,7 +2707,7 @@ const StyleVaultScreen = () => {
                           return (
                             <View style={[styles.colorCategoryCard, { backgroundColor: bgColor }]}>
                               <View style={styles.colorCategoryHeader}>
-                                <Text style={styles.colorCategoryName}>Brights</Text>
+                              <Text style={styles.colorCategoryName}>Brights</Text>
                                 <Pressable onPress={() => toggleSecondaryColors('brights')}>
                                   <Text style={styles.secondaryColorsBtn}>
                                     {showSecondaryColors.brights ? 'Hide Secondary' : 'Show Secondary Colors'}
@@ -2725,7 +2725,7 @@ const StyleVaultScreen = () => {
                                     <View style={[styles.swatchDot, { backgroundColor: color.hex }]} />
                                     <Text style={styles.swatchName} numberOfLines={2}>
                                       {color.name}
-                                    </Text>
+                    </Text>
                                   </View>
                                 ))}
                               </ScrollView>
@@ -2745,7 +2745,7 @@ const StyleVaultScreen = () => {
                                           <Text style={[styles.swatchName, styles.swatchNameSecondary]} numberOfLines={2}>
                                             {color.name}
                                           </Text>
-                                        </View>
+                              </View>
                                       ))}
                                     </ScrollView>
                                   ))}
@@ -2816,7 +2816,7 @@ const StyleVaultScreen = () => {
                           return (
                             <View style={[styles.colorCategoryCard, { marginBottom: 0, backgroundColor: bgColor }]}>
                               <View style={styles.colorCategoryHeader}>
-                                <Text style={styles.colorCategoryName}>Softs</Text>
+                              <Text style={styles.colorCategoryName}>Softs</Text>
                                 <Pressable onPress={() => toggleSecondaryColors('softs')}>
                                   <Text style={styles.secondaryColorsBtn}>
                                     {showSecondaryColors.softs ? 'Hide Secondary' : 'Show Secondary Colors'}
@@ -2835,8 +2835,8 @@ const StyleVaultScreen = () => {
                                     <Text style={styles.swatchName} numberOfLines={2}>
                                       {color.name}
                                     </Text>
-                                  </View>
-                                ))}
+                </View>
+                  ))}
                               </ScrollView>
                               {/* Secondary colors - shown in rows when expanded */}
                               {showSecondaryColors.softs && secondarySoftsGrouped.length > 0 && (
@@ -2854,7 +2854,7 @@ const StyleVaultScreen = () => {
                                           <Text style={[styles.swatchName, styles.swatchNameSecondary]} numberOfLines={2}>
                                             {color.name}
                                           </Text>
-                                        </View>
+                </View>
                                       ))}
                                     </ScrollView>
                                   ))}
@@ -2922,7 +2922,7 @@ const StyleVaultScreen = () => {
                 </>
               ) : null}
             </View>
-          </View>
+        </View>
 
         {/* SECTION 3: FIT PROFILE (Summary Card) */}
         <View style={styles.fitProfileSummaryCard}>
@@ -2935,17 +2935,17 @@ const StyleVaultScreen = () => {
                 <Pressable onPress={() => setShowBodyPhotoGuidelines(true)}>
                   {bodyImage ? (
                     <View style={{ position: 'relative' }}>
-                      <View style={styles.fitProfilePhotoThumbnail}>
-                        <OptimizedImage 
-                          source={{ uri: bodyImage }} 
-                          style={styles.fitProfilePhotoImage}
-                          onError={() => setBodyImage(null)}
-                        />
-                        {isUploadingBodyPhoto && (
-                          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' }}>
-                            <ActivityIndicator size="large" color="#6366f1" />
-                          </View>
-                        )}
+                    <View style={styles.fitProfilePhotoThumbnail}>
+                      <OptimizedImage 
+                        source={{ uri: bodyImage }} 
+                        style={styles.fitProfilePhotoImage}
+                        onError={() => setBodyImage(null)}
+                      />
+                      {isUploadingBodyPhoto && (
+                        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' }}>
+                          <ActivityIndicator size="large" color="#6366f1" />
+                        </View>
+                      )}
                       </View>
                       {/* Edit Icon */}
                       <Pressable
@@ -4062,11 +4062,18 @@ const StyleVaultScreen = () => {
                     const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL;
                     const results = [];
                     
+                    // Define all photos to analyze: original face + 2 additional photos
+                    const allPhotos = [
+                      faceImage,           // Photo 0: Original face photo
+                      additionalPhotos[0], // Photo 1: First additional photo
+                      additionalPhotos[1]  // Photo 2: Second additional photo
+                    ];
+                    
                     // Analyze each photo
                     // Photo 0 = original faceImage, Photos 1-2 = additionalPhotos
                     for (let i = 0; i < allPhotos.length; i++) {
                       try {
-                        let requestBody: any = {};
+                        let requestBody = {};
                         
                         if (i === 0) {
                           // Original face photo - use existing method (may have cropInfo from original upload)
@@ -4203,6 +4210,10 @@ const StyleVaultScreen = () => {
                       }
                       
                       showBanner(`Analysis complete! Season: ${winnerSeason} (${Math.round(boostedConfidence * 100)}% confidence)`, 'success');
+                      // Close modal after successful analysis
+                      setTimeout(() => {
+                        setShowMultiPhotoModal(false);
+                      }, 2000); // Give user time to see the success message
                     } else {
                       Alert.alert('Analysis Failed', 'Could not analyze enough photos. Please try again.');
                     }
@@ -4211,6 +4222,7 @@ const StyleVaultScreen = () => {
                     Alert.alert('Error', 'Failed to analyze photos. Please try again.');
                   } finally {
                     setIsAnalyzingMultiPhoto(false);
+                    // Don't close modal here - keep it open to show results or allow retry
                   }
                 }}
               >

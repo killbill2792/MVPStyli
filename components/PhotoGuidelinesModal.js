@@ -61,10 +61,10 @@ const PhotoGuidelinesModal = ({ visible, type, onClose, onContinue }) => {
         <View style={styles.modalContainer}>
           {/* No X close button - Apple guideline compliance */}
 
-          {/* Title */}
-          <Text style={styles.title}>
+            {/* Title */}
+            <Text style={styles.title}>
             {isBodyPhoto ? 'Upload a Body Photo' : 'Upload a Face Photo'}
-          </Text>
+            </Text>
 
           {/* Good Examples Section */}
           <View style={styles.section}>
@@ -78,7 +78,7 @@ const PhotoGuidelinesModal = ({ visible, type, onClose, onContinue }) => {
                   </View>
                   <View style={[styles.imageContainer, styles.goodImageContainer]}>
                     <Image source={bodyGood2} style={styles.guideImage} resizeMode="cover" />
-                  </View>
+                </View>
                 </>
               ) : (
                 <View style={[styles.singleImageContainer, styles.goodImageContainer]}>
@@ -86,7 +86,7 @@ const PhotoGuidelinesModal = ({ visible, type, onClose, onContinue }) => {
                 </View>
               )}
             </View>
-            
+
             <View style={styles.tagsContainer}>
               {goodTips.map((tip, index) => (
                 <TagChip key={index} label={tip} isGood={true} />
@@ -95,7 +95,7 @@ const PhotoGuidelinesModal = ({ visible, type, onClose, onContinue }) => {
           </View>
 
           {/* Bad Examples Section */}
-          <View style={styles.section}>
+            <View style={styles.section}>
             <Text style={styles.badTitle}>✕ Avoid</Text>
             
             <View style={[styles.imageRow, !isBodyPhoto && styles.imageRowCentered]}>
@@ -106,7 +106,7 @@ const PhotoGuidelinesModal = ({ visible, type, onClose, onContinue }) => {
                   </View>
                   <View style={[styles.imageContainer, styles.badImageContainer]}>
                     <Image source={bodyBad2} style={styles.guideImage} resizeMode="cover" />
-                  </View>
+                </View>
                 </>
               ) : (
                 <View style={[styles.singleImageContainer, styles.badImageContainer]}>
@@ -114,7 +114,7 @@ const PhotoGuidelinesModal = ({ visible, type, onClose, onContinue }) => {
                 </View>
               )}
             </View>
-            
+
             <View style={styles.tagsContainer}>
               {badTips.map((tip, index) => (
                 <TagChip key={index} label={tip} isGood={false} />

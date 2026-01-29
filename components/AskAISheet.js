@@ -123,7 +123,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
   const colorPickerApiInProgress = useRef(false);
   const imageLayoutRef = useRef({ width: 0, height: 0, x: 0, y: 0 });
   const imageNaturalSizeRef = useRef({ width: 0, height: 0 });
-
+  
   // Convert touch coordinates to image pixel coordinates (accounts for resizeMode: contain letterboxing)
   const convertTouchToImageCoords = (touchX, touchY) => {
     const layout = imageLayoutRef.current;
@@ -237,8 +237,8 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
       },
       onPanResponderGrant: async (evt) => {
         if (!showColorPickerRef.current) {
-          return;
-        }
+      return;
+    }
         const { locationX, locationY } = evt.nativeEvent;
         updateTouch(locationX, locationY);
         // Initial sample on touch
@@ -279,8 +279,8 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
     if (!showColorPicker) return;
     const { locationX, locationY } = event.nativeEvent;
     updateTouch(locationX, locationY);
-  }; 
-
+  };
+  
   // Pick color at coordinates - called only on release
   const pickColorAtCoordinates = async (touchX, touchY) => {
     // Try to get image URL from multiple sources
@@ -339,7 +339,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
           
           return { 
             hex, 
-            rgb: { r, g, b }, 
+            rgb: { r, g, b },
             name: colorName,
             serverSampled,
             serverDisplayCoords,
@@ -691,7 +691,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         // Load insights immediately if we already have color or no image
         // Use a small delay to prevent double refresh
         setTimeout(() => {
-          loadInsights();
+      loadInsights();
         }, 100);
       }
     } else {
@@ -782,7 +782,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         }
         // Priority 4: Load from database
         else {
-          colorProfile = await loadColorProfile(user.id);
+        colorProfile = await loadColorProfile(user.id);
           if (colorProfile) {
             setColorProfileState(colorProfile);
             colorProfileRef.current = colorProfile;
@@ -874,7 +874,7 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
         inseamIn: getNumericValue(userProfileData?.inseam_in) ?? getNumericValue(userProfileData?.inseam),
         gender: userProfileData?.gender || null,
       };
-      
+
       // Build product info with URL for caching
       const productInfo = {
         name: productToUse?.name || 'Item',
@@ -2624,20 +2624,20 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                 <View style={{ flex: 1, position: 'relative' }}>
                   {/* Image - behind the touch layer */}
                   <View style={{ flex: 1 }}>
-                    <OptimizedImage
-                      source={{ uri: originalProductImage.current || product?.image }}
-                      style={{ 
-                        width: '100%', 
-                        flex: 1,
-                        minHeight: 500,
+                        <OptimizedImage
+                          source={{ uri: originalProductImage.current || product?.image }}
+                          style={{ 
+                            width: '100%', 
+                            flex: 1,
+                            minHeight: 500,
                       }}
                       resizeMode="contain"
                       pointerEvents="none"
-                      onLoad={(event) => {
-                        const { width, height } = event.nativeEvent.source;
+                          onLoad={(event) => {
+                            const { width, height } = event.nativeEvent.source;
                         imageNaturalSizeRef.current = { width, height };
-                      }}
-                    />
+                          }}
+                        />
                   </View>
                   
                   {/* Touch handler - Pressable for reliable touch detection */}
@@ -2660,53 +2660,53 @@ const AskAISheet = ({ visible, onClose, product: initialProduct, selectedSize = 
                         
                   {/* Color picker cursor - circle showing exact pick location */}
                   {/* Rendered outside PanResponder View to prevent clipping, but uses same coordinates */}
-                  {pickerTouchPosition && (
-                    <View
-                      style={[
+                        {pickerTouchPosition && (
+                          <View
+                            style={[
                         styles.colorPickerCursorBox,
-                        {
+                              {
                           position: 'absolute',
                           left: pickerTouchPosition.x - 15,
                           top: pickerTouchPosition.y - 15,
                           opacity: 1,
                           zIndex: 1000,
-                        }
-                      ]}
-                      pointerEvents="none"
-                    >
+                              }
+                            ]}
+                            pointerEvents="none"
+                          >
                       <View style={styles.colorPickerCursorOuter} />
                       <View style={styles.colorPickerCursorInner} />
                       <View style={styles.colorPickerCursorCenter} />
-                    </View>
-                  )}
-                  
-                  {/* Magnifier/Loupe above finger - shows zoomed view */}
+                          </View>
+                        )}
+                        
+                        {/* Magnifier/Loupe above finger - shows zoomed view */}
                   {pickerTouchPosition && (
-                    <View
-                      style={[
-                        styles.magnifier,
-                        {
+                          <View
+                            style={[
+                              styles.magnifier,
+                              {
                           position: 'absolute',
                           left: Math.max(10, Math.min(pickerTouchPosition.x - 60, width - 130)),
                           top: Math.max(10, pickerTouchPosition.y - 140),
                           opacity: 1,
                           zIndex: 1001,
-                        }
-                      ]}
+                              }
+                            ]}
                       pointerEvents="none"
-                    >
-                      <View style={styles.magnifierContent}>
+                          >
+                            <View style={styles.magnifierContent}>
                         {isSamplingColor ? (
                           <ActivityIndicator size="small" color="#fff" />
                         ) : livePickedColor ? (
                           <>
-                            <View style={[styles.magnifierColorSwatch, { backgroundColor: livePickedColor.hex }]} />
-                            <Text style={styles.magnifierText}>
-                              {livePickedColor.hex.toUpperCase()}
-                            </Text>
-                            <Text style={styles.magnifierTextSmall}>
+                              <View style={[styles.magnifierColorSwatch, { backgroundColor: livePickedColor.hex }]} />
+                              <Text style={styles.magnifierText}>
+                                {livePickedColor.hex.toUpperCase()}
+                              </Text>
+                              <Text style={styles.magnifierTextSmall}>
                               {livePickedColor.name}
-                            </Text>
+                              </Text>
                           </>
                         ) : (
                           <View style={{ alignItems: 'center' }}>

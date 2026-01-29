@@ -2009,12 +2009,12 @@ const AdminGarmentsScreen = ({ onBack }) => {
                             style={{
                               width: 28,
                               height: 28,
-                              borderRadius: 4,
-                              borderWidth: 2,
-                              borderColor: isSelected ? Colors.primary : Colors.border,
-                              backgroundColor: isSelected ? Colors.primary : 'transparent',
-                              justifyContent: 'center',
-                              alignItems: 'center',
+                            borderRadius: 4,
+                            borderWidth: 2,
+                            borderColor: isSelected ? Colors.primary : Colors.border,
+                            backgroundColor: isSelected ? Colors.primary : 'transparent',
+                            justifyContent: 'center',
+                            alignItems: 'center',
                               marginRight: 6
                             }}
                             onPress={() => {
@@ -2085,7 +2085,7 @@ const AdminGarmentsScreen = ({ onBack }) => {
                             }}
                           >
                             <Text style={{ color: Colors.error, fontSize: 18 }}>✕</Text>
-                          </Pressable>
+                        </Pressable>
                         </View>
                       );
                     })}

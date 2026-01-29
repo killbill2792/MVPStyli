@@ -60,6 +60,6 @@ export default async (req: VercelRequest, res: VercelResponse) => {
     return res.status(200).json({ status: rr.status });
   } catch (e: any) {
     console.error('Polling error:', e);
-    return res.status(500).json({ error: e?.message || 'server_error' });
+    return res.status(500).json({ error: e?.message || 'server_error' }); 
   }
 };
