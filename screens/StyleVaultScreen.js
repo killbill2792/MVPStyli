@@ -360,6 +360,18 @@ const StyleVaultScreen = () => {
   const [pendingImageUri, setPendingImageUri] = useState(null); // Store imageUri for FaceCropScreen
   const [isAnalyzingMultiPhoto, setIsAnalyzingMultiPhoto] = useState(false);
   const [multiPhotoResults, setMultiPhotoResults] = useState(null);
+  
+  // Auto-show FaceCropScreen when pendingImageUri and index are set
+  useEffect(() => {
+    if (pendingImageUri && additionalPhotoIndexToCrop !== null && !showFaceCropForAdditional) {
+      console.log('📸 [DEBUG] Auto-showing FaceCropScreen:', { pendingImageUri, additionalPhotoIndexToCrop });
+      // Use setTimeout to ensure modal transition completes
+      const timer = setTimeout(() => {
+        setShowFaceCropForAdditional(true);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [pendingImageUri, additionalPhotoIndexToCrop, showFaceCropForAdditional]);
   const [isColorDetailsExpanded, setIsColorDetailsExpanded] = useState(false); // Collapsible color profile details
   const [colorProducts, setColorProducts] = useState([]); // Products matching user's colors
   const [isLoadingColorProducts, setIsLoadingColorProducts] = useState(false); // Loading state for color products
@@ -3923,17 +3935,16 @@ const StyleVaultScreen = () => {
                                     });
                                     if (!result.canceled && result.assets?.[0]?.uri) {
                                       const selectedImageUri = result.assets[0].uri;
+                                      console.log('📸 [DEBUG] Camera photo selected:', selectedImageUri);
                                       // Store the image in state
                                       const newPhotos = [...additionalPhotos];
                                       newPhotos[index] = selectedImageUri;
                                       setAdditionalPhotos(newPhotos);
-                                      // Store imageUri in state (triggers re-render)
-                                      setPendingImageUri(selectedImageUri);
-                                      // Set index and show FaceCropScreen
-                                      setAdditionalPhotoIndexToCrop(index);
-                                      // Close multi-photo modal and show FaceCropScreen
+                                      // Close multi-photo modal first
                                       setShowMultiPhotoModal(false);
-                                      setShowFaceCropForAdditional(true);
+                                      // Set pending image and index - useEffect will show FaceCropScreen
+                                      setPendingImageUri(selectedImageUri);
+                                      setAdditionalPhotoIndexToCrop(index);
                                     }
                                   } else {
                                     Alert.alert('Permission Needed', 'Please allow camera access.');
@@ -3952,17 +3963,16 @@ const StyleVaultScreen = () => {
                                     });
                                     if (!result.canceled && result.assets?.[0]?.uri) {
                                       const selectedImageUri = result.assets[0].uri;
+                                      console.log('📸 [DEBUG] Gallery photo selected:', selectedImageUri);
                                       // Store the image in state
                                       const newPhotos = [...additionalPhotos];
                                       newPhotos[index] = selectedImageUri;
                                       setAdditionalPhotos(newPhotos);
-                                      // Store imageUri in state (triggers re-render)
-                                      setPendingImageUri(selectedImageUri);
-                                      // Set index and show FaceCropScreen
-                                      setAdditionalPhotoIndexToCrop(index);
-                                      // Close multi-photo modal and show FaceCropScreen
+                                      // Close multi-photo modal first
                                       setShowMultiPhotoModal(false);
-                                      setShowFaceCropForAdditional(true);
+                                      // Set pending image and index - useEffect will show FaceCropScreen
+                                      setPendingImageUri(selectedImageUri);
+                                      setAdditionalPhotoIndexToCrop(index);
                                     }
                                   } else {
                                     Alert.alert('Permission Needed', 'Please allow photo library access.');
