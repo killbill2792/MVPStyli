@@ -65,19 +65,21 @@ type CropInfo = {
 };
 
 type ApiResponse = {
-  rgb: { r: number; g: number; b: number };
-  hex: string;
-  lab: { L: number; a: number; b: number };
-  undertone: "warm" | "cool" | "neutral";
-  depth: "light" | "medium" | "deep";
-  clarity: "muted" | "clear" | "vivid";
-  season: "spring" | "summer" | "autumn" | "winter";
-  confidence: number;
-  seasonConfidence: number;
-  needsConfirmation: boolean;
+  rgb?: { r: number; g: number; b: number };
+  hex?: string;
+  lab?: { L: number; a: number; b: number };
+  undertone?: "warm" | "cool" | "neutral";
+  depth?: "light" | "medium" | "deep";
+  clarity?: "muted" | "clear" | "vivid";
+  season?: "spring" | "summer" | "autumn" | "winter";
+  confidence?: number;
+  seasonConfidence?: number;
+  needsConfirmation?: boolean;
   seasonCandidates?: Array<{ season: string; score: number; reason?: string }>;
   qualityMessages?: string[];
   microSeason?: string | null;
+  error?: string;
+  message?: string;
 
   quality?: {
     issues: string[];
@@ -96,7 +98,7 @@ export async function analyzeFaceForColorProfileFromCroppedImage(
   imageUri: string,
   cropInfo: { x: number; y: number; width: number; height: number; imageWidth: number; imageHeight: number },
   uploadFn: (uri: string) => Promise<string>
-): Promise<{ profile: ExtendedColorProfile | null; uploadedUrl: string | null; qualityMessages?: string[] }> {
+): Promise<{ profile: ExtendedColorProfile | null; uploadedUrl: string | null; qualityMessages?: string[]; error?: string }> {
   try {
     const uploadedUrl = await uploadFn(imageUri);
 
@@ -113,14 +115,51 @@ export async function analyzeFaceForColorProfileFromCroppedImage(
 
     if (!response.ok) {
       const text = await response.text();
-      console.error('Skin tone API error', response.status, text);
-      return { profile: null, uploadedUrl: null };
+      let errorMessage = 'Failed to analyze photo';
+      try {
+        const errorData = JSON.parse(text);
+        if (errorData.error) {
+          // Map API error codes to user-friendly messages
+          switch (errorData.error) {
+            case 'LOW_QUALITY_SAMPLES':
+              errorMessage = 'Photo quality too low. Please try:\n\n• Daylight near a window\n• Avoid shadows\n• No filters\n• Clear face visibility';
+              break;
+            case 'INVALID_CROP_BOX':
+            case 'FACE_NOT_DETECTED':
+              errorMessage = 'No face detected. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible';
+              break;
+            default:
+              errorMessage = errorData.message || errorData.error || 'Failed to analyze photo';
+          }
+        }
+      } catch (e) {
+        // If parsing fails, use the raw text or default message
+        errorMessage = text || 'Failed to analyze photo';
+      }
+      return { profile: null, uploadedUrl: null, error: errorMessage };
     }
 
     const analysis = await response.json();
 
+    // Check if API returned an error even with 200 status
+    if (analysis.error) {
+      let errorMessage = 'Failed to analyze photo';
+      switch (analysis.error) {
+        case 'LOW_QUALITY_SAMPLES':
+          errorMessage = 'Photo quality too low. Please try:\n\n• Daylight near a window\n• Avoid shadows\n• No filters\n• Clear face visibility';
+          break;
+        case 'INVALID_CROP_BOX':
+        case 'FACE_NOT_DETECTED':
+          errorMessage = 'No face detected. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible';
+          break;
+        default:
+          errorMessage = analysis.message || analysis.error || 'Failed to analyze photo';
+      }
+      return { profile: null, uploadedUrl: null, error: errorMessage };
+    }
+
     if (!analysis?.season || !analysis?.undertone) {
-      return { profile: null, uploadedUrl: null };
+      return { profile: null, uploadedUrl: null, error: 'Could not determine color season. Please try a different photo.' };
     }
 
     const seasonData = COLOR_SEASONS[analysis.season as keyof typeof COLOR_SEASONS] ?? null;
@@ -146,14 +185,14 @@ export async function analyzeFaceForColorProfileFromCroppedImage(
     return { profile, uploadedUrl, qualityMessages: analysis.qualityMessages };
   } catch (e) {
     console.error('analyzeFaceForColorProfileFromCroppedImage failed', e);
-    return { profile: null, uploadedUrl: null };
+    return { profile: null, uploadedUrl: null, error: `Analysis failed: ${e instanceof Error ? e.message : 'Unknown error'}` };
   }
 }
 
 export async function analyzeFaceForColorProfileFromLocalUri(
   localUri: string,
   uploadFn: (uri: string) => Promise<string>
-): Promise<{ profile: ExtendedColorProfile | null; uploadedUrl: string | null; qualityMessages?: string[]; qualitySeverity?: "none" | "soft" | "hard" }> {
+): Promise<{ profile: ExtendedColorProfile | null; uploadedUrl: string | null; qualityMessages?: string[]; qualitySeverity?: "none" | "soft" | "hard"; error?: string }> {
   try {
     const uploadedUrl = await uploadFn(localUri);
 
@@ -166,14 +205,49 @@ export async function analyzeFaceForColorProfileFromLocalUri(
 
     if (!res.ok) {
       const txt = await res.text();
-      console.error("Skin tone API error:", res.status, txt);
-      return { profile: null, uploadedUrl };
+      let errorMessage = 'Failed to analyze photo';
+      try {
+        const errorData = JSON.parse(txt);
+        if (errorData.error) {
+          switch (errorData.error) {
+            case 'LOW_QUALITY_SAMPLES':
+              errorMessage = 'Photo quality too low. Please try:\n\n• Daylight near a window\n• Avoid shadows\n• No filters\n• Clear face visibility';
+              break;
+            case 'INVALID_CROP_BOX':
+            case 'FACE_NOT_DETECTED':
+              errorMessage = 'No face detected. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible';
+              break;
+            default:
+              errorMessage = errorData.message || errorData.error || 'Failed to analyze photo';
+          }
+        }
+      } catch (e) {
+        errorMessage = txt || 'Failed to analyze photo';
+      }
+      return { profile: null, uploadedUrl, error: errorMessage };
     }
 
     const analysis = (await res.json()) as ApiResponse;
 
+    // Check if API returned an error even with 200 status
+    if (analysis.error) {
+      let errorMessage = 'Failed to analyze photo';
+      switch (analysis.error) {
+        case 'LOW_QUALITY_SAMPLES':
+          errorMessage = 'Photo quality too low. Please try:\n\n• Daylight near a window\n• Avoid shadows\n• No filters\n• Clear face visibility';
+          break;
+        case 'INVALID_CROP_BOX':
+        case 'FACE_NOT_DETECTED':
+          errorMessage = 'No face detected. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible';
+          break;
+        default:
+          errorMessage = analysis.message || analysis.error || 'Failed to analyze photo';
+      }
+      return { profile: null, uploadedUrl, error: errorMessage };
+    }
+
     if (!analysis?.undertone || !analysis?.season) {
-      return { profile: null, uploadedUrl };
+      return { profile: null, uploadedUrl, error: 'Could not determine color season. Please try a different photo.' };
     }
 
     const seasonData = COLOR_SEASONS[analysis.season];
@@ -326,34 +400,34 @@ export async function loadColorProfile(userId: string): Promise<ColorProfile | E
     }
 
     // If no data (new user without profile) or no color_season/color_tone, return null
-    if (!data || (!data.color_season && !data.color_tone)) {
+    if (!data || (!(data as any).color_season && !(data as any).color_tone)) {
       return null;
     }
 
     const profile: any = {
-      tone: data.color_tone || "neutral",
-      depth: data.color_depth || "medium",
-      season: data.color_season,
-      bestColors: data.best_colors || [],
-      avoidColors: data.avoid_colors || [],
-      description: getSeasonProfile(data.color_season).description,
-      confidence: data.skin_tone_confidence || null,
-      seasonConfidence: data.skin_tone_confidence || null,
+      tone: (data as any).color_tone || "neutral",
+      depth: (data as any).color_depth || "medium",
+      season: (data as any).color_season,
+      bestColors: (data as any).best_colors || [],
+      avoidColors: (data as any).avoid_colors || [],
+      description: getSeasonProfile((data as any).color_season).description,
+      confidence: (data as any).skin_tone_confidence || null,
+      seasonConfidence: (data as any).skin_tone_confidence || null,
     };
 
     // Add optional fields if present
-    if (data.skin_tone_confidence !== null && data.skin_tone_confidence !== undefined) {
-      profile.confidence = data.skin_tone_confidence;
+    if ((data as any).skin_tone_confidence !== null && (data as any).skin_tone_confidence !== undefined) {
+      profile.confidence = (data as any).skin_tone_confidence;
     }
-    if (data.skin_hex) {
-      profile.skinHex = data.skin_hex;
+    if ((data as any).skin_hex) {
+      profile.skinHex = (data as any).skin_hex;
     }
     // Load clarity and microSeason (new columns)
-    if (data.color_clarity) {
-      profile.clarity = data.color_clarity;
+    if ((data as any).color_clarity) {
+      profile.clarity = (data as any).color_clarity;
     }
-    if (data.micro_season) {
-      profile.microSeason = data.micro_season;
+    if ((data as any).micro_season) {
+      profile.microSeason = (data as any).micro_season;
     }
     // Try to load seasonConfidence from color_profile JSON field if available
     // This is a separate query to avoid errors if column doesn't exist

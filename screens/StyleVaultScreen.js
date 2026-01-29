@@ -958,46 +958,58 @@ const StyleVaultScreen = () => {
       let profile, uploadedUrl, qualityMessages;
       
       // Analyze using image with crop coordinates (preferred method - server does cropping)
+      let result;
       if (cropInfo) {
-        const result = await analyzeFaceForColorProfileFromCroppedImage(
+        result = await analyzeFaceForColorProfileFromCroppedImage(
           imageUri,
           cropInfo,
           uploadImageAsync
         );
-        profile = result.profile;
-        uploadedUrl = result.uploadedUrl;
-        qualityMessages = result.qualityMessages;
       } else {
         // Fallback: use old method if no crop info
-        const result = await analyzeFaceForColorProfileFromLocalUri(imageUri, uploadImageAsync);
-        profile = result.profile;
-        uploadedUrl = result.uploadedUrl;
-        qualityMessages = undefined;
+        result = await analyzeFaceForColorProfileFromLocalUri(imageUri, uploadImageAsync);
+      }
+      
+      // Check for errors in the result
+      if (result.error) {
+        setIsAnalyzingFace(false);
+        setFaceAnalysisError(result.error);
+        Alert.alert(
+          'Analysis Failed',
+          result.error,
+          [{ text: 'OK' }]
+        );
+        showBanner('✕ ' + result.error.split('\n')[0], 'error');
+        return;
+      }
+      
+      profile = result.profile;
+      uploadedUrl = result.uploadedUrl;
+      qualityMessages = result.qualityMessages;
+                  
+      setIsAnalyzingFace(false);
+                  
+      if (uploadedUrl && user?.id) {
+        const { error: faceUpdateError } = await supabase.from('profiles').update({ face_image_url: uploadedUrl }).eq('id', user.id);
+        if (faceUpdateError) {
+          // If profile doesn't exist, create it
+          if (faceUpdateError.code === 'PGRST116' || faceUpdateError.message?.includes('0 rows')) {
+            const { error: upsertError } = await supabase.from('profiles').upsert({
+              id: user.id,
+              face_image_url: uploadedUrl,
+              email: user.email,
+            });
+          }
+        }
+        setFaceImage(uploadedUrl);
+        if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
       }
                   
-                  setIsAnalyzingFace(false);
-                  
-                  if (uploadedUrl && user?.id) {
-                    const { error: faceUpdateError } = await supabase.from('profiles').update({ face_image_url: uploadedUrl }).eq('id', user.id);
-                    if (faceUpdateError) {
-                      // If profile doesn't exist, create it
-                      if (faceUpdateError.code === 'PGRST116' || faceUpdateError.message?.includes('0 rows')) {
-                        const { error: upsertError } = await supabase.from('profiles').upsert({
-                          id: user.id,
-                          face_image_url: uploadedUrl,
-                          email: user.email,
-                        });
-                      }
-                    }
-                    setFaceImage(uploadedUrl);
-                    if (setUser) setUser(prev => ({ ...prev, face_image_url: uploadedUrl }));
-                  }
-                  
-                  if (profile && user?.id) {
-                    await saveColorProfile(user.id, profile);
-                    setColorProfile(profile);
-                    // Update user object so FitCheck can access the color profile
-                    if (setUser) setUser(prev => ({ ...prev, colorProfile: profile }));
+      if (profile && user?.id) {
+        await saveColorProfile(user.id, profile);
+        setColorProfile(profile);
+        // Update user object so FitCheck can access the color profile
+        if (setUser) setUser(prev => ({ ...prev, colorProfile: profile }));
         setFaceAnalysisError(null);
         
         const seasonConfidencePercent = profile.seasonConfidence ? Math.round(profile.seasonConfidence * 100) : 0;
@@ -1011,28 +1023,28 @@ const StyleVaultScreen = () => {
           );
         }
                     
-                    if (profile.season) {
-                      showBanner(
+        if (profile.season) {
+          showBanner(
             `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth • Suggested: ${profile.season} (${seasonConfidencePercent}% confidence)`,
-                        'success'
-                      );
-                  } else {
-                      // Don't show confidence when no season is detected
-                      showBanner(
-                        `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth. Try a daylight selfie for season suggestion.`,
-                        'success'
-                      );
-                    }
-                  } else {
-                    setIsAnalyzingFace(false);
-                    setFaceAnalysisError('No face detected. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.');
-                    Alert.alert(
-                      'Face Detection',
-                      'We couldn\'t detect a face in this photo. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.',
-                      [{ text: 'OK' }]
-                    );
-                    showBanner('✕ No face detected. Please upload a clear face photo.', 'error');
-                  }
+            'success'
+          );
+        } else {
+          // Don't show confidence when no season is detected
+          showBanner(
+            `✓ Detected: ${profile.tone} undertone • ${profile.depth} depth. Try a daylight selfie for season suggestion.`,
+            'success'
+          );
+        }
+      } else {
+        setIsAnalyzingFace(false);
+        setFaceAnalysisError('No face detected. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.');
+        Alert.alert(
+          'Face Detection',
+          'We couldn\'t detect a face in this photo. Please try:\n\n• A clear daylight selfie\n• Good lighting\n• Face clearly visible\n\nOr choose your season manually.',
+          [{ text: 'OK' }]
+        );
+        showBanner('✕ No face detected. Please upload a clear face photo.', 'error');
+      }
                 } catch (error) {
       console.error('🎨 [FACE CROP] Error in analysis:', error);
                   setIsAnalyzingFace(false);
@@ -3784,29 +3796,23 @@ const StyleVaultScreen = () => {
         </Pressable>
         
         {/* Delete Account Section - Required by App Store */}
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 20}
-          style={{ width: '100%' }}
-        >
-          <View style={styles.deleteAccountSection}>
-            <Text style={styles.deleteAccountDescription}>
-              Permanently delete your account and all data including profile, measurements, color analysis, saved outfits, and friends list.
-            </Text>
-            <Text style={styles.deleteAccountInstruction}>
-              Type "delete" to enable account deletion:
-            </Text>
-            <TextInput
-              style={styles.deleteConfirmInput}
-              placeholder='Type "delete" to confirm'
-              placeholderTextColor="rgba(255,68,68,0.4)"
-              value={deleteConfirmText}
-              onChangeText={setDeleteConfirmText}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-          </View>
-        </KeyboardAvoidingView>
+        <View style={styles.deleteAccountSection}>
+          <Text style={styles.deleteAccountDescription}>
+            Permanently delete your account and all data including profile, measurements, color analysis, saved outfits, and friends list.
+          </Text>
+          <Text style={styles.deleteAccountInstruction}>
+            Type "delete" to enable account deletion:
+          </Text>
+          <TextInput
+            style={styles.deleteConfirmInput}
+            placeholder='Type "delete" to confirm'
+            placeholderTextColor="rgba(255,68,68,0.4)"
+            value={deleteConfirmText}
+            onChangeText={setDeleteConfirmText}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </View>
         <Pressable
           style={[
             styles.deleteAccountButton,
@@ -5647,7 +5653,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 100,
+    paddingBottom: 300, // Extra padding to ensure delete account input is visible above keyboard
   },
   header: {
     alignItems: 'center',
