@@ -291,33 +291,35 @@ export async function saveColorProfile(userId: string, profile: ColorProfile | E
       best_colors: profile.bestColors || [],
       avoid_colors: profile.avoidColors || [],
       updated_at: new Date().toISOString(),
-      skin_tone_confidence: extended.confidence ?? null,
+      // Save seasonConfidence to skin_tone_confidence column (preferred) or use confidence as fallback
+      skin_tone_confidence: extended.seasonConfidence ?? extended.confidence ?? null,
       skin_hex: extended.skinHex ?? null,
       // Save clarity and microSeason (added columns)
       color_clarity: extended.clarity ?? null,
       micro_season: extended.microSeason ?? null,
     };
     
-    // Save seasonConfidence if available - try to save to color_profile JSON field if column exists
-    // If column doesn't exist, we'll save it separately via direct update
+    // Update the database with all fields including seasonConfidence in skin_tone_confidence
+    const { error } = await supabase.from("profiles").update(updateData).eq("id", userId);
+
+    // Also save full profile including seasonConfidence to color_profile JSON field if column exists (for redundancy)
     if (extended.seasonConfidence !== undefined && extended.seasonConfidence !== null) {
       try {
-        // Try to update color_profile JSON field (may not exist in all databases)
+        // Try to update color_profile JSON field with full profile (may not exist in all databases)
+        const fullProfile = {
+          ...extended,
+          seasonConfidence: extended.seasonConfidence,
+        };
         await supabase
           .from("profiles")
           .update({ 
-            color_profile: {
-              seasonConfidence: extended.seasonConfidence,
-            }
+            color_profile: fullProfile
           })
           .eq("id", userId);
       } catch (e) {
-        // Column doesn't exist, that's okay - we'll store it in a separate way if needed
+        // Column doesn't exist, that's okay - we already saved to skin_tone_confidence
       }
     }
-
-
-    const { error } = await supabase.from("profiles").update(updateData).eq("id", userId);
 
     if (error) {
       console.error("saveColorProfile error:", error);
@@ -411,14 +413,10 @@ export async function loadColorProfile(userId: string): Promise<ColorProfile | E
       bestColors: (data as any).best_colors || [],
       avoidColors: (data as any).avoid_colors || [],
       description: getSeasonProfile((data as any).color_season).description,
+      // Load confidence from skin_tone_confidence column
       confidence: (data as any).skin_tone_confidence || null,
       seasonConfidence: (data as any).skin_tone_confidence || null,
     };
-
-    // Add optional fields if present
-    if ((data as any).skin_tone_confidence !== null && (data as any).skin_tone_confidence !== undefined) {
-      profile.confidence = (data as any).skin_tone_confidence;
-    }
     if ((data as any).skin_hex) {
       profile.skinHex = (data as any).skin_hex;
     }
