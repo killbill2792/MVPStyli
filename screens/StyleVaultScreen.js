@@ -29,6 +29,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 }
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from '../lib/SimpleGradient';
+import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../lib/AppContext';
 import { Colors, Typography, Spacing, BorderRadius, CardStyles, TextStyles } from '../lib/designSystem';
@@ -336,7 +337,10 @@ const StyleVaultScreen = () => {
   const [localPendingRequests, setLocalPendingRequests] = useState(new Set()); // Track locally pending requests for immediate UI update
   const [isUploadingBodyPhoto, setIsUploadingBodyPhoto] = useState(false); // Loading state for body photo upload
   const [isDeletingAccount, setIsDeletingAccount] = useState(false); // Loading state for account deletion
-  const [deleteConfirmText, setDeleteConfirmText] = useState(''); // Text input for delete confirmation
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false); // Modal for credentials
+  const [deleteAccountEmail, setDeleteAccountEmail] = useState(''); // Email input for deletion
+  const [deleteAccountPassword, setDeleteAccountPassword] = useState(''); // Password input for deletion
+  const [isVerifyingCredentials, setIsVerifyingCredentials] = useState(false); // Loading state for credential verification
   
   // Quick Color Check feature states
   const [showQuickColorCheck, setShowQuickColorCheck] = useState(false);
@@ -869,7 +873,7 @@ const StyleVaultScreen = () => {
             loadUserColorProfile(),
           ]);
         } catch (error) {
-          console.error('Error loading profile data:', error);
+          // Error loading profile data
         } finally {
           setIsLoadingProfile(false);
         }
@@ -1046,8 +1050,7 @@ const StyleVaultScreen = () => {
         showBanner('✕ No face detected. Please upload a clear face photo.', 'error');
       }
                 } catch (error) {
-      console.error('🎨 [FACE CROP] Error in analysis:', error);
-                  setIsAnalyzingFace(false);
+      setIsAnalyzingFace(false);
       setColorProfile(null);
                   setFaceAnalysisError(`Failed to process photo: ${error.message || 'Unknown error'}`);
                   Alert.alert('Error', `Failed to process photo: ${error.message || 'Unknown error'}`);
@@ -1190,7 +1193,6 @@ const StyleVaultScreen = () => {
 
       setColorProducts(filteredProducts);
     } catch (error) {
-      console.error('Error loading color products:', error);
       setColorProducts([]);
     } finally {
       setIsLoadingColorProducts(false);
@@ -1500,7 +1502,6 @@ const StyleVaultScreen = () => {
 
       setCategoryProducts(prev => ({ ...prev, [category]: sortedProducts.slice(0, 20) }));
     } catch (error) {
-      console.error(`Error loading ${category} products:`, error);
       setCategoryProducts(prev => ({ ...prev, [category]: [] }));
     } finally {
       setIsLoadingCategoryProducts(prev => ({ ...prev, [category]: false }));
@@ -1654,7 +1655,6 @@ const StyleVaultScreen = () => {
         setReceivedRequests([]);
       }
     } catch (error) {
-      console.error('Error loading friends:', error);
       setFriends([]);
       setSentRequests([]);
       setReceivedRequests([]);
@@ -1754,7 +1754,6 @@ const StyleVaultScreen = () => {
             
             const { error } = await supabase.from('try_on_history').delete().eq('id', item.id);
             if (error) {
-               console.error('Delete error:', error);
                if(setTryOnHistory) setTryOnHistory(prevHistory);
                showBanner('Failed to delete', 'error');
             } else {
@@ -1814,14 +1813,12 @@ const StyleVaultScreen = () => {
                         if (success) {
                             showBanner('Pod deleted', 'success');
                         } else {
-                            console.error('❌ Delete returned false');
                             showBanner('Failed to delete pod', 'error');
                         }
                         
                         // Force refresh to sync with database
                         setTimeout(() => loadPods(), 500);
                     } catch (err) {
-                        console.error('❌ Error deleting pod:', err);
                         showBanner('Failed to delete pod', 'error');
                         loadPods(); // Reload on error
                     }
@@ -2017,7 +2014,7 @@ const StyleVaultScreen = () => {
       setActivePods(trulyActive);
       setPastPods(uniquePastPods);
     } catch (error) {
-      console.error('Error loading pods:', error);
+      // Error loading pods
     }
   };
 
@@ -2176,11 +2173,17 @@ const StyleVaultScreen = () => {
 
   return (
     <View style={styles.container}>
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 20 }]}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 20}
       >
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 20 }]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
         {/* SECTION 1: IDENTITY */}
         <View style={styles.header}>
           <View style={styles.headerTop}>
@@ -2215,6 +2218,16 @@ const StyleVaultScreen = () => {
                 )}
               </View>
             </LinearGradient>
+            {/* Edit Icon */}
+            <Pressable
+              style={styles.avatarEditIcon}
+              onPress={(e) => {
+                e.stopPropagation();
+                setShowEditProfileModal(true);
+              }}
+            >
+              <Ionicons name="refresh" size={14} color="#fff" />
+            </Pressable>
           </Pressable>
           
           <Text style={styles.greeting}>Hey, {username} 👋</Text>
@@ -2385,7 +2398,7 @@ const StyleVaultScreen = () => {
                                   setShowFacePhotoGuidelines(true);
                                 }}
                               >
-                                <Text style={styles.photoEditIconText}>✏️</Text>
+                                <Ionicons name="refresh" size={12} color="#fff" />
                               </Pressable>
                             </View>
                           ) : (
@@ -2993,7 +3006,7 @@ const StyleVaultScreen = () => {
                           setShowBodyPhotoGuidelines(true);
                         }}
                       >
-                        <Text style={styles.photoEditIconText}>✏️</Text>
+                        <Ionicons name="refresh" size={12} color="#fff" />
                       </Pressable>
                     </View>
                   ) : null}
@@ -3206,7 +3219,6 @@ const StyleVaultScreen = () => {
                                 .single();
                               
                               if (error) {
-                                console.error('Error saving:', error);
                                 showBanner('Failed to save', 'error');
                                 return;
                               }
@@ -3375,7 +3387,6 @@ const StyleVaultScreen = () => {
                         setFriendSearchResults([]);
                       }
                     } catch (error) {
-                      console.error('Error searching friends:', error);
                       setFriendSearchResults([]);
                     } finally {
                       setIsSearchingFriends(false);
@@ -3459,7 +3470,6 @@ const StyleVaultScreen = () => {
                                 next.delete(profile.id);
                                 return next;
                               });
-                              console.error('Error adding friend:', error);
                               Alert.alert('Error', 'Failed to add friend. Please try again.');
                             }
                           }
@@ -3593,7 +3603,6 @@ const StyleVaultScreen = () => {
                               // Reload to refresh all lists (this will add to friends)
                               await loadFriends();
                             } catch (error) {
-                              console.error('Error accepting request:', error);
                               Alert.alert('Error', 'Failed to accept friend request.');
                             }
                           }
@@ -3619,7 +3628,6 @@ const StyleVaultScreen = () => {
                               // Reload to refresh all lists
                               await loadFriends();
                             } catch (error) {
-                              console.error('Error rejecting request:', error);
                               Alert.alert('Error', 'Failed to reject friend request.');
                             }
                           }
@@ -3800,70 +3808,12 @@ const StyleVaultScreen = () => {
           <Text style={styles.deleteAccountDescription}>
             Permanently delete your account and all data including profile, measurements, color analysis, saved outfits, and friends list.
           </Text>
-          <Text style={styles.deleteAccountInstruction}>
-            Type "delete" to enable account deletion:
-          </Text>
-          <TextInput
-            style={styles.deleteConfirmInput}
-            placeholder='Type "delete" to confirm'
-            placeholderTextColor="rgba(255,68,68,0.4)"
-            value={deleteConfirmText}
-            onChangeText={setDeleteConfirmText}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
         </View>
         <Pressable
-          style={[
-            styles.deleteAccountButton,
-            deleteConfirmText.toLowerCase() !== 'delete' && styles.deleteAccountButtonDisabled
-          ]}
-          disabled={isDeletingAccount || deleteConfirmText.toLowerCase() !== 'delete'}
+          style={styles.deleteAccountButton}
+          disabled={isDeletingAccount}
           onPress={() => {
-            Alert.alert(
-              'Final Confirmation',
-              'This action is IRREVERSIBLE. Are you absolutely sure you want to delete your account?',
-              [
-                { text: 'Cancel', style: 'cancel', onPress: () => setDeleteConfirmText('') },
-                {
-                  text: 'Yes, Delete Forever',
-                  style: 'destructive',
-                  onPress: async () => {
-                    setIsDeletingAccount(true);
-                    try {
-                      const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL;
-                      const response = await fetch(`${API_BASE}/api/delete-account`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          userId: user?.id,
-                          confirmEmail: user?.email,
-                        }),
-                      });
-                      
-                      const result = await response.json();
-                      
-                      if (response.ok && result.success) {
-                        // Sign out and navigate to auth
-                        await supabase.auth.signOut();
-                        if (setUser) setUser(null);
-                        if (setSavedFits) setSavedFits([]);
-                        if (setRoute) setRoute('auth');
-                        Alert.alert('Account Deleted', 'Your account has been permanently deleted.');
-                      } else {
-                        throw new Error(result.error || 'Failed to delete account');
-                      }
-                    } catch (error) {
-                      console.error('Error deleting account:', error);
-                      Alert.alert('Error', 'Failed to delete account. Please try again or contact support.');
-                    } finally {
-                      setIsDeletingAccount(false);
-                      setDeleteConfirmText('');
-                    }
-                  }
-                }
-              ]
-            );
+            setShowDeleteAccountModal(true);
           }}
         >
           {isDeletingAccount ? (
@@ -3874,7 +3824,8 @@ const StyleVaultScreen = () => {
         </Pressable>
       </View>
 
-    </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
     {/* Multi-Photo Face Analysis Modal */}
     <Modal visible={showMultiPhotoModal} transparent={true} animationType="slide">
@@ -4057,7 +4008,7 @@ const StyleVaultScreen = () => {
                               );
                             }}
                           >
-                            <Text style={styles.photoEditIconText}>✏️</Text>
+                            <Ionicons name="refresh" size={12} color="#fff" />
                           </Pressable>
                         </View>
                       ) : (
@@ -4271,7 +4222,6 @@ const StyleVaultScreen = () => {
                       Alert.alert('Analysis Failed', errorMessage);
                     }
                   } catch (error) {
-                    console.error('Multi-photo analysis error:', error);
                     Alert.alert('Error', 'Failed to analyze photos. Please try again.');
                   } finally {
                     setIsAnalyzingMultiPhoto(false);
@@ -4540,7 +4490,6 @@ const StyleVaultScreen = () => {
                         });
                       }
                     } catch (error) {
-                      console.error('Quick check color pick error:', error);
                       } finally {
                         setIsQuickCheckSampling(false);
                       }
@@ -4656,7 +4605,6 @@ const StyleVaultScreen = () => {
                             });
                           }
                         } catch (error) {
-                          console.error('Quick check analysis error:', error);
                           setQuickCheckResult({
                             verdict: 'unknown',
                             summary: 'Failed to analyze color. Please try again.',
@@ -5172,15 +5120,13 @@ const StyleVaultScreen = () => {
                       saveError = error;
                       
                       if (error) {
-                        console.error('💾 Upsert error:', error);
+                        // Upsert error
                       }
                     } catch (err) {
-                      console.error('💾 Save threw exception:', err);
                       saveError = err;
                     }
                     
                     if (saveError) {
-                      console.error('Error saving profile:', saveError);
                       showBanner('Failed to save profile', 'error');
                     } else {
                       // Reload profile data to ensure UI is in sync
@@ -5190,7 +5136,6 @@ const StyleVaultScreen = () => {
                   }
                   setShowFitProfile(false);
                 } catch (error) {
-                  console.error('Error saving profile:', error);
                   showBanner('Failed to save profile', 'error');
                 }
               }}
@@ -5327,7 +5272,6 @@ const StyleVaultScreen = () => {
               setShowMultiPhotoModal(true);
             }, 100);
           } catch (error) {
-            console.error('Error processing cropped photo:', error);
             Alert.alert('Error', 'Failed to process photo. Please try again.');
             // Re-open multi-photo modal even on error
             setTimeout(() => {
@@ -5386,7 +5330,6 @@ const StyleVaultScreen = () => {
             // Proceed with analysis
             await proceedWithAnalysis(imageUri, cropInfo);
           } catch (error) {
-            console.error('🎨 [FACE CROP] Error:', error);
             setIsAnalyzingFace(false);
             setFaceAnalysisError(`Failed to process photo: ${error.message || 'Unknown error'}`);
             Alert.alert('Error', `Failed to process photo: ${error.message || 'Unknown error'}`);
@@ -5503,7 +5446,6 @@ const StyleVaultScreen = () => {
                     }
                     setShowEditProfileModal(false);
                   } catch (error) {
-                    console.error('Error updating profile:', error);
                     showBanner('Failed to save profile', 'error');
                   }
                 }}
@@ -5639,6 +5581,220 @@ const StyleVaultScreen = () => {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Delete Account Credentials Modal */}
+      <Modal visible={showDeleteAccountModal} transparent={true} animationType="slide">
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Delete Account</Text>
+                <Pressable 
+                  onPress={() => {
+                    setShowDeleteAccountModal(false);
+                    setDeleteAccountEmail('');
+                    setDeleteAccountPassword('');
+                  }}
+                  disabled={isVerifyingCredentials || isDeletingAccount}
+                >
+                  <Text style={styles.modalClose}>✕</Text>
+                </Pressable>
+              </View>
+              
+              <ScrollView 
+                style={styles.modalScroll}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ paddingBottom: 20 }}
+              >
+                <Text style={styles.deleteAccountWarning}>
+                  ⚠️ This action is IRREVERSIBLE
+                </Text>
+                <Text style={styles.deleteAccountDescription}>
+                  To confirm account deletion, please enter your email and password.
+                </Text>
+                
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Email</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your email"
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    value={deleteAccountEmail}
+                    onChangeText={setDeleteAccountEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    editable={!isVerifyingCredentials && !isDeletingAccount}
+                  />
+                </View>
+                
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Password</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your password"
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    value={deleteAccountPassword}
+                    onChangeText={setDeleteAccountPassword}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    editable={!isVerifyingCredentials && !isDeletingAccount}
+                  />
+                </View>
+                
+                <Pressable
+                  style={[
+                    styles.deleteAccountButton,
+                    (!deleteAccountEmail || !deleteAccountPassword || isVerifyingCredentials || isDeletingAccount) && styles.deleteAccountButtonDisabled
+                  ]}
+                  disabled={!deleteAccountEmail || !deleteAccountPassword || isVerifyingCredentials || isDeletingAccount}
+                  onPress={async () => {
+                    setIsVerifyingCredentials(true);
+                    try {
+                      // Verify credentials by attempting to sign in
+                      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+                        email: deleteAccountEmail.trim(),
+                        password: deleteAccountPassword,
+                      });
+                      
+                      if (signInError || !signInData?.user) {
+                        Alert.alert(
+                          'Verification Failed',
+                          'Invalid email or password. Please check your credentials and try again.',
+                          [{ text: 'OK' }]
+                        );
+                        setIsVerifyingCredentials(false);
+                        return;
+                      }
+                      
+                      // Verify the signed-in user matches the current user
+                      if (signInData.user.id !== user?.id) {
+                        // Sign out the wrong user
+                        await supabase.auth.signOut();
+                        Alert.alert(
+                          'Verification Failed',
+                          'The credentials provided do not match this account.',
+                          [{ text: 'OK' }]
+                        );
+                        setIsVerifyingCredentials(false);
+                        return;
+                      }
+                      
+                      // Credentials verified, show final confirmation
+                      setIsVerifyingCredentials(false);
+                      Alert.alert(
+                        'Final Confirmation',
+                        'This action is IRREVERSIBLE. Are you absolutely sure you want to delete your account?',
+                        [
+                          { 
+                            text: 'Cancel', 
+                            style: 'cancel',
+                            onPress: () => {
+                              setShowDeleteAccountModal(false);
+                              setDeleteAccountEmail('');
+                              setDeleteAccountPassword('');
+                            }
+                          },
+                          {
+                            text: 'Yes, Delete Forever',
+                            style: 'destructive',
+                            onPress: async () => {
+                              setIsDeletingAccount(true);
+                              try {
+                                const API_BASE = process.env.EXPO_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_URL;
+                                
+                                if (!API_BASE) {
+                                  throw new Error('API URL not configured. Please contact support.');
+                                }
+                                
+                                if (!user?.id) {
+                                  throw new Error('User ID not found. Please sign in again.');
+                                }
+                                
+                                const requestBody = {
+                                  userId: user.id,
+                                  confirmEmail: deleteAccountEmail.trim(),
+                                };
+                                
+                                console.log('Deleting account for user:', user.id);
+                                console.log('API URL:', `${API_BASE}/api/delete-account`);
+                                
+                                const response = await fetch(`${API_BASE}/api/delete-account`, {
+                                  method: 'POST',
+                                  headers: { 
+                                    'Content-Type': 'application/json',
+                                  },
+                                  body: JSON.stringify(requestBody),
+                                });
+                                
+                                console.log('Delete account response status:', response.status);
+                                
+                                // Get response text first to handle both JSON and non-JSON responses
+                                const responseText = await response.text();
+                                console.log('Delete account response:', responseText);
+                                
+                                let result;
+                                try {
+                                  result = JSON.parse(responseText);
+                                } catch (parseError) {
+                                  throw new Error(`Invalid response from server: ${response.status} ${response.statusText}`);
+                                }
+                                
+                                if (!response.ok) {
+                                  // Extract error message from response
+                                  const errorMessage = result.error || result.details || result.message || `Server error: ${response.status}`;
+                                  throw new Error(errorMessage);
+                                }
+                                
+                                if (result.success) {
+                                  // Sign out and navigate to auth
+                                  await supabase.auth.signOut();
+                                  if (setUser) setUser(null);
+                                  if (setSavedFits) setSavedFits([]);
+                                  if (setRoute) setRoute('auth');
+                                  Alert.alert('Account Deleted', 'Your account has been permanently deleted.');
+                                } else {
+                                  throw new Error(result.error || result.details || 'Failed to delete account');
+                                }
+                              } catch (error) {
+                                console.error('Delete account error:', error);
+                                const errorMessage = error?.message || error?.toString() || 'Failed to delete account. Please try again or contact support.';
+                                Alert.alert('Error', errorMessage);
+                              } finally {
+                                setIsDeletingAccount(false);
+                                setShowDeleteAccountModal(false);
+                                setDeleteAccountEmail('');
+                                setDeleteAccountPassword('');
+                              }
+                            }
+                          }
+                        ]
+                      );
+                    } catch (error) {
+                      setIsVerifyingCredentials(false);
+                      Alert.alert(
+                        'Error',
+                        'Failed to verify credentials. Please try again.',
+                        [{ text: 'OK' }]
+                      );
+                    }
+                  }}
+                >
+                  {isVerifyingCredentials ? (
+                    <ActivityIndicator color="#ff4444" size="small" />
+                  ) : (
+                    <Text style={styles.deleteAccountText}>Verify & Continue</Text>
+                  )}
+                </Pressable>
+              </ScrollView>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 };
@@ -5746,6 +5902,20 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 37,
+  },
+  avatarEditIcon: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 14,
+    width: 28,
+    height: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+    borderWidth: 2,
+    borderColor: '#6366f1',
   },
   settingsButton: {
     fontSize: 14,
@@ -6387,22 +6557,6 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginBottom: 12,
   },
-  deleteAccountInstruction: {
-    color: 'rgba(255, 68, 68, 0.7)',
-    fontSize: 12,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  deleteConfirmInput: {
-    backgroundColor: 'rgba(255, 68, 68, 0.1)',
-    borderRadius: 12,
-    padding: 12,
-    color: '#ff4444',
-    textAlign: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 68, 68, 0.2)',
-    fontSize: 14,
-  },
   deleteAccountButton: {
     backgroundColor: 'rgba(255, 68, 68, 0.15)',
     padding: 14,
@@ -6991,7 +7145,6 @@ const styles = StyleSheet.create({
   photoEditIconText: {
     color: '#fff',
     fontSize: 12,
-    transform: [{ scaleX: -1 }], // Mirror the pencil icon horizontally (correct angle)
   },
   // Color Profile Styles - New Design
   colorSectionNew: {

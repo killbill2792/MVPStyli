@@ -13,7 +13,8 @@ import {
   Share,
   Clipboard,
   Modal,
-  Platform
+  Platform,
+  KeyboardAvoidingView
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from '../lib/SimpleGradient';
@@ -685,7 +686,16 @@ const PodsScreen = ({ onBack, onCreatePod, userId, userName, params }) => {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 20}
+      >
+        <ScrollView 
+          style={styles.scrollView} 
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+        >
         
         {/* Images Section */}
         <View style={styles.section}>
@@ -1215,7 +1225,8 @@ const PodsScreen = ({ onBack, onCreatePod, userId, userName, params }) => {
     </View>
         )}
 
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
       
       {/* Help Modal */}
       <Modal
